@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -29,7 +30,7 @@ try {
   };
   w.on('pageerror', (e) => console.error(e.message));
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
@@ -160,7 +161,7 @@ try {
   assert.ok(state.markdown.includes('```mermaid'));
   assert.ok(state.markdown.includes('表格内容'));
   await w.reload();
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#preview .diagram-ready')
     .waitFor({ timeout: 10000 })

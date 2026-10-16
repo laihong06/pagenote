@@ -35,7 +35,7 @@ node scripts/release-artifacts.mjs
 
 ## macOS 构建
 
-在 Mac 上使用 Node.js 22.13+：
+在 Mac 上使用 Node.js 22.13+ 和 Xcode Command Line Tools。构建会自动编译原生 AppKit 设置组件（arm64，macOS 12+）：
 
 ```sh
 npm ci
@@ -47,7 +47,7 @@ npm run package:mac
 node scripts/release-artifacts.mjs
 ```
 
-`test:mac-office` 需要已激活的本机 Word / PowerPoint。`package:mac` 输出 Apple Silicon 与 Intel 的 DMG / ZIP；仅当前架构的应用目录可运行 `npm run package:mac:local`。Mac 验收还需确认 Finder 双击项目、Dock 重开窗口、Command 菜单快捷键及 Office 自动化授权。当前构建未做开发者签名与公证；正式分发前应配置 Apple 开发者身份并在干净机器验证。
+`test:mac-office` 需要已激活的本机 Word / PowerPoint。`package:mac` 仅输出 Apple Silicon（arm64）的 DMG / ZIP；arm64 应用目录可运行 `npm run package:mac:local`。Mac 验收还需确认 Finder 双击项目、Dock 重开窗口、Command 菜单快捷键及 Office 自动化授权。当前构建未做开发者签名与公证；正式分发前应配置 Apple 开发者身份并在干净机器验证。
 
 ## 发布 Release
 

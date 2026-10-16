@@ -1,3 +1,5 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
+import { useWebSettings } from './web-settings.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -22,7 +24,8 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
+  await useWebSettings(app);
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
@@ -240,7 +243,7 @@ try {
   await w.evaluate(() => window.pageNotes.flush());
   await w.locator('#inkDone').click();
   await w.reload();
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const saved = await w.evaluate(() => window.pageNotes.getAnnotations());
   assert.equal(saved.items.document[1].length, 4);
   assert.equal(saved.items.note[1].length, 1, 'annotations survive reload');

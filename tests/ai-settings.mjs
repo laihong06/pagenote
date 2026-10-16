@@ -1,3 +1,5 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
+import { useWebSettings } from './web-settings.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -24,7 +26,8 @@ let app = await launch(),
 try {
   let w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
+  await useWebSettings(app);
   await w.evaluate(
     (locale) => window.pageNotes.setLanguage(locale),
     process.env.TEST_LOCALE || 'zh-CN',
@@ -147,7 +150,8 @@ try {
   app = await launch();
   w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
+  await useWebSettings(app);
   await w.evaluate(() => window.pageNotes.openAISettings());
   assert.equal(await w.locator('#aiSystemPrompt').inputValue(), custom);
   await w.locator('#aiPromptReset').click();

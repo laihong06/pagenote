@@ -249,6 +249,11 @@ export function createReviews({
       )
         continue;
       const bounds = host.getBoundingClientRect(),
+        // Range/viewport rectangles already include CSS page magnification.
+        // Absolute children need local CSS pixels, relative to the padding box.
+        magnification = Number(getComputedStyle(host).zoom) || 1,
+        localX = (x) => (x - bounds.left) / magnification - host.clientLeft,
+        localY = (y) => (y - bounds.top) / magnification - host.clientTop,
         point = record.anchor.shape.points[0],
         badge =
           [...host.querySelectorAll('.review-marker')].find(
@@ -258,8 +263,8 @@ export function createReviews({
       badge.className = 'review-marker';
       if (badge.textContent !== String(record.number))
         badge.textContent = record.number;
-      let tagLeft = (point[0] * bounds.width) / 1000 + 3,
-        tagTop = (point[1] * bounds.width) / 1000 - 20;
+      let tagLeft = localX(bounds.left + (point[0] * bounds.width) / 1000) + 3,
+        tagTop = localY(bounds.top + (point[1] * bounds.width) / 1000) - 20;
       badge.title = record.instruction;
       badge.ondblclick = () => {
         show(record.side);
@@ -291,15 +296,15 @@ export function createReviews({
           mark.dataset.line = String(index);
           mark.className = 'review-highlight';
           kept.add(mark);
-          mark.style.left = r.left - bounds.left + 'px';
-          mark.style.top = r.top - bounds.top + 'px';
-          mark.style.width = r.width + 'px';
-          mark.style.height = r.height + 'px';
+          mark.style.left = localX(r.left) + 'px';
+          mark.style.top = localY(r.top) + 'px';
+          mark.style.width = r.width / magnification + 'px';
+          mark.style.height = r.height / magnification + 'px';
           if (mark.parentNode !== host) host.append(mark);
         }
         const r = rects[0];
-        tagLeft = r.right - bounds.left + 3;
-        tagTop = r.top - bounds.top - 20;
+        tagLeft = localX(r.right) + 3;
+        tagTop = localY(r.top) - 20;
       }
       const left = tagLeft + 'px',
         top = tagTop + 'px';

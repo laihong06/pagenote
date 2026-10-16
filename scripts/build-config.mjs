@@ -84,6 +84,10 @@ if (platform === 'win') {
   );
   Object.assign(build, {
     extraResources: [
+      {
+        from: 'build/mac-settings/pagenote Settings.app',
+        to: 'pagenote Settings.app',
+      },
       { from: 'mcp-dist/page-notes-mcp.cjs', to: 'page-notes-mcp.cjs' },
       { from: 'mcp-dist/mcp-node', to: 'mcp-node' },
       { from: 'desktop/mac-office.applescript', to: 'mac-office.applescript' },
@@ -111,8 +115,8 @@ if (platform === 'win') {
     ]),
     mac: {
       target: [
-        { target: 'dmg', arch: ['arm64', 'x64'] },
-        { target: 'zip', arch: ['arm64', 'x64'] },
+        { target: 'dmg', arch: ['arm64'] },
+        { target: 'zip', arch: ['arm64'] },
       ],
       icon: 'build/icon.icns',
       category: 'public.app-category.education',

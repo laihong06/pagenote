@@ -10,7 +10,23 @@ import { setupMarkdownTools, htmlToMarkdown } from './editing.js';
 import { createReviews } from './reviews.js';
 import { createAITools } from './ai-tools.js';
 import { createRichEditor } from './rich-editor.js';
+import {
+  createReadingGestures,
+  pageAnchor,
+  restorePageAnchor,
+} from './gestures.js';
 import { preparePageData } from './page-data.js';
+import { showWelcome, showFirstWelcome } from './hello.js';
+import {
+  initializeTheme,
+  getTheme,
+  setTheme,
+  getMarkdownTheme,
+  setMarkdownTheme,
+  refreshMarkdownTheme,
+} from './theme.js';
+import './theme.css';
+import './reading-theme.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = worker;
 const $ = (id) => document.getElementById(id);
@@ -59,7 +75,9 @@ function applyLayout(value) {
     noteAnimation?.cancel();
     noteAnimation = null;
   }
+  applyNoteZoom(false);
   growEditor();
+  document.dispatchEvent(new Event('settings-layout-changed'));
 }
 function growEditor() {
   const e = $('editor');
@@ -315,6 +333,7 @@ function loadNote(direction = 0) {
     );
 }
 let pageSheets = [],
+  readingGestures,
   pageTasks = new Map(),
   documentBuild = 0,
   scrollFrame = 0,
@@ -329,25 +348,30 @@ function documentZoomAnchor(event) {
   const scroller = $('documentScroll'),
     sheet = event?.target.closest('.document-sheet') || currentSheet();
   if (!sheet) return null;
-  const r = sheet.getBoundingClientRect(),
-    s = scroller.getBoundingClientRect();
-  const filled =
-    r.width >= scroller.clientWidth - 57 ||
-    r.height >= scroller.clientHeight - 57;
-  const pointer = event && filled;
-  const x = pointer
-    ? Math.max(r.left, Math.min(r.right, event.clientX))
-    : r.left + r.width / 2;
-  const y = pointer
-    ? Math.max(r.top, Math.min(r.bottom, event.clientY))
-    : r.top + r.height / 2;
   return {
     page: Number(sheet.dataset.page),
-    x: (x - r.left) / r.width,
-    y: (y - r.top) / r.height,
-    screenX: x - s.left,
-    screenY: y - s.top,
+    ...pageAnchor(scroller, sheet, event),
   };
+}
+function documentEdges() {
+  const scroller = $('documentScroll');
+  const edge = Math.max(
+    28,
+    (scroller.clientHeight -
+      (currentSheet()?.getBoundingClientRect().height || 0)) /
+      2,
+  );
+  scroller.style.paddingTop = scroller.style.paddingBottom = edge + 'px';
+}
+function applyDocumentZoom(value, event) {
+  const anchor = documentZoomAnchor(event);
+  zoom = value;
+  // CSS magnification changes layout and hit testing together, including PDF
+  // selection, reviews and SVG ink. Keep all backing stores and text DOM alive.
+  for (const sheet of pageSheets) sheet.style.zoom = zoom;
+  documentEdges();
+  restorePageAnchor($('documentScroll'), pageSheets[anchor?.page - 1], anchor);
+  $('zoomLabel').textContent = Math.round(zoom * 100) + '%';
 }
 function markCurrentSheet() {
   document
@@ -360,7 +384,14 @@ function markCurrentSheet() {
 }
 async function paintSheet(index) {
   const sheet = pageSheets[index];
-  if (!sheet || sheet.dataset.painted || pageTasks.has(sheet)) return;
+  if (!sheet || pageTasks.has(sheet)) return;
+  const magnification = zoom;
+  const painted = doc.kind === 'pdf' ? String(magnification) : '1';
+  if (
+    sheet.dataset.painted === painted ||
+    (readingGestures?.active && sheet.dataset.painted)
+  )
+    return;
   const epoch = documentBuild;
   const child = sheet.firstElementChild;
   if (doc.kind === 'markdown') {
@@ -372,34 +403,57 @@ async function paintSheet(index) {
   const p = await source.getPage(index + 1);
   if (epoch !== documentBuild || !sheet.isConnected || pageTasks.has(sheet))
     return;
-  const viewport = p.getViewport({ scale: Number(sheet.dataset.scale) }),
+  const baseViewport = p.getViewport({ scale: Number(sheet.dataset.scale) }),
+    viewport = p.getViewport({
+      scale: Number(sheet.dataset.scale) * magnification,
+    }),
     ratio = window.devicePixelRatio || 1;
-  child.width = Math.floor(viewport.width * ratio);
-  child.height = Math.floor(viewport.height * ratio);
+  const backing = document.createElement('canvas');
+  backing.width = Math.floor(viewport.width * ratio);
+  backing.height = Math.floor(viewport.height * ratio);
   const task = p.render({
-    canvasContext: child.getContext('2d'),
+    canvasContext: backing.getContext('2d'),
     viewport,
     transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0],
   });
   pageTasks.set(sheet, task);
   try {
     await task.promise;
-    if (epoch === documentBuild) sheet.dataset.painted = '1';
+    if (
+      epoch === documentBuild &&
+      magnification === zoom &&
+      sheet.isConnected
+    ) {
+      child.width = backing.width;
+      child.height = backing.height;
+      child.getContext('2d').drawImage(backing, 0, 0);
+      sheet.dataset.painted = painted;
+    }
   } catch (e) {
     if (e.name !== 'RenderingCancelledException') throw e;
   } finally {
     if (pageTasks.get(sheet) === task) pageTasks.delete(sheet);
   }
+  if (epoch !== documentBuild || !sheet.isConnected) return;
+  if (magnification !== zoom && !readingGestures?.active) paintVisible();
   if (epoch === documentBuild && !sheet.querySelector('.textLayer')) {
+    const text = await p.getTextContent();
+    if (
+      epoch !== documentBuild ||
+      !sheet.isConnected ||
+      sheet.querySelector('.textLayer')
+    )
+      return;
     const layer = document.createElement('div');
     layer.className = 'textLayer';
     layer.style.setProperty('--total-scale-factor', sheet.dataset.scale);
     sheet.append(layer);
     await new pdfjs.TextLayer({
-      textContentSource: await p.getTextContent(),
+      textContentSource: text,
       container: layer,
-      viewport,
+      viewport: baseViewport,
     }).render();
+    if (epoch !== documentBuild) layer.remove();
   }
 }
 function visiblePage() {
@@ -416,6 +470,7 @@ async function syncScrollPage() {
   if (
     switching ||
     scrollSuspended ||
+    readingGestures?.active ||
     !doc ||
     !pageSheets.length ||
     $('workspace').dataset.focus === 'note' ||
@@ -473,17 +528,14 @@ async function endMarkdownDocument() {
 }
 async function renderPage(anchor = null) {
   if (documentMarkdownEditing) return;
+  readingGestures?.cancel();
   const epoch = ++documentBuild;
   $('zoomLabel').textContent = Math.round(zoom * 100) + '%';
   if (!doc) return;
   scrollSuspended = true;
   userScrollUntil = 0;
-  const scroller = $('documentScroll'),
-    old = currentSheet();
-  const relative = old
-    ? (scroller.scrollTop + scroller.clientHeight / 2 - old.offsetTop) /
-      Math.max(1, old.offsetHeight)
-    : 0;
+  const scroller = $('documentScroll');
+  anchor ||= documentZoomAnchor();
   const canceled = [...pageTasks.values()];
   for (const task of canceled) task.cancel();
   await Promise.all(canceled.map((task) => task.promise.catch(() => {})));
@@ -512,7 +564,7 @@ async function renderPage(anchor = null) {
       const base = p.getViewport({ scale: 1 }),
         scale = Math.max(
           0.15,
-          Math.min(availableW / base.width, availableH / base.height) * zoom,
+          Math.min(availableW / base.width, availableH / base.height),
         ),
         view = p.getViewport({ scale });
       sheet.dataset.scale = scale;
@@ -521,11 +573,12 @@ async function renderPage(anchor = null) {
       child.style.width = view.width + 'px';
       child.style.height = view.height + 'px';
     } else {
-      sheet.style.width = availableW * zoom + 'px';
+      sheet.style.width = availableW + 'px';
       child.className = 'prose markdown-page';
       renderMarkdown(mdPages[i], child);
       sheet.dataset.painted = '1';
     }
+    sheet.style.zoom = zoom;
     sheets.push(sheet);
   }
   if (epoch !== documentBuild) return;
@@ -539,29 +592,18 @@ async function renderPage(anchor = null) {
   $('paper').hidden = false;
   markCurrentSheet();
   annotations.mountDocument(sheets);
-  const edge = Math.max(
-    28,
-    (scroller.clientHeight - currentSheet().offsetHeight) / 2,
-  );
-  scroller.style.paddingTop = edge + 'px';
-  scroller.style.paddingBottom = edge + 'px';
+  documentEdges();
   const target = anchor && pageSheets[anchor.page - 1];
-  scroller.scrollTo({
-    top: Math.max(
-      0,
-      target
-        ? target.offsetTop + anchor.y * target.offsetHeight - anchor.screenY
-        : currentSheet().offsetTop +
-            (old
-              ? relative * currentSheet().offsetHeight -
-                scroller.clientHeight / 2
-              : -edge),
-    ),
-    left: target
-      ? target.offsetLeft + anchor.x * target.offsetWidth - anchor.screenX
-      : scroller.scrollLeft,
-    behavior: 'instant',
-  });
+  if (target) restorePageAnchor(scroller, target, anchor);
+  else
+    scroller.scrollTo({
+      top:
+        currentSheet().getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop -
+        parseFloat(scroller.style.paddingTop),
+      behavior: 'instant',
+    });
   await paintSheet(page - 1);
   if (epoch !== documentBuild) return;
   scrollSuspended = false;
@@ -570,14 +612,19 @@ async function renderPage(anchor = null) {
 }
 async function goTo(next, smooth = false) {
   if (!doc) return;
+  readingGestures?.cancel();
   next = Math.max(1, Math.min(total, Math.floor(Number(next) || 1)));
   if (smooth && $('workspace').dataset.focus === 'note')
     return goTo(next, false);
   const sheet = pageSheets[next - 1];
   if (!sheet) return;
+  const scroller = $('documentScroll'),
+    rect = sheet.getBoundingClientRect();
   const targetTop =
-    sheet.offsetTop -
-    Math.max(28, ($('documentScroll').clientHeight - sheet.offsetHeight) / 2);
+    rect.top -
+    scroller.getBoundingClientRect().top +
+    scroller.scrollTop -
+    Math.max(28, (scroller.clientHeight - rect.height) / 2);
   if (smooth) {
     focusFreeze = 0;
     userScrollUntil = Date.now() + 3000;
@@ -642,6 +689,7 @@ async function performOpenDocument(meta, fromWord = false) {
       );
     const newNotes = await request(`/api/documents/${meta.id}/notes`);
     scrollSuspended = true;
+    readingGestures?.cancel();
     for (const task of pageTasks.values()) task.cancel();
     pageTasks.clear();
     pageSheets = [];
@@ -1069,14 +1117,14 @@ document.querySelectorAll('[data-mode]').forEach(
 );
 $('editor').addEventListener('input', editChanged);
 $('zoomOut').onclick = safely(() => {
-  const anchor = documentZoomAnchor();
-  zoom = Math.max(0.4, zoom - 0.1);
-  return renderPage(anchor);
+  readingGestures.cancel();
+  applyDocumentZoom(Math.max(0.4, zoom - 0.1));
+  paintVisible();
 });
 $('zoomIn').onclick = safely(() => {
-  const anchor = documentZoomAnchor();
-  zoom = Math.min(3, zoom + 0.1);
-  return renderPage(anchor);
+  readingGestures.cancel();
+  applyDocumentZoom(Math.min(4, zoom + 0.1));
+  paintVisible();
 });
 $('fit').onclick = safely(() => {
   zoom = 1;
@@ -1133,7 +1181,7 @@ $('exportNote').onclick = safely(async () => {
 });
 $('helpButton').onclick = () => $('help').showModal();
 $('closeHelp').onclick = () => $('help').close();
-$('settingsButton').onclick = () => $('settings').showModal();
+$('settingsButton').onclick = () => openSettings();
 $('closeSettings').onclick = () => $('settings').close();
 let defaultAIPrompt = '';
 let promptDrafts = {},
@@ -1152,7 +1200,7 @@ $('aiPromptModule').onchange = safely(async () => {
   promptDrafts[selectedPrompt].text = $('aiSystemPrompt').value;
   await loadPromptModule($('aiPromptModule').value);
 });
-async function openAISettings() {
+async function openWebAISettings() {
   const settings = await request('/api/ai-settings');
   promptDrafts = {
     system: {
@@ -1168,6 +1216,20 @@ async function openAISettings() {
   if ($('settings').open) $('settings').close();
   $('aiSettings').showModal();
 }
+async function openSettings(pane) {
+  if (window.desktopSettings) {
+    try {
+      const result = await window.desktopSettings.open(pane);
+      if (result.native) return result;
+    } catch {
+      toast(t('无法打开原生设置，已打开应用内设置。'));
+    }
+  }
+  if (pane === 'ai') await openWebAISettings();
+  else $('settings').showModal();
+  return { native: false };
+}
+const openAISettings = () => openSettings('ai');
 $('aiSettingsButton').onclick = safely(openAISettings);
 $('aiSettingsCancel').onclick = () => $('aiSettings').close();
 $('aiPromptReset').onclick = () => {
@@ -1534,7 +1596,7 @@ $('documentScroll').addEventListener('scroll', () => {
 $('documentScroll').addEventListener(
   'wheel',
   (e) => {
-    if (!e.ctrlKey) {
+    if (!e.ctrlKey && !e.metaKey) {
       focusFreeze = 0;
       userScrollUntil = Date.now() + 2500;
     }
@@ -1561,41 +1623,75 @@ $('documentScroll').addEventListener('keydown', (e) => {
     userScrollUntil = Date.now() + 2500;
   }
 });
-let noteZoom = Number(localStorage.getItem('note-zoom')) || 1,
-  zoomTimer;
-function applyNoteZoom() {
-  document.documentElement.style.setProperty('--note-zoom', noteZoom);
-  localStorage.setItem('note-zoom', String(noteZoom));
-  growEditor();
+let noteZoom = Math.max(
+  0.65,
+  Math.min(2.5, Number(localStorage.getItem('note-zoom')) || 1),
+);
+function applyNoteZoom(persist = true) {
+  const scroller = $('noteScroll'),
+    style = getComputedStyle(scroller);
+  const width = Math.max(
+    1,
+    Math.min(
+      layout.noteWidth,
+      scroller.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight),
+    ),
+  );
+  const body = $('noteBody'),
+    nextWidth = width + 'px';
+  const reflow = body.style.width !== nextWidth;
+  body.style.width = nextWidth;
+  body.style.zoom = noteZoom;
+  if (persist) localStorage.setItem('note-zoom', String(noteZoom));
+  if (reflow) growEditor();
 }
 applyNoteZoom();
-document.addEventListener(
-  'wheel',
-  (e) => {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (!e.deltaY) return;
-    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-    if (e.target.closest('.document-pane')) {
-      if (!doc) return;
-      const anchor = documentZoomAnchor(e);
-      zoom = Math.max(0.4, Math.min(4, zoom * factor));
-      $('zoomLabel').textContent = Math.round(zoom * 100) + '%';
-      clearTimeout(zoomTimer);
-      zoomTimer = setTimeout(
-        () => renderPage(anchor).catch((err) => toast(err.message)),
-        60,
-      );
-    } else if (e.target.closest('.note-pane')) {
-      noteZoom = Math.max(0.65, Math.min(2.5, noteZoom * factor));
-      applyNoteZoom();
-      $('wordCount').textContent =
-        `${$('editor').value.replace(/\s/g, '').length.toLocaleString()} 字 · 字号 ${Math.round(noteZoom * 100)}%`;
-    }
-  },
-  { passive: false, capture: true },
-);
+readingGestures = createReadingGestures({
+  onError: (err) => toast(err.message),
+  panes: [
+    {
+      element: $('documentScroll'),
+      min: 0.4,
+      max: 4,
+      enabled: () =>
+        !!doc &&
+        !wordActive &&
+        !documentMarkdownEditing &&
+        !scrollSuspended &&
+        !annotations.drawing,
+      getScale: () => zoom,
+      start: () => {
+        userScrollUntil = 0;
+      },
+      setScale: applyDocumentZoom,
+      settle: () => {
+        paintVisible();
+        reviews?.refresh();
+      },
+    },
+    {
+      element: $('noteScroll'),
+      min: 0.65,
+      max: 2.5,
+      enabled: () => !!doc && !annotations.drawing,
+      getScale: () => noteZoom,
+      setScale(value, event) {
+        const anchor = pageAnchor($('noteScroll'), $('noteBody'), event);
+        noteZoom = value;
+        applyNoteZoom(false);
+        restorePageAnchor($('noteScroll'), $('noteBody'), anchor);
+        $('wordCount').textContent =
+          `${$('editor').value.replace(/\s/g, '').length.toLocaleString()} 字 · 缩放 ${Math.round(noteZoom * 100)}%`;
+      },
+      settle: () => {
+        localStorage.setItem('note-zoom', String(noteZoom));
+        reviews?.refresh();
+      },
+    },
+  ],
+});
 async function waitVisuals() {
   await document.fonts.ready;
   const start = Date.now();
@@ -1663,7 +1759,42 @@ function geometry(selector) {
     background: s.backgroundColor,
   };
 }
+let markdownThemeRequest = 0;
+async function changeMarkdownTheme(value) {
+  const currentRequest = ++markdownThemeRequest;
+  if (value !== getMarkdownTheme()) await annotations.preserveLayout();
+  if (currentRequest !== markdownThemeRequest) return;
+  return setMarkdownTheme(value);
+}
+function getSettingsState() {
+  return {
+    language: getLanguage(),
+    theme: getTheme(),
+    markdownTheme: getMarkdownTheme(),
+    noteAnimation: layout.noteAnimation,
+    expandEditor: layout.expandEditor,
+  };
+}
+async function applySetting(key, value) {
+  if (key === 'language') await setLanguage(value);
+  else if (key === 'theme') await setTheme(value);
+  else if (key === 'markdownTheme') await changeMarkdownTheme(value);
+  else if (['noteAnimation', 'expandEditor'].includes(key)) {
+    if (typeof value !== 'boolean') throw Error('Setting must be boolean');
+    await window.pageNotes.setLayout({ [key]: value });
+    if (key === 'expandEditor' && !value) restorePanels();
+  } else throw Error('Unsupported setting');
+  return getSettingsState();
+}
 window.pageNotes = {
+  openSettings,
+  getSettingsState,
+  applySetting,
+  getMarkdownTheme,
+  setMarkdownTheme: changeMarkdownTheme,
+  getTheme,
+  setTheme,
+  showWelcome,
   validateNote,
   openAISettings,
   finishEditing: async () => {
@@ -1854,6 +1985,7 @@ window.pageNotes = {
   },
   prepareCapture: async (id, p, settings, sourceUrl) => {
     await window.pageNotes.ready;
+    await refreshMarkdownTheme();
     if (settings) applyLayout(settings);
     if (sourceUrl) {
       if (!new URLSearchParams(location.search).has('capture'))
@@ -1877,7 +2009,9 @@ window.pageNotes = {
       page,
       total,
       geometry: {
-        document: geometry('#pdfCanvas'),
+        document: geometry(
+          doc.kind === 'pdf' ? '#pdfCanvas' : '#markdownDocument',
+        ),
         note: geometry('#noteScroll'),
       },
     };
@@ -1942,6 +2076,7 @@ const resized = () => {
   resizeTimer = setTimeout(() => {
     if (
       annotations.drawing ||
+      readingGestures.active ||
       scrollSuspended ||
       Date.now() - lastDocumentScroll < 200
     ) {
@@ -1954,12 +2089,29 @@ const resized = () => {
   }, 160);
 };
 window.addEventListener('resize', resized);
-if (!new URLSearchParams(location.search).has('capture'))
-  new ResizeObserver(resized).observe($('documentScroll'));
+if (!new URLSearchParams(location.search).has('capture')) {
+  let viewportWidth = $('documentScroll').clientWidth,
+    viewportHeight = $('documentScroll').clientHeight;
+  new ResizeObserver(() => {
+    const scroller = $('documentScroll');
+    // Zoom changes the centering padding, not the viewport. Rebuilding for
+    // those content-box notifications would discard selection after a pinch.
+    if (
+      scroller.clientWidth === viewportWidth &&
+      scroller.clientHeight === viewportHeight
+    )
+      return;
+    viewportWidth = scroller.clientWidth;
+    viewportHeight = scroller.clientHeight;
+    resized();
+  }).observe($('documentScroll'));
+}
+new ResizeObserver(() => applyNoteZoom(false)).observe($('noteScroll'));
 new ResizeObserver(() => {
   if (!annotations.drawing) annotations.refresh();
 }).observe($('noteBody'));
 window.addEventListener('beforeunload', (e) => {
+  localStorage.setItem('note-zoom', String(noteZoom));
   if (dirty) {
     e.preventDefault();
     e.returnValue = '';
@@ -2094,11 +2246,31 @@ document.addEventListener(
   () => (languageSetting.value = getLanguage()),
 );
 const originalReady = window.pageNotes.ready;
+const themeSetting = document.getElementById('themeSetting');
+const markdownThemeSetting = document.getElementById('markdownThemeSetting');
+markdownThemeSetting.onchange = () =>
+  changeMarkdownTheme(markdownThemeSetting.value).catch((error) =>
+    toast(error.message),
+  );
+document.addEventListener('markdown-theme-changed', () =>
+  requestAnimationFrame(() => annotations.refresh()),
+);
+for (const event of [
+  'language-changed',
+  'appearance-changed',
+  'markdown-theme-changed',
+  'settings-layout-changed',
+])
+  document.addEventListener(event, () => window.desktopSettings?.sync());
+themeSetting.onchange = () =>
+  setTheme(themeSetting.value).catch((error) => toast(error.message));
 window.pageNotes.ready = Promise.all([
   originalReady,
   initializeLanguage(),
-]).then(() => {
+  initializeTheme().catch((error) => toast(error.message)),
+]).then(async () => {
   languageSetting.value = getLanguage();
+  await showFirstWelcome().catch((error) => toast(error.message));
 });
 
 let externalRefreshBusy = false;

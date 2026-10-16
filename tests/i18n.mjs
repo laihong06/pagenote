@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -23,7 +24,7 @@ let app = await launch();
 try {
   let w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLanguage('zh-CN'));
   await w
     .locator('#fileInput')
@@ -79,7 +80,7 @@ try {
   app = await launch();
   w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   assert.equal(await w.evaluate(() => window.pageNotes.getLanguage()), 'en-US');
   assert.equal(
     JSON.parse(

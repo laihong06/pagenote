@@ -3,6 +3,10 @@
   "编辑": ["编辑", "Edit"],
   "查看": ["视图", "View"],
   "设置": ["设置", "Settings"],
+  "无法打开原生设置，已打开应用内设置。": [
+    "无法打开原生设置，已打开应用内设置。",
+    "Native settings could not open. Showing in-app settings instead."
+  ],
   "帮助": ["帮助", "Help"],
   "修改意见": ["AI 标注", "AI Annotations"],
   "AI 批注": ["AI 标注", "AI annotations"],
@@ -192,6 +196,20 @@
   "选中文字 → AI 批注": ["为选中文字添加 AI 标注", "Annotate selected text"],
   "完成": ["完成", "Done"],
   "知道了": ["关闭", "Close"],
+  "再看一次欢迎页": ["再看一次欢迎页", "Replay welcome"],
+  "欢迎页": ["欢迎页", "Welcome"],
+  "外观": ["外观", "Appearance"],
+  "Markdown 主题": ["Markdown 主题", "Markdown theme"],
+  "经典": ["经典", "Classic"],
+  "纸页 · 衬线": ["纸页 · 衬线", "Paper · Serif"],
+  "跟随系统": ["跟随系统", "System"],
+  "浅色": ["浅色", "Light"],
+  "深色": ["深色", "Dark"],
+  "开始使用": ["开始使用", "Get started"],
+  "无法保存欢迎页状态，请重试": [
+    "无法保存欢迎页状态，请重试",
+    "Could not save welcome state. Please try again."
+  ],
   "右侧讲解平滑换页": ["笔记切换动画", "Animate page-linked notes"],
   "左侧翻页时，右侧讲解轻柔淡入。关闭后立即切换。": [
     "切换文档页面时，笔记使用淡入动画。",
@@ -276,9 +294,9 @@
     "从编辑菜单选择文档或笔记区域。Word 编辑需要本机 Microsoft Word。",
     "Choose a source or notes editing pane from Edit. Word editing requires Microsoft Word installed locally."
   ],
-  "Ctrl + 鼠标滚轮缩放所在区域。Markdown 支持代码高亮、公式、图片、表格和 Mermaid。": [
-    "Ctrl + 鼠标滚轮缩放所在区域。Markdown 支持代码高亮、公式、图片、表格和 Mermaid。",
-    "Ctrl + mouse wheel zooms the active pane. Markdown supports highlighted code, equations, images, tables and Mermaid."
+  "触控板双指捏合缩放所在页面，双指上下、左右移动。也可按 Ctrl 或 Command 加鼠标滚轮缩放；点击“适应”或“重置笔记缩放”恢复。Markdown 支持代码高亮、公式、图片、表格和 Mermaid。": [
+    "触控板双指捏合缩放所在页面，双指上下、左右移动。也可按 Ctrl 或 Command 加鼠标滚轮缩放；点击“适应”或“重置笔记缩放”恢复。Markdown 支持代码高亮、公式、图片、表格和 Mermaid。",
+    "Pinch with two fingers to zoom the page under the pointer; scroll with two fingers to move vertically or horizontally. Ctrl or Command + mouse wheel also zooms. Use Fit or Reset notes zoom to restore the default. Markdown supports highlighted code, equations, images, tables and Mermaid."
   ],
   "通过 AI 标注菜单复制 MCP 配置，在外部 AI 客户端连接。软件本身不内置 AI 服务或上传项目。": [
     "通过 AI 标注菜单复制 MCP 配置，在外部 AI 客户端连接。软件本身不内置 AI 服务或上传项目。",

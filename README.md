@@ -109,7 +109,8 @@ Mac 适配由 [obroccolio](https://github.com/obroccolio) 在 [PR #3](https://gi
 ## 其他操作
 
 - **手形工具**用于平移页面；**画笔**提供书写、荧光笔和橡皮擦。
-- Ctrl + 鼠标滚轮缩放当前区域；笔记缩放以字号变化实现。
+- 本地开发版支持触控板双指捏合，连续缩放指针所在的文档或笔记整页；文字、图片与批注同步缩放，松手后 PDF 补充清晰渲染。双指上下、左右滑动可平移放大的页面，沿用系统惯性；也可使用 Ctrl / Command + 鼠标滚轮。
+- 左侧“适应”恢复文档比例；菜单“重置笔记缩放”恢复笔记比例。页面小于视口时居中，放大后可以双向移动。
 - 左侧页间分界越过视图中线时，切换对应笔记；可在设置中关闭切换动画。
 - 自动保留笔记历史，支持恢复；项目、笔迹和标注保存在本机。
 - 项目交给外部 AI 客户端处理时，数据的使用方式取决于该客户端的隐私政策。
@@ -158,7 +159,7 @@ npm run build
 npm run desktop
 ```
 
-开发网页模式：`npm run dev`。生成 Windows 安装包和 ZIP：`npm run package:desktop`；文件夹版：`npm run package:dir`。生成 macOS DMG 与 ZIP（Apple Silicon 和 Intel 双架构）：`npm run package:mac`；仅本机架构的文件夹版：`npm run package:mac:local`。测试套件在 Windows 与 macOS 上均可运行。发布流程见 [中文发布教程](docs/RELEASING.zh-CN.md) 与 [English release guide](docs/RELEASING.en-US.md)。
+开发网页模式：`npm run dev`。Windows 安装包与 ZIP：`npm run package:desktop`；Windows 文件夹版：`npm run package:dir`。macOS DMG 与 ZIP（仅 Apple Silicon / arm64）：`npm run package:mac`；arm64 文件夹版：`npm run package:mac:local`。测试套件：`npm run test:release`、`npm run test:mcp`、`npm run test:prepared`、`npm run test:mac-office`（需要已激活的本机 Word / PowerPoint）。发布流程见 [中文发布教程](docs/RELEASING.zh-CN.md) 与 [English release guide](docs/RELEASING.en-US.md)。
 
 ## 工程与发布状态
 

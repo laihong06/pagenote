@@ -5,6 +5,8 @@ const {
   dialog,
   shell,
   clipboard,
+  nativeTheme,
+  ipcMain,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -21,6 +23,7 @@ let server,
   win,
   controller,
   word,
+  macSettings,
   connectionFile,
   closing = false,
   quitting = false,
@@ -121,6 +124,14 @@ if (!app.requestSingleInstanceLock()) {
         server = await backend.startServer(0);
       }
       const url = `http://127.0.0.1:${server.address().port}`;
+      const initialPreferences = await backend
+        .readPreferences()
+        .catch(() => ({}));
+      nativeTheme.themeSource = ['system', 'light', 'dark'].includes(
+        initialPreferences.theme,
+      )
+        ? initialPreferences.theme
+        : 'system';
       const mcpFolder = path.join(app.getPath('userData'), 'mcp');
       await fs.mkdir(mcpFolder, { recursive: true });
       const tutorFolder = path.join(
@@ -235,9 +246,12 @@ if (!app.requestSingleInstanceLock()) {
         height: 960,
         minWidth: 900,
         minHeight: 620,
-        backgroundColor: '#f5f8fc',
+        backgroundColor: nativeTheme.shouldUseDarkColors
+          ? '#17191d'
+          : '#f5f8fc',
         show: false,
         webPreferences: {
+          preload: path.join(__dirname, 'preload.cjs'),
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true,
@@ -245,6 +259,12 @@ if (!app.requestSingleInstanceLock()) {
         },
       });
       win.webContents.setVisualZoomLevelLimits(1, 1);
+      nativeTheme.on('updated', () => {
+        if (!win.isDestroyed())
+          win.setBackgroundColor(
+            nativeTheme.shouldUseDarkColors ? '#17191d' : '#f5f8fc',
+          );
+      });
       word = require('./word.cjs').createWordHost({
         win,
         data,
@@ -275,6 +295,70 @@ if (!app.requestSingleInstanceLock()) {
         word,
       });
       backend.setAIHandler((body) => controller.call(body));
+      if (isMac) {
+        const api = async (route, options) => {
+          const response = await fetch(url + route, options);
+          const result = await response.json();
+          if (!response.ok)
+            throw Error(result.error || 'Settings request failed');
+          return result;
+        };
+        macSettings = require('./mac-settings.cjs').createMacSettings({
+          executable: path.join(
+            app.isPackaged
+              ? process.resourcesPath
+              : path.join(app.getAppPath(), 'build/mac-settings'),
+            'pagenote Settings.app/Contents/MacOS/pagenote-settings',
+          ),
+          paneFile: path.join(app.getPath('userData'), 'settings-window.json'),
+          readState: async () => ({
+            ...(await win.webContents.executeJavaScript(
+              'window.pageNotes.ready.then(()=>window.pageNotes.getSettingsState())',
+            )),
+            version: app.getVersion(),
+          }),
+          applySetting: (key, value) =>
+            win.webContents.executeJavaScript(
+              `window.pageNotes.applySetting(${JSON.stringify(key)},${JSON.stringify(value)})`,
+            ),
+          readPrompt: async (module) => {
+            if (module !== 'system') return api('/api/ai-prompts/' + module);
+            const result = await api('/api/ai-settings');
+            return {
+              text: result.systemPrompt,
+              defaultText: result.defaultSystemPrompt,
+            };
+          },
+          savePrompt: (module, text) =>
+            api(
+              module === 'system'
+                ? '/api/ai-settings'
+                : '/api/ai-prompts/' + module,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(
+                  module === 'system' ? { systemPrompt: text } : { text },
+                ),
+              },
+            ),
+          onQuit: () => app.quit(),
+          onClosed: () => {
+            if (!quitting && !closing) showMainWindow();
+          },
+          onError: (error) =>
+            dialog.showErrorBox('pagenote · Settings', error.message),
+        });
+      }
+      ipcMain.handle('pagenote:settings-open', (event, pane) => {
+        if (event.sender !== win.webContents)
+          throw Error('Invalid settings sender');
+        return macSettings ? macSettings.open(pane) : { native: false };
+      });
+      ipcMain.on('pagenote:settings-sync', (event) => {
+        if (event.sender === win?.webContents)
+          macSettings?.sync().catch(() => {});
+      });
       win.webContents.setWindowOpenHandler(({ url: target }) => {
         if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
         return { action: 'deny' };
@@ -286,7 +370,13 @@ if (!app.requestSingleInstanceLock()) {
         }
       });
       let closePending;
-      const completeClose = () => {
+      const completeClose = async () => {
+        // A normal close can become Quit while note flushing is pending.
+        // Consult native drafts at the last asynchronous boundary before exit.
+        if (quitting && macSettings && !(await macSettings.prepareQuit())) {
+          quitting = false;
+          return;
+        }
         if (quitting) {
           closing = true;
           app.quit();
@@ -298,9 +388,12 @@ if (!app.requestSingleInstanceLock()) {
       };
       finishWindowClose = () => {
         if (closePending) return closePending;
-        closePending = win.webContents
-          .executeJavaScript('window.pageNotes?.finishEditing?.()')
-          .then(completeClose)
+        closePending = (async () => {
+          await win.webContents.executeJavaScript(
+            'window.pageNotes?.finishEditing?.()',
+          );
+          await completeClose();
+        })()
           .catch(async () => {
             const result = await dialog.showMessageBox(win, {
               type: 'warning',
@@ -310,7 +403,7 @@ if (!app.requestSingleInstanceLock()) {
               message: translate('笔记尚未保存成功'),
               detail: translate('建议继续编辑并重试保存。恢复副本仍会保留。'),
             });
-            if (result.response === 1) completeClose();
+            if (result.response === 1) await completeClose();
             else quitting = false;
           })
           .finally(() => {
@@ -396,7 +489,7 @@ if (!app.requestSingleInstanceLock()) {
                           accelerator: 'CmdOrCtrl+,',
                           click: () =>
                             win.webContents.executeJavaScript(
-                              'document.getElementById("settings").showModal()',
+                              'window.pageNotes.openSettings()',
                             ),
                         },
                         { type: 'separator' },
@@ -692,7 +785,7 @@ if (!app.requestSingleInstanceLock()) {
                     label: '设置',
                     click: () =>
                       win.webContents.executeJavaScript(
-                        'document.getElementById("settings").showModal()',
+                        'window.pageNotes.openSettings()',
                       ),
                   },
                   {
@@ -721,6 +814,13 @@ if (!app.requestSingleInstanceLock()) {
                 label: '帮助',
                 submenu: [
                   {
+                    label: '欢迎页',
+                    click: () =>
+                      win.webContents.executeJavaScript(
+                        'window.pageNotes?.showWelcome()',
+                      ),
+                  },
+                  {
                     label: '使用说明',
                     click: () =>
                       win.webContents.executeJavaScript(
@@ -746,7 +846,13 @@ if (!app.requestSingleInstanceLock()) {
       }
       buildMenu();
       backend.setPreferenceHandler(async (preferences) => {
-        locale = preferences.language;
+        if (['zh-CN', 'en-US'].includes(preferences.language))
+          locale = preferences.language;
+        nativeTheme.themeSource = ['system', 'light', 'dark'].includes(
+          preferences.theme,
+        )
+          ? preferences.theme
+          : 'system';
         buildMenu();
       });
       await win.loadURL(url);
@@ -769,6 +875,7 @@ if (!app.requestSingleInstanceLock()) {
     finishWindowClose();
   });
   app.on('will-quit', () => {
+    macSettings?.dispose();
     controller?.dispose();
     server?.close();
   });

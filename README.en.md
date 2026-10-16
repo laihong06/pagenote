@@ -109,7 +109,8 @@ The code is merged here, while the linked Mac binaries are separate contributor 
 ## Other controls
 
 - **Hand** pans the page. **Pen** provides ink, highlighting and erasing.
-- Ctrl + mouse wheel zooms the current pane. Notes zoom changes the displayed font size.
+- Local development builds support continuous two-finger pinch on the document or notes page under the pointer. Text, images and annotations scale together; PDF detail renders after the gesture settles. Two-finger scrolling pans enlarged pages in both axes with system momentum. Ctrl / Command + mouse wheel also zooms.
+- Use Fit for the source or Reset notes zoom from the menu to restore the default. Small pages stay centered; enlarged pages can pan in both axes.
 - Notes follow the active source page as page boundaries cross the viewport midpoint. Page-transition animation can be disabled in settings.
 - Automatic note history and restore. Projects, ink and annotations stay on the local machine.
 - Data shared with an external AI client is governed by that client's privacy policy.
@@ -160,7 +161,7 @@ npm run build
 npm run desktop
 ```
 
-Use `npm run dev` for browser development, `npm run package:desktop` for the Windows installer and ZIP, or `npm run package:dir` for a folder build. Use `npm run package:mac` for macOS DMG and ZIP (Apple Silicon and Intel), or `npm run package:mac:local` for a local-arch folder build. The test suite runs on Windows and macOS.
+Use `npm run dev` for browser development, `npm run package:desktop` for the Windows installer and ZIP, or `npm run package:dir` for a Windows folder build. Use `npm run package:mac` for macOS DMG and ZIP (Apple Silicon / arm64 only), or `npm run package:mac:local` for an arm64 folder build. Tests: `npm run test:release`, `npm run test:mcp`, `npm run test:prepared`, `npm run test:mac-office` (requires locally activated Word / PowerPoint).
 
 See the [release guide](docs/RELEASING.en-US.md), [terminology specification](docs/TERMINOLOGY.md) and [release-readiness report](docs/RELEASE-READINESS.md). Bug reports should include the version, Windows version, reproduction steps and redacted logs. Do not upload private projects or MCP connection keys.
 

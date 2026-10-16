@@ -2,7 +2,20 @@
 
 ## Unreleased / 尚未发布
 
+- Integrate Mac development updates into beta while preserving upstream stable download links, platform status and acceptance tests. / Mac 开发改动对接 beta，保留上游稳定版下载、平台状态与验收测试，记录新增功能的未验证范围。
 - Establish `beta` for new features and routine fixes; reserve `main` for founder-approved stable promotion after real-use testing. / 建立 beta 测试分支，新功能与常规修复先测试，实测并经发起人批准后再通过 PR 晋级 main 正式分支。
+
+- Fix both bottom status bars jumping upward while page notes render Mermaid diagrams. Keep temporary SVG measurements outside the window grid and clean them up after success or errors. Local arm64 builds advance to 1.0.1-dev.5; public downloads remain v1.0.0. / 修复翻页时笔记中的 Mermaid 图表导致页数、字数底部栏突然上移和下方闪出空白的问题；图表临时测量容器移出主布局，并在成功或失败后清理。本地 arm64 构建升级至 1.0.1-dev.5，公开下载仍为 v1.0.0。
+- Add continuous trackpad pinch zoom for complete document/note pages, pointer-anchored magnification, native two-axis inertial panning, and deferred sharp PDF rendering without rebuilding text or ink during a gesture. Fix zoom-related redundant layout rebuilds and keep Markdown line wrapping stable. Local arm64 builds advance to 1.0.1-dev.4; public downloads remain v1.0.0. / 新增触控板双指连续缩放整张文档与笔记页面，保持缩放中心，支持双向惯性平移；手势结束后补充清晰 PDF 渲染，保留文字与批注，修复缩放引发的重复布局重建，Markdown 缩放保持原有换行。本地 arm64 构建升级至 1.0.1-dev.4，公开下载仍为 v1.0.0。
+- Replace macOS settings with a native AppKit window, toolbar panes, system controls and native prompt editing; preserve existing settings, live updates and draft-aware quit. Ship an arm64 helper with local 1.0.1-dev.3 builds. / macOS 设置改为原生 AppKit 窗口，提供分类工具栏、系统控件与原生提示词编辑，沿用现有设置并即时生效，退出前处理未保存草稿；本地 1.0.1-dev.3 随包提供 arm64 原生组件。
+- Add an optional Paper / Serif Markdown reading theme with native Charter/Georgia and Chinese serif fonts, warm paper palettes for light/dark appearance, and matching hidden screenshots. Keep code/math fonts, original documents and stored Markdown intact. / 新增可选“纸页 · 衬线”Markdown 阅读主题，使用系统 Charter/Georgia 与中文宋体，提供深浅暖纸配色，截图同步主题；保留代码与公式字体、原文及 Markdown 内容。
+- Fix hidden screenshots of Markdown documents querying a missing PDF canvas. / 修复 Markdown 文档隐藏截图误读不存在的 PDF 画布而失败的问题。
+- Keep source Markdown ink attached to its text blocks across reading-theme changes, with legacy-ink recovery, saved anchors and stable move/undo behavior. / Markdown 原文批注随主题排版变化保持段落锚点，兼容旧批注，并保留拖动、撤销重做和重启后的位置。
+- Add system-following dark appearance with persistent System/Light/Dark choices; adapt native windows, reading/editing surfaces, controls and dialogs while preserving original PDF/image colors and light exports. / 新增跟随系统的深色模式，可记忆“跟随系统 / 浅色 / 深色”选择；适配原生窗口、阅读编辑区、工具与弹窗，PDF/图片保留原色，截图导出保持浅色。
+- Build and validate Apple Silicon (arm64) Mac application packages only by default; update packaging, CI and contributor guidance, using `release/mac-arm64/pagenote.app` as the local test entry. / 后续 Mac 应用默认仅构建和验证 Apple Silicon（arm64）版本，同步打包脚本、CI 与协作说明，以 `release/mac-arm64/pagenote.app` 作为本地固定测试入口。
+- Add a lightweight, colorful SVG handwriting welcome on first launch; dismiss once to remember, and replay from Help. Includes keyboard access, reduced-motion support and screenshot-window exclusion. / 首次启动新增轻量彩色 SVG 手写 Hello 欢迎页，关闭后记忆，可从帮助菜单或使用说明重放；支持键盘、减少动态效果，截图窗口不显示。
+- Begin local 1.0.1 development; public downloads remain on v1.0.0. / 开始本地 1.0.1 开发，公开下载仍为 v1.0.0。
+- Store welcome dismissal in the application profile so it survives server-port changes; hide upcoming stroke caps until writing starts. / 欢迎页关闭状态保存到应用数据目录，换端口后仍能记忆；修复尚未书写的笔画提前露出圆点。
 
 - Surface Mac Office bridge limits, PDF screenshot permissions and recoverable working copies in both READMEs; distinguish Windows file-association scripts from Finder usage. / 将 Mac 配套文档中的 Office 限制、截图权限与恢复副本说明提到主 README，区分 Windows 注册脚本与 Mac 项目打开方式。
 

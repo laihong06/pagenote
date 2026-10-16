@@ -91,24 +91,22 @@ jobs:
       - run: npm run test:mcp
       - run: npm run test:prepared
       - run: npm run package:mac
-      # Electron-builder's mac dir target builds for the runner's own arch, which
-      # is what the packaged-app test then launches.
-      - run: npx electron-builder --mac dir --publish never --config electron-builder.json
+      # Validate the Apple Silicon application produced by package:mac.
       - run: npm run test:release
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/pagenote.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/release/mac-arm64/pagenote.app/Contents/MacOS/pagenote
       - run: npm run test:mcp
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/pagenote.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/release/mac-arm64/pagenote.app/Contents/MacOS/pagenote
       - run: npm run test:prepared
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/pagenote.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/release/mac-arm64/pagenote.app/Contents/MacOS/pagenote
       - run: node scripts/release-artifacts.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: pagenote-macos
           path: |
-            release/*.dmg
-            release/*.zip
+            release/*-mac-arm64.dmg
+            release/*-mac-arm64.zip
             release/SHA256SUMS.txt
           if-no-files-found: error

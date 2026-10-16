@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -31,7 +32,7 @@ try {
     BrowserWindow.getAllWindows()[0].setSize(1600, 1000),
   );
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLayout({ expandEditor: false }));
   await w
     .locator('#fileInput')
@@ -44,8 +45,7 @@ try {
   assert.equal(await w.locator('.document-sheet').count(), 3);
   await w.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
   await w.locator('.note-pane .pane-heading').click();
-  await w.locator('#preview').click();
-  await w.keyboard.insertText('第一页尚未保存的笔记');
+  await w.locator('#preview').fill('第一页尚未保存的笔记');
   const crossMidpoint = (offset) =>
     w.evaluate((offset) => {
       const el = document.querySelector('#documentScroll');
@@ -76,8 +76,7 @@ try {
   await w.waitForFunction(
     () => document.querySelector('#pageNumber').value === '2',
   );
-  await w.locator('#preview').click();
-  await w.keyboard.insertText('第二页自己的笔记');
+  await w.locator('#preview').fill('第二页自己的笔记');
   await crossMidpoint(-12);
   await w.waitForFunction(
     () => document.querySelector('#pageNumber').value === '1',

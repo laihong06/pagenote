@@ -35,7 +35,7 @@ Verify the setup EXE, Windows ZIP and `SHA256SUMS.txt` under `release/`. Test in
 
 ## macOS build
 
-On a Mac with Node.js 22.13+:
+On a Mac with Node.js 22.13+ and Xcode Command Line Tools. The build compiles the native AppKit settings helper automatically (arm64, macOS 12+):
 
 ```sh
 npm ci
@@ -47,7 +47,7 @@ npm run package:mac
 node scripts/release-artifacts.mjs
 ```
 
-The Office checks require locally activated Word / PowerPoint. `package:mac` produces Apple Silicon and Intel DMG / ZIP files; use `npm run package:mac:local` for a current-architecture application directory. Verify Finder project opens, Dock activation, Command menu shortcuts and Office automation permissions. The current configuration is unsigned and unnotarized; configure an Apple developer identity and validate on a clean machine before a signed public distribution.
+The Office checks require locally activated Word / PowerPoint. `package:mac` produces Apple Silicon (arm64) DMG / ZIP files only; use `npm run package:mac:local` for an arm64 application directory. Verify Finder project opens, Dock activation, Command menu shortcuts and Office automation permissions. The current configuration is unsigned and unnotarized; configure an Apple developer identity and validate on a clean machine before a signed public distribution.
 
 ## Publish
 

@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron, expect } from '@playwright/test';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -28,7 +29,7 @@ try {
   const w = await app.firstWindow();
   w.on('pageerror', (e) => console.error(e.message));
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
@@ -198,21 +199,25 @@ try {
     null,
   );
   const checkAlignment = async () => {
-    await w.waitForFunction(() => {
-      const p = document.querySelector('#preview p'),
-        range = document.createRange();
-      range.selectNodeContents(p);
-      const text = range.getClientRects()[0],
-        mark = document
-          .querySelector('#noteBody .review-highlight')
-          ?.getBoundingClientRect();
-      return (
-        mark &&
-        Math.abs(text.top - mark.top) < 2 &&
-        Math.abs(text.left - mark.left) < 2 &&
-        Math.abs(text.width - mark.width) < 2
-      );
-    });
+    await w.waitForFunction(
+      () => {
+        const p = document.querySelector('#preview p'),
+          range = document.createRange();
+        range.selectNodeContents(p);
+        const text = range.getClientRects()[0],
+          mark = document
+            .querySelector('#noteBody .review-highlight')
+            ?.getBoundingClientRect();
+        return (
+          mark &&
+          Math.abs(text.top - mark.top) < 2 &&
+          Math.abs(text.left - mark.left) < 2 &&
+          Math.abs(text.width - mark.width) < 2
+        );
+      },
+      null,
+      { timeout: 3000 },
+    );
   };
   await w.evaluate(() => (document.querySelector('#noteScroll').scrollTop = 0));
   const penOffset = await w.evaluate(() => {
@@ -269,26 +274,32 @@ try {
   await w.keyboard.down('Control');
   await w.mouse.wheel(0, -100);
   await w.keyboard.up('Control');
-  await w.waitForFunction(() => {
-    const host = document.querySelector('.document-sheet[data-page="1"]'),
-      span = host.querySelector('.textLayer span'),
-      mark = host.querySelector('.review-highlight');
-    if (!span || !mark) return false;
-    const range = document.createRange();
-    range.selectNodeContents(span);
-    const text = range.getClientRects()[0],
-      rect = mark.getBoundingClientRect();
-    return (
-      text &&
-      Math.abs(text.top - rect.top) < 2 &&
-      Math.abs(text.left - rect.left) < 2
-    );
-  });
+  await w.waitForTimeout(350);
+  await w.waitForFunction(
+    () => {
+      const host = document.querySelector('.document-sheet[data-page="1"]'),
+        span = host.querySelector('.textLayer span'),
+        mark = host.querySelector('.review-highlight');
+      if (!span || !mark) return false;
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const text = range.getClientRects()[0],
+        rect = mark.getBoundingClientRect();
+      return (
+        text &&
+        Math.abs(text.top - rect.top) < 2 &&
+        Math.abs(text.left - rect.left) < 2
+      );
+    },
+    null,
+    { timeout: 3000 },
+  );
   const noteBox = await w.locator('#noteScroll').boundingBox();
   await w.mouse.move(noteBox.x + 100, noteBox.y + 100);
   await w.keyboard.down('Control');
   await w.mouse.wheel(0, -100);
   await w.keyboard.up('Control');
+  await w.waitForTimeout(350);
   await checkAlignment();
   await w.evaluate(() =>
     window.pageNotes.setLayout({
@@ -300,7 +311,7 @@ try {
   await w.evaluate(() => window.pageNotes.resetNoteZoom());
   await checkAlignment();
   await w.reload();
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.menuAction('reviewRight'));
   await expect(
     w.locator('.ai-workbench[data-side=note] .improvement-card'),

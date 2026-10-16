@@ -138,28 +138,71 @@ export function setPreferenceHandler(handler) {
   preferenceHandler = handler;
 }
 const preferenceFile = path.join(data, 'preferences.json');
+export async function readPreferences() {
+  try {
+    return JSON.parse(await fs.readFile(preferenceFile, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return {};
+    throw error;
+  }
+}
+let preferenceWrites = Promise.resolve();
+// Profile-backed storage survives the desktop server choosing a fallback port.
+const welcomeFile = path.join(data, 'welcome-seen.json');
+app.get('/api/welcome', async (req, res, next) => {
+  try {
+    const value = JSON.parse(await fs.readFile(welcomeFile, 'utf8'));
+    res.json({ seen: value.seen === true });
+  } catch (error) {
+    if (error.code === 'ENOENT') res.json({ seen: false });
+    else next(error);
+  }
+});
+app.put('/api/welcome', async (req, res, next) => {
+  try {
+    await fs.writeFile(welcomeFile + '.tmp', JSON.stringify({ seen: true }));
+    await moveFile(welcomeFile + '.tmp', welcomeFile);
+    res.json({ seen: true });
+  } catch (error) {
+    next(error);
+  }
+});
 app.get('/api/preferences', async (req, res, next) => {
   try {
-    let preferences = {};
-    try {
-      preferences = JSON.parse(await fs.readFile(preferenceFile, 'utf8'));
-    } catch (e) {
-      if (e.code !== 'ENOENT') throw e;
-    }
-    res.json(preferences);
+    res.json(await readPreferences());
   } catch (e) {
     next(e);
   }
 });
 app.put('/api/preferences', async (req, res, next) => {
   try {
-    if (!['zh-CN', 'en-US'].includes(req.body.language))
-      throw Error('Unsupported language');
-    const preferences = { language: req.body.language };
-    await fs.writeFile(preferenceFile + '.tmp', JSON.stringify(preferences));
-    await moveFile(preferenceFile + '.tmp', preferenceFile);
-    await preferenceHandler?.(preferences);
-    res.json(preferences);
+    const patch = {};
+    if ('language' in req.body) {
+      if (!['zh-CN', 'en-US'].includes(req.body.language))
+        throw Error('Unsupported language');
+      patch.language = req.body.language;
+    }
+    if ('theme' in req.body) {
+      if (!['system', 'light', 'dark'].includes(req.body.theme))
+        throw Error('Unsupported theme');
+      patch.theme = req.body.theme;
+    }
+    if ('markdownTheme' in req.body) {
+      if (!['classic', 'paper'].includes(req.body.markdownTheme))
+        throw Error('Unsupported Markdown theme');
+      patch.markdownTheme = req.body.markdownTheme;
+    }
+    if (!Object.keys(patch).length) throw Error('No supported preferences');
+    const save = async () => {
+      const preferences = { ...(await readPreferences()), ...patch };
+      await fs.writeFile(preferenceFile + '.tmp', JSON.stringify(preferences));
+      await moveFile(preferenceFile + '.tmp', preferenceFile);
+      await preferenceHandler?.(preferences);
+      return preferences;
+    };
+    const job = preferenceWrites.then(save, save);
+    preferenceWrites = job.catch(() => {});
+    res.json(await job);
   } catch (e) {
     next(e);
   }

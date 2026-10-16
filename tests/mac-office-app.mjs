@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -32,7 +33,7 @@ try {
   window = await desktop.firstWindow();
   window.setDefaultTimeout(120000);
   await window.waitForFunction(() => !!window.pageNotes);
-  await window.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(window);
   const config = JSON.parse(
     await fs.readFile(path.join(profile, 'mcp/mcp-config.json'), 'utf8'),
   ).mcpServers.page_notes;

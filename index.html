@@ -291,8 +291,9 @@
       <p>手形工具用于平移页面。画笔支持手写、荧光标记和擦除。</p>
       <p>从编辑菜单选择文档或笔记区域。Word 编辑需要本机 Microsoft Word。</p>
       <p>
-        Ctrl + 鼠标滚轮缩放所在区域。Markdown 支持代码高亮、公式、图片、表格和
-        Mermaid。
+        触控板双指捏合缩放所在页面，双指上下、左右移动。也可按 Ctrl 或 Command
+        加鼠标滚轮缩放；点击“适应”或“重置笔记缩放”恢复。Markdown
+        支持代码高亮、公式、图片、表格和 Mermaid。
       </p>
       <p>
         通过 AI 标注菜单复制 MCP 配置，在外部 AI 客户端连接。软件本身不内置 AI
@@ -303,9 +304,88 @@
         project.pagenote，旧版 JSON 项目仍可打开。
       </p>
       <button id="closeHelp">知道了</button>
+      <button id="reopenHello">再看一次欢迎页</button>
+    </dialog>
+    <dialog id="helloOverlay" aria-label="Hello, page note" aria-modal="true">
+      <div class="hello-stage">
+        <svg
+          id="helloScript"
+          viewBox="0 0 500 220"
+          fill="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient
+              id="helloInk"
+              x1="40"
+              y1="110"
+              x2="460"
+              y2="110"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0" stop-color="#ff9fb2" />
+              <stop offset="0.22" stop-color="#ffb477" />
+              <stop offset="0.43" stop-color="#f5da87" />
+              <stop offset="0.62" stop-color="#a9dfac" />
+              <stop offset="0.8" stop-color="#7edcd5" />
+              <stop offset="1" stop-color="#8fcaff" />
+            </linearGradient>
+          </defs>
+          <g
+            stroke="url(#helloInk)"
+            stroke-width="7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              class="hello-stroke"
+              pathLength="1"
+              d="M40 170 C69 175 91 130 106 91 C121 52 132 40 139 46 C156 58 120 118 104 143 L94 173 C106 148 128 117 144 120 C168 125 136 172 158 174 C171 175 188 154 194 141"
+            />
+            <path
+              class="hello-stroke"
+              pathLength="1"
+              d="M194 141 C213 139 232 123 222 116 C208 104 185 126 183 150 C181 175 211 185 243 153"
+            />
+            <path
+              class="hello-stroke"
+              pathLength="1"
+              d="M243 153 C267 125 302 53 286 44 C269 34 242 102 243 146 C243 174 256 185 278 163"
+            />
+            <path
+              class="hello-stroke"
+              pathLength="1"
+              d="M278 163 C309 136 346 58 331 44 C314 32 286 105 288 149 C289 174 303 181 323 164"
+            />
+            <path
+              class="hello-stroke"
+              pathLength="1"
+              d="M323 164 C339 144 345 122 365 118 C390 110 402 132 389 156 C378 181 351 183 342 166 C332 148 350 122 370 123 C381 124 385 141 403 145 C424 150 443 135 460 118"
+            />
+          </g>
+        </svg>
+        <p class="hello-sub">page note</p>
+        <button id="helloEnter" autofocus>开始使用</button>
+        <p id="helloStatus" role="status" hidden>无法保存欢迎页状态，请重试</p>
+      </div>
     </dialog>
     <dialog id="settings">
       <h2>设置</h2>
+      <label class="setting-toggle"
+        >Markdown 主题
+        <select id="markdownThemeSetting">
+          <option value="classic">经典</option>
+          <option value="paper">纸页 · 衬线</option>
+        </select>
+      </label>
+      <label class="setting-toggle"
+        >外观
+        <select id="themeSetting">
+          <option value="system">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select>
+      </label>
       <label class="setting-toggle"
         >语言 / Language
         <select id="languageSetting">

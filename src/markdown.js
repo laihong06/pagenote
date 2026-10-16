@@ -32,6 +32,25 @@ function getMermaid() {
     });
   return mermaidPromise;
 }
+async function renderDiagram(mermaid, source) {
+  // Mermaid measures a temporary SVG in the DOM. Keep it out of the body's
+  // grid, otherwise it adds a row and briefly pushes both pane footers up.
+  // visibility:hidden preserves text/SVG measurements, unlike display:none.
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText =
+    'position:fixed;left:0;top:0;width:100%;visibility:hidden;pointer-events:none';
+  document.body.append(host);
+  try {
+    return await mermaid.render(
+      'page-diagram-' + ++diagramSequence,
+      source,
+      host,
+    );
+  } finally {
+    host.remove();
+  }
+}
 function diagramError(block, source, error) {
   block.replaceChildren();
   block.classList.add('diagram-error');
@@ -88,10 +107,7 @@ function scheduleDiagrams(target) {
             const mermaid = await getMermaid();
             await document.fonts.ready;
             if (!block.isConnected) return;
-            const { svg } = await mermaid.render(
-              'page-diagram-' + ++diagramSequence,
-              source,
-            );
+            const { svg } = await renderDiagram(mermaid, source);
             if (!block.isConnected || block.dataset.source !== source) return;
             block.innerHTML = DOMPurify.sanitize(svg, {
               USE_PROFILES: { svg: true, svgFilters: true },

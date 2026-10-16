@@ -70,7 +70,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 20px;
   background: #edf0f4;
 }
@@ -332,6 +332,7 @@ button:active:not(:disabled) {
 }
 #documentScroll,
 #noteScroll {
+  overflow-anchor: none;
   background: #e9edf3;
   scrollbar-color: #b6c0ce transparent;
   scrollbar-width: thin;

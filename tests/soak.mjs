@@ -1,4 +1,5 @@
 import { _electron as electron } from '@playwright/test';
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -41,7 +42,12 @@ const file = path.join(profile, '60-page-course.pdf');
 await fs.writeFile(file, pdf);
 const executablePath =
   process.env.DESKTOP_EXE ||
-  path.join(root, 'node_modules/electron/dist/electron.exe');
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
 const launch = () =>
   electron.launch({
     executablePath,
@@ -61,7 +67,7 @@ try {
   w.on('pageerror', (error) => errors.push(error.message));
   w.on('crash', () => errors.push('renderer crashed'));
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.locator('#fileInput').setInputFiles(file);
   await w.locator('#loading').waitFor({ state: 'hidden' });
   const initial = await w.evaluate(() => window.pageNotes.getState());
@@ -157,7 +163,7 @@ try {
   app = await launch();
   w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate((id) => window.pageNotes.open(id, 1), id);
   const persisted = await w.evaluate(() =>
     window.pageNotes.readPages(Array.from({ length: 60 }, (_, i) => i + 1)),

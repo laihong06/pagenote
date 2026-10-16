@@ -5,6 +5,7 @@ release/
 tmp/
 build/icon.icns
 build/icon.iconset/
+build/mac-settings/
 output/
 *.log
 ai-connection.json
