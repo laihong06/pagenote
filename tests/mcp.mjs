@@ -52,7 +52,7 @@ try {
   assert.ok(client.getInstructions().includes('先识别用户当前任务'));
   assert.ok(client.getInstructions().includes('其他任务按用户要求执行'));
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 22);
+  assert.equal(tools.tools.length, 24);
   const resources = await client.listResources();
   assert.ok(
     resources.resources.some((r) => r.uri === 'page-notes://skills/page-tutor'),
@@ -65,8 +65,8 @@ try {
     'utf8',
   );
   assert.equal(skill.contents[0].text, canonicalSkill);
-  assert.ok(canonicalSkill.includes('上一页交接'));
-  assert.ok(canonicalSkill.includes('每页作为独立的模型讲解请求'));
+  assert.ok(canonicalSkill.includes('上层 Agent 自主安排会话'));
+  assert.ok(canonicalSkill.includes('逐页指成果对应原文页面'));
   const prompts = await client.listPrompts();
   assert.ok(prompts.prompts.some((p) => p.name === 'pagenote-page-tutor'));
   const prompt = await client.getPrompt({
@@ -403,9 +403,34 @@ try {
   );
   await window.locator('#pageNumber').fill('3');
   await window.locator('#pageNumber').dispatchEvent('change');
-  await window.waitForFunction(() =>
-    document.querySelector('#preview').textContent.includes('第三页已生成'),
-  );
+  try {
+    await window.waitForFunction(() =>
+      document.querySelector('#preview').textContent.includes('第三页已生成'),
+    );
+  } catch (error) {
+    console.log(
+      'Navigation diagnostic',
+      await window.evaluate(() => ({
+        summary: window.pageNotes.getSummary(),
+        input: document.querySelector('#pageNumber').value,
+        preview: document.querySelector('#preview').textContent.slice(0, 150),
+        scroll: {
+          top: document.querySelector('#documentScroll').scrollTop,
+          height: document.querySelector('#documentScroll').clientHeight,
+          total: document.querySelector('#documentScroll').scrollHeight,
+        },
+        sheets: [...document.querySelectorAll('.document-sheet')].map((e) => ({
+          page: e.dataset.page,
+          top: e.getBoundingClientRect().top,
+          bottom: e.getBoundingClientRect().bottom,
+        })),
+      })),
+    );
+    await window.screenshot({
+      path: path.join(root, 'tmp/mcp-navigation-failure.png'),
+    });
+    throw error;
+  }
   await window.locator('#pageNumber').fill('1');
   await window.locator('#pageNumber').dispatchEvent('change');
   await window.waitForFunction(() =>
@@ -655,7 +680,7 @@ try {
     ),
   );
   console.log(
-    'PASS MCP: 22 tools; selective reads/cache; persistent handoffs; compact state; silent writes; hidden screenshots and collage; restart with live MCP client.',
+    'PASS MCP: 24 tools; selective reads/cache; persistent handoffs; compact state; silent writes; hidden screenshots and collage; restart with live MCP client.',
   );
 } finally {
   await client?.close();

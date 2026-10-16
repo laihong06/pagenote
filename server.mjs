@@ -54,7 +54,13 @@ app.get('/api/ai-prompts/:id', (req, res, next) => {
 });
 app.put('/api/ai-prompts/:id', async (req, res, next) => {
   try {
-    res.json(await prompts.save(req.params.id, req.body?.text));
+    res.json(
+      await prompts.save(
+        req.params.id,
+        req.body?.text,
+        req.body?.expectedRevision,
+      ),
+    );
   } catch (e) {
     next(e);
   }

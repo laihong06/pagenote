@@ -356,5 +356,13 @@
   "系统提示词保存后重新连接客户端；模块修改在 AI 下次读取时生效。仅保存当前选中的模块。": [
     "系统提示词保存后重新连接客户端；模块修改在 AI 下次读取时生效。仅保存当前选中的模块。",
     "Reconnect after changing the system prompt. Module changes apply on the next AI read. Save affects only the selected module."
+  ],
+  "入口与路由": ["入口与路由", "Entry and routing"],
+  "初次生成": ["初次生成", "Initial generation"],
+  "画像使用与更新规则": ["画像使用与更新规则", "Profile usage and updates"],
+  "用户偏好": ["用户偏好", "User preferences"],
+  "修改内置教学规则与用户偏好，连接的 AI 可直接按入口读取，无需复制提示词。": [
+    "修改内置教学规则与用户偏好，连接的 AI 可直接按入口读取，无需复制提示词。",
+    "Edit built-in teaching rules and preferences. Connected AI can discover them through the entry without copying prompts."
   ]
 }

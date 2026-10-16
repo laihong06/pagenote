@@ -41,15 +41,15 @@ Omit `pages` to read the active page (page 1 for an explicitly selected inactive
 
 After saving each note, call `page_notes_write_handoff` with `page`, `summary`, the latest note `expectedRevision` and optionally `sourceRevision`. Keep handoffs concise (usually under about 1,000 characters, maximum 4,000 UTF-16 units). `page_notes_read_handoff` returns the saved summary and `stale` if source or notes changed; a missing handoff is `null`. Handoffs persist in `src/ai-handoffs.json` inside portable projects and survive restarts. Recheck stale handoffs before using them. Write results omit the submitted content; all tool JSON is compact. Clients must still manage their own chat history and model-request boundaries.
 
-Use a separate model generation request for each source page. Complete, verify, save and inspect that page before requesting the next one. Do not generate the entire chapter in one answer and split it afterward. Batch MCP reads or writes do not count as separate model requests.
+Page linkage is an output requirement, not a session or request boundary. The host Agent manages sessions, delegation, concurrency and context, choosing when and how much prepared material to read.
 
-Each request needs the complete current page, relevant screenshots, the learner's background, a short chapter map and a concise handoff from the previous page. Preserve notation, examples and dependencies in the handoff, leaving enough context for detailed explanations of the current page. Begin from prior knowledge and end with a brief transition to the next page. Use formulas, runnable code, Mermaid or illustrations where they help.
+Use current and relevant neighboring source material and learner preferences as needed; handoffs and chapter maps are optional, not execution prerequisites. Preserve notation, examples and dependencies in the handoff, leaving enough context for detailed explanations of the current page. Begin from prior knowledge and end with a brief transition to the next page. Use formulas, runnable code, Mermaid or illustrations where they help.
 
-Read revisions before writing and use expectedRevision. Check the saved page with a screenshot before continuing. Report actual completed pages and validations, without claiming tests or independent requests that were not performed.
+Read revisions before writing and use expectedRevision. Use screenshots when a specific visual issue needs checking, not as a mandatory per-page review loop. Report actual completed pages and validations, without claiming tests or independent requests that were not performed.
 
 Default instructions route relevant learning tasks to the skill without forcing summaries or translations into a teaching workflow. **Settings → AI settings** lets users edit, save or restore the default system prompt; reconnect the client to apply it. The setting stays in the local document-data directory as `ai-settings.json`, outside portable projects. MCP initialization supplies these instructions, while the client controls their instruction level. Tool permissions remain unchanged.
 
-MCP cannot start model generations or manage a client's context window. If the client cannot issue independent requests, state that limitation and handle one page per user turn. See the [detailed Chinese workflow and request template](AI-TEACHING.zh-CN.md).
+MCP cannot start model generations or manage a client's context window. There is no required number of sessions or requests per page; use the host Agent’s own scheduling capabilities. See the [detailed Chinese workflow and request template](AI-TEACHING.zh-CN.md).
 
 The local API listens on loopback. The MCP bridge checks a per-user token. This interface does not expose arbitrary JavaScript or shell-command execution, but grants the document-reading and editing capabilities listed by the tools. Data sent onward by your AI client follows that client's policies.
 
@@ -57,8 +57,14 @@ The local API listens on loopback. The MCP bridge checks a per-user token. This 
 
 ## Prompt routing and preflight
 
-Start with `page-notes://prompts/index`, a small task map and module revision list. Initial teaching uses learning/page-tutor/output; AI Tag edits use tag-edit/output, with learning only when reteaching. Read a module with `page_notes_read_prompt({id, knownRevision?})`. Matching revisions omit text; omit knownRevision if its body is no longer in context. The index and modules are read live, so module overrides from AI settings apply without reconnecting. The system prompt still requires reconnection.
+Start with `page-notes://prompts/index`, a small task map and module revision list. Generation uses generation plus shared teaching/output/profile modules; revisions use tag-edit with output and profile, adding teaching when needed. Read a module with `page_notes_read_prompt({id, knownRevision?})`. Matching revisions omit text; omit knownRevision if its body is no longer in context. The index and modules are read live, so module overrides from AI settings apply without reconnecting. The system prompt still requires reconnection.
 
 Page requests use current, previous and next **source** pages. They do not wait for previous generated notes or mandatory handoffs. Recommend `max(1, floor(total pages / 10))` workers, capped by remaining work, client/service limits and resources. Handoffs remain optional for cross-session continuity.
 
 Before saving generated Markdown, call `page_notes_validate_note({markdown})`. It returns `valid`, `normalizedMarkdown`, errors, warnings and counts without saving or navigating. It detects malformed math, unclosed fences, invalid Mermaid and broken local image attachments. External image URLs are not fetched and are reported as unverified warnings. Use revision-protected writes after preflight. This checks syntax and assets, not semantic correctness or universal device compatibility.
+
+## Beta task preparation and preferences
+
+`page_notes_prepare_task({scenario:"generation"|"revision", documentId, page, neighbors?, reviewIds?, instruction?, maxChars?})` assembles cached source/OCR/visual metadata, note revision and relevant reviews without navigation. Follow hasMore/nextOffset/continueWith for additional material. `page_notes_update_profile` appends evidence-linked candidate preferences from applied Tags using the current profile revision. Edit or clear entry, strategies and preferences in AI settings; module updates are read live. Host Agent scheduling is unrestricted. These changes are beta-only.
+
+Direct revision instructions return an evidenceId from prepare_task. After saving a change to the target note or source, pass that ID instead of reviewIds to update_profile; unchanged content is rejected. Evidence receipts last for the current app process, while saved preferences persist across restarts.

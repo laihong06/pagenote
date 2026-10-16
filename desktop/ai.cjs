@@ -51,6 +51,7 @@ function pageLabel(png, x, y, page) {
 }
 
 exports.createAIController = async function ({ win, url, data, word }) {
+  const taskEvidence = new Map();
   let inspector,
     readerSource,
     queue = Promise.resolve();
@@ -352,6 +353,190 @@ exports.createAIController = async function ({ win, url, data, word }) {
       return meta;
     }
     const id = await activeId(args.documentId);
+    if (action === 'prepare_task') {
+      if (!['generation', 'revision'].includes(args.scenario))
+        throw Error('Invalid workflow scenario');
+      await invoke(win, 'flush');
+      const window = await readWindow(id);
+      const summary = await invoke(window, 'getSummary');
+      const active = await invoke(win, 'getSummary');
+      const target =
+        args.page ?? (active.document?.id === id ? active.page : 1);
+      if (!Number.isInteger(target) || target < 1 || target > summary.total)
+        throw Error('页码超出文档范围');
+      const requested =
+        args.neighbors === false
+          ? [target]
+          : [target - 1, target, target + 1].filter(
+              (p) => p >= 1 && p <= summary.total,
+            );
+      const sources = [];
+      for (const p of requested) {
+        const text = await preparePage(id, p, {
+          output: 'text',
+          ocr: 'auto',
+          maxChars: args.maxChars || 20000,
+        });
+        const manifest = await preparePage(id, p, {
+          output: 'summary',
+          ocr: 'auto',
+        });
+        sources.push({
+          ...text,
+          role:
+            p === target
+              ? 'current'
+              : p < target
+                ? 'previous-source'
+                : 'next-source',
+          visuals: manifest.visuals,
+          visualReviewRequired: true,
+          continueWith: {
+            tool: 'page_notes_prepare_page',
+            documentId: id,
+            page: p,
+            output: 'text',
+            start: text.nextOffset,
+          },
+          imageWith: {
+            tool: 'page_notes_prepare_page',
+            documentId: id,
+            page: p,
+            output: 'image',
+          },
+        });
+      }
+      const notes = await getNotes(id),
+        markdown = notes[target] || '';
+      const limit = args.maxChars || 20000;
+      const reviews =
+        args.scenario === 'revision'
+          ? (await api(`/api/documents/${id}/ai-reviews`)).filter(
+              (r) =>
+                r.status === 'open' &&
+                (args.reviewIds?.length
+                  ? args.reviewIds.includes(r.id)
+                  : r.scope === 'document' || r.page === target),
+            )
+          : [];
+      if (reviews.some((r) => r.scope !== 'document' && r.page !== target))
+        throw Error('所选 Tag 不属于目标页，请按所属页准备修改材料');
+      if (args.reviewIds?.some((r) => !reviews.some((item) => item.id === r)))
+        throw Error('所选 Tag 不存在或不处于待处理状态');
+      if (
+        args.scenario === 'revision' &&
+        !reviews.length &&
+        !args.instruction?.trim()
+      )
+        throw Error('请提供修改意见或选择待处理 Tag');
+      const index = await api('/api/ai-prompts');
+      let evidenceId;
+      if (args.scenario === 'revision' && args.instruction?.trim()) {
+        evidenceId = randomUUID();
+        taskEvidence.set(evidenceId, {
+          documentId: id,
+          page: target,
+          instruction: args.instruction.trim(),
+          noteRevision: revision(markdown),
+          sourceHash: readerSource.hash,
+        });
+      }
+      return {
+        documentId: id,
+        page: target,
+        total: summary.total,
+        scenario: args.scenario,
+        instruction: args.instruction || '',
+        evidenceId,
+        route: index.routes.find((r) => r.scenario === args.scenario),
+        profile: {
+          id: 'profile',
+          revision: index.modules.find((m) => m.id === 'profile').revision,
+          tool: 'page_notes_read_prompt',
+        },
+        sources,
+        note: {
+          markdown: markdown.slice(0, limit),
+          revision: revision(markdown),
+          hasMore: markdown.length > limit,
+          range: {
+            start: 0,
+            end: Math.min(limit, markdown.length),
+            totalChars: markdown.length,
+          },
+          continueWith: {
+            tool: 'page_notes_read_pages',
+            documentId: id,
+            pages: [target],
+            include: 'note',
+            noteRange: { start: limit, maxChars: limit },
+          },
+        },
+        reviews,
+        guidance:
+          '本包仅提供材料，不限制 Agent 会话或上下文调度。长内容按续读位置获取；原图用于核对OCR、图表与公式。局部笔记不可作为整页替换提交，写入须带当前revision。左侧Tag指向原文，右侧Tag指向笔记。',
+      };
+    }
+    if (action === 'update_profile') {
+      if (
+        typeof args.preference !== 'string' ||
+        !args.preference.trim() ||
+        args.preference.length > 2000
+      )
+        throw Error('Invalid preference');
+      if (
+        (!args.reviewIds?.length && !args.evidenceId) ||
+        !args.expectedRevision
+      )
+        throw Error('偏好更新需要来源Tag或任务意见凭据及当前版本');
+      const records = await api(`/api/documents/${id}/ai-reviews`);
+      const evidence = (args.reviewIds || []).map((recordId) =>
+        records.find((r) => r.id === recordId && r.status === 'applied'),
+      );
+      if (evidence.some((r) => !r))
+        throw Error('仅可依据已经实际完成的修改意见提炼偏好');
+      if (args.evidenceId) {
+        const task = taskEvidence.get(args.evidenceId);
+        if (!task || task.documentId !== id)
+          throw Error('任务意见凭据无效，请重新准备材料');
+        await invoke(win, 'flush');
+        await readWindow(id);
+        const notes = await getNotes(id);
+        if (
+          revision(notes[task.page] || '') === task.noteRevision &&
+          readerSource.hash === task.sourceHash
+        )
+          throw Error('尚未保存对应修改，不能据此更新偏好');
+        evidence.push({
+          number: '直接意见',
+          id: args.evidenceId,
+          page: task.page,
+          scope: 'page',
+          instruction: task.instruction,
+        });
+      }
+      const profile = await api('/api/ai-prompts/profile');
+      if (profile.revision !== args.expectedRevision)
+        throw Error('用户偏好已变化，请重新读取后合并');
+      const preference = args.preference.trim();
+      if (profile.text.includes(preference))
+        return { saved: false, duplicate: true, revision: profile.revision };
+      const block = `\n\n## 候选偏好（软参考，未由用户确认）\n${preference}\n\n来源：${evidence.map((r) => `Tag ${r.number} / ${r.id} / ${r.scope === 'document' ? '整份文档' : '第' + r.page + '页'}：${r.instruction}`).join('\n')}\n`;
+      const saved = await api('/api/ai-prompts/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: profile.text + block,
+          expectedRevision: profile.revision,
+        }),
+      });
+      return {
+        saved: true,
+        status: 'candidate',
+        revision: saved.revision,
+        editIn: 'AI设置 → 用户偏好',
+      };
+    }
     if (action === 'prepare_page') {
       await invoke(win, 'flush');
       const state = await invoke(win, 'getSummary');

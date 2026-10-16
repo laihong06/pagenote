@@ -167,7 +167,7 @@ AI 写入前的笔记保存在文档目录下的 `history/` 文件夹。单页�
 
 先读取统一入口 `page-notes://prompts/index`。入口按任务区分初始生成、AI Tag 修改和普通编辑，并列出模块版本。用 `page_notes_read_prompt({id, knownRevision?})` 按需读取正文，版本相同可省略；若上下文中已无正文，不传 knownRevision。
 
-每页独立请求，可并行运行。建议并发 `max(1, floor(总页数 / 10))`，取客户端、服务配额和本机资源可承受值的较小值。每次携带当前页及前后相邻源页，不等待上一篇讲稿，交接仅按续做需要使用。
+逐页约束成果而非会话或调用次数，上层原厂 Agent 自主调度、并行、分批读取和续做。可选起步并发建议为 `max(1, floor(总页数 / 10))`，取客户端、服务配额和本机资源可承受值的较小值。每次携带当前页及前后相邻源页，不等待上一篇讲稿，交接仅按续做需要使用。
 
 保存前调用 `page_notes_validate_note({markdown})`。返回 valid、normalizedMarkdown、errors、warnings 和统计；检查公式语法、代码围栏、Mermaid及本地图片附件，不保存、不导航。外部图片只报告未验证警告。通过后用 expectedRevision 保存规范化正文。预检不保证知识正确或所有设备一致，不强制每页反复截图审查。
 
@@ -188,3 +188,11 @@ AI 写入前的笔记保存在文档目录下的 `history/` 文件夹。单页�
 ## macOS Word 接入
 
 Mac 使用本机 Microsoft Word 的独立窗口。Word 读取、选区与替换工具沿用现有接口；替换必须提供上次读取返回的 `revision` 作为 `expectedRevision`。Word 截图通过导出 PDF 渲染，返回 `renderedFrom: "pdf"`，显示文档内容。首次操作需要允许自动化权限，详见 [Mac Office 说明](docs/MAC-OFFICE.md)。
+
+## beta：分层提示词与任务材料
+
+入口索引列出生成 generation 与修改 revision 路由、模块版本和 capabilities 工具表。用 `page_notes_prepare_task` 准备当前/相邻源页、缓存 OCR、图片获取入口、已有笔记 revision 和对应 Tag；neighbors=false 仅取本页。长内容显式返回续读位置，笔记续读使用 read_pages(include=note)。本地材料不强制一次装进模型上下文。
+
+`page_notes_update_profile` 依据已完成 Tag 追加带来源的候选教学偏好，要求当前 profile revision，版本冲突拒绝写入。AI 设置中可以查看、修改或清空 profile。所有模块实时读取；入口与规则可直接编辑，无需复制。正式下载仍为 Windows v1.0，新能力仅在 beta。
+
+直接文字修改需求也能提炼偏好：prepare_task 返回 evidenceId，保存对应页笔记或原文后，update_profile 可携带该凭据代替 reviewIds。软件校验内容已变化，并保留原始意见作为来源；未保存的修改不能更新画像。凭据在本次软件进程内有效，已保存偏好跨重启保留。

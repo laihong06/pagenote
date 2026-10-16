@@ -76,7 +76,7 @@ try {
     (await client.readResource({ uri: 'page-notes://prompts/index' }))
       .contents[0].text,
   );
-  assert.equal(indexBefore.modules.length, 5);
+  assert.equal(indexBefore.modules.length, 8);
   assert.ok(indexBefore.routes.some((r) => r.modules.includes('tag-edit')));
   await w.locator('#aiPromptModule').selectOption('page-tutor');
   await w.waitForFunction(() =>

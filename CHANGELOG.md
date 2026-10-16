@@ -2,6 +2,15 @@
 
 ## Unreleased / 尚未发布
 
+### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
+
+- Support direct revision feedback receipts as profile evidence after content changes are saved; retain the unresolved full-MCP navigation timeout in KNOWN_ISSUES.md. / 支持直接修改意见的偏好来源凭据；如实保留完整 MCP 回归翻页超时的未通过记录。
+
+- Soft current-page edge highlight; layered, editable entry/generation/revision/teaching/profile prompts with host-Agent scheduling autonomy. / 当前页柔和边缘高亮，分层可编辑提示词，尊重原厂 Agent 的会话与任务调度。
+- Add prepare_task for local cached source/OCR/visual data, neighbor pages, note revisions and selected feedback; include continuations and live tool routing. / 新增按场景材料准备与工具目录，减少重复预处理。
+- Persist evidence-backed candidate preferences from applied Tags; support editable/resettable profile and revision-conflict protection. / 从已完成批注提炼带来源的候选偏好，可编辑、清空或恢复默认，并发修改有版本保护。
+- Add end-to-end workflow, cache, continuation, preference evidence and live-entry regression coverage. / 增加路由、缓存、续读、偏好与入口实时更新验证。
+
 - Establish `beta` for new features and routine fixes; reserve `main` for founder-approved stable promotion after real-use testing. / 建立 beta 测试分支，新功能与常规修复先测试，实测并经发起人批准后再通过 PR 晋级 main 正式分支。
 
 - Surface Mac Office bridge limits, PDF screenshot permissions and recoverable working copies in both READMEs; distinguish Windows file-association scripts from Finder usage. / 将 Mac 配套文档中的 Office 限制、截图权限与恢复副本说明提到主 README，区分 Windows 注册脚本与 Mac 项目打开方式。

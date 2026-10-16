@@ -109,6 +109,33 @@ tool(
   true,
 );
 tool(
+  'page_notes_prepare_task',
+  '按生成或修改场景准备本地材料：当前/相邻源页、缓存OCR及图片入口、当前笔记revision、选定Tag和直接修改意见。返回分页续读位置，不导航，不规定Agent调度。',
+  {
+    documentId,
+    page: page.optional(),
+    scenario: z.enum(['generation', 'revision']),
+    neighbors: z.boolean().optional(),
+    reviewIds: z.array(z.string().uuid()).max(50).optional(),
+    instruction: z.string().max(20000).optional(),
+    maxChars: z.number().int().min(100).max(20000).optional(),
+  },
+  'prepare_task',
+  true,
+);
+tool(
+  'page_notes_update_profile',
+  '从已完成Tag或已保存修改的任务意见凭据提炼候选偏好，保留来源；需要当前profile revision。没有依据时不更新。',
+  {
+    documentId,
+    preference: z.string().min(1).max(2000),
+    reviewIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+    evidenceId: z.string().uuid().optional(),
+    expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  },
+  'update_profile',
+);
+tool(
   'page_notes_read_ai_reviews',
   '读取用户编号的 AI 批注、整体要求、框选坐标、选中文字、上下文和创建时 revision。根据要求修改后，再标为 applied。',
   { documentId, status: z.enum(['open', 'applied', 'dismissed']).optional() },
@@ -375,7 +402,16 @@ server.registerTool(
     description:
       '按索引模块id读取当前提示词；knownRevision相同时省略正文。每次读取检查磁盘更新，无需重新连接。',
     inputSchema: {
-      id: z.enum(['learning', 'page-tutor', 'output', 'learner', 'tag-edit']),
+      id: z.enum([
+        'entry',
+        'generation',
+        'learning',
+        'page-tutor',
+        'output',
+        'learner',
+        'profile',
+        'tag-edit',
+      ]),
       knownRevision: z.string().max(64).optional(),
     },
   },
@@ -397,7 +433,7 @@ server.registerResource(
   {
     title: '逐页精讲 / Page-by-page tutor',
     description:
-      '内置学习技能：陈述式、逐页独立请求、递进讲解、图文与知识交接。',
+      '内置学习技能：陈述式、逐页成果、递进讲解与多模态教学；Agent自主调度。',
     mimeType: 'text/markdown',
   },
   async (uri) => ({
@@ -415,7 +451,7 @@ server.registerPrompt(
   {
     title: '逐页精讲 / Page-by-page tutor',
     description:
-      '使用内置学习技能解释当前文档；每页单独请求，按学习基础逐层展开并承接前后页。',
+      '使用内置学习技能解释当前文档，逐页递进并承接前后页；会话与子代理由上层Agent自主调度。',
     argsSchema: {
       learner: z
         .string()

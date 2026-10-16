@@ -56,7 +56,7 @@ AI 浪潮扑面而来，用 AI 辅助学习早已是寻常选择。大家常常�
 
 目前的 Pagenote，支持双栏阅读、逐页笔记和 AI 标注，借助 MCP 接口，允许 AI 读取和修改页面内容。软件本身并不内置大模型，逐页精讲、图像生成这类功能，需要搭配具备对应能力的 AI 客户端配合使用。
 
-连接 AI 后，请按 [逐页精讲约定](docs/AI-TEACHING.zh-CN.md) 执行：每页单独发起讲解请求，给足本页上下文，带入当前页及前后相邻源页，不等待上一页讲稿。不要一次生成整章后再拆页。
+连接 AI 后，请按 [逐页精讲约定](docs/AI-TEACHING.zh-CN.md) 执行：逐页输出充分且连贯的讲解。会话、子代理、上下文装载与调度交给上层原厂 Agent；本地工具提供当前页和邻页的准备材料，不强制一页一次请求。
 
 当前版本内置了 [逐页精讲技能](skills/pagenote-page-tutor/SKILL.md)。在 **AI 标注 → 复制逐页精讲提示词** 中复制后交给 AI，即可复用这些要求；支持 MCP 提示模板的客户端可调用 `pagenote-page-tutor`，填写学习基础、页码范围和目标。AI 也能直接读取资源 `page-notes://skills/page-tutor`。模板提供讲解要求，不会在本机自行调用大模型。
 
@@ -188,3 +188,5 @@ beta.5提供统一提示词索引 `page-notes://prompts/index`：初始生成、
 感谢 [obroccolio](https://github.com/obroccolio) 完成 Mac 适配与安装包分发；感谢 [LTH0001](https://github.com/LTH0001) 提供公式修复回归、RC 验收与测试改进。Windows v1.0 的发布依据是 LTH0001 的测试加上项目发起人的本机补测，由发起人综合结果批准。欢迎 Fork 修改，也欢迎提交 PR；请同时更新变更日志，并注明验证过的平台和范围。
 
 [发布基准](docs/RELEASE-POLICY.md) · [已知问题](KNOWN_ISSUES.md)
+
+beta 1.1 新增柔和页边高亮、可编辑分层教学提示词、按场景准备材料及带来源的用户偏好。生成／修改共用教学能力，调度由上层 Agent 自主决定，详见 [工作流](docs/AI-TEACHING.zh-CN.md)。顶部正式下载仍为 v1.0。

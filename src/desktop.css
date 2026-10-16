@@ -1,6 +1,27 @@
 #documentScroll {
   display: block;
 }
+#aiSettings label {
+  display: block;
+  margin: 16px 0 6px;
+  font-weight: 600;
+}
+#aiPromptModule {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #243a53;
+  font: inherit;
+}
+#aiSystemPrompt {
+  padding: 14px;
+  border: 1px solid #ccd5e1;
+  border-radius: 7px;
+  line-height: 1.65;
+}
 #paper {
   margin: 0 auto;
 }
@@ -349,6 +370,21 @@ button:active:not(:disabled) {
 .document-sheet {
   border: 1px solid #e0e5ee;
   box-shadow: 0 2px 7px #243a5314;
+  transition:
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+.document-sheet.is-current {
+  border-color: #a6bedc;
+  box-shadow:
+    0 0 0 1px #7da7d22b,
+    0 0 18px 3px #7da7d229,
+    0 4px 14px #243a5314;
+}
+@media (prefers-reduced-motion: reduce) {
+  .document-sheet {
+    transition: none;
+  }
 }
 #splitter {
   position: relative;

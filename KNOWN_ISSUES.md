@@ -16,3 +16,8 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 遇到 Bug 请[提交 Issue](https://github.com/laihong06/pagenote/issues/new)，附版本、系统、操作步骤及脱敏截图；不要上传私人课件或连接密钥。联系：chennanfeng310@gmail.com。
 
 Windows stable is founder-approved; macOS remains experimental. Pending work includes the unexplained interrupted soak, wider environment coverage, signing/notarization, antivirus review, and OCR prerequisites. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
+
+## beta 1.1 测试记录
+
+- 新分层工作流覆盖材料准备、缓存、分页续读、Tag 范围、意见凭据、用户偏好版本保护及实时入口编辑。
+- 完整 MCP 回归在“静默更新后通过页码输入跳到第 3 页”的等待断言发生超时；记录显示页码输入为 3、阅读状态仍为 1，已保存的第 3 页笔记存在。两次结果和截图保留在本机 tmp；最小翻页复现未重现，根因尚未确认。不得将此轮完整 MCP 套件写为通过，后续继续排查。正式 v1.0 未被本次 beta 改动覆盖。

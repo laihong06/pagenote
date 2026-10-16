@@ -56,7 +56,7 @@ Annotations collect in a workbench for the corresponding pane. You can also reco
 
 Pagenote currently supports two-pane reading, page-linked notes and AI annotations. Its MCP interface lets AI read and edit page content. The app does not include a model; detailed page-by-page explanations and image generation require an AI client with the relevant capabilities.
 
-Follow the [page-by-page teaching workflow](docs/MCP.en-US.md#page-by-page-teaching): make a separate generation request for each page, give it sufficient current-page context and include the previous and next source pages without waiting for earlier explanations. Do not generate a whole chapter and split it into pages afterward.
+Follow the [page-by-page teaching workflow](docs/MCP.en-US.md#page-by-page-teaching): produce thorough, coherent page-linked explanations. The host Agent decides sessions, delegation and context management; local tools provide prepared current/neighbor source material without enforcing one request per page.
 
 Beta.5 includes a [page tutor skill](skills/pagenote-page-tutor/SKILL.md). Use **AI Annotations → Copy page-by-page teaching prompt**, or select the MCP prompt `pagenote-page-tutor` and supply a learner background, page range and goal. AI clients can also read `page-notes://skills/page-tutor`. The template guides a connected client; it does not call a model by itself.
 
@@ -186,3 +186,5 @@ Beta.5 routes tasks through `page-notes://prompts/index`. Read only relevant, ch
 Thanks to [obroccolio](https://github.com/obroccolio) for Mac support and downloadable builds, and [LTH0001](https://github.com/LTH0001) for formula regression coverage and acceptance-test improvements. Windows v1.0 was approved from LTH0001’s tests plus the founder’s supplementary local tests. Forks and PRs are welcome; include a changelog entry and describe the platforms and scope tested.
 
 [Release policy](docs/RELEASE-POLICY.md) · [Known issues](KNOWN_ISSUES.md)
+
+Beta 1.1 adds a soft page-edge highlight, editable entry/strategies/teaching/profile modules, prepared task context and evidence-linked preferences. See [workflow](docs/AI-TEACHING.zh-CN.md); stable downloads above remain v1.0.

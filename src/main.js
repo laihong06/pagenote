@@ -350,6 +350,8 @@ function documentZoomAnchor(event) {
   };
 }
 function markCurrentSheet() {
+  for (const sheet of pageSheets)
+    sheet.classList.toggle('is-current', Number(sheet.dataset.page) === page);
   document
     .querySelectorAll('#pdfCanvas,#markdownDocument')
     .forEach((e) => e.removeAttribute('id'));
@@ -1142,7 +1144,11 @@ async function loadPromptModule(id) {
   selectedPrompt = id;
   if (!promptDrafts[id]) {
     const value = await request('/api/ai-prompts/' + id);
-    promptDrafts[id] = { text: value.text, defaultText: value.defaultText };
+    promptDrafts[id] = {
+      text: value.text,
+      defaultText: value.defaultText,
+      revision: value.revision,
+    };
   }
   defaultAIPrompt = promptDrafts[id].defaultText;
   $('aiSystemPrompt').value = promptDrafts[id].text;
@@ -1177,7 +1183,7 @@ $('aiPromptReset').onclick = () => {
 $('aiSettingsSave').onclick = async () => {
   $('aiSettingsSave').disabled = true;
   try {
-    await request(
+    const saved = await request(
       selectedPrompt === 'system'
         ? '/api/ai-settings'
         : '/api/ai-prompts/' + selectedPrompt,
@@ -1187,11 +1193,16 @@ $('aiSettingsSave').onclick = async () => {
         body: JSON.stringify(
           selectedPrompt === 'system'
             ? { systemPrompt: $('aiSystemPrompt').value }
-            : { text: $('aiSystemPrompt').value },
+            : {
+                text: $('aiSystemPrompt').value,
+                expectedRevision: promptDrafts[selectedPrompt].revision,
+              },
         ),
       },
     );
     promptDrafts[selectedPrompt].text = $('aiSystemPrompt').value;
+    if (selectedPrompt !== 'system')
+      promptDrafts[selectedPrompt].revision = saved.revision;
     $('aiSettingsStatus').textContent = t(
       selectedPrompt === 'system'
         ? '已保存，请重新连接 AI 客户端'

@@ -34,4 +34,11 @@ for (const item of prompts.modules) {
     value.defaultText.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '') +
     '\n';
 }
-await fs.writeFile(path.join(root, 'docs/PROMPTS.zh-CN.md'), text);
+text +=
+  '\n## MCP 能力与本地材料入口\n\n```json\n' +
+  JSON.stringify(store.index().capabilities, null, 2) +
+  '\n```\n';
+await fs.writeFile(
+  path.join(root, 'docs/PROMPTS.zh-CN.md'),
+  text.trimEnd() + '\n',
+);
