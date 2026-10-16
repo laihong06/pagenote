@@ -1,6 +1,6 @@
 {
   "name": "pagenote",
-  "version": "1.1.0-beta.1",
+  "version": "1.1.0-beta.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,7 @@
     "test:mcp": "node tests/mcp.mjs",
     "package:dir": "npm run build && node scripts/package-desktop.mjs --dir",
     "test:release": "node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs && npm run test:reading && npm run test:workflows",
-    "test:reading": "node tests/continuous.mjs && node tests/ai-workspace.mjs",
+    "test:reading": "node tests/continuous.mjs && node tests/ai-workspace.mjs && npm run test:trackpad",
     "test:english": "node tests/english-windows.mjs",
     "test:acceptance": "node tests/acceptance-recovery.mjs",
     "test:soak": "node tests/soak.mjs",
@@ -37,7 +37,9 @@
     "test:version": "node tests/versioning.mjs && node scripts/check-release-version.mjs",
     "check:release": "node scripts/check-release-version.mjs --release",
     "test:workflows": "node tests/workflows.mjs",
-    "pretest:workflows": "node scripts/ensure-electron.mjs"
+    "pretest:workflows": "node scripts/ensure-electron.mjs",
+    "test:trackpad": "node tests/trackpad.mjs",
+    "pretest:trackpad": "node scripts/ensure-electron.mjs"
   },
   "dependencies": {
     "sharp": "0.35.5",

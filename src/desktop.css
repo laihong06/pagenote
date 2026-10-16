@@ -1,6 +1,11 @@
 #documentScroll {
   display: block;
 }
+#documentScroll,
+#noteScroll {
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+}
 #aiSettings label {
   display: block;
   margin: 16px 0 6px;
@@ -91,7 +96,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 20px;
   background: #edf0f4;
 }

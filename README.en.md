@@ -1,5 +1,7 @@
 # pagenote
 
+> This is the **beta branch (1.1.0-beta.2)** with the latest development features and routing diagram. The downloads below remain published releases and do not include unreleased beta changes.
+
 **[⬇ Windows installer](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Windows portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · **[⬇ Mac Apple Silicon](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · **[⬇ Mac Intel](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg)** · [Source archive](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
 
 Windows **v1.0 is stable**; macOS remains **experimental in this project**. Mac downloads are independently built by [obroccolio](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0), with filenames numbered 1.0.0; they are not the Windows release or a guaranteed build of this repository's latest source. Download an installer to use the app, or download the source / fork the repository to modify it.
@@ -17,6 +19,12 @@ As AI becomes part of everyday life, using it to study is a familiar choice. We 
 Yet this way of learning has practical shortcomings. The source and explanation sit in separate windows, and switching between them makes it easy to lose our place. AI sometimes rearranges the material, disrupting the order of the lesson. Asking it to explain an entire document at once can run into context and output limits, producing a summary that skips derivations, unfamiliar notation and examples. We may feel we have understood it, only to struggle when solving a problem or putting it into practice.
 
 These frustrations led to Pagenote. The idea is to keep each source page beside its explanation and give it the attention of a separate request: start from familiar knowledge, fill in the intermediate steps and continue from the preceding page. When something is unclear, select a passage or a figure and leave a request for another example or a different explanation. Notes can be revised as we learn, without repeatedly copying text and explaining the background. Illustrations, runnable code, mathematical notation and flowcharts give AI more ways to make abstract ideas understandable. That was the original purpose of Pagenote.
+
+## Prompt and data routing (beta)
+
+![Pagenote layered prompt and local data routing](docs/images/prompt-routing-en.svg)
+
+The editable entry routes generation and revision to shared teaching skills, output rules and learner preferences. Local tools prepare source/neighbor pages, notes, Tags, OCR and images; the host Agent owns sessions, delegation and context. Edit the guidance in **Settings → AI settings**, without copying prompts. See the [workflow](docs/AI-TEACHING.zh-CN.md) and [full prompt/tool catalog](docs/PROMPTS.zh-CN.md).
 
 ## Features in pictures
 
@@ -188,3 +196,5 @@ Thanks to [obroccolio](https://github.com/obroccolio) for Mac support and downlo
 [Release policy](docs/RELEASE-POLICY.md) · [Known issues](KNOWN_ISSUES.md)
 
 Beta 1.1 adds a soft page-edge highlight, editable entry/strategies/teaching/profile modules, prepared task context and evidence-linked preferences. See [workflow](docs/AI-TEACHING.zh-CN.md); stable downloads above remain v1.0.
+
+Windows touchpads (beta): pinch continuously in the pane under the pointer; two-finger scrolling pans both axes. Ctrl + wheel remains supported. Small pages zoom around their center; filled pages keep the pointer anchor. PDF detail refreshes after the gesture without rebuilding the text layer; the toolbar does not zoom.

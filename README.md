@@ -1,5 +1,7 @@
 # pagenote
 
+> 当前为 **beta 测试分支（1.1.0-beta.2）**，包含最新开发功能与路由图。下方下载链接仍是已发布版本，不包含尚未发布的 beta 改动。
+
 **[⬇ Windows 安装包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Windows 免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · **[⬇ Mac Apple Silicon](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · **[⬇ Mac Intel](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg)** · [源码包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
 
 Windows 为 **v1.0 正式版**；Mac 在本项目中仍按**测试版**提供。Mac 下载来自贡献者 [obroccolio 的发布页](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0)，文件编号为 1.0.0，属于贡献者独立构建，不等同于本仓库 Windows v1.0 的发布包或最新源码构建。想直接使用请下载安装包；想修改代码，可以下载源码或 Fork 本仓库。
@@ -17,6 +19,12 @@ AI 浪潮扑面而来，用 AI 辅助学习早已是寻常选择。大家常常�
 但这套学习方式，一直有着很现实的短板。阅读时总要在两个窗口来回切换，原文和讲解各占一边，翻着翻着就对不上内容。AI 有时还会调整原文的行文顺序，打乱课件本身的逻辑，跟着读的时候很容易跟不上节奏。如果一次性让 AI 解析完整份材料，又容易受上下文和输出长度制约，大多只能拿到概括性的总结，细致的推导、专业符号和配套例子经常被省略。看似已经看懂了内容，等到真正做题实操，依旧难以灵活运用。
 
 这些细碎又恼人的痛点，催生了 Pagenote 的想法。它希望把原文和讲解按页面牢牢对应在一起，每一页都如同一次独立的请教，从既有认知出发，补齐所有省略的中间步骤，承接前文继续往下推进。遇到难以理解的片段，可以选中文字、框选图片，简单备注需求，让 AI 换例子、换思路重新解读；笔记能够随学随改，不用反复复制内容，一次次重复交代前置背景。同时充分发挥 AI 多样的能力：抽象概念搭配示意图，算法附上可运行代码，数理推导生成公式，思考流程绘成框图，让抽象的知识变得直观易懂，这就是 Pagenote 最初的设计初衷。
+
+## 提示词与数据如何协作（beta）
+
+![Pagenote 分层提示词与本地数据路由](docs/images/prompt-routing-zh.svg)
+
+入口区分“初次生成”和“按意见修改”，共用教学技能、输出约定和用户偏好。本地工具准备原文、邻页、笔记、Tag、OCR 与图片；上层 Agent 自主安排会话、子代理和上下文。你可以在 **设置 → AI 设置** 修改这些要求，无需复制提示词。详见 [教学工作流](docs/AI-TEACHING.zh-CN.md) 与 [完整提示词及工具清单](docs/PROMPTS.zh-CN.md)。
 
 ## 功能一览
 
@@ -190,3 +198,5 @@ beta.5提供统一提示词索引 `page-notes://prompts/index`：初始生成、
 [发布基准](docs/RELEASE-POLICY.md) · [已知问题](KNOWN_ISSUES.md)
 
 beta 1.1 新增柔和页边高亮、可编辑分层教学提示词、按场景准备材料及带来源的用户偏好。生成／修改共用教学能力，调度由上层 Agent 自主决定，详见 [工作流](docs/AI-TEACHING.zh-CN.md)。顶部正式下载仍为 v1.0。
+
+Windows 触控板（beta）：双指捏合连续缩放指针所在的一侧，双指滑动沿横纵方向平移；Ctrl + 滚轮继续可用。小页面围绕中心放大，填满视图后围绕指针缩放。手势结束后补充清晰 PDF，保留文字选区；窗口工具栏不随内容缩放。

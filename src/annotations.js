@@ -221,7 +221,7 @@ export function createAnnotations({
         index: block.index,
         x: (block.rect.left - bounds.left) * scale,
         y: (block.rect.top - bounds.top) * scale,
-        width: bounds.width,
+        width: layer.host.offsetWidth,
         fontSize: parseFloat(getComputedStyle(block.node).fontSize),
       };
     }
@@ -230,7 +230,7 @@ export function createAnnotations({
     if (!block) return item;
     const ratio =
         (parseFloat(getComputedStyle(block.node).fontSize) / a.fontSize) *
-        (a.width / bounds.width),
+        (a.width / Math.max(1, layer.host.offsetWidth)),
       x = (block.rect.left - bounds.left) * scale,
       y = (block.rect.top - bounds.top) * scale;
     return {

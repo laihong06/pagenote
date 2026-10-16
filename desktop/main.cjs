@@ -245,6 +245,8 @@ if (!app.requestSingleInstanceLock()) {
         },
       });
       win.webContents.setVisualZoomLevelLimits(1, 1);
+      // Reader gestures own pane zoom; never magnify the toolbar/window.
+      win.webContents.setZoomMode?.('manual');
       word = require('./word.cjs').createWordHost({
         win,
         data,
