@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Preserve the current development version in Mac packages instead of forcing the historical beta number; stable source versions still produce experimental Mac builds. / Mac 开发包保留当前开发版本，避免被旧测试版编号覆盖；正式源码版本仍生成 Mac 测试包。
 - Integrate Mac development updates into beta while preserving upstream stable download links, platform status and acceptance tests. / Mac 开发改动对接 beta，保留上游稳定版下载、平台状态与验收测试，记录新增功能的未验证范围。
 - Establish `beta` for new features and routine fixes; reserve `main` for founder-approved stable promotion after real-use testing. / 建立 beta 测试分支，新功能与常规修复先测试，实测并经发起人批准后再通过 PR 晋级 main 正式分支。
 

@@ -19,6 +19,8 @@ pagenote 采用分级质量门槛。正式版冻结表示功能范围和发布�
 - **macOS：测试版。** 集成贡献的适配代码，构建包版本为 `1.0.0-beta.1`。尚不将 Windows 的验收结论推广至 Mac。后续按同一分级原则单独决定正式放行。
 - 本次从此前的 `2.0.0-beta.*` / RC 开发编号统一为首个正式版本 `1.0.0`。升级需退出旧程序后手动安装，不依赖版本数字大小自动升级。不替换历史包。
 
+后续 `beta` 开发中，Mac 构建保留源码的预发布版本（例如 `1.0.1-dev.5`）；正式源码版本附加 `-beta.1`，保持 Mac 实验渠道。此规则不改变上述已发布版本及其下载入口。
+
 签名、多环境兼容、长时间压力测试等未完成工作按实际状态记录，不因未覆盖所有环境自动阻塞本次 Windows 发布。安全软件检测结果如有变化须如实披露，禁止将未复核的检测宣称为误报。
 
 ## English
@@ -26,3 +28,5 @@ pagenote 采用分级质量门槛。正式版冻结表示功能范围和发布�
 Release gates are proportional to this early-stage project. Stable does not mean zero bugs or exhaustive environment validation. Clean VM snapshots are acceptable fresh-machine evidence. Freeze features and fix release-blocking defects; track other issues and unverified environments in `KNOWN_ISSUES.md`. The founder makes the final release decision.
 
 Windows v1.0 is approved based on LTH0001's Windows tests plus the founder's supplementary local tests, jointly accepted by the founder. No additional VM results are claimed. macOS remains experimental with version `1.0.0-beta.1`. Historical audit checklists do not override this policy. Earlier 2.0 beta numbering is intentionally reset to the first stable 1.0 release; use manual installation after exiting the previous app.
+
+During subsequent beta development, Mac packages preserve prerelease source versions such as `1.0.1-dev.5`; stable source versions receive a `-beta.1` suffix to keep the Mac experimental channel. Existing published versions and download links remain unchanged.
