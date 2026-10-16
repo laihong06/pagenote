@@ -31,7 +31,7 @@ No model, subscription, cloud account or automatic AI service is included.
 
 ## Page-by-page teaching
 
-The development build exposes the bundled `SKILL.md` at `page-notes://skills/page-tutor` and as the MCP prompt `pagenote-page-tutor`. Optional string arguments are `learner` (background), `pages` (page range) and `goal`. Clients without prompt support can read the resource, or paste the skill from **AI Annotations → Copy page-by-page teaching prompt**. There are now 22 tools, including page preparation and two handoff tools. The skill does not initiate model calls.
+The development build exposes the bundled `SKILL.md` at `page-notes://skills/page-tutor` and as the MCP prompt `pagenote-page-tutor`. Optional string arguments are `learner` (background), `pages` (page range) and `goal`. Clients without prompt support can read the resource, or paste the skill from **AI Annotations → Copy page-by-page teaching prompt**. The beta build exposes 24 tools, including task preparation, profile updates, page preparation and handoffs. The skill does not initiate model calls.
 
 ## Token-efficient reads
 

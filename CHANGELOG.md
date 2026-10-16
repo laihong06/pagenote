@@ -4,6 +4,8 @@
 
 ### 1.1.0-beta.1（仅 beta 分支，尚未公开发布安装包）
 
+- Synchronize the English MCP tool count with the beta catalog (24 tools). / 同步英文 MCP 文档的测试版工具数量为 24。
+
 - Support direct revision feedback receipts as profile evidence after content changes are saved; retain the unresolved full-MCP navigation timeout in KNOWN_ISSUES.md. / 支持直接修改意见的偏好来源凭据；如实保留完整 MCP 回归翻页超时的未通过记录。
 
 - Soft current-page edge highlight; layered, editable entry/generation/revision/teaching/profile prompts with host-Agent scheduling autonomy. / 当前页柔和边缘高亮，分层可编辑提示词，尊重原厂 Agent 的会话与任务调度。
