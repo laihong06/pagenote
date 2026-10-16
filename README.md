@@ -1,10 +1,10 @@
-# pagenote
+# pagenote Beta
 
-> 当前为 **beta 测试分支（1.1.0-beta.2）**，包含最新开发功能与路由图。下方下载链接仍是已发布版本，不包含尚未发布的 beta 改动。
+**[⬇ Windows 测试版安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64-setup.exe)** · [测试版免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64.zip) · [测试版源码](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-source.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.3)
 
-**[⬇ Windows 安装包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Windows 免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · **[⬇ Mac Apple Silicon](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · **[⬇ Mac Intel](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg)** · [源码包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
+这里是 **beta 测试分支**。本页说明与下载对应 **1.1.0-beta.3**，包含可编辑提示词路由和 Windows 触控板适配。[前往 main 正式分支](https://github.com/laihong06/pagenote/tree/main)。
 
-Windows 为 **v1.0 正式版**；Mac 在本项目中仍按**测试版**提供。Mac 下载来自贡献者 [obroccolio 的发布页](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0)，文件编号为 1.0.0，属于贡献者独立构建，不等同于本仓库 Windows v1.0 的发布包或最新源码构建。想直接使用请下载安装包；想修改代码，可以下载源码或 Fork 本仓库。
+测试版以 **pagenote Beta** 独立安装，使用独立的快捷方式、安装标识和本地设置、数据目录，不接管正式版的项目文件关联。主动打开的项目仍是同一份文件；想保留正式版项目原样，请先复制项目再测试。
 
 <img src="build/icon.png" alt="pagenote 双页图标" width="88">
 
@@ -74,41 +74,26 @@ AI 浪潮扑面而来，用 AI 辅助学习早已是寻常选择。大家常常�
 
 当前版本还内置离线中英文 OCR，能为 AI 准备逐页文字、坐标和置信度、整页或区域图片，以及 Markdown 表格和 Mermaid 图像，结果随项目缓存。原文和原图保留，识别不准的公式或图表仍需核对，详见 [本地页面准备](docs/LOCAL-PREPARATION.md)。
 
-**当前公开版本：1.0.0。** 已安装旧版的用户需要手动升级：关闭旧版后安装新版，ZIP 版请完整解压到新目录，不要只替换 EXE。 后续继续改进，欢迎拿真实的学习材料试用，也欢迎告诉我哪里用起来不顺。
+**当前公开版本：1.1.0-beta.3。** 已安装旧版的用户需要手动升级：关闭旧版后安装新版，ZIP 版请完整解压到新目录，不要只替换 EXE。 后续继续改进，欢迎拿真实的学习材料试用，也欢迎告诉我哪里用起来不顺。
 
 ## 下载与安装
 
-[下载 Windows x64 安装包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe) · [完整 ZIP 分发包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.0.0)
+[下载 Windows x64 安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64-setup.exe) · [完整 ZIP 分发包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.3)
 
 1. 在本仓库的 **Releases** 中下载 `pagenote-版本-windows-x64-setup.exe`。浏览源码时的 **Code → Download ZIP** 是源码包，不能直接安装。
 2. 双击安装包，按向导选择安装位置。安装仅针对当前用户，通常不需要管理员权限。
-3. 从桌面或开始菜单启动 **pagenote**。
+3. 从桌面或开始菜单启动 **pagenote Beta**。
 4. 从 **设置 → 语言 / Language** 选择简体中文或 English。
 
 也可下载 Windows ZIP 分发包，解压整个文件夹，再运行其中的 `pagenote.exe`。不要单独移动 EXE，它依赖同目录的资源。
 
 正式上传 Release 前，应公布 `SHA256SUMS.txt` 并完成安全扫描。当前构建没有发行者签名；如果杀毒软件拦截，请停止运行并向维护者提供日志，**不要关闭防护或添加排除项**。
 
-### Mac 安装与使用（测试版）
+### macOS 测试包
 
-| 你的 Mac | 安装包 | ZIP 备用包 |
-|---|---|---|
-| Apple Silicon，M 系列芯片 | [arm64 DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg) | [arm64 ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) |
-| Intel 处理器 | [x64 DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) | [x64 ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) |
+当前 beta 版本尚未提供对应的 macOS 安装包。本页不将贡献者的旧构建当作本次 beta 下载。平台接入说明见 [Mac Office](docs/MAC-OFFICE.md)。
 
-1. 点左上角 ** → 关于本机**，查看“芯片”或“处理器”，选择对应安装包。
-2. 打开 DMG，把 **pagenote.app** 拖入 **应用程序 / Applications**，然后从应用程序启动。ZIP 包解压后也将完整应用移入应用程序。
-3. 当前 Mac 包未签名、公证。首次被系统阻止时，先确认下载来源与校验值，再按 macOS 提示在 **系统设置 → 隐私与安全性** 中处理；不要全局关闭 Gatekeeper。不同系统版本的提示可能不同。
-4. 阅读 PDF、Markdown 不需要 Office。导入 Word/PPT 或刷新其预览，需要本机安装并激活 **Microsoft Word / PowerPoint**；首次调用按提示允许自动化与文件访问。
-5. 在 **设置 → 语言 / Language** 选择中文或英文。通过文件菜单导入文档、新建或打开项目，再为对应页填写笔记或连接自己的 AI 客户端。
-
-Mac 的 Office 接口只接入 Microsoft Word / PowerPoint，WPS、Pages、Keynote 不能替代。若提示超时，先检查 Office 是否弹出了授权、激活或文件访问对话框，再重试。MCP 的 Word 截图通过临时 PDF 生成，不需要屏幕录制权限；转换失败或源文件冲突时会保留临时编辑副本，方便恢复。
-
-[Mac 发布说明与 SHA256SUMS.txt](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0) · [Office 接入与权限排查](docs/MAC-OFFICE.md)
-
-校验 DMG 可在终端运行 `shasum -a 256 下载文件路径`，与 Mac 发布页的校验清单比较；不要使用 Windows 发布页的校验清单核对 Mac 文件。
-
-### 这次 Mac 适配带来的变化
+## 这次 Mac 适配带来的变化
 
 Mac 适配由 [obroccolio](https://github.com/obroccolio) 在 [PR #3](https://github.com/laihong06/pagenote/pull/3) 中贡献：Finder 打开项目、Dock 唤回窗口、原生菜单与 Command 快捷键，以及本机 Word/PPT 转换和保存刷新。MCP 可使用独立 Word 窗口读取和进行带版本检查的修改，Word 截图通过临时 PDF 渲染。Apple Silicon 与 Intel 均有构建入口，普通用户无需另装 Node.js。
 

@@ -18,6 +18,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Resolve release channel paths
+        shell: bash
+        run: |
+          node -e "const p=require('./package.json');const b=p.version.includes('-beta.');console.log('PACKAGE_DIR='+(b?'release/beta-'+p.version:'release'));console.log('APP_NAME='+(b?'pagenote Beta':'pagenote'))" >> "$GITHUB_ENV"
       - uses: actions/cache@v4
         with:
           path: .builder-cache
@@ -35,23 +39,23 @@ jobs:
       - run: npm run package:desktop
       - run: npm run test:release
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/win-unpacked/pagenote.exe
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/win-unpacked/pagenote.exe
       - run: npm run test:prepared
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/win-unpacked/pagenote.exe
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/win-unpacked/pagenote.exe
       - run: npm run test:english
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/win-unpacked/pagenote.exe
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/win-unpacked/pagenote.exe
       - run: npm run test:acceptance
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/win-unpacked/pagenote.exe
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/win-unpacked/pagenote.exe
       - run: npm run test:mcp
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/win-unpacked/pagenote.exe
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/win-unpacked/pagenote.exe
       - name: Soak harness restart smoke (not one-hour acceptance)
         run: npm run test:soak
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/win-unpacked/pagenote.exe
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/win-unpacked/pagenote.exe
           TEST_SOAK_MINUTES: '0.2'
       - run: npm run package:source
       - run: node scripts/release-artifacts.mjs
@@ -59,9 +63,9 @@ jobs:
         with:
           name: pagenote-windows
           path: |
-            release/*.exe
-            release/*.zip
-            release/SHA256SUMS.txt
+            ${{ env.PACKAGE_DIR }}/*.exe
+            ${{ env.PACKAGE_DIR }}/*.zip
+            ${{ env.PACKAGE_DIR }}/SHA256SUMS.txt
           if-no-files-found: error
 
   macos:
@@ -76,6 +80,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Resolve release channel paths
+        shell: bash
+        run: |
+          node -e "const p=require('./package.json');const b=p.version.includes('-beta.');console.log('PACKAGE_DIR='+(b?'release/beta-'+p.version:'release'));console.log('APP_NAME='+(b?'pagenote Beta':'pagenote'))" >> "$GITHUB_ENV"
       - uses: actions/cache@v4
         with:
           path: .builder-cache
@@ -96,19 +104,19 @@ jobs:
       - run: npx electron-builder --mac dir --publish never --config electron-builder.json
       - run: npm run test:release
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/pagenote.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/pagenote
       - run: npm run test:mcp
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/pagenote.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/pagenote
       - run: npm run test:prepared
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/release/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/pagenote.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/pagenote
       - run: node scripts/release-artifacts.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: pagenote-macos
           path: |
-            release/*.dmg
-            release/*.zip
-            release/SHA256SUMS.txt
+            ${{ env.PACKAGE_DIR }}/*.dmg
+            ${{ env.PACKAGE_DIR }}/*.zip
+            ${{ env.PACKAGE_DIR }}/SHA256SUMS.txt
           if-no-files-found: error

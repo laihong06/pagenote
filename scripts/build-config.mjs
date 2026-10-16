@@ -137,6 +137,17 @@ if (platform === 'win') {
     artifactName: 'pagenote-${version}-mac-${arch}.${ext}',
   });
 }
+if (/-beta\./.test(pkg.version)) {
+  build.appId = 'io.pagenote.desktop.beta';
+  build.productName = 'pagenote Beta';
+  build.executableName = 'pagenote';
+  build.directories.output = 'release/beta-' + pkg.version;
+  // Beta installs alongside stable and never claims its project association.
+  delete build.fileAssociations;
+  if (build.nsis) build.nsis.shortcutName = 'pagenote Beta';
+  if (build.mac?.extendInfo) delete build.mac.extendInfo.CFBundleDocumentTypes;
+  if (platform === 'win') build.extraFiles = [];
+}
 pkg.build = build;
 await fs.writeFile(
   'electron-builder.json',

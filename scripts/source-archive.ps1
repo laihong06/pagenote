@@ -2,6 +2,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $package = Get-Content -LiteralPath (Join-Path $repoRoot 'package.json') -Raw | ConvertFrom-Json
 $releaseRoot = Join-Path $repoRoot 'release'
+if ($package.version -match '-beta\.') {
+    $releaseRoot = Join-Path $releaseRoot "beta-$($package.version)"
+}
 New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
 $zipPath = Join-Path $releaseRoot "pagenote-$($package.version)-source.zip"
 Add-Type -AssemblyName System.IO.Compression

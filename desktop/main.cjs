@@ -32,10 +32,15 @@ function showMainWindow() {
   win.show();
   win.focus();
 }
-app.setName('pagenote');
-app.setAppUserModelId('io.pagenote.desktop');
+const isBeta = /-beta\./.test(app.getVersion());
+app.setName(isBeta ? 'pagenote Beta' : 'pagenote');
+app.setAppUserModelId(
+  isBeta ? 'io.pagenote.desktop.beta' : 'io.pagenote.desktop',
+);
 if (process.env.PAGE_NOTES_USER_DATA)
   app.setPath('userData', process.env.PAGE_NOTES_USER_DATA);
+else if (isBeta)
+  app.setPath('userData', path.join(app.getPath('appData'), 'pagenote-beta'));
 const projectLauncher = createProjectLauncher({
   open: async (file) => {
     showMainWindow();
@@ -73,7 +78,8 @@ if (!app.requestSingleInstanceLock()) {
       if (!process.env.PAGE_NOTES_USER_DATA) {
         const legacy = path.join(app.getPath('appData'), '页伴'),
           target = app.getPath('userData');
-        await require('./migration.cjs').migrateLegacyData(target, legacy);
+        if (!isBeta)
+          await require('./migration.cjs').migrateLegacyData(target, legacy);
       }
       const data = path.join(app.getPath('userData'), 'documents-data');
       process.env.PAGE_NOTES_DATA = data;

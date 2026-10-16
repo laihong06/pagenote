@@ -2,7 +2,7 @@
 
 ## Branch policy
 
-`main` is the stable branch; `beta` is the integration and testing branch. Start all new features and routine fixes from `beta`; feature PRs must target `beta`. Do not push development changes directly to `main`. Promote tested changes through a PR to `main` only after real-use testing and explicit founder approval for that promotion. Passing CI alone does not authorize a stable release. Keep stable download links pinned to the public release during beta development.
+`main` is the stable branch; `beta` is the integration and testing branch. Start all new features and routine fixes from `beta`; feature PRs must target `beta`. Do not push development changes directly to `main`. Promote tested changes through a PR to `main` only after real-use testing and explicit founder approval for that promotion. Passing CI alone does not authorize a stable release. Each branch has its own README and matching downloads: main links stable packages, beta links beta prereleases. Never use stable downloads as the beta download entry. Unavailable platform builds must be marked unavailable, not substituted with older builds. Beta packages use a distinct installation identity and user data directory and do not claim stable file associations. Preserve the appropriate branch README when promoting code.
 
 Every push must include an accompanying `CHANGELOG.md` update describing the user-visible changes or fixes in that push. Keep unreleased work under the current Unreleased section and distinguish local builds from public releases. Do not push code or documentation changes without a matching log entry.
 
