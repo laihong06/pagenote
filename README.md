@@ -122,7 +122,7 @@ Mac 适配由 [obroccolio](https://github.com/obroccolio) 在 [PR #3](https://gi
     ai-reviews.json         # AI 标注（产生标注后保存）
 ```
 
-两个平台都可以从 **文件 → 打开项目** 读取 `project.pagenote`。Windows 安装版会注册双击打开；Windows ZIP 版若没有关联文件类型，在分发目录运行一次 `register-project-files.cmd`，移动软件后需重新注册。Windows 若已有其他默认应用，请在“打开方式”里选择 pagenote。Mac 将应用移入 Applications 后可使用 Finder 打开项目；若未关联，可在“打开方式”中选择 pagenote，无需运行 Windows 的 `.cmd` 脚本。
+先启动 **pagenote Beta**，再通过 **文件 → 打开项目** 选择 `project.pagenote`。本次测试版安装包和 ZIP 均不注册项目关联；直接双击项目可能仍打开正式版。需要隔离试用时，请先复制整个项目文件夹。
 
 旧版 `project.page-notes.json` 也可从软件里打开。入口中的 `left` 与 `right` 链接是文件来源，打开时按链接重新读取 `src`；不要只移动入口文件。
 

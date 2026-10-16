@@ -116,7 +116,7 @@ My project/
     ai-reviews.json         # AI annotations, created when used
 ```
 
-With the installed app, double-click `project.pagenote`, or choose it under **File → Open project**. For a ZIP distribution without an association, run `register-project-files.cmd` in the newer distribution folder once. Register again after moving the app. If Windows already has another default, choose pagenote under **Open with**.
+Open **pagenote Beta**, then choose **File → Open project** and select `project.pagenote`. This beta installer and ZIP deliberately do not register project associations; double-clicking a project may still open stable. For isolated testing, copy the complete project folder first.
 
 Legacy `project.page-notes.json` files remain supported through the app. The `left` and `right` links are read on opening. Move the complete folder, not just its manifest.
 

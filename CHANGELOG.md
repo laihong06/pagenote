@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Clarify beta project opening: use File → Open project; remove inherited stable association/registration instructions. Documentation only; beta.3 binaries unchanged. / 修正 beta 项目打开说明，不引导注册正式版文件关联；安装包不变。
+
 ## 1.1.0-beta.3 — 2026-10-17
 
 - Separate beta READMEs/downloads from main: publish Windows beta installer, ZIP, source and checksums as a prerelease; keep stable v1.0 untouched. / beta 文档仅提供对应测试包，正式版保持独立；Mac 当前测试包未提供。
