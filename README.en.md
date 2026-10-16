@@ -1,8 +1,8 @@
-# pagenote
+# pagenote · Stable
 
-**[⬇ Windows installer](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Windows portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · **[⬇ Mac Apple Silicon](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg)** · **[⬇ Mac Intel](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg)** · [Source archive](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
+**[⬇ Windows stable installer](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Stable portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · [Stable source](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
 
-Windows **v1.0 is stable**; macOS remains **experimental in this project**. Mac downloads are independently built by [obroccolio](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0), with filenames numbered 1.0.0; they are not the Windows release or a guaranteed build of this repository's latest source. Download an installer to use the app, or download the source / fork the repository to modify it.
+This is the **main stable branch**, documenting Windows **v1.0.0**. For new features and beta installers, use the [beta branch](https://github.com/laihong06/pagenote/tree/beta). No stable macOS installer has been released.
 
 <img src="build/icon.png" alt="pagenote paired-page icon" width="88">
 
@@ -81,30 +81,9 @@ Alternatively, extract the complete Windows ZIP distribution and run `pagenote.e
 
 Releases should include `SHA256SUMS.txt` and pass security review. The current local build has no publisher signature. If security software blocks it, stop and report the detection; **do not disable protection or add an exclusion**.
 
-### Install on Mac (experimental)
+### macOS status
 
-| Your Mac | Installer | ZIP alternative |
-|---|---|---|
-| Apple Silicon, M-series | [arm64 DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.dmg) | [arm64 ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-arm64.zip) |
-| Intel | [x64 DMG](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.dmg) | [x64 ZIP](https://github.com/obroccolio/pagenote/releases/download/v1.0.0/pagenote-1.0.0-mac-x64.zip) |
-
-1. Open **Apple menu → About This Mac** to identify the chip or processor.
-2. Open the DMG and drag **pagenote.app** to **Applications**. For ZIP, extract and move the complete app to Applications.
-3. These Mac packages are unsigned and not notarized. If macOS blocks opening, verify the source and checksum, then follow the OS prompts under **System Settings → Privacy & Security**. Do not disable Gatekeeper globally.
-4. PDF and Markdown need no Office. Word/PPT import and preview refresh require locally installed, activated **Microsoft Word / PowerPoint**. Allow the requested Automation and document access permissions.
-5. Choose your language in Settings, import a document or open a project, then add page notes or connect your external AI client.
-
-The Office bridge requires Microsoft Word / PowerPoint; WPS, Pages and Keynote are not replacements. If an operation times out, check Office for pending permission, activation or document dialogs before retrying. MCP Word screenshots render a temporary PDF without screen-recording permission. Conversion failures or source conflicts retain the working copy for recovery.
-
-[Mac release notes and checksums](https://github.com/obroccolio/pagenote/releases/tag/v1.0.0) · [Office setup and troubleshooting](docs/MAC-OFFICE.md)
-
-Use `shasum -a 256 PATH_TO_DOWNLOAD` and compare against the contributor's Mac checksum file, not the Windows manifest.
-
-### What the Mac contribution adds
-
-[obroccolio](https://github.com/obroccolio) contributed [PR #3](https://github.com/laihong06/pagenote/pull/3): Finder project opening, Dock window restoration, native menus and Command shortcuts, local Word/PPT conversion and refresh, and revision-checked Word operations through MCP. Word screenshots render a temporary PDF. Build scripts support Apple Silicon and Intel, with a bundled MCP Node.js runtime.
-
-The code is merged here, while the linked Mac binaries are separate contributor builds and may differ from the latest merged source. Windows acceptance does not establish Mac acceptance. Track pending work in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+macOS remains experimental; it is not offered as a stable download here. Check the [beta branch](https://github.com/laihong06/pagenote/tree/beta) for matching test builds and availability. Contributor and Office documentation remain in [Mac setup](docs/MAC-OFFICE.md).
 
 ## Other controls
 
