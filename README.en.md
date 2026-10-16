@@ -150,6 +150,8 @@ On Mac, move pagenote to Applications and open projects through Finder or **File
 
 ## Build from source
 
+Use the [beta branch](https://github.com/laihong06/pagenote/tree/beta) for development and testing; `main` is reserved for stable releases. New features and routine fixes target `beta` first. Promote them through a PR to `main` only after real-use testing and explicit founder approval. Passing tests do not automatically publish a release, and beta source is not an installer.
+
 Install Node.js 22.13 or newer, then run:
 
 ```bash
