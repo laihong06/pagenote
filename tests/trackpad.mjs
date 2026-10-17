@@ -215,6 +215,7 @@ try {
     );
   }
   await w.locator('#aiSharedTools [data-ai-pointer=pen]').click();
+  await w.locator('.document-pane .pane-heading').click();
   await pan('#documentScroll');
   await w.locator('#aiSharedTools [data-ai-pointer=mouse]').click();
   await w.evaluate(async () => {

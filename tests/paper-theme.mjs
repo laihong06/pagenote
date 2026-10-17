@@ -193,6 +193,9 @@ try {
   const paperHeading = await w
     .locator('.markdown-page h3')
     .evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+  // Dismiss the tool popover before dragging; on compact displays it covers
+  // the source pane's center and otherwise receives the pointer events.
+  await w.locator('.document-pane .pane-heading').click();
   const inkBox = await w
     .locator('.document-sheet .ink-layer [data-item="0"]')
     .boundingBox();
