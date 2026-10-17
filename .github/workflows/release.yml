@@ -104,13 +104,13 @@ jobs:
       - run: npx electron-builder --mac dir --publish never --config electron-builder.json
       - run: npm run test:release
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/${{ env.APP_NAME }}
       - run: npm run test:mcp
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/${{ env.APP_NAME }}
       - run: npm run test:prepared
         env:
-          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/pagenote
+          DESKTOP_EXE: ${{ github.workspace }}/${{ env.PACKAGE_DIR }}/mac${{ runner.arch == 'ARM64' && '-arm64' || '' }}/${{ env.APP_NAME }}.app/Contents/MacOS/${{ env.APP_NAME }}
       - run: node scripts/release-artifacts.mjs
       - uses: actions/upload-artifact@v4
         with:

@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          export DESKTOP_EXE="$GITHUB_WORKSPACE/release/beta-$VERSION/mac-arm64/pagenote Beta.app/Contents/MacOS/pagenote"
+          export DESKTOP_EXE="$GITHUB_WORKSPACE/release/beta-$VERSION/mac-arm64/pagenote Beta.app/Contents/MacOS/pagenote Beta"
           npm run test:native-settings
           node tests/project-open.mjs
       - run: node scripts/release-artifacts.mjs

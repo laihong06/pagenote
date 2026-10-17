@@ -144,7 +144,8 @@ if (platform === 'win') {
 if (/-beta\./.test(pkg.version)) {
   build.appId = 'io.pagenote.desktop.beta';
   build.productName = 'pagenote Beta';
-  build.executableName = 'pagenote';
+  if (platform === 'win') build.executableName = 'pagenote';
+  else delete build.executableName;
   build.directories.output = 'release/beta-' + pkg.version;
   // Beta installs alongside stable and never claims its project association.
   delete build.fileAssociations;

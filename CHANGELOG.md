@@ -4,6 +4,8 @@
 
 ## 1.1.0-beta.4 — 2026-10-17
 
+- Keep the Windows executable-name override off macOS: electron-builder uses it for the entire app bundle name. Mac beta now builds as pagenote Beta.app with a matching binary path, alongside stable pagenote.app. / Windows 的可执行文件名覆盖不再影响 Mac；Mac 测试版正确生成独立的 pagenote Beta.app，避免与正式应用重名。
+
 - Dismiss the pen popover before test pan/ink drag actions: on compact displays it can cover the source pane and legitimately receive those events. Preserve the actual native-pan and ink-position assertions. / 小屏幕交互测试先收起覆盖文档的画笔面板，再验证平移和手写拖动；保留实际效果断言。
 
 - Adapt the reading zoom test to compact displays, where the optional Fit label is intentionally hidden; keep all focal-point and page-transition assertions. / 阅读缩放测试兼容小屏幕隐藏“适合窗口”文字按钮的布局，保留全部缩放与翻页断言。
