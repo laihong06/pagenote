@@ -1,5 +1,8 @@
 name: Upload validated Mac beta packages
 on:
+  push:
+    branches: [beta]
+    paths: ['.github/beta-upload-request.json']
   workflow_dispatch:
     inputs:
       run_id:
@@ -20,14 +23,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Resolve upload request
+        id: request
+        env:
+          INPUT_RUN: ${{ inputs.run_id }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const r=JSON.parse(fs.readFileSync('.github/beta-upload-request.json','utf8')); const id=process.env.INPUT_RUN||r.run_id; const tag=process.env.INPUT_TAG||r.tag; if(!/^\d+$/.test(id)||!/^v\d+\.\d+\.\d+-beta\.\d+$/.test(tag)) throw Error('Invalid upload request'); fs.appendFileSync(process.env.GITHUB_OUTPUT,'run_id='+id+'\ntag='+tag+'\n');"
       - uses: actions/download-artifact@v4
         with:
           name: pagenote-beta-mac-arm64
           path: mac-artifacts
-          run-id: ${{ inputs.run_id }}
+          run-id: ${{ steps.request.outputs.run_id }}
           github-token: ${{ github.token }}
       - run: node scripts/upload-beta-mac.mjs
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-          VALIDATION_RUN: ${{ inputs.run_id }}
+          RELEASE_TAG: ${{ steps.request.outputs.tag }}
+          VALIDATION_RUN: ${{ steps.request.outputs.run_id }}
