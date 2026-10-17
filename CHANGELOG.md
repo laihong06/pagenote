@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Redraw the bilingual beta README workflow using aligned generation/revision columns, shared guidance and a learner-feedback loop, following the founder's reference diagram. Documentation only; release binaries unchanged. / 按参考图重排中英文路由图，保留生成、修改、材料准备与用户画像回路；仅更新文档，不改安装包。
+
 - Clarify beta project opening: use File → Open project; remove inherited stable association/registration instructions. Documentation only; beta.3 binaries unchanged. / 修正 beta 项目打开说明，不引导注册正式版文件关联；安装包不变。
 
 ## 1.1.0-beta.3 — 2026-10-17

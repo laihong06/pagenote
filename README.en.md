@@ -24,6 +24,8 @@ These frustrations led to Pagenote. The idea is to keep each source page beside 
 
 ![Pagenote layered prompt and local data routing](docs/images/prompt-routing-en.svg)
 
+The left side follows generation and revision through preparation, execution and saving. The right side holds shared teaching skills, output rules and learner preferences. Solid lines show execution and data flow; dashed lines mark editable prompts. [View the full diagram](docs/images/prompt-routing-en.svg).
+
 The editable entry routes generation and revision to shared teaching skills, output rules and learner preferences. Local tools prepare source/neighbor pages, notes, Tags, OCR and images; the host Agent owns sessions, delegation and context. Edit the guidance in **Settings → AI settings**, without copying prompts. See the [workflow](docs/AI-TEACHING.zh-CN.md) and [full prompt/tool catalog](docs/PROMPTS.zh-CN.md).
 
 ## Features in pictures
