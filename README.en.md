@@ -1,8 +1,10 @@
 # pagenote Beta
 
-**[⬇ Windows beta installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64-setup.exe)** · [Beta portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64.zip) · [Beta source](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-source.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.3)
+**[⬇ Windows beta installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe)** · [Beta portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [Beta source](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-source.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
-This is the **beta branch**. The README and downloads on this page describe **1.1.0-beta.3**, including the editable prompt routing and Windows trackpad changes. [Stable branch](https://github.com/laihong06/pagenote/tree/main).
+**[⬇ Mac Apple Silicon beta DMG](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.dmg)** · [Mac beta ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.zip)
+
+This is the **beta branch**. The README and downloads on this page describe **1.1.0-beta.4**, including native Mac settings, light/dark appearance, Paper reading theme, welcome screen, prompt routing and Windows trackpad changes. [Stable branch](https://github.com/laihong06/pagenote/tree/main).
 
 Beta installs as **pagenote Beta**, with a separate installation identity, shortcuts and local settings/data directory. It does not take over stable project file associations. Project files you explicitly open are still shared files: copy a project before testing if you want to keep its stable copy unchanged.
 
@@ -76,11 +78,11 @@ Beta.5 reads source and notes separately, fetches only the needed note passages,
 
 It also bundles offline Chinese/English OCR and prepares reusable positioned text, confidence, page/region images and native Markdown table/Mermaid assets. Sources and visuals remain available for checking uncertain formulas and charts. See [local page preparation](docs/LOCAL-PREPARATION.md).
 
-**Current Windows beta version: 1.1.0-beta.3**.
+**Current Windows beta version: 1.1.0-beta.4**.
 
 ## Download and install
 
-[Windows x64 installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64-setup.exe) · [Complete Windows ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.3)
+[Windows x64 installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe) · [Complete Windows ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
 1. Download `pagenote-VERSION-windows-x64-setup.exe` from this repository's **Releases**. **Code → Download ZIP** contains source code, not an installer.
 2. Run the installer and choose a location. Installation is per user and normally does not require administrator privileges.
@@ -93,7 +95,7 @@ Releases should include `SHA256SUMS.txt` and pass security review. The current l
 
 ### macOS beta availability
 
-No macOS binary matching this beta revision is published yet. Older contributor builds are not offered as downloads for this beta. Platform setup: [Mac Office](docs/MAC-OFFICE.md).
+Matching Apple Silicon (arm64) DMG and ZIP packages are provided as experimental builds. Intel packages are not offered in this beta. Builds are unsigned and not notarized; macOS may block the first launch. Platform setup: [Mac Office](docs/MAC-OFFICE.md).
 
 ## Other controls
 
@@ -131,7 +133,7 @@ On Mac, move pagenote to Applications and open projects through Finder or **File
 ## Requirements
 
 - Windows 10/11, x64: v1.0 stable, approved by the founder after accepting LTH0001's tests together with their own supplementary local tests.
-- macOS 12 or later: experimental Apple Silicon and Intel builds; Windows stable acceptance does not apply to macOS.
+- macOS 12 or later: experimental Apple Silicon arm64 builds; no Intel package in this beta; Windows stable acceptance does not apply to macOS.
 - ARM64 Windows is not yet verified.
 - PDF and Markdown do not require Office. Word/PPT import, project preview and post-save refresh need locally licensed **Microsoft Word / PowerPoint** on Windows and macOS.
 - On first Mac integration, allow pagenote to control Word / PowerPoint; if denied, enable it under **System Settings → Privacy & Security → Automation**. Mac Word editing uses a separate window with MCP read, selection, revision-checked replacement and PDF-rendered screenshots. See [Mac Office notes](docs/MAC-OFFICE.md).
@@ -149,7 +151,7 @@ npm run build
 npm run desktop
 ```
 
-Use `npm run dev` for browser development, `npm run package:desktop` for the Windows installer and ZIP, or `npm run package:dir` for a folder build. Use `npm run package:mac` for macOS DMG and ZIP (Apple Silicon and Intel), or `npm run package:mac:local` for a local-arch folder build. The test suite runs on Windows and macOS.
+Use `npm run dev` for browser development, `npm run package:desktop` for the Windows installer and ZIP, or `npm run package:dir` for a folder build. Use `npm run package:mac` for macOS DMG and ZIP (Apple Silicon arm64), or `npm run package:mac:local` for an arm64 folder build. The test suite runs on Windows and macOS.
 
 See the [release guide](docs/RELEASING.en-US.md), [terminology specification](docs/TERMINOLOGY.md) and [release-readiness report](docs/RELEASE-READINESS.md). Bug reports should include the version, Windows version, reproduction steps and redacted logs. Do not upload private projects or MCP connection keys.
 

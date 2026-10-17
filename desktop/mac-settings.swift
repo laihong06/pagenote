@@ -8,14 +8,14 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     var values: [String: Any] = [:]
     var pane = "general"
     let panes = ["general", "appearance", "reading", "ai"]
-    let modules = ["system", "learning", "page-tutor", "output", "tag-edit", "learner"]
+    let modules = ["system", "entry", "generation", "learning", "page-tutor", "output", "tag-edit", "learner", "profile"]
     var controls: [String: NSControl] = [:]
     var callbacks: [String: ([String: Any]) -> Void] = [:]
     var sequence = 0
     var status: NSTextField?
     var editor: NSTextView?
     var module = "system"
-    struct Draft { var text: String; var saved: String; var defaultText: String }
+    struct Draft { var text: String; var saved: String; var defaultText: String; var revision: String }
     var drafts: [String: Draft] = [:]
     var closeRequest: String?
     var savingOnClose = false
@@ -33,6 +33,9 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     }
     func moduleTitle(_ id: String) -> String {
         switch id {
+        case "entry": return tr("入口与路由", "Entry and routing")
+        case "generation": return tr("生成策略", "Generation strategy")
+        case "profile": return tr("用户画像", "Learner preferences")
         case "learning": return tr("学习讲解", "Learning")
         case "page-tutor": return tr("逐页精讲", "Page tutor")
         case "output": return tr("输出格式", "Output format")
@@ -376,7 +379,7 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             guard let self = self else { return }
             if let error = reply["error"] as? String { self.setStatus(error, error: true); return }
             guard let prompt = reply["prompt"] as? [String: Any], let text = prompt["text"] as? String, let defaults = prompt["defaultText"] as? String else { return }
-            self.drafts[selected] = Draft(text: text, saved: text, defaultText: defaults)
+            self.drafts[selected] = Draft(text: text, saved: text, defaultText: defaults, revision: prompt["revision"] as? String ?? "")
             if self.module == selected {
                 self.editor?.string = text
                 self.setStatus("")
@@ -399,10 +402,11 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     @objc func savePrompt() { save(module) { _ in } }
     func save(_ selected: String, completion: @escaping (Bool) -> Void) {
         guard let draft = drafts[selected] else { completion(false); return }
-        request("save-prompt", ["module": selected, "text": draft.text]) { [weak self] reply in
+        request("save-prompt", ["module": selected, "text": draft.text, "expectedRevision": draft.revision]) { [weak self] reply in
             guard let self = self else { return }
             if let error = reply["error"] as? String { self.setStatus(error, error: true); completion(false); return }
             self.drafts[selected]?.saved = draft.text
+            if let prompt = reply["prompt"] as? [String: Any], let revision = prompt["revision"] as? String { self.drafts[selected]?.revision = revision }
             self.setStatus(self.tr("更改已保存", "Changes saved"))
             completion(true)
         }

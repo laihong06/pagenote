@@ -1,0 +1,51 @@
+name: Beta Mac validation and packages
+on:
+  push:
+    branches: [beta]
+    paths:
+      - 'desktop/**'
+      - 'src/**'
+      - 'scripts/**'
+      - 'package*.json'
+      - 'tests/**'
+      - '.github/workflows/beta-mac.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: test "$(uname -m)" = arm64
+      - run: npm ci
+      - run: npm run format:check && npm run test:version
+      - run: npm run build
+      - name: Native settings and lifecycle
+        run: npm run test:native-settings && node tests/mac-native.mjs
+      - name: Themes, diagrams and first launch
+        run: npm run test:ui
+      - name: Reading and project persistence
+        run: node tests/project-open.mjs && npm run test:reading && npm run test:workflows
+      - run: node scripts/package-desktop.mjs --mac
+      - name: Packaged native settings and project opening
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          export DESKTOP_EXE="$GITHUB_WORKSPACE/release/beta-$VERSION/mac-arm64/pagenote Beta.app/Contents/MacOS/pagenote"
+          npm run test:native-settings
+          node tests/project-open.mjs
+      - run: node scripts/release-artifacts.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pagenote-beta-mac-arm64
+          path: |
+            release/beta-*/*.dmg
+            release/beta-*/*.zip
+            release/beta-*/SHA256SUMS.txt
+          if-no-files-found: error

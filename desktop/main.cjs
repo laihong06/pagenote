@@ -337,7 +337,7 @@ if (!app.requestSingleInstanceLock()) {
               defaultText: result.defaultSystemPrompt,
             };
           },
-          savePrompt: (module, text) =>
+          savePrompt: (module, text, expectedRevision) =>
             api(
               module === 'system'
                 ? '/api/ai-settings'
@@ -346,7 +346,9 @@ if (!app.requestSingleInstanceLock()) {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(
-                  module === 'system' ? { systemPrompt: text } : { text },
+                  module === 'system'
+                    ? { systemPrompt: text }
+                    : { text, expectedRevision },
                 ),
               },
             ),

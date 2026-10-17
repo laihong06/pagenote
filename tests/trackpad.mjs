@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -22,7 +23,7 @@ try {
   const w = await app.firstWindow();
   w.on('pageerror', (e) => errors.push(e.message));
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() =>
     window.pageNotes.setLayout({ expandEditor: false, noteAnimation: false }),
   );

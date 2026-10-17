@@ -25,16 +25,8 @@ await new Promise((resolve, reject) => {
 const args =
   platform === 'mac'
     ? dir
-      ? ['--mac', 'dir', '--config', 'electron-builder.json']
-      : [
-          '--mac',
-          'dmg',
-          'zip',
-          '--arm64',
-          '--x64',
-          '--config',
-          'electron-builder.json',
-        ]
+      ? ['--mac', 'dir', '--arm64', '--config', 'electron-builder.json']
+      : ['--mac', 'dmg', 'zip', '--arm64', '--config', 'electron-builder.json']
     : dir
       ? ['--win', 'dir', '--x64', '--config', 'electron-builder.json']
       : ['--win', 'nsis', 'zip', '--x64', '--config', 'electron-builder.json'];

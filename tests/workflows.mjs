@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -26,7 +27,7 @@ const unpack = (result) => {
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const config = JSON.parse(
     await fs.readFile(path.join(profile, 'mcp/mcp-config.json'), 'utf8'),
   ).mcpServers.page_notes;
@@ -243,7 +244,7 @@ try {
   assert.equal(await w.locator('.document-sheet.is-current').count(), 1);
   await w.reload();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   assert.equal(
     (await call('page_notes_read_prompt', { id: 'profile' })).revision,
     directProfile.revision,

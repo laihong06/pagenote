@@ -1,8 +1,10 @@
 # pagenote Beta
 
-**[⬇ Windows 测试版安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64-setup.exe)** · [测试版免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64.zip) · [测试版源码](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-source.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.3)
+**[⬇ Windows 测试版安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe)** · [测试版免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [测试版源码](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-source.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
-这里是 **beta 测试分支**。本页说明与下载对应 **1.1.0-beta.3**，包含可编辑提示词路由和 Windows 触控板适配。[前往 main 正式分支](https://github.com/laihong06/pagenote/tree/main)。
+**[⬇ Mac Apple Silicon 测试版 DMG](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.dmg)** · [Mac 测试版 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.zip)
+
+这里是 **beta 测试分支**。本页说明与下载对应 **1.1.0-beta.4**，包含 Mac 原生设置、明暗主题、纸张阅读主题、欢迎页及既有提示词路由和 Windows 触控板适配。[前往 main 正式分支](https://github.com/laihong06/pagenote/tree/main)。
 
 测试版以 **pagenote Beta** 独立安装，使用独立的快捷方式、安装标识和本地设置、数据目录，不接管正式版的项目文件关联。主动打开的项目仍是同一份文件；想保留正式版项目原样，请先复制项目再测试。
 
@@ -76,11 +78,11 @@ AI 浪潮扑面而来，用 AI 辅助学习早已是寻常选择。大家常常�
 
 当前版本还内置离线中英文 OCR，能为 AI 准备逐页文字、坐标和置信度、整页或区域图片，以及 Markdown 表格和 Mermaid 图像，结果随项目缓存。原文和原图保留，识别不准的公式或图表仍需核对，详见 [本地页面准备](docs/LOCAL-PREPARATION.md)。
 
-**当前公开版本：1.1.0-beta.3。** 已安装旧版的用户需要手动升级：关闭旧版后安装新版，ZIP 版请完整解压到新目录，不要只替换 EXE。 后续继续改进，欢迎拿真实的学习材料试用，也欢迎告诉我哪里用起来不顺。
+**当前公开版本：1.1.0-beta.4。** 已安装旧版的用户需要手动升级：关闭旧版后安装新版，ZIP 版请完整解压到新目录，不要只替换 EXE。 后续继续改进，欢迎拿真实的学习材料试用，也欢迎告诉我哪里用起来不顺。
 
 ## 下载与安装
 
-[下载 Windows x64 安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64-setup.exe) · [完整 ZIP 分发包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.3/pagenote-1.1.0-beta.3-windows-x64.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.3)
+[下载 Windows x64 安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe) · [完整 ZIP 分发包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
 1. 在本仓库的 **Releases** 中下载 `pagenote-版本-windows-x64-setup.exe`。浏览源码时的 **Code → Download ZIP** 是源码包，不能直接安装。
 2. 双击安装包，按向导选择安装位置。安装仅针对当前用户，通常不需要管理员权限。
@@ -93,13 +95,13 @@ AI 浪潮扑面而来，用 AI 辅助学习早已是寻常选择。大家常常�
 
 ### macOS 测试包
 
-当前 beta 版本尚未提供对应的 macOS 安装包。本页不将贡献者的旧构建当作本次 beta 下载。平台接入说明见 [Mac Office](docs/MAC-OFFICE.md)。
+本次提供与该版本源码对应的 Apple Silicon（arm64）DMG 和 ZIP，仍为测试版；Intel 包暂不提供。未签名、公证，首次打开可能被系统拦截。平台接入说明见 [Mac Office](docs/MAC-OFFICE.md)。
 
 ## 这次 Mac 适配带来的变化
 
-Mac 适配由 [obroccolio](https://github.com/obroccolio) 在 [PR #3](https://github.com/laihong06/pagenote/pull/3) 中贡献：Finder 打开项目、Dock 唤回窗口、原生菜单与 Command 快捷键，以及本机 Word/PPT 转换和保存刷新。MCP 可使用独立 Word 窗口读取和进行带版本检查的修改，Word 截图通过临时 PDF 渲染。Apple Silicon 与 Intel 均有构建入口，普通用户无需另装 Node.js。
+Mac 适配由 [obroccolio](https://github.com/obroccolio) 在 [PR #3](https://github.com/laihong06/pagenote/pull/3) 中贡献：Finder 打开项目、Dock 唤回窗口、原生菜单与 Command 快捷键，以及本机 Word/PPT 转换和保存刷新。MCP 可使用独立 Word 窗口读取和进行带版本检查的修改，Word 截图通过临时 PDF 渲染。当前测试包面向 Apple Silicon，普通用户无需另装 Node.js。
 
-本仓库已合入适配代码；上方 Mac 包由贡献者单独发布，可能与合并后的源码存在差异。Windows 的验收结果不直接适用于 Mac，具体限制与待办统一记在 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
+本次整合 [PR #6](https://github.com/laihong06/pagenote/pull/6) 的原生设置、主题和欢迎页，同时补齐新版提示词模块与保存冲突保护。下载对应同一版本源码。Windows 的验收结果不直接适用于 Mac，具体限制与待办统一记在 [KNOWN_ISSUES.md](KNOWN_ISSUES.md)。
 
 ## 其他操作
 
@@ -135,7 +137,7 @@ beta.3 修复了部分 Windows 加密或重定向数据目录中的迁移、临�
 ## 系统要求
 
 - Windows 10 / 11，x64：v1.0 正式版，依据 LTH0001 测试与发起人本机补测，由发起人批准发布。
-- macOS 12 或更高：测试版，支持 Apple Silicon 与 Intel 构建；Windows 的正式版状态不适用于 Mac。
+- macOS 12 或更高：测试版，当前分发 Apple Silicon arm64，Intel 暂不提供；Windows 的正式版状态不适用于 Mac。
 - ARM64 Windows 暂未验证。
 - PDF 与 Markdown 不要求安装 Office。Word/PPT 导入、项目预览及保存后刷新需要本机已授权的 **Microsoft Word / PowerPoint**，Windows 与 macOS 均可使用。
 - macOS 首次接入时，在系统提示中允许 pagenote 控制 Word / PowerPoint；被拒绝后可在 **系统设置 → 隐私与安全性 → 自动化** 中开启。Mac 的 Word 编辑使用独立窗口，MCP 支持读取、选区、带版本检查的替换及 PDF 渲染截图。详见 [Mac Office 说明](docs/MAC-OFFICE.md)。
@@ -153,7 +155,7 @@ npm run build
 npm run desktop
 ```
 
-开发网页模式：`npm run dev`。生成 Windows 安装包和 ZIP：`npm run package:desktop`；文件夹版：`npm run package:dir`。生成 macOS DMG 与 ZIP（Apple Silicon 和 Intel 双架构）：`npm run package:mac`；仅本机架构的文件夹版：`npm run package:mac:local`。测试套件在 Windows 与 macOS 上均可运行。发布流程见 [中文发布教程](docs/RELEASING.zh-CN.md) 与 [English release guide](docs/RELEASING.en-US.md)。
+开发网页模式：`npm run dev`。生成 Windows 安装包和 ZIP：`npm run package:desktop`；文件夹版：`npm run package:dir`。生成 macOS DMG 与 ZIP（Apple Silicon arm64）：`npm run package:mac`；arm64 文件夹版：`npm run package:mac:local`。测试套件在 Windows 与 macOS 上均可运行。发布流程见 [中文发布教程](docs/RELEASING.zh-CN.md) 与 [English release guide](docs/RELEASING.en-US.md)。
 
 ## 工程与发布状态
 

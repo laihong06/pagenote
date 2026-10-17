@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -29,7 +30,7 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const state = await app.evaluate(({ app }) => ({
     name: app.getName(),
     data: app.getPath('userData'),

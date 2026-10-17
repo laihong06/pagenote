@@ -2,7 +2,13 @@
 
 ## Unreleased / 尚未发布
 
-- Local Windows preview of obroccolio PR #6: appearance themes, paper reading layout, welcome animation and web settings fallback. Not published or promoted to beta/main. / Mac UI 的独立 Windows 本地预览，未发布。
+## 1.1.0-beta.4 — 2026-10-17
+
+- Integrate obroccolio PR #6 into beta: native Mac settings, system/light/dark themes, Paper reading layout and first-run welcome. Windows retains the web settings window. / 合入 Mac 主题与原生设置，Windows 使用网页设置窗口。
+- Bring native prompt editing up to the current routing architecture and forward expected revisions to prevent overwriting concurrent AI preference updates. / 补齐入口、生成策略、用户画像模块及提示词保存版本保护。
+- Keep Mermaid measurement outside the window grid and clean it after success/failure; cover cold rendering, repeated navigation and invalid diagrams. / 修复 Mermaid 测量节点顶起底栏的问题并验证翻页与异常图表。
+- Publish matching Windows x64 and Mac Apple Silicon arm64 beta packages; isolate beta identity/data from stable. Intel Mac builds are not included because the native helper is arm64. / 分发同版本 Windows 与 Apple Silicon 测试包，正式版不变；不提供夹带 arm64 组件的 Intel 包。
+- Add a dedicated macOS CI build/native/UI/reading/package validation workflow; retain the existing exhaustive workflow and documented MCP limitations. / 增加针对 Mac 改动的分级构建验证，保留既有完整测试与已知限制。
 
 - Redraw the bilingual beta README workflow using aligned generation/revision columns, shared guidance and a learner-feedback loop, following the founder's reference diagram. Documentation only; release binaries unchanged. / 按参考图重排中英文路由图，保留生成、修改、材料准备与用户画像回路；仅更新文档，不改安装包。
 

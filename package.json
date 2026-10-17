@@ -1,11 +1,11 @@
 {
   "name": "pagenote",
-  "version": "1.1.0-beta.4.preview.1",
+  "version": "1.1.0-beta.4",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node server.mjs --dev",
-    "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && vite build && node scripts/build-mcp.mjs",
+    "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && node scripts/build-mac-settings.mjs && vite build && node scripts/build-mcp.mjs",
     "start": "node server.mjs",
     "test": "npm run test:release",
     "desktop": "electron .",
@@ -39,7 +39,9 @@
     "test:workflows": "node tests/workflows.mjs",
     "pretest:workflows": "node scripts/ensure-electron.mjs",
     "test:trackpad": "node tests/trackpad.mjs",
-    "pretest:trackpad": "node scripts/ensure-electron.mjs"
+    "pretest:trackpad": "node scripts/ensure-electron.mjs",
+    "test:ui": "node tests/footer-stability.mjs && node tests/paper-theme.mjs && node tests/theme.mjs && node tests/hello.mjs",
+    "test:native-settings": "node tests/native-settings.mjs && node tests/native-settings-app.mjs && node tests/native-settings-fallback.mjs && node tests/settings-quit-race.mjs"
   },
   "dependencies": {
     "sharp": "0.35.5",

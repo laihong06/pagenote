@@ -4,11 +4,7 @@ const path = require('node:path');
 const panes = new Set(['general', 'appearance', 'reading', 'ai']);
 const promptModules = new Set([
   'system',
-  'learning',
-  'page-tutor',
-  'output',
-  'tag-edit',
-  'learner',
+  ...require('./prompts.cjs').modules.map((m) => m.id),
 ]);
 const choices = {
   language: ['zh-CN', 'en-US'],
@@ -94,7 +90,7 @@ function createMacSettings({
         if (packet.action === 'save-prompt') {
           if (typeof packet.text !== 'string' || packet.text.length > 32768)
             throw Error('Prompt must be text of at most 32768 characters');
-          await savePrompt(packet.module, packet.text);
+          await savePrompt(packet.module, packet.text, packet.expectedRevision);
         }
         prompt = await readPrompt(packet.module);
       } else throw Error('Unsupported native settings action');

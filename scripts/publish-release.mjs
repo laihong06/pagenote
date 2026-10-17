@@ -89,6 +89,12 @@ if (mode === 'status') {
     `pagenote-${version}-windows-x64-setup.exe`,
     `pagenote-${version}-windows-x64.zip`,
     `pagenote-${version}-source.zip`,
+    ...(process.argv.includes('--with-mac')
+      ? [
+          `pagenote-${version}-mac-arm64.dmg`,
+          `pagenote-${version}-mac-arm64.zip`,
+        ]
+      : []),
     'SHA256SUMS.txt',
   ];
   const hashes = {};
@@ -100,7 +106,7 @@ if (mode === 'status') {
     path.join(directory, 'SHA256SUMS.txt'),
     'utf8',
   );
-  for (const name of names.slice(0, 3))
+  for (const name of names.filter((name) => name !== 'SHA256SUMS.txt'))
     if (!sums.split(/\r?\n/).includes(hashes[name] + '  ' + name))
       throw Error('Checksum manifest differs: ' + name);
   const body = await fs.readFile(
