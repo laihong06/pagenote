@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
+
 ### 1.0.1 Windows patch candidate
 
 - Backport only the Mermaid measurement-container fix from obroccolio PR #6: temporary SVG measurements no longer enter the window grid or move page/word-count footers while navigating. Always clean measurement nodes on success and failure. / 仅回移 Mermaid 测量节点修复，防止翻页时页码与字数底栏上跳，正常及异常路径均清理节点。

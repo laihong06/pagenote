@@ -1,5 +1,7 @@
 # pagenote · 正式版
 
+**使用要求：本项目仅供非商业用途，不允许商业使用。**
+
 **[⬇ Windows 正式版安装包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [正式版免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · [正式版源码](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
 
 这里是 **main 正式分支**，本页介绍和下载对应 Windows **v1.0.0**。新功能与测试版安装包请前往 [beta 分支](https://github.com/laihong06/pagenote/tree/beta)。macOS 尚未发布正式安装包。
@@ -157,7 +159,7 @@ npm run desktop
 
 ## 许可
 
-本项目采用 [MIT License](LICENSE)，允许商业使用。依赖组件有各自的许可；分发时须保留生成的 `THIRD-PARTY-NOTICES.txt`、Node.js 许可及 Electron/Chromium 许可。Microsoft Office 的授权由使用者负责。
+作者要求禁止商业使用。当前 [LICENSE](LICENSE) 仍为 MIT，与上述使用要求不一致；许可文件尚未调整，本声明不替代现有许可证条款。依赖组件有各自的许可；分发时须保留生成的 `THIRD-PARTY-NOTICES.txt`、Node.js 许可及 Electron/Chromium 许可。Microsoft Office 的授权由使用者负责。
 
 MCP 接入文档：[中文](MCP接口说明.md) · [English](docs/MCP.en-US.md)
 
