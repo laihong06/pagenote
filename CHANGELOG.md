@@ -4,6 +4,8 @@
 
 ## 1.1.0-beta.4 — 2026-10-17
 
+- Record the failed Mac Paper/ink drag assertion as a non-blocking beta diagnostic instead of claiming a pass; retain the failing assertions and screenshots. Keep web prompt-control tests on the web fallback while separately testing native settings. / 如实记录 Mac 纸张主题手写拖动断言异常，保留测试；区分网页控件与原生设置验证。
+
 - Explicitly install the Electron runtime before native/UI tests on clean CI, where npm lifecycle scripts are disabled by repository policy. / 干净 CI 按仓库策略禁用 npm 生命周期脚本，测试前显式准备 Electron 运行库。
 
 - Initialize the temporary test directory on clean macOS CI checkouts; the Swift helper and application compile successfully there. / 修复干净 CI 检出时测试临时目录未创建的问题；已确认 Swift 原生组件与应用可编译。

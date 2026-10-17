@@ -344,6 +344,12 @@ try {
     'PASS paper serif light/dark, native fonts, code/math/editing, source ink reflow with legacy anchors and move/undo/redo, preference persistence/latest request, hidden captures and original PDF colors.',
   );
   console.log('Previews: ' + profile);
+} catch (error) {
+  await w
+    ?.screenshot({ path: path.join(profile, 'failure.png') })
+    .catch(() => {});
+  await fs.writeFile(path.join(profile, 'failure.txt'), String(error));
+  throw error;
 } finally {
   await app.close();
 }

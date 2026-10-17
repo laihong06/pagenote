@@ -1,4 +1,5 @@
 import { dismissWelcome } from './dismiss-welcome.mjs';
+import { useWebSettings } from './web-settings.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -218,6 +219,7 @@ try {
     before,
     'preparation and preferences preserve visible reading position',
   );
+  await useWebSettings(app);
   await w.evaluate(() => window.pageNotes.openAISettings());
   await w.locator('#aiPromptModule').selectOption('entry');
   await w.waitForFunction(() =>

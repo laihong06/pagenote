@@ -20,5 +20,7 @@ Windows stable is founder-approved; macOS remains experimental. Pending work inc
 
 ## beta 1.1 测试记录
 
+- beta.4：GitHub macOS 15 arm64 的 Paper 主题回归在“切换排版后拖动源 Markdown 手写线条”的位置断言失败（预期发生位移，检测到线条基本停留原位）。同一套测试在 Windows 通过；尚未区分命中位置、自动化事件与产品定位缺陷。保留为非阻断 Beta 待办，Mac CI 单独展示该诊断结果，不算通过。PDF/笔记阅读与 Mermaid 底栏逐帧回归独立验证。
+
 - 新分层工作流覆盖材料准备、缓存、分页续读、Tag 范围、意见凭据、用户偏好版本保护及实时入口编辑。
 - 完整 MCP 回归在“静默更新后通过页码输入跳到第 3 页”的等待断言发生超时；记录显示页码输入为 3、阅读状态仍为 1，已保存的第 3 页笔记存在。两次结果和截图保留在本机 tmp；最小翻页复现未重现，根因尚未确认。不得将此轮完整 MCP 套件写为通过，后续继续排查。正式 v1.0 未被本次 beta 改动覆盖。
