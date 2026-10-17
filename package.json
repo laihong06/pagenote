@@ -1,6 +1,6 @@
 {
   "name": "pagenote",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,7 +35,8 @@
     "test:mac-office": "node tests/mac-word-host.mjs && node tests/mac-office.mjs && node tests/mac-office-app.mjs",
     "pretest:mac-office": "node scripts/ensure-electron.mjs",
     "test:version": "node tests/versioning.mjs && node scripts/check-release-version.mjs",
-    "check:release": "node scripts/check-release-version.mjs --release"
+    "check:release": "node scripts/check-release-version.mjs --release",
+    "test:footer": "node tests/footer-stability.mjs"
   },
   "dependencies": {
     "sharp": "0.35.5",
