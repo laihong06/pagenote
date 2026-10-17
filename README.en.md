@@ -1,5 +1,7 @@
 # pagenote Beta
 
+**Usage policy: This project is for non-commercial use only. Commercial use is not permitted.**
+
 **[⬇ Windows beta installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe)** · [Beta portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [Beta source](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-source.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)
 
 **[⬇ Mac Apple Silicon beta DMG](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.dmg)** · [Mac beta ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.zip)
@@ -163,7 +165,7 @@ For suggestions or a conversation about the project, email me at [chennanfeng310
 
 ## License
 
-[MIT License](LICENSE), including commercial use. Dependencies have separate licenses; retain `THIRD-PARTY-NOTICES.txt`, the Node.js license and Electron/Chromium license files when distributing. Microsoft Office licensing is the user's responsibility.
+The author prohibits commercial use. The current [LICENSE](LICENSE) remains MIT and is inconsistent with this usage policy; it has not yet been changed, and this statement does not replace its existing terms. Dependencies have separate licenses; retain `THIRD-PARTY-NOTICES.txt`, the Node.js license and Electron/Chromium license files when distributing. Microsoft Office licensing is the user's responsibility.
 
 MCP integration: [English](docs/MCP.en-US.md) · [中文](MCP接口说明.md)
 

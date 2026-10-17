@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
+
 - Look up draft releases through the authenticated release list: GitHub's tag endpoint can return 404 until publication. / 修正草稿发布查询：公开标签接口可能返回 404，改为在授权可见的发布列表中匹配。
 
 - Allow a versioned beta upload request on the beta branch, without depending on a workflow being present on main; the upload still requires an exact successful validation/tag match. / Beta 分支可通过记录构建编号和标签触发直传，无需把测试流程混入 main。
