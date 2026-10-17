@@ -134,7 +134,11 @@ try {
     'small page center stays still',
   );
   // Once full, preserve the actual point under the pointer in both axes.
-  await w.locator('#fit').click();
+  // Compact Mac CI displays hide this optional footer label below 1200px.
+  // Exercise the same fit handler without requiring the desktop's screen size.
+  const fit = w.locator('#fit');
+  if (await fit.isVisible()) await fit.click();
+  else await fit.evaluate((button) => button.click());
   await w.waitForTimeout(200);
   await w.locator('#zoomIn').click();
   await w.waitForTimeout(200);
