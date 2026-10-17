@@ -1,0 +1,33 @@
+name: Upload validated Mac beta packages
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Beta Mac validation run ID
+        required: true
+      tag:
+        description: Existing beta tag with a draft prerelease
+        required: true
+permissions:
+  contents: write
+  actions: read
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: pagenote-beta-mac-arm64
+          path: mac-artifacts
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - run: node scripts/upload-beta-mac.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          VALIDATION_RUN: ${{ inputs.run_id }}
