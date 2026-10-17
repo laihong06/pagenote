@@ -27,7 +27,10 @@ if (ref.object.type === 'tag')
   ref = { object: (await api('/git/tags/' + ref.object.sha)).object };
 if (ref.object.sha !== run.head_sha)
   throw Error('Mac validation and release tag must name the same commit');
-const release = await api('/releases/tags/' + tag);
+const release = (await api('/releases?per_page=100')).find(
+  (item) => item.tag_name === tag,
+);
+if (!release) throw Error('No matching draft release');
 if (!release.draft || !release.prerelease)
   throw Error('Never change a published release or a stable release');
 async function files(directory) {
