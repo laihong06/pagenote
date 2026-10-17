@@ -1,0 +1,167 @@
+/* Reading style is independent of app light/dark appearance and never changes
+   the stored Markdown or original PDF/image pixels. Fonts come from the OS. */
+:root[data-markdown-theme='paper'] {
+  --paper-font:
+    'Charter', 'Georgia', 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun',
+    serif;
+  --paper-bg: #faf6ee;
+  --paper-ink: #3c332c;
+  --paper-muted: #746354;
+  --paper-accent: #8a573f;
+  --paper-rule: #ddd2c0;
+  --paper-soft: #f3ecdf;
+  --paper-code: #efe9df;
+}
+:root[data-markdown-theme='paper'][data-theme='dark'] {
+  --paper-bg: #292622;
+  --paper-ink: #e9dfcf;
+  --paper-muted: #b9ac98;
+  --paper-accent: #e0ad86;
+  --paper-rule: #51483e;
+  --paper-soft: #332e28;
+  --paper-code: #211f1c;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(
+    #noteBody,
+    #preview,
+    .markdown-page,
+    #historyPreview,
+    .document-sheet:has(.markdown-page)
+  ) {
+  --theme-surface: var(--paper-bg);
+  --theme-text: var(--paper-ink);
+  --theme-muted: var(--paper-muted);
+  --theme-raised: var(--paper-code);
+  --theme-border: var(--paper-rule);
+  --accent: var(--paper-accent);
+  background-color: var(--paper-bg);
+  color: var(--paper-ink);
+  border-color: var(--paper-rule);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview) {
+  font-family: var(--paper-font);
+  font-kerning: normal;
+  line-height: var(--note-line-height, 1.9);
+  text-rendering: optimizeLegibility;
+}
+:where(:root[data-markdown-theme='paper']) #preview {
+  font-size: calc(var(--note-font-size, 15px) * var(--note-zoom, 1) * 1.08);
+  padding: calc(var(--note-padding, 28px) + 10px);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(.markdown-page, #historyPreview) {
+  font-size: 16px;
+  padding: 38px;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--paper-font);
+  color: var(--paper-ink);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.45;
+  margin: 1.65em 0 0.65em;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  h1 {
+  font-size: 1.95em;
+  padding-bottom: 0.55em;
+  border-bottom: 1px solid var(--paper-rule);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  h2 {
+  font-size: 1.45em;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  h3 {
+  font-size: 1.2em;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  > :first-child {
+  margin-top: 0;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  p {
+  margin: 1em 0;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  li {
+  margin: 0.3em 0;
+  padding-left: 0.12em;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  blockquote {
+  --theme-raised: var(--paper-soft);
+  padding: 10px 20px;
+  background: var(--paper-soft);
+  border-left: 2px solid var(--paper-accent);
+  border-radius: 0;
+  color: var(--paper-muted);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  a {
+  color: var(--paper-accent);
+  text-decoration-color: var(--paper-rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  a:hover {
+  text-decoration-color: currentColor;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  :is(th, td, hr) {
+  border-color: var(--paper-rule);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  th {
+  --theme-raised: var(--paper-soft);
+  background: var(--paper-soft);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  :is(pre, code) {
+  background-color: var(--paper-code);
+  border-color: var(--paper-rule);
+}
+:root[data-markdown-theme='paper'] #preview .rich-code-block {
+  background: var(--paper-code) !important;
+}
+:root[data-markdown-theme='paper'] #preview .rich-code-tools {
+  background: var(--paper-soft);
+  color: var(--paper-ink);
+  border-color: var(--paper-rule);
+}
+:root[data-markdown-theme='paper'] #preview .rich-code-tools select {
+  color: var(--paper-ink);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  :is(.hljs-comment, .hljs-quote) {
+  color: var(--paper-muted);
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  pre
+  code {
+  background: transparent;
+}
+:where(:root[data-markdown-theme='paper'])
+  :is(#preview, .markdown-page, #historyPreview)
+  hr {
+  margin: 2em 0;
+}

@@ -188,10 +188,14 @@ export function createAnnotations({
     }
     return node;
   }
-  function noteBlocks(layer) {
+  function textBlocks(layer) {
+    const root = layer.host.querySelector(
+      layer.side === 'note' ? '#preview' : '.markdown-page',
+    );
+    if (!root) return [];
     return [
-      ...layer.host.querySelectorAll(
-        '#preview h1,#preview h2,#preview h3,#preview p,#preview pre,#preview table,#preview blockquote,#preview figure',
+      ...root.querySelectorAll(
+        'h1,h2,h3,h4,h5,h6,p,pre,table,blockquote,figure',
       ),
     ].map((node, index) => {
       const copy = node.cloneNode(true);
@@ -205,7 +209,7 @@ export function createAnnotations({
     });
   }
   function project(item, layer, blocks) {
-    if (layer.side !== 'note' || !blocks.length) return item;
+    if (!blocks.length) return item;
     const bounds = layer.host.getBoundingClientRect(),
       scale = 1000 / bounds.width;
     if (!item.layoutAnchor) {
@@ -242,11 +246,39 @@ export function createAnnotations({
       width: item.width * ratio,
     };
   }
+  function initializeDocumentAnchors(layer) {
+    if (
+      layer.side !== 'document' ||
+      !layer.host.querySelector('.markdown-page')
+    )
+      return;
+    const legacy = items(layer.side, layer.page).filter(
+      (item) => !item.layoutAnchor,
+    );
+    if (!legacy.length) return;
+    // Ink saved before reading themes used Classic geometry. Measure that
+    // baseline even when Paper is already selected, without writing in captures.
+    const root = document.documentElement,
+      theme = root.dataset.markdownTheme;
+    if (theme === 'paper') root.dataset.markdownTheme = 'classic';
+    try {
+      const blocks = textBlocks(layer);
+      legacy.forEach((item) => project(item, layer, blocks));
+    } finally {
+      if (theme === 'paper') root.dataset.markdownTheme = theme;
+    }
+  }
+  function rebase(item, layer) {
+    const projected = project(item, layer, textBlocks(layer));
+    item.points = clone(projected.points);
+    item.width = projected.width;
+    delete item.layoutAnchor;
+  }
   function paint(layer) {
     const height =
       (layer.host.offsetHeight / Math.max(1, layer.host.offsetWidth)) * 1000;
     layer.svg.setAttribute('viewBox', `0 0 1000 ${Math.max(1, height)}`);
-    const blocks = layer.side === 'note' ? noteBlocks(layer) : [];
+    const blocks = textBlocks(layer);
     layer.svg.replaceChildren(
       ...items(layer.side, layer.page).map((item, index) =>
         shape(project(item, layer, blocks), index),
@@ -320,6 +352,7 @@ export function createAnnotations({
         const node = layer.svg.querySelector(`[data-item="${selected.index}"]`),
           box = node.getBBox();
         remember(layer.side, layer.page);
+        rebase(item, layer);
         gesture = {
           layer,
           start: p,
@@ -334,6 +367,7 @@ export function createAnnotations({
         index >= 0 ? { side: layer.side, page: layer.page, index } : null;
       if (selected) {
         remember(layer.side, layer.page);
+        rebase(items(layer.side, layer.page)[index], layer);
         gesture = {
           layer,
           start: p,
@@ -435,6 +469,7 @@ export function createAnnotations({
     svg.addEventListener('pointermove', (e) => move(layer, e));
     svg.addEventListener('pointerup', finish);
     svg.addEventListener('pointercancel', finish);
+    initializeDocumentAnchors(layer);
     paint(layer);
   }
   let textTarget;
@@ -546,7 +581,9 @@ export function createAnnotations({
   }
   async function copySelection() {
     if (!selected) throw Error('请先使用选择工具选中批注');
-    const item = items(selected.side, selected.page)[selected.index];
+    const item = clone(items(selected.side, selected.page)[selected.index]),
+      layer = layers.get(key(selected.side, selected.page));
+    if (layer) rebase(item, layer);
     await navigator.clipboard.writeText(
       'PAGE_NOTES_ANNOTATION:\n' + JSON.stringify(item),
     );
@@ -576,6 +613,7 @@ export function createAnnotations({
       p[0] - origin[0] + dest.p[0],
       p[1] - origin[1] + dest.p[1],
     ]);
+    delete item.layoutAnchor;
     remember(side, dest.page);
     items(side, dest.page).push(item);
     changed(side, dest.page);
@@ -686,6 +724,16 @@ export function createAnnotations({
       paintAll();
     },
     refresh: paintAll,
+    async preserveLayout() {
+      finish();
+      for (const layer of layers.values()) {
+        if (!items(layer.side, layer.page).length || !textBlocks(layer).length)
+          continue;
+        paint(layer);
+        changed(layer.side, layer.page);
+      }
+      await flush(false);
+    },
     flush,
     undo: () => undoRedo(true),
     redo: () => undoRedo(false),

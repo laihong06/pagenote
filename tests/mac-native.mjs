@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -74,7 +75,7 @@ try {
   const w = await app.firstWindow();
   w.setDefaultTimeout(5000);
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const mainId = await app.evaluate(
     ({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().find((win) => win.isVisible()).id,
@@ -91,13 +92,18 @@ try {
         }
       );
     }, mainId);
-  const waitProject = (file) =>
-    w.waitForFunction(
+  const waitProject = async (file) => {
+    // Metadata updates before loading and the Finder-open focus cycle finish.
+    // Exercise hide/close only after the project has finished opening.
+    await w.waitForFunction(
       async (expected) =>
+        document.querySelector('#loading').hidden &&
         (await window.pageNotes.getState()).document?.projectFile === expected,
       file,
       { timeout: 10000 },
     );
+    await w.evaluate(() => window.pageNotes.waitVisuals());
+  };
 
   await check(
     'Finder open-file queues a project before app ready',

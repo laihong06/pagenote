@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -34,7 +35,7 @@ try {
   window.setDefaultTimeout(30000);
   await window.waitForSelector('#noteScroll');
   await window.waitForFunction(() => !!window.pageNotes);
-  await window.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(window);
   const descriptor = JSON.parse(
     await fs.readFile(path.join(userData, 'ai-connection.json'), 'utf8'),
   );
@@ -630,7 +631,7 @@ try {
   const restarted = await app.firstWindow();
   await restarted.waitForSelector('#noteScroll');
   await restarted.waitForFunction(() => !!window.pageNotes);
-  await restarted.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(restarted);
   const afterRestart = json(
     await client.callTool({
       name: 'page_notes_read_pages',

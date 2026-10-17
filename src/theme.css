@@ -1,0 +1,378 @@
+/* Theme overrides follow the existing desktop styles. Document pixels and
+   Mermaid's rendered artwork keep their original colors. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --accent: #8bb8ff;
+  --theme-page: #17191d;
+  --theme-surface: #22252b;
+  --theme-raised: #2a2e36;
+  --theme-hover: #343a45;
+  --theme-border: #414854;
+  --theme-text: #e7eaf0;
+  --theme-muted: #aab4c3;
+  --theme-selected: #293f5b;
+  --theme-code-keyword: #ff9a91;
+  --theme-code-string: #a9d8ff;
+  --theme-code-entity: #f2c98c;
+  --theme-code-type: #90d5b3;
+  --theme-code-addition: #233d30;
+  --theme-code-deletion: #492d31;
+  color: var(--theme-text);
+  background: var(--theme-page);
+}
+/* Rich annotations share the color tokens of the paper beneath them. */
+:root[data-theme='dark']
+  .document-sheet:not(:has(.markdown-page))
+  .ink-rich-content {
+  color-scheme: light;
+  --theme-text: #253247;
+  --theme-muted: #687587;
+  --theme-raised: #f4f6f8;
+  --theme-border: #dce2e9;
+  --accent: #185abd;
+  --theme-code-keyword: #a52635;
+  --theme-code-string: #032f62;
+  --theme-code-entity: #6f42c1;
+  --theme-code-type: #167033;
+  --theme-code-addition: #f0fff4;
+  --theme-code-deletion: #ffeef0;
+}
+:root[data-theme='dark'] :is(body, #documentScroll, #noteScroll) {
+  color: var(--theme-text);
+  background: var(--theme-page);
+  scrollbar-color: #59616f transparent;
+}
+:root[data-theme='dark']
+  :is(
+    .titlebar,
+    .command-area,
+    .pane-heading,
+    .pane-footer,
+    #aiSharedTools,
+    .editing-tools,
+    .rich-code-tools,
+    .board-handle,
+    #reviewDraftTitle,
+    .history-explanation
+  ) {
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  border-color: var(--theme-border);
+}
+:root[data-theme='dark']
+  :is(
+    #noteBody,
+    #preview,
+    #editor,
+    .markdown-page,
+    #historyPreview,
+    dialog:not(#helloOverlay),
+    .menu-popover,
+    .mouse-options,
+    #aiReviewPanel,
+    .ai-workbench,
+    .review-card,
+    .improvement-card,
+    #selectionTag,
+    #deleteTagMenu
+  ) {
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  border-color: var(--theme-border);
+  box-shadow: 0 6px 24px #0003;
+}
+:root[data-theme='dark'] :is(#preview, .markdown-page) {
+  box-shadow: none;
+}
+:root[data-theme='dark'] .document-sheet {
+  border-color: var(--theme-border);
+  box-shadow: 0 3px 16px #0004;
+}
+:root[data-theme='dark'] .document-sheet:has(.markdown-page) {
+  background: var(--theme-surface);
+}
+:root[data-theme='dark']
+  :is(
+    .prose,
+    .prose h1,
+    .prose h2,
+    .prose h3,
+    .prose h4,
+    dialog h2,
+    #welcome h1,
+    .setting-toggle,
+    .compact-menu,
+    .command-area .tab,
+    .editing-tools button,
+    .pane-actions button,
+    .command-area .ribbon button:not(.primary),
+    #aiSharedTools .menu-popover button,
+    .mouse-options button
+  ) {
+  color: var(--theme-text);
+}
+:root[data-theme='dark']
+  :is(
+    .pane-caption,
+    .control-label,
+    .editing-label,
+    .command-caption,
+    .command-group h2,
+    .menu-popover h2,
+    .ribbon-group small,
+    .review-hint,
+    .review-status,
+    .review-card blockquote,
+    #reviewQuote,
+    .improvement-card blockquote,
+    .improvement-card small,
+    .note-empty,
+    .note-empty h2,
+    #welcome p,
+    #welcome .formats,
+    #docName,
+    #documentType,
+    #pageCount,
+    #zoomLabel,
+    #aiPenWidthValue,
+    #historyStatus,
+    .history-empty,
+    .history-heading p,
+    #wordTools > span:not(.editing-label)
+  ) {
+  color: var(--theme-muted);
+}
+:root[data-theme='dark']
+  :is(
+    input:not([type='color']):not([type='checkbox']):not([type='range']),
+    textarea,
+    select,
+    .editing-tools select,
+    .command-area .ribbon select,
+    .document-commands #openButton,
+    #historyList,
+    #noteBody.mode-split #editor
+  ) {
+  color: var(--theme-text);
+  background: var(--theme-raised);
+  border-color: var(--theme-border);
+}
+:root[data-theme='dark'] :is(input, textarea)::placeholder,
+:root[data-theme='dark'] #preview[contenteditable='true']:empty::before {
+  color: var(--theme-muted);
+}
+:root[data-theme='dark']
+  :is(
+    button:not(.primary):not(#helloEnter):hover,
+    .compact-menu[open] > summary,
+    .compact-menu summary:hover,
+    #aiSharedTools .menu-popover button:hover,
+    .mouse-options button:hover
+  ) {
+  color: var(--theme-text);
+  background: var(--theme-hover);
+}
+:root[data-theme='dark']
+  :is(
+    button.selected,
+    .mode-buttons .selected,
+    #aiSharedTools .selected,
+    .pane-actions button.selected,
+    .choose-editor .pane-heading
+  ) {
+  color: var(--accent);
+  background: var(--theme-selected);
+  border-color: #6284b1;
+}
+:root[data-theme='dark'] .primary {
+  background: #315f9f;
+  border-color: #5790df;
+  color: #fff;
+}
+:root[data-theme='dark'] .primary:hover {
+  background: #396fb8;
+}
+:root[data-theme='dark'] :is(button, input, select, textarea):focus-visible {
+  outline-color: var(--accent);
+}
+:root[data-theme='dark'] :is(.prose a, .tab.active) {
+  color: var(--accent);
+}
+:root[data-theme='dark']
+  :is(
+    .prose th,
+    .prose td,
+    .prose hr,
+    .markdown-embed,
+    .command-group,
+    .tool-divider,
+    .board-body > header,
+    .improvement-card > header,
+    .review-card blockquote,
+    #aiSharedTools .menu-popover label,
+    .rich-code-tools,
+    .rich-diagram-source,
+    .editing-tools,
+    .setting-toggle
+  ) {
+  border-color: var(--theme-border);
+}
+:root[data-theme='dark']
+  :is(
+    .prose th,
+    .prose blockquote,
+    .prose pre,
+    .prose code,
+    #preview blockquote,
+    #preview pre,
+    .rich-diagram-source,
+    #preview .rich-diagram-source,
+    #reviewDialog #reviewQuote,
+    .board-count,
+    .board-body button,
+    .mode-buttons,
+    .local-tag
+  ) {
+  background: var(--theme-raised);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+:root[data-theme='dark'] .prose pre code {
+  background: transparent;
+}
+:root[data-theme='dark'] .prose blockquote {
+  border-left-color: #6284b1;
+}
+:root[data-theme='dark'] .rich-code-block {
+  background: var(--theme-raised) !important;
+}
+:root[data-theme='dark'] .rich-diagram-source textarea {
+  color: var(--theme-text);
+  background: transparent;
+}
+:root[data-theme='dark'] .prose .hljs {
+  color: var(--theme-text);
+}
+:root[data-theme='dark'] :is(.hljs-comment, .hljs-quote) {
+  color: var(--theme-muted);
+}
+:root[data-theme='dark']
+  :is(.hljs-keyword, .hljs-selector-tag, .hljs-deletion) {
+  color: var(--theme-code-keyword);
+}
+:root[data-theme='dark']
+  :is(.hljs-string, .hljs-regexp, .hljs-attr, .hljs-meta) {
+  color: var(--theme-code-string);
+}
+:root[data-theme='dark']
+  :is(.hljs-title, .hljs-section, .hljs-number, .hljs-literal) {
+  color: var(--theme-code-entity);
+}
+:root[data-theme='dark']
+  :is(.hljs-built_in, .hljs-type, .hljs-addition, .hljs-symbol) {
+  color: var(--theme-code-type);
+}
+:root[data-theme='dark']
+  :is(
+    .hljs-doctag,
+    .hljs-template-tag,
+    .hljs-template-variable,
+    .hljs-variable.language_
+  ) {
+  color: var(--theme-code-keyword);
+}
+:root[data-theme='dark']
+  :is(
+    .hljs-attribute,
+    .hljs-variable,
+    .hljs-operator,
+    .hljs-selector-attr,
+    .hljs-selector-class,
+    .hljs-selector-id
+  ) {
+  color: var(--theme-code-string);
+}
+:root[data-theme='dark'] :is(.hljs-name, .hljs-selector-pseudo) {
+  color: var(--theme-code-type);
+}
+:root[data-theme='dark'] :is(.hljs-code, .hljs-formula) {
+  color: var(--theme-muted);
+}
+:root[data-theme='dark'] :is(.hljs-subst, .hljs-emphasis, .hljs-strong) {
+  color: var(--theme-text);
+}
+:root[data-theme='dark'] .hljs-bullet {
+  color: var(--theme-code-entity);
+}
+:root[data-theme='dark'] .hljs-addition {
+  background: var(--theme-code-addition);
+}
+:root[data-theme='dark'] .hljs-deletion {
+  background: var(--theme-code-deletion);
+}
+/* Only adapt neutral ink on dark paper. Stored/exported colors and annotations
+   on original PDFs/images retain their original colors. */
+:root[data-theme='dark']
+  :is(.note-pane, .document-sheet:has(.markdown-page))
+  .ink-layer
+  [stroke='#222222'] {
+  stroke: var(--theme-text);
+}
+:root[data-theme='dark']
+  :is(.note-pane, .document-sheet:has(.markdown-page))
+  .ink-layer
+  [fill='#222222'] {
+  fill: var(--theme-text);
+}
+:root[data-theme='dark'] #saveStatus {
+  color: #a7d6b6;
+}
+:root[data-theme='dark'] #saveStatus[data-state='waiting'] {
+  color: #f2c98c;
+}
+:root[data-theme='dark'] #saveStatus[data-state='error'] {
+  color: #ffaaa2;
+}
+:root[data-theme='dark'] .board-viewport {
+  background-color: var(--theme-page);
+  background-image: radial-gradient(#414854 1px, transparent 1px);
+}
+:root[data-theme='dark'] #splitter {
+  background: #353b45;
+}
+:root[data-theme='dark'] #splitter::after {
+  background: #687587;
+}
+:root[data-theme='dark'] #splitter:hover,
+:root[data-theme='dark'] #splitter:focus-visible {
+  background: #516c90;
+}
+:root[data-theme='dark'] .tool-divider {
+  background: var(--theme-border);
+}
+:root[data-theme='dark'] #loading {
+  background: #17191df2;
+  color: var(--theme-text);
+}
+:root[data-theme='dark'] #toast {
+  background: var(--theme-raised);
+  color: var(--theme-text);
+  border: 1px solid var(--theme-border);
+}
+:root[data-theme='dark'] dialog:not(#helloOverlay)::backdrop {
+  background: #0009;
+}
+:root[data-theme='dark'] #reviewDialog::backdrop {
+  background: transparent;
+}
+:root[data-theme='dark'] #deleteTagMenu {
+  color: #ffaaa2;
+}
+:root[data-theme='dark'] #deleteTagMenu:hover,
+:root[data-theme='dark'] .diagram-error {
+  background: #3b2b28;
+  color: #ffc99e;
+}

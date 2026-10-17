@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -57,7 +58,7 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   const remote = [];
   await w.context().route('**/*', (route) => {
     const u = new URL(route.request().url());

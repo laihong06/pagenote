@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { checkReleaseVersion } from '../scripts/check-release-version.mjs';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pagenote-version-test-'));
 const version = '2.0.0-beta.5';
@@ -54,6 +56,31 @@ try {
     JSON.stringify(lock),
   );
   await assert.rejects(checkReleaseVersion(root), /lock/);
+  const buildConfig = path.resolve(
+    import.meta.dirname,
+    '../scripts/build-config.mjs',
+  );
+  for (const [source, expected] of [
+    ['1.0.1-dev.5', '1.0.1-dev.5'],
+    ['1.0.0', '1.0.0-beta.1'],
+  ]) {
+    await fs.writeFile(
+      path.join(root, 'package.json'),
+      JSON.stringify({ version: source, build: { files: [] } }),
+    );
+    await promisify(execFile)(process.execPath, [buildConfig, 'mac'], {
+      cwd: root,
+    });
+    const config = JSON.parse(
+      await fs.readFile(path.join(root, 'electron-builder.json'), 'utf8'),
+    );
+    assert.equal(
+      config.extraMetadata.version,
+      expected,
+      'Mac packaging preserves development versions and keeps stable sources experimental',
+    );
+  }
+  console.log('PASS Mac package development version and experimental channel');
   console.log(
     'PASS version, lockfile, release links and tag drift gates; unreleased source may differ from public downloads',
   );

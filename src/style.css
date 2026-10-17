@@ -492,6 +492,144 @@ dialog h2 {
   margin-top: 0;
   font-size: 22px;
 }
+#helloOverlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: auto;
+  background: radial-gradient(ellipse at 50% 38%, #1c252c, #101418 70%);
+  color: #f5f7fa;
+}
+#helloOverlay[open] {
+  display: grid;
+  align-items: center;
+  justify-content: center;
+}
+#helloOverlay::backdrop {
+  background: #101418;
+}
+#helloOverlay.leaving {
+  pointer-events: none;
+}
+.hello-stage {
+  text-align: center;
+  padding-bottom: 5vh;
+}
+#helloOverlay.leaving .hello-stage {
+  animation: hello-leave 0.32s ease both;
+}
+#helloScript {
+  width: min(560px, 82vw, 110vh);
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+#helloScript .hello-stroke {
+  opacity: 0;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+#helloOverlay.writing #helloScript .hello-stroke {
+  animation: hello-draw 0.75s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+#helloOverlay.writing #helloScript .hello-stroke:nth-child(1) {
+  animation-delay: 0.1s;
+}
+#helloOverlay.writing #helloScript .hello-stroke:nth-child(2) {
+  animation-delay: 0.8s;
+  animation-duration: 0.5s;
+}
+#helloOverlay.writing #helloScript .hello-stroke:nth-child(3) {
+  animation-delay: 1.25s;
+}
+#helloOverlay.writing #helloScript .hello-stroke:nth-child(4) {
+  animation-delay: 1.95s;
+}
+#helloOverlay.writing #helloScript .hello-stroke:nth-child(5) {
+  animation-delay: 2.65s;
+}
+.hello-sub {
+  margin: 8px 0 40px;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 7px;
+  padding-left: 7px;
+  color: #aeb8c4;
+  opacity: 0;
+}
+#helloOverlay.writing .hello-sub {
+  animation: hello-fade 0.6s ease forwards;
+  animation-delay: 2.75s;
+}
+#helloEnter {
+  font-size: 15px;
+  padding: 11px 34px;
+  border: 1px solid #f5f7fa66;
+  border-radius: 999px;
+  background: #f5f7fa;
+  color: #101418;
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+#helloEnter:hover {
+  background: #dbe3e9;
+  transform: translateY(-1px);
+}
+#helloEnter:focus-visible {
+  outline: 2px solid #aeb8c4;
+  outline-offset: 5px;
+}
+#helloStatus {
+  color: #ffb477;
+  font-size: 13px;
+}
+@keyframes hello-draw {
+  from {
+    opacity: 0;
+  }
+  0.1% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes hello-fade {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes hello-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #helloEnter {
+    transition: none;
+  }
+  #helloOverlay.writing #helloScript .hello-stroke {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  #helloOverlay.leaving .hello-stage,
+  #helloOverlay.writing .hello-sub {
+    animation: none;
+    opacity: 1;
+  }
+}
 dialog code {
   background: #f1f3f6;
   padding: 2px 5px;

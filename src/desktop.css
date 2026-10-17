@@ -358,6 +358,7 @@ button:active:not(:disabled) {
 }
 #documentScroll,
 #noteScroll {
+  overflow-anchor: none;
   background: #e9edf3;
   scrollbar-color: #b6c0ce transparent;
   scrollbar-width: thin;

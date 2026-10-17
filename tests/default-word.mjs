@@ -1,3 +1,4 @@
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import { _electron as electron } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -23,7 +24,7 @@ const app = await electron.launch({
 try {
   const w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.docx'));

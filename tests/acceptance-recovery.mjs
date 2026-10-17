@@ -1,4 +1,5 @@
 import { _electron as electron } from '@playwright/test';
+import { dismissWelcome } from './dismiss-welcome.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -15,7 +16,12 @@ const launch = () =>
   electron.launch({
     executablePath:
       process.env.DESKTOP_EXE ||
-      path.join(root, 'node_modules/electron/dist/electron.exe'),
+      path.join(
+        root,
+        process.platform === 'darwin'
+          ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+          : 'node_modules/electron/dist/electron.exe',
+      ),
     args: process.env.DESKTOP_EXE ? [] : [root],
     env: { ...process.env, PAGE_NOTES_USER_DATA: profile },
     timeout: 40000,
@@ -25,7 +31,7 @@ let app = await launch(),
 try {
   let w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(() => window.pageNotes.setLanguage('en-US'));
   await w.evaluate(() => window.pageNotes.menuAction('newProject'));
   await w.locator('#newName').fill('验收 project with spaces');
@@ -141,7 +147,7 @@ try {
   killed = false;
   w = await app.firstWindow();
   await w.waitForFunction(() => !!window.pageNotes);
-  await w.evaluate(() => window.pageNotes.ready);
+  await dismissWelcome(w);
   await w.evaluate(
     (file) => window.pageNotes.openProject(file),
     path.join(moved, 'project.pagenote'),

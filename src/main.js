@@ -10,12 +10,23 @@ import { setupMarkdownTools, htmlToMarkdown } from './editing.js';
 import { createReviews } from './reviews.js';
 import { createAITools } from './ai-tools.js';
 import { createRichEditor } from './rich-editor.js';
-import { preparePageData } from './page-data.js';
 import {
   createReadingGestures,
   pageAnchor,
   restorePageAnchor,
 } from './gestures.js';
+import { preparePageData } from './page-data.js';
+import { showWelcome, showFirstWelcome } from './hello.js';
+import {
+  initializeTheme,
+  getTheme,
+  setTheme,
+  getMarkdownTheme,
+  setMarkdownTheme,
+  refreshMarkdownTheme,
+} from './theme.js';
+import './theme.css';
+import './reading-theme.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = worker;
 const $ = (id) => document.getElementById(id);
@@ -66,6 +77,7 @@ function applyLayout(value) {
   }
   applyNoteZoom(false);
   growEditor();
+  document.dispatchEvent(new Event('settings-layout-changed'));
 }
 function growEditor() {
   const e = $('editor');
@@ -1171,7 +1183,7 @@ $('exportNote').onclick = safely(async () => {
 });
 $('helpButton').onclick = () => $('help').showModal();
 $('closeHelp').onclick = () => $('help').close();
-$('settingsButton').onclick = () => $('settings').showModal();
+$('settingsButton').onclick = () => openSettings();
 $('closeSettings').onclick = () => $('settings').close();
 let defaultAIPrompt = '';
 let promptDrafts = {},
@@ -1194,7 +1206,7 @@ $('aiPromptModule').onchange = safely(async () => {
   promptDrafts[selectedPrompt].text = $('aiSystemPrompt').value;
   await loadPromptModule($('aiPromptModule').value);
 });
-async function openAISettings() {
+async function openWebAISettings() {
   const settings = await request('/api/ai-settings');
   promptDrafts = {
     system: {
@@ -1210,6 +1222,20 @@ async function openAISettings() {
   if ($('settings').open) $('settings').close();
   $('aiSettings').showModal();
 }
+async function openSettings(pane) {
+  if (window.desktopSettings) {
+    try {
+      const result = await window.desktopSettings.open(pane);
+      if (result.native) return result;
+    } catch {
+      toast(t('无法打开原生设置，已打开应用内设置。'));
+    }
+  }
+  if (pane === 'ai') await openWebAISettings();
+  else $('settings').showModal();
+  return { native: false };
+}
+const openAISettings = () => openSettings('ai');
 $('aiSettingsButton').onclick = safely(openAISettings);
 $('aiSettingsCancel').onclick = () => $('aiSettings').close();
 $('aiPromptReset').onclick = () => {
@@ -1744,7 +1770,42 @@ function geometry(selector) {
     background: s.backgroundColor,
   };
 }
+let markdownThemeRequest = 0;
+async function changeMarkdownTheme(value) {
+  const currentRequest = ++markdownThemeRequest;
+  if (value !== getMarkdownTheme()) await annotations.preserveLayout();
+  if (currentRequest !== markdownThemeRequest) return;
+  return setMarkdownTheme(value);
+}
+function getSettingsState() {
+  return {
+    language: getLanguage(),
+    theme: getTheme(),
+    markdownTheme: getMarkdownTheme(),
+    noteAnimation: layout.noteAnimation,
+    expandEditor: layout.expandEditor,
+  };
+}
+async function applySetting(key, value) {
+  if (key === 'language') await setLanguage(value);
+  else if (key === 'theme') await setTheme(value);
+  else if (key === 'markdownTheme') await changeMarkdownTheme(value);
+  else if (['noteAnimation', 'expandEditor'].includes(key)) {
+    if (typeof value !== 'boolean') throw Error('Setting must be boolean');
+    await window.pageNotes.setLayout({ [key]: value });
+    if (key === 'expandEditor' && !value) restorePanels();
+  } else throw Error('Unsupported setting');
+  return getSettingsState();
+}
 window.pageNotes = {
+  openSettings,
+  getSettingsState,
+  applySetting,
+  getMarkdownTheme,
+  setMarkdownTheme: changeMarkdownTheme,
+  getTheme,
+  setTheme,
+  showWelcome,
   validateNote,
   openAISettings,
   finishEditing: async () => {
@@ -1935,6 +1996,7 @@ window.pageNotes = {
   },
   prepareCapture: async (id, p, settings, sourceUrl) => {
     await window.pageNotes.ready;
+    await refreshMarkdownTheme();
     if (settings) applyLayout(settings);
     if (sourceUrl) {
       if (!new URLSearchParams(location.search).has('capture'))
@@ -2195,11 +2257,31 @@ document.addEventListener(
   () => (languageSetting.value = getLanguage()),
 );
 const originalReady = window.pageNotes.ready;
+const themeSetting = document.getElementById('themeSetting');
+const markdownThemeSetting = document.getElementById('markdownThemeSetting');
+markdownThemeSetting.onchange = () =>
+  changeMarkdownTheme(markdownThemeSetting.value).catch((error) =>
+    toast(error.message),
+  );
+document.addEventListener('markdown-theme-changed', () =>
+  requestAnimationFrame(() => annotations.refresh()),
+);
+for (const event of [
+  'language-changed',
+  'appearance-changed',
+  'markdown-theme-changed',
+  'settings-layout-changed',
+])
+  document.addEventListener(event, () => window.desktopSettings?.sync());
+themeSetting.onchange = () =>
+  setTheme(themeSetting.value).catch((error) => toast(error.message));
 window.pageNotes.ready = Promise.all([
   originalReady,
   initializeLanguage(),
-]).then(() => {
+  initializeTheme().catch((error) => toast(error.message)),
+]).then(async () => {
   languageSetting.value = getLanguage();
+  await showFirstWelcome().catch((error) => toast(error.message));
 });
 
 let externalRefreshBusy = false;
