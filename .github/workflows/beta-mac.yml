@@ -26,6 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run format:check && npm run test:version
       - run: npm run build
+      - name: Prepare isolated test workspace
+        run: mkdir -p tmp
       - name: Native settings and lifecycle
         run: npm run test:native-settings && node tests/mac-native.mjs
       - name: Themes, diagrams and first launch
