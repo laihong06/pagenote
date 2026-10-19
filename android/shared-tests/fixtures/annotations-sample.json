@@ -1,0 +1,12 @@
+{
+  "document": {
+    "1": [
+      {"type": "pen", "color": "#ff0000", "width": 2.0, "points": [[10, 10], [20, 20]]}
+    ]
+  },
+  "note": {
+    "2": [
+      {"type": "highlight", "color": "#ffff00", "width": 8.0, "rect": [10, 10, 100, 20]}
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Gradle wrapper launcher checked in for reproducible Android builds.
+APP_BASE_NAME=$(basename "$0")
+APP_HOME=$(cd "$(dirname "$0")" >/dev/null && pwd -P)
+WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+WRAPPER_PROPERTIES="$APP_HOME/gradle/wrapper/gradle-wrapper.properties"
+if [ ! -f "$WRAPPER_JAR" ]; then
+  echo "Missing $WRAPPER_JAR" >&2
+  exit 1
+fi
+if command -v java >/dev/null 2>&1; then
+  JAVACMD=java
+elif [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  JAVACMD="$JAVA_HOME/bin/java"
+else
+  echo "Java runtime is required to run Gradle." >&2
+  exit 1
+fi
+exec "$JAVACMD" -classpath "$WRAPPER_JAR" org.gradle.wrapper.GradleWrapperMain "$@"

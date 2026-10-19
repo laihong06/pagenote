@@ -7,6 +7,7 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 | 历史长测约 54 分钟时窗口关闭 | 原因未明；重开后已保存内容恢复。历史中断不记作一小时通过，保留后续排查。 |
 | Mac 全流程与环境覆盖 | 贡献者报告部分实机测试，本次维护者使用 Windows，未独立复验 Mac；继续测试版。 |
 | Mac 新增设置、主题与触控板手势 | 贡献者在 Apple Silicon 本机及 arm64 包验证自动化流程；物理触控板手工验收、Intel Mac 包和新增共享界面的 Windows 实机复验尚未单独记录，保持测试版。 |
+| Android 实机与完整服务流程 | 以 Android 14/API 34 平板 AVD 做常规验收；小米 Pad 5 Pro 上的长时间笔迹/延迟、侧键、真实 DocumentsUI 持久授权、用户的 69 页项目及 OpenAI 服务端到端仍未全部验证。Office 进程内编辑尚未实现；不宣称与桌面端全量等价。 |
 | 多种 Office、DPI、双屏和低配置设备 | 未穷尽环境；报告具体条件后逐项处理。 |
 | Windows 签名与安全软件 | 当前未签名。早期 NSIS 安装包曾被火绒查杀，未取得厂商复核结论；不将其宣称为误报。新文件以实际检测为准。 |
 | Mac 签名、公证和首次打开 | 当前构建未签名、公证；系统可能拦截，需后续完善分发体验。 |
@@ -16,7 +17,7 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 
 遇到 Bug 请[提交 Issue](https://github.com/laihong06/pagenote/issues/new)，附版本、系统、操作步骤及脱敏截图；不要上传私人课件或连接密钥。联系：chennanfeng310@gmail.com。
 
-Windows stable is founder-approved; macOS remains experimental. Pending work includes the unexplained interrupted soak, wider environment coverage, signing/notarization, antivirus review, and OCR prerequisites. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
+Windows stable is founder-approved; macOS remains experimental. Android is an Android 14+ ARM64 tablet beta; the Xiaomi Pad 5 Pro, full pen behavior, real SAF grants, user PDF and live OpenAI workflow are not all verified end to end, and in-process Office editing is deferred. Pending work also includes the unexplained interrupted soak, wider environment coverage, signing/notarization, antivirus review, and OCR prerequisites. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
 
 ## beta 1.1 测试记录
 

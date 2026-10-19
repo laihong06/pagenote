@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
+  <title>pagenote-rich-html:idle</title>
+  <style>
+    html, body { margin: 0; width: 100%; background: transparent; overflow: hidden; }
+    #render-host { display: block; position: fixed; top: 0; left: 0; overflow: hidden; }
+    .ink-rich-content { box-sizing: border-box; width: 100%; padding: 8px; color: #253247; font: 22px/1.6 sans-serif; overflow: hidden; }
+    .ink-rich-content h1 { font-size: 34px; }
+    .ink-rich-content h2 { font-size: 28px; }
+    .ink-rich-content h3 { font-size: 24px; }
+    .ink-rich-content table { font-size: 20px; border-collapse: collapse; }
+    .ink-rich-content img { max-width: 100%; height: auto; }
+    .ink-rich-content pre { white-space: pre-wrap; }
+  </style>
+  <script src="../mermaid/purify.min.js" defer></script>
+  <script src="renderer.js" defer></script>
+</head>
+<body><div id="render-host" aria-hidden="true"></div></body>
+</html>

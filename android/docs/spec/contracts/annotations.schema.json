@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "annotations",
+  "type": "object",
+  "required": ["document", "note"],
+  "properties": {
+    "document": {"type": "object"},
+    "note": {"type": "object"}
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "item": {
+      "type": "object",
+      "required": ["type", "color", "width"],
+      "properties": {
+        "type": {"enum": ["pen", "highlight", "line", "arrow", "rect", "ellipse", "text", "image", "html"]},
+        "color": {"type": "string", "pattern": "^#[a-fA-F0-9]{6}$"},
+        "width": {"type": "number", "minimum": 0.1}
+      },
+      "additionalProperties": true
+    }
+  }
+}
