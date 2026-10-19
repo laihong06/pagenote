@@ -26,13 +26,20 @@ class ProjectCreator(
   fun create(
     parentTreeUri: Uri,
     name: String,
-    sourcePdfUri: Uri? = null,
+    sourceDocumentUri: Uri? = null,
     sourceDisplayName: String? = null,
   ): ProjectOpenTarget {
-    val displayName = sourcePdfUri?.let {
+    val displayName = if (sourceDocumentUri != null) {
       sourceDisplayName?.takeIf(String::isNotBlank) ?: "document.pdf"
+    } else {
+      null
     }
-    val manifest = NewProjectManifestPolicy.create(name, displayName)
+    val manifest = try {
+      NewProjectManifestPolicy.create(name, displayName)
+    } catch (error: IllegalArgumentException) {
+      throw IOException(error.message ?: "不支持的原文格式", error)
+    }
+    val extension = displayName?.let(NewProjectManifestPolicy::sourceExtension)
     val parentId = DocumentsContract.getTreeDocumentId(parentTreeUri)
     if (childExists(parentTreeUri, parentId, name)) {
       throw IOException("同名项目已存在：$name")
@@ -41,6 +48,9 @@ class ProjectCreator(
     val createdDocuments = mutableListOf<Uri>()
     var stagedPdf: File? = null
     try {
+      if (sourceDocumentUri != null && extension == "pdf") {
+        stagedPdf = stageAndValidatePdf(sourceDocumentUri)
+      }
       val parentUri = DocumentsContract.buildDocumentUriUsingTree(parentTreeUri, parentId)
       val projectUri = createDocument(
         parentUri,
@@ -61,10 +71,9 @@ class ProjectCreator(
         createdDocuments,
       )
 
-      if (sourcePdfUri == null) {
+      if (sourceDocumentUri == null) {
         writeText(srcUri, "left.md", "# ${manifest.name}\n", "text/markdown", createdDocuments)
-      } else {
-        stagedPdf = stageAndValidatePdf(sourcePdfUri)
+      } else if (extension == "pdf") {
         val verifiedSource = requireNotNull(stagedPdf)
         val pdfUri = createDocument(
           srcUri,
@@ -77,6 +86,25 @@ class ProjectCreator(
         } ?: throw IOException("无法写入 src/document.pdf")
         if (verifiedSource.delete()) stagedPdf = null
         validateProjectPdf(pdfUri)
+      } else {
+        val documentName = "document.$extension"
+        val documentMimeType = if (extension == "md" || extension == "markdown") {
+          "text/markdown"
+        } else {
+          error("Unsupported document extension: $extension")
+        }
+        val documentUri = createDocument(
+          srcUri,
+          documentMimeType,
+          documentName,
+          createdDocuments,
+        )
+        val input = resolver.openInputStream(requireNotNull(sourceDocumentUri))
+          ?: throw IOException("无法读取所选原文")
+        input.use { source ->
+          resolver.openOutputStream(documentUri, "wt")?.use { output -> source.copyTo(output) }
+            ?: throw IOException("无法写入 src/$documentName")
+        }
       }
       writeText(srcUri, "right.md", "", "text/markdown", createdDocuments)
 

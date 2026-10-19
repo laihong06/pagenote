@@ -8,6 +8,7 @@ import org.junit.Test
 class DesktopCommandChecklistTest {
   private val wiredCommands = setOf(
     "open_project",
+    "open_document",
     "new_project",
     "recent_documents",
     "attachments",

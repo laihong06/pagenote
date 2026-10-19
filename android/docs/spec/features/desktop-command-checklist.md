@@ -6,8 +6,9 @@
 
 | 桌面入口 | Android 命令 id | Android 行为 |
 | --- | --- | --- |
-| 打开文档 | `open_project` | 已接线：SAF 打开项目 |
-| 新建项目 | `new_project` | 已接线：选择项目目录，可选导入 PDF 原文 |
+| 打开项目 | `open_project` | 已接线：SAF 打开项目 |
+| 打开文档 | `open_document` | 已接线：导入 PDF/Markdown 并新建项目 |
+| 新建项目 | `new_project` | 已接线：选择项目目录，可选导入 PDF/Markdown 原文 |
 | 最近文档 | `recent_documents` | 已接线：最近项目列表 |
 | 插入附件 | `attachments` | 已接线：项目附件管理 |
 | 导入笔记 | `import_notes` | 已接线：当前页/整份导入 |

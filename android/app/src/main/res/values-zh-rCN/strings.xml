@@ -250,6 +250,7 @@
   <string name="page_tutor_saved">AI 讲解已加入本页笔记。</string>
   <string name="page_tutor_note_heading">### AI 讲解</string>
   <string name="open_project">打开项目</string>
+  <string name="open_document">打开文档</string>
   <string name="opening_project">正在打开</string>
   <string name="previous_page">上一页</string>
   <string name="next_page">下一页</string>
@@ -293,9 +294,10 @@
   <string name="new_project_title">新建项目</string>
   <string name="new_project_name">项目名称</string>
   <string name="new_project_choose_dir">选择目录</string>
-  <string name="new_project_choose_pdf">选择 PDF（可选）</string>
-  <string name="new_project_clear_pdf">移除 PDF</string>
-  <string name="new_project_pdf_access_failed">无法保留此 PDF 的访问权限，请重新选择。</string>
+  <string name="new_project_choose_document">选择原文（可选）</string>
+  <string name="new_project_clear_document">移除原文</string>
+  <string name="new_project_document_access_failed">无法保留此文档的访问权限，请重新选择。</string>
+  <string name="new_project_unsupported_document">不支持此文档类型：%1$s。请选择 PDF 或 Markdown 文件。</string>
   <string name="new_project_creating">创建中…</string>
   <string name="new_project_create">创建</string>
   <string name="new_project_bad_name">请输入有效的项目名称。</string>

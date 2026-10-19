@@ -10,7 +10,7 @@ Compare user-visible desktop workflows with Android 14/API 34 behavior. Keep the
 
 | Workflow | Desktop behavior | Current Android gap | Task |
 | --- | --- | --- | --- |
-| Open a standalone PDF or Markdown file | Open Document accepts `.pdf` and `.md` and imports the selected source | Open Project accepts only a pagenote project; New Project can select PDF but not Markdown | 45 |
+| Open a standalone PDF or Markdown file | Open Document accepts `.pdf` and `.md` and imports the selected source | Implemented in task 45: File menu and welcome actions import PDF/Markdown through standard project creation | 45 |
 | Change selected annotation style | Color and width controls update the selected annotation | Implemented in task 44: update only the selected property, preserve other fields, and retain the style for future drawing | 44 |
 | Paste rich text into a note | Paste as Markdown converts clipboard `text/html` to Markdown | Paste as Markdown reads plain text only | 46 |
 | Customize AI prompt modules | AI Settings selects, edits, saves, and resets individual prompt modules | Android exposes endpoint/model/key only; prompt modules are read-only bundled assets | 47 |
@@ -31,9 +31,10 @@ The earlier `desktop-parity-gap-audit.md` covers command IDs only. It must not b
 
 ### 45. Standalone PDF/Markdown import
 
-- When a user opens a standalone `.pdf` or `.md`, Android shall provide a SAF destination and create/open a standard pagenote project containing the original source bytes and a compatible manifest.
-- PDF remains the source document; Markdown is imported as the project source and remains byte-preserving. Existing note, annotation, and asset conventions continue to apply.
-- Unsupported extensions and failed/cancelled imports leave no partially successful project and report a recoverable status.
+- Android shall expose an `Open document` action for standalone `.pdf`, `.md`, and `.markdown` files. Because Android work belongs to a standard project, choosing a file opens the existing project-creation flow with a safe name suggestion; the user chooses a SAF parent directory before creation.
+- The optional document selector in `New project` shall use the same import contract. Choosing either PDF or Markdown creates/opens a standard project with the source bytes in `src/`, an editable `src/right.md`, `src/assets/`, and a compatible v1 manifest. The manifest preserves the original display name while its relative source link uses the normalized supported extension.
+- PDF is validated before and after copy and must contain at least one page. Markdown is copied byte-for-byte without text decoding or rewriting. Empty Markdown is valid.
+- Cancelling either picker or an import leaves the current project and the dialog's prior selections intact. Unsupported extensions, unreadable sources, name collisions, and SAF failures report recoverable errors and do not leave a usable partial project; cleanup is attempted in reverse creation order.
 
 ### 46. Rich clipboard paste
 

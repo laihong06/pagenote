@@ -12,16 +12,21 @@ import android.provider.DocumentsContract;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public final class ProjectCreateSafTestProvider extends ContentProvider {
   public static final String AUTHORITY = "io.pagenote.android.test.project-create";
   public static final String ROOT_ID = "root";
   private static final String METHOD_CREATE_DOCUMENT = "android:createDocument";
   private static final String METHOD_DELETE_DOCUMENT = "android:deleteDocument";
+  private static final String METHOD_CORRUPT_NEXT_COPIED_PDF = "test:corruptNextCopiedPdf";
+  private static final String METHOD_CLEAR_TEST_FAILURES = "test:clearFailures";
   private static final String EXTRA_URI = "uri";
   private static final String EXTRA_MIME_TYPE = "mime_type";
+  private static volatile boolean corruptNextCopiedPdfForValidation;
   private static final String[] COLUMNS = {
       DocumentsContract.Document.COLUMN_DOCUMENT_ID,
       DocumentsContract.Document.COLUMN_DISPLAY_NAME,
@@ -45,6 +50,14 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
       output.write(bytes);
     }
     return source;
+  }
+
+  public static void corruptNextCopiedPdfForValidation(ContentResolver resolver) {
+    resolver.call(treeUri(), METHOD_CORRUPT_NEXT_COPIED_PDF, null, Bundle.EMPTY);
+  }
+
+  public static void clearTestFailures(ContentResolver resolver) {
+    resolver.call(treeUri(), METHOD_CLEAR_TEST_FAILURES, null, Bundle.EMPTY);
   }
 
   @Override
@@ -83,6 +96,14 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
         if (!deleteRecursively(fileForId(DocumentsContract.getDocumentId(documentUri)))) {
           throw new IOException("could not delete fixture document");
         }
+        return Bundle.EMPTY;
+      }
+      if (METHOD_CORRUPT_NEXT_COPIED_PDF.equals(method)) {
+        corruptNextCopiedPdfForValidation = true;
+        return Bundle.EMPTY;
+      }
+      if (METHOD_CLEAR_TEST_FAILURES.equals(method)) {
+        corruptNextCopiedPdfForValidation = false;
         return Bundle.EMPTY;
       }
     } catch (Exception error) {
@@ -152,8 +173,16 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
   @Override
   public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
     try {
-      return ParcelFileDescriptor.open(fileForId(DocumentsContract.getDocumentId(uri)),
-          ParcelFileDescriptor.parseMode(mode));
+      String documentId = DocumentsContract.getDocumentId(uri);
+      File file = fileForId(documentId);
+      if (mode.contains("r") && documentId.endsWith("/src/document.pdf") &&
+          corruptNextCopiedPdfForValidation) {
+        corruptNextCopiedPdfForValidation = false;
+        try (FileOutputStream output = new FileOutputStream(file, false)) {
+          output.write("%PDF-invalid".getBytes(StandardCharsets.UTF_8));
+        }
+      }
+      return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
     } catch (IOException error) {
       FileNotFoundException failure = new FileNotFoundException(error.getMessage());
       failure.initCause(error);

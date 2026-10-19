@@ -32,12 +32,12 @@ class NewProjectDialogTest {
           name = name,
           onNameChange = { name = it },
           hasDir = true,
-          pdfDisplayName = null,
+          sourceDisplayName = null,
           error = null,
           creating = false,
           onChooseDir = {},
-          onChoosePdf = {},
-          onClearPdf = {},
+          onChooseSource = {},
+          onClearSource = {},
           onConfirm = { confirmed = true },
           onDismiss = {},
         )
@@ -60,12 +60,12 @@ class NewProjectDialogTest {
           name = "",
           onNameChange = {},
           hasDir = false,
-          pdfDisplayName = null,
+          sourceDisplayName = null,
           error = null,
           creating = false,
           onChooseDir = {},
-          onChoosePdf = {},
-          onClearPdf = {},
+          onChooseSource = {},
+          onClearSource = {},
           onConfirm = {},
           onDismiss = { dismissed = true },
         )
@@ -80,27 +80,27 @@ class NewProjectDialogTest {
   fun optionalPdfCanBeSelectedAndClearedWithoutLosingDialog() {
     composeRule.setContent {
       MaterialTheme {
-        var pdfName by remember { mutableStateOf<String?>(null) }
+        var sourceName by remember { mutableStateOf<String?>(null) }
         NewProjectDialog(
           name = "Blank worksheet",
           onNameChange = {},
           hasDir = true,
-          pdfDisplayName = pdfName,
+          sourceDisplayName = sourceName,
           error = null,
           creating = false,
           onChooseDir = {},
-          onChoosePdf = { pdfName = "whiteboard.pdf" },
-          onClearPdf = { pdfName = null },
+          onChooseSource = { sourceName = "whiteboard.pdf" },
+          onClearSource = { sourceName = null },
           onConfirm = {},
           onDismiss = {},
         )
       }
     }
 
-    composeRule.onNodeWithTag("new_project_choose_pdf").assertIsDisplayed().performClick()
+    composeRule.onNodeWithTag("new_project_choose_document").assertIsDisplayed().performClick()
     composeRule.onNodeWithText("whiteboard.pdf").assertIsDisplayed()
-    composeRule.onNodeWithTag("new_project_clear_pdf").performClick()
-    composeRule.onNodeWithText("Choose PDF (optional)").assertIsDisplayed()
+    composeRule.onNodeWithTag("new_project_clear_document").performClick()
+    composeRule.onNodeWithTag("new_project_choose_document").assertIsDisplayed()
     composeRule.onNodeWithTag("new_project_confirm").assertIsDisplayed()
   }
 }

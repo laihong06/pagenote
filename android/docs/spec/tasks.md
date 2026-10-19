@@ -364,10 +364,12 @@
   - `PenPageStore` 与 app JVM 测试通过，含等价颜色无操作与删除索引映射；API 34 平板 AVD `PdfAnnotationSelectionClipboardActivityTest` 2/2 验证原生批注和自由笔迹的独立属性更新、并发字段保留、保存、撤销/重做；Debug APK 已构建。
   - SPEC：`features/desktop-semantic-parity.md` §44、`features/pen-style-controls.md`。
 
-- [ ] 45. 打开独立 PDF 与 Markdown 文件
-  - Android 的打开/导入流程可将 standalone `.pdf` 或 `.md` 导入标准 pagenote 项目；保持源内容并使用现有 SAF 项目格式。
-  - 支持取消、无效扩展名和 SAF 失败清理，不留下半成项目。
-  - SPEC：`features/desktop-semantic-parity.md` §45。
+- [x] 45. 打开独立 PDF 与 Markdown 文件
+  - 新增 `Open document` 入口，可选择 standalone `.pdf`、`.md` 或 `.markdown`；通过现有 New Project 流程选 SAF 父目录，文件名生成可编辑的安全项目名。
+  - File 菜单与空白页入口共用 SAF 选择器；支持取消、替换和 Activity 重建时保留来源名称/URI 状态，同名目录拒绝覆盖，不支持扩展名显示可重选错误。
+  - PDF 在复制前后均用 `PdfRenderer` 校验至少一页；Markdown 原始字节（含 BOM/CRLF，空文件也有效）复制到项目 `src/`，写 v1 manifest 并保留 `right.md`、`assets/`。
+  - API 34 平板 AVD：`ProjectCreateOptionalPdfActivityTest` 10/10、`NewProjectDialogTest` 3/3；覆盖旧 PDF/空项目、Markdown 字节保真与首屏打开、取消、替换、实际持久化授权跨 Activity 重建及移除/取消/创建后释放、不支持格式、同名、预校验失败与复制后校验失败回滚。SAF fixture 不等同于系统文件选择器 UI或小米真机验收。
+  - SPEC：`features/desktop-semantic-parity.md` §45、`features/standalone-document-import.md`；实施顺序：`standalone-document-import-plan.md`。
 
 - [ ] 46. Markdown 笔记粘贴富 HTML
   - 显式“按 Markdown 粘贴”支持从剪贴板 `text/html` 转换常用语义格式，替换选区/插入光标；HTML 缺失时保留纯文本回退。

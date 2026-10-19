@@ -1,5 +1,7 @@
 # New Project with Optional PDF
 
+> Historical scope for the original PDF-only flow. The shared PDF/Markdown import contract and standalone Open Document entry are defined by `standalone-document-import.md` and supersede this document where they differ.
+
 ## Scope
 
 Extend Android's existing New project flow so a learner can choose the output folder and optionally select a PDF source document. The PDF is copied into the new project before it is opened; the `.pagenote` v1 schema remains unchanged. This supports blank-page PDFs as useful sources for subsequent notes and annotations. It does not create a PDF from scratch.

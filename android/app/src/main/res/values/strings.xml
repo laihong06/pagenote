@@ -250,6 +250,7 @@
   <string name="page_tutor_saved">AI explanation added to the page note.</string>
   <string name="page_tutor_note_heading">### AI explanation</string>
   <string name="open_project">Open project</string>
+  <string name="open_document">Open document</string>
   <string name="opening_project">Opening</string>
   <string name="previous_page">Previous</string>
   <string name="next_page">Next</string>
@@ -293,9 +294,10 @@
   <string name="new_project_title">New project</string>
   <string name="new_project_name">Project name</string>
   <string name="new_project_choose_dir">Choose folder</string>
-  <string name="new_project_choose_pdf">Choose PDF (optional)</string>
-  <string name="new_project_clear_pdf">Remove PDF</string>
-  <string name="new_project_pdf_access_failed">Unable to keep access to this PDF. Choose it again.</string>
+  <string name="new_project_choose_document">Choose source document (optional)</string>
+  <string name="new_project_clear_document">Remove source document</string>
+  <string name="new_project_document_access_failed">Unable to keep access to this document. Choose it again.</string>
+  <string name="new_project_unsupported_document">Unsupported document type: %1$s. Choose a PDF or Markdown file.</string>
   <string name="new_project_creating">Creating…</string>
   <string name="new_project_create">Create</string>
   <string name="new_project_bad_name">Enter a valid project name.</string>

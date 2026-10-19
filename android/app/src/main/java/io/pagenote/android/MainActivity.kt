@@ -197,7 +197,8 @@ class MainActivity : ComponentActivity() {
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
   internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDirectoryPickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
-  internal var newProjectPdfPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
+  internal var newProjectDocumentPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
+  internal var persistNewProjectDocumentGrantForTesting = false
   internal var projectAttachmentPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
 
   override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -2088,11 +2089,12 @@ private fun ReaderHome(
   var showNewProject by rememberSaveable { mutableStateOf(false) }
   var newProjectName by rememberSaveable { mutableStateOf("") }
   var newProjectDir by rememberSaveable { mutableStateOf<Uri?>(null) }
-  var newProjectPdfUri by rememberSaveable { mutableStateOf<Uri?>(null) }
-  var newProjectPdfName by rememberSaveable { mutableStateOf<String?>(null) }
+  var newProjectDocumentUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+  var newProjectDocumentName by rememberSaveable { mutableStateOf<String?>(null) }
   var isCreatingProject by remember { mutableStateOf(false) }
   var isChoosingNewProjectDir by rememberSaveable { mutableStateOf(false) }
-  var isChoosingNewProjectPdf by rememberSaveable { mutableStateOf(false) }
+  var isChoosingNewProjectDocument by rememberSaveable { mutableStateOf(false) }
+  var opensStandaloneDocumentAfterPicker by rememberSaveable { mutableStateOf(false) }
   var newProjectError by remember { mutableStateOf<String?>(null) }
 
   fun handleNewProjectDirectoryResult(treeUri: Uri?) {
@@ -2122,7 +2124,7 @@ private fun ReaderHome(
     else pickerForTesting(::handleNewProjectDirectoryResult)
   }
 
-  fun releaseNewProjectPdfPermission(uri: Uri?) {
+  fun releaseNewProjectDocumentPermission(uri: Uri?) {
     if (uri == null) return
     scope.launch(Dispatchers.IO) {
       runCatching {
@@ -2134,22 +2136,27 @@ private fun ReaderHome(
     }
   }
 
-  fun clearNewProjectPdf() {
-    val previous = newProjectPdfUri
-    newProjectPdfUri = null
-    newProjectPdfName = null
-    releaseNewProjectPdfPermission(previous)
+  fun clearNewProjectDocument() {
+    val previous = newProjectDocumentUri
+    newProjectDocumentUri = null
+    newProjectDocumentName = null
+    releaseNewProjectDocumentPermission(previous)
   }
 
-  fun handleNewProjectPdfResult(uri: Uri?) {
-    showNewProject = true
+  fun handleNewProjectDocumentResult(uri: Uri?) {
+    val openStandaloneDocument = opensStandaloneDocumentAfterPicker
+    opensStandaloneDocumentAfterPicker = false
     if (uri == null) {
-      isChoosingNewProjectPdf = false
+      isChoosingNewProjectDocument = false
       return
     }
     scope.launch {
-      val pickerForTesting = (activityResultOwner as? MainActivity)?.newProjectPdfPickerForTesting
-      val persistGrant = pickerForTesting == null
+      val testingActivity = activityResultOwner as? MainActivity
+      val pickerForTesting = testingActivity?.newProjectDocumentPickerForTesting
+      val persistGrantForTesting = testingActivity?.persistNewProjectDocumentGrantForTesting == true
+      testingActivity?.persistNewProjectDocumentGrantForTesting = false
+      val persistGrant = pickerForTesting == null || persistGrantForTesting
+      var acquiredReadGrant = false
       try {
         val displayName = withContext(Dispatchers.IO) {
           if (persistGrant) {
@@ -2157,6 +2164,7 @@ private fun ReaderHome(
               uri,
               Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
+            acquiredReadGrant = true
           }
           runCatching {
             context.contentResolver.query(
@@ -2169,39 +2177,60 @@ private fun ReaderHome(
               val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
               if (cursor.moveToFirst() && index >= 0) cursor.getString(index) else null
             }
-          }.getOrNull()?.takeIf(String::isNotBlank) ?: "document.pdf"
+          }.getOrNull()?.takeIf(String::isNotBlank)
+            ?: uri.lastPathSegment?.takeIf(String::isNotBlank)
+            ?: ""
         }
-        val previous = newProjectPdfUri
-        newProjectPdfUri = uri
-        newProjectPdfName = displayName
+        if (NewProjectManifestPolicy.sourceExtension(displayName) == null) {
+          if (acquiredReadGrant) releaseNewProjectDocumentPermission(uri)
+          val message = context.getString(R.string.new_project_unsupported_document, displayName)
+          newProjectError = message
+          if (openStandaloneDocument) showNewProject = true
+          return@launch
+        }
+        val previous = newProjectDocumentUri
+        newProjectDocumentUri = uri
+        newProjectDocumentName = displayName
+        if (openStandaloneDocument) {
+          newProjectName = NewProjectManifestPolicy.suggestedProjectName(displayName)
+          showNewProject = true
+        }
         newProjectError = null
-        if (previous != uri) releaseNewProjectPdfPermission(previous)
+        if (previous != uri) releaseNewProjectDocumentPermission(previous)
       } catch (_: SecurityException) {
-        if (persistGrant) releaseNewProjectPdfPermission(uri)
-        newProjectError = context.getString(R.string.new_project_pdf_access_failed)
+        if (acquiredReadGrant) releaseNewProjectDocumentPermission(uri)
+        val message = context.getString(R.string.new_project_document_access_failed)
+        newProjectError = message
+        if (openStandaloneDocument) showNewProject = true
       } catch (_: Exception) {
-        if (persistGrant) releaseNewProjectPdfPermission(uri)
-        newProjectError = context.getString(R.string.new_project_pdf_access_failed)
+        if (acquiredReadGrant) releaseNewProjectDocumentPermission(uri)
+        val message = context.getString(R.string.new_project_document_access_failed)
+        newProjectError = message
+        if (openStandaloneDocument) showNewProject = true
       } finally {
-        isChoosingNewProjectPdf = false
+        isChoosingNewProjectDocument = false
       }
     }
   }
 
-  val newProjectPdfPicker = rememberLauncherForActivityResult(
+  val newProjectDocumentPicker = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.OpenDocument(),
-    onResult = ::handleNewProjectPdfResult,
+    onResult = ::handleNewProjectDocumentResult,
   )
 
-  fun chooseNewProjectPdf() {
-    isChoosingNewProjectPdf = true
+  fun chooseNewProjectDocument(openAfterSelection: Boolean = false) {
+    isChoosingNewProjectDocument = true
+    opensStandaloneDocumentAfterPicker = openAfterSelection
     try {
-      val pickerForTesting = (activityResultOwner as? MainActivity)?.newProjectPdfPickerForTesting
-      if (pickerForTesting == null) newProjectPdfPicker.launch(arrayOf("application/pdf"))
-      else pickerForTesting(arrayOf("application/pdf"), ::handleNewProjectPdfResult)
+      val pickerForTesting = (activityResultOwner as? MainActivity)?.newProjectDocumentPickerForTesting
+      val mimeTypes = arrayOf("application/pdf", "text/markdown", "text/x-markdown", "text/plain")
+      if (pickerForTesting == null) newProjectDocumentPicker.launch(mimeTypes)
+      else pickerForTesting(mimeTypes, ::handleNewProjectDocumentResult)
     } catch (_: Exception) {
-      isChoosingNewProjectPdf = false
-      newProjectError = context.getString(R.string.new_project_pdf_access_failed)
+      isChoosingNewProjectDocument = false
+      opensStandaloneDocumentAfterPicker = false
+      newProjectError = context.getString(R.string.new_project_document_access_failed)
+      if (openAfterSelection) showNewProject = true
     }
   }
 
@@ -2434,11 +2463,11 @@ private fun ReaderHome(
   }
 
   fun createNewProject() {
-    if (isCreatingProject || isChoosingNewProjectDir || isChoosingNewProjectPdf) return
+    if (isCreatingProject || isChoosingNewProjectDir || isChoosingNewProjectDocument) return
     val name = newProjectName.trim()
     val dir = newProjectDir
-    val pdfUri = newProjectPdfUri
-    val pdfName = newProjectPdfName
+    val sourceUri = newProjectDocumentUri
+    val sourceName = newProjectDocumentName
     if (name.isEmpty() || name.contains(Regex("[<>:\"/\\|?*]"))) {
       newProjectError = context.getString(R.string.new_project_bad_name)
       return
@@ -2452,12 +2481,12 @@ private fun ReaderHome(
       newProjectError = null
       try {
         val projectTarget = withContext(Dispatchers.IO) {
-          ProjectCreator(context.contentResolver, context.cacheDir).create(dir, name, pdfUri, pdfName)
+          ProjectCreator(context.contentResolver, context.cacheDir).create(dir, name, sourceUri, sourceName)
         }
         showNewProject = false
         newProjectName = ""
         newProjectDir = null
-        clearNewProjectPdf()
+        clearNewProjectDocument()
         if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
         openProjectTree(projectTarget, manageOpening = true)
       } catch (error: Exception) {
@@ -3954,6 +3983,10 @@ private fun ReaderHome(
           disabledReason = commandReason(busy = !canOpenProject),
         ) { showNewProject = true },
         actionCommand(
+          "open_document", R.string.open_document, canOpenProject,
+          disabledReason = commandReason(busy = !canOpenProject),
+        ) { chooseNewProjectDocument(openAfterSelection = true) },
+        actionCommand(
           "recent_documents", R.string.reader_menu_recent_documents, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
         ) { showRecentProjectsDialog = true },
@@ -4875,7 +4908,26 @@ private fun ReaderHome(
         if (isOpening) {
           Text(stringResource(R.string.opening_project_message), style = MaterialTheme.typography.bodyLarge)
         } else {
-          Text(stringResource(R.string.choose_project_message), style = MaterialTheme.typography.bodyLarge)
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            Text(stringResource(R.string.choose_project_message), style = MaterialTheme.typography.bodyLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+              TextButton(
+                modifier = Modifier.testTag("welcome_open_document"),
+                onClick = { chooseNewProjectDocument(openAfterSelection = true) },
+              ) {
+                Text(stringResource(R.string.open_document))
+              }
+              TextButton(
+                modifier = Modifier.testTag("welcome_new_project"),
+                onClick = { showNewProject = true },
+              ) {
+                Text(stringResource(R.string.new_project))
+              }
+            }
+          }
         }
       }
     }
@@ -5103,23 +5155,23 @@ private fun ReaderHome(
       name = newProjectName,
       onNameChange = { newProjectName = it },
       hasDir = newProjectDir != null,
-      pdfDisplayName = newProjectPdfName,
+      sourceDisplayName = newProjectDocumentName,
       error = newProjectError,
       creating = isCreatingProject,
       onChooseDir = { chooseNewProjectDirectory() },
-      onChoosePdf = { chooseNewProjectPdf() },
-      onClearPdf = { clearNewProjectPdf() },
+      onChooseSource = { chooseNewProjectDocument() },
+      onClearSource = { clearNewProjectDocument() },
       onConfirm = { createNewProject() },
       onDismiss = {
         if (NewProjectDialogPolicy.canDismiss(
             isCreatingProject,
             isChoosingNewProjectDir,
-            isChoosingNewProjectPdf,
+            isChoosingNewProjectDocument,
           )
         ) {
           showNewProject = false
           newProjectError = null
-          clearNewProjectPdf()
+          clearNewProjectDocument()
         }
       },
     )
@@ -5370,12 +5422,12 @@ internal fun NewProjectDialog(
   name: String,
   onNameChange: (String) -> Unit,
   hasDir: Boolean,
-  pdfDisplayName: String?,
+  sourceDisplayName: String?,
   error: String?,
   creating: Boolean,
   onChooseDir: () -> Unit,
-  onChoosePdf: () -> Unit,
-  onClearPdf: () -> Unit,
+  onChooseSource: () -> Unit,
+  onClearSource: () -> Unit,
   onConfirm: () -> Unit,
   onDismiss: () -> Unit,
 ) {
@@ -5402,13 +5454,13 @@ internal fun NewProjectDialog(
           )
         }
         TextButton(
-          modifier = Modifier.testTag("new_project_choose_pdf"),
-          onClick = onChoosePdf,
+          modifier = Modifier.testTag("new_project_choose_document"),
+          onClick = onChooseSource,
           enabled = !creating,
         ) {
-          Text(stringResource(R.string.new_project_choose_pdf))
+          Text(stringResource(R.string.new_project_choose_document))
         }
-        pdfDisplayName?.let { selectedName ->
+        sourceDisplayName?.let { selectedName ->
           Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -5420,11 +5472,11 @@ internal fun NewProjectDialog(
               overflow = TextOverflow.Ellipsis,
             )
             TextButton(
-              modifier = Modifier.testTag("new_project_clear_pdf"),
-              onClick = onClearPdf,
+              modifier = Modifier.testTag("new_project_clear_document"),
+              onClick = onClearSource,
               enabled = !creating,
             ) {
-              Text(stringResource(R.string.new_project_clear_pdf))
+              Text(stringResource(R.string.new_project_clear_document))
             }
           }
         }
