@@ -32,11 +32,11 @@
 
 **Files:** `MainActivity.kt`, `PdfPageSwipePolicy.kt`, `ReaderPageJumpActivityTest.kt`, and focused tests as needed.
 
-- [ ] Run `PdfPageSwipePolicyTest` and the API 34 `ReaderPageJumpActivityTest` navigation cases; verify vertical up/down swipes and adjacent header buttons against the same real three-page PDF reader session.
-- [ ] If any acceptance case is missing, add the failing Activity regression first: short/diagonal and horizontal gestures, first/last page boundaries, and a dirty-note save or conflict must not diverge between swipe and controls.
-- [ ] Make the smallest implementation fix only after the new regression fails for the expected reason.
-- [ ] Run focused JVM/Activity tests, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
-- [ ] Update SPEC/task evidence and changelog; commit and push this slice.
+- [x] Run `PdfPageSwipePolicyTest` and the API 34 `ReaderPageJumpActivityTest` navigation cases; verify vertical up/down swipes and adjacent header buttons against the same real three-page PDF reader session.
+- [x] Review threshold/diagonal rejection, document boundaries, and dirty-note conflict/pending-save guards across the policy, common page-change path, and Activity tests; no navigation gap requiring a code change was exposed.
+- [x] No implementation fix was needed after the focused regressions passed.
+- [x] Run focused JVM/Activity tests, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
+- [x] Record this audit in SPEC/task evidence and push the documentation and verification slices.
 
 ### Task 2: Zoomed ink and optional outside-page canvas
 
@@ -46,29 +46,30 @@
 - [x] Add a focused Reader Settings interaction regression for the outside-page switch; it verifies default-off, toggle, save, and restored state.
 - [x] Confirm existing geometry/View tests cover render/input round-trip after zoom, default clipping, and visible-margin coordinates when enabled; no additional runtime change was exposed.
 - [x] Run the focused `feature-pen` and app JVM tests, affected instrumentation, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
-- [ ] Update SPEC/task evidence and changelog; commit and push this slice.
+- [x] Update SPEC/task evidence and changelog; commit and push this slice.
 
 ### Task 3: Automatic forward-page preparation
 
 **Files:** `PagePrefetchCoordinator.kt`, `PageTutorSourceLoader.kt`, `ReaderSettings*`, `MainActivity.kt`, and focused tests.
 
-- [ ] Run window, sequential scheduling, overlap reuse, revision/project cancellation, failure isolation, native-text/OCR fallback, settings persistence, and API 34 slider tests.
-- [ ] Confirm the reader launch and page-change effects use the configured window and that Page Tutor consumes matching cached results. Add a regression before changing any missing wiring.
-- [ ] Preserve zero-disable, current-page-inclusive window, source-revision cache identity, and the no-network preparation contract.
-- [ ] Run focused app JVM and settings instrumentation, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
-- [ ] Update SPEC/task evidence and changelog; commit and push this slice.
+- [x] Run window, sequential scheduling, overlap reuse, revision/project cancellation, failure isolation, native-text/OCR fallback, settings persistence, and API 34 slider tests.
+- [x] Confirm the reader launch and page-change effects use the configured window and that Page Tutor consumes matching cached results; no wiring gap requiring a code change was found.
+- [x] Confirm zero-disable, current-page-inclusive window, source-revision cache identity, and local-only preparation remain intact.
+- [x] Run focused app JVM and settings instrumentation, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
+- [x] Record this audit in SPEC/task evidence and push the documentation and verification slices.
 
 ### Task 4: Dwell shape recognition end-to-end
 
 **Files:** `feature-pen/PenShapeRecognizer.kt`, `PenCanvasView.kt`, `PdfAnnotationVectorDraft.kt`, `MainActivity.kt`, and focused unit/instrumentation tests.
 
-- [ ] Run recognizer, vector conversion, and View dwell tests for supported shapes, early lift, ambiguous path, movement after preview, highlighter exclusion, and cancellation.
-- [ ] Add a failing Android reader-flow test proving a recognized stylus shape is persisted once as a native annotation and participates in page-scoped undo/redo; prove failed persistence falls back to the original freehand stroke.
-- [ ] Implement only the integration fix required by that regression; preserve active style and the project schema.
-- [ ] Run focused feature/app JVM tests, View and Reader Activity instrumentation on API 34, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
-- [ ] Update SPEC/task evidence and changelog; commit and push this slice.
+- [x] Run recognizer, vector conversion, and View dwell tests for supported shapes, early lift, ambiguous path, movement after preview, highlighter exclusion, and cancellation.
+- [x] Confirm the existing Activity regression proves native-shape persistence and page-scoped undo/redo; add and pass a Reader Activity regression proving failed annotation persistence falls back to the original freehand stroke.
+- [x] No integration fix was needed: the failure fallback already preserves the stroke, pressure samples, and project schema.
+- [x] Run focused feature/app JVM tests, View and Reader Activity instrumentation on API 34, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
+- [x] Update SPEC/task evidence and changelog; commit and push this slice.
 
 ## Current State
 
-- Existing implementation and test artifacts are present for tasks 39-42. They are not marked revalidated by this plan until the named commands run in this execution.
-- Known evidence gap at plan creation: checked-in instrumentation proves shape recognition at the View callback boundary and conversion to native-vector JSON separately; no checked-in Reader Activity test was found that proves save, undo, redo, and write-failure fallback end to end.
+- Existing implementations for tasks 39-42 were revalidated with focused JVM tests and an API 34 tablet AVD. The outside-page setting now has UI coverage for default-off, localized accessibility name, save, and restored state.
+- `PdfAnnotationSelectionClipboardActivityTest.endpointDwellPersistsNativeShapeAndUsesAnnotationUndoHistory` already proves native-shape persistence and undo/redo. This execution adds `recognizedShapeWriteFailureFallsBackToOriginalFreehandStroke` to cover the remaining persistence-failure fallback path.
+- API 34 tablet AVD results: reader navigation Activity 5/5, pen View 9/9, settings 2/2, native-shape persistence/history 1/1, and failed-write fallback 1/1. Focused JVM policies/stores/coordinator/loader/geometry/recognizer/vector tests, AndroidTest Kotlin compilation, `:app:assembleDebug`, and `git diff --check` pass.

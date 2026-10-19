@@ -140,6 +140,77 @@ class PdfAnnotationSelectionClipboardActivityTest {
   }
 
   @Test
+  fun recognizedShapeWriteFailureFallsBackToOriginalFreehandStroke() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val projectPenStore = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.notesMarkdown.value = "# Note"
+      session.noteDraft.value = "# Note"
+      session.noteWritable.value = true
+      session.penStore.value = projectPenStore
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0
+      }
+      val canvasRef = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread {
+        canvasRef.set(findPenCanvas(composeRule.activity.window.decorView) ?: error("ink canvas missing"))
+      }
+      val canvas = canvasRef.get()
+      val downTime = SystemClock.uptimeMillis()
+      val startX = canvas.width * 0.15f
+      val endX = canvas.width * 0.75f
+      val y = canvas.height * 0.3f
+      resolver.call(
+        ExistingProjectSafTestProvider.AUTHORITY,
+        ExistingProjectSafTestProvider.METHOD_CONFIGURE_ANNOTATION_WRITE_FAILURE,
+        null,
+        Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, 1) },
+      )
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, y, 0.45f, downTime, downTime)
+      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, endX, y, 0.85f, downTime, downTime + 10)
+      Thread.sleep(650)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, endX, y, 0.65f, downTime, downTime + 700)
+
+      composeRule.waitUntil(10_000) {
+        val page = runCatching { annotations.readPage("document", 1) }.getOrNull() ?: return@waitUntil false
+        page.size == 1 && (page.singleOrNull() as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen"
+      }
+      val savedFreehand = projectPenStore.readPage(PenSide.DOCUMENT, 1).single()
+      assertEquals("pen", savedFreehand.type)
+      assertTrue("the fallback must keep sampled geometry", savedFreehand.points.size >= 2)
+      assertTrue("the fallback must keep pressure samples", savedFreehand.points.any { it.pressure < 1f })
+      assertEquals(
+        "the failed recognition must not leave a native vector line",
+        listOf("pen"),
+        annotations.readPage("document", 1).map { (it as JsonObject)["type"]?.jsonPrimitive?.content },
+      )
+    } finally {
+      composeRule.runOnUiThread {
+        session.replaceRenderer(null)
+        session.project.value = null
+      }
+    }
+  }
+
+  @Test
   fun nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver

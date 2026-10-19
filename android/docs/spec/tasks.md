@@ -390,10 +390,10 @@
   - 对话框、非笔记文本框和阅读界面不截获这些快捷键；保留选区、光标及撤销历史语义。
   - SPEC：`features/desktop-semantic-parity.md` §49。
 
-- [ ] 50. 阅读器交互增强端到端复核
-  - 按用户提出的六项验收重新核实 PDF 竖向滑动、页码两侧上一页/下一页、缩放手写、可选页外画布、后续页自动预解析及停留识形；已有实现不视为本轮已验收。
-  - 补足真实阅读器中识形写入原生批注、按页撤销/重做和写入失败回退自由笔迹的回归；检查 Settings 开关及预解析窗口实际接入。
-  - 每个切片先有失败回归再实现，随后运行定向 JVM/Android 14 AVD 测试、仪器源码编译、Debug APK 构建；各小功能独立 commit、带 changelog 并推送。
+- [x] 50. 阅读器交互增强端到端复核
+  - 六项验收已逐一对照现有 SPEC、代码和回归，API 34 平板 AVD 的定向验证通过；页外书写开关补齐本地化无障碍名称和保存/恢复 UI 回归。
+  - 现有 Reader Activity 测试已覆盖识形原生落盘及按页撤销/重做；新增 SAF 写入失败后回退为原始自由笔迹的 Activity 回归。
+  - 聚焦 JVM、Reader Activity 5/5、Pen View 9/9、Settings 2/2、形状落盘/历史 1/1、写入失败回退 1/1、AndroidTest 源码编译、Debug APK 构建均通过；SPEC、计划及 changelog 已记录并推送。
   - SPEC：`features/reader-interaction-enhancements.md`；计划：`reader-interaction-acceptance-plan.md`。
 
 - 实施顺序和测试/提交流程见 `reader-interaction-enhancements-plan.md`。
