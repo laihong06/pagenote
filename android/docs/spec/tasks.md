@@ -357,9 +357,10 @@
   - 在命令 ID 清单之外，逐项比对桌面实际行为与 Android handler，确认并记录 standalone PDF/Markdown 打开、选中批注改色/改宽、HTML 富文本粘贴、AI prompt 模块编辑、独立 Markdown 主题和格式快捷键六项缺口。
   - 审计基线：`features/desktop-semantic-parity.md`；命令接线审计 `features/desktop-parity-gap-audit.md` 已明确仅覆盖 ID 层面。
 
-- [ ] 44. 编辑已选中批注的颜色与宽度
+- [x] 44. 编辑已选中批注的颜色与宽度
   - 选择一条自由笔迹或一个原生 PDF 批注后，通过现有颜色/宽度控件修改所选项；保留未知 JSON 字段和当前活动绘制样式。
   - 颜色与宽度分别进入对应页的原生撤销/重做历史；无选择时仅改变后续绘制样式。
+  - `PenPageStore` 与 app JVM 测试通过；API 34 平板 AVD `PdfAnnotationSelectionClipboardActivityTest` 2/2 验证原生批注和自由笔迹的独立属性更新、保存、撤销/重做；Debug APK 已构建。
   - SPEC：`features/desktop-semantic-parity.md` §44、`features/pen-style-controls.md`。
 
 - [ ] 45. 打开独立 PDF 与 Markdown 文件

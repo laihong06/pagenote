@@ -939,6 +939,53 @@ private fun ReaderHome(
     }
   }
 
+  fun applyPenStyle(color: String? = null, width: Double? = null) {
+    val nextStyle = PenStyle.create(color ?: penColor, width ?: penWidth) ?: return
+    penColor = nextStyle.color
+    penWidth = nextStyle.width
+
+    val targetPage = pageIndex + 1
+    val strokeIndex = selectedPenIndex?.takeIf { it in penStrokes.indices }
+    if (strokeIndex != null) {
+      if (!penWritable) return
+      if (penPageStore.updateStyle(
+          PenSide.DOCUMENT,
+          targetPage,
+          strokeIndex,
+          color = color?.let { nextStyle.color },
+          width = width?.let { nextStyle.width },
+        )
+      ) {
+        val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+        penStrokes = updated
+        selectedAnnotationIndex = null
+        lastEditWasAnnotation[targetPage] = false
+        readerSession.launchSessionTask { savePenPage(targetPage, updated) }
+      }
+      return
+    }
+
+    if (!penWritable) return
+    val annotationIndex = selectedAnnotationIndex?.takeIf { it in annotationPageItems.indices } ?: return
+    val selected = annotationPageItems[annotationIndex] as? JsonObject ?: return
+    val updatedFields = buildMap {
+      if (color != null) put("color", JsonPrimitive(nextStyle.color))
+      if (width != null) put("width", JsonPrimitive(nextStyle.width))
+    }
+    if (updatedFields.isEmpty()) return
+    val updated = JsonObject(selected + updatedFields)
+    val after = JsonArray(annotationPageItems.mapIndexed { index, item ->
+      if (index == annotationIndex) updated else item
+    })
+    if (after == annotationPageItems) return
+    persistNativeAnnotationPage(
+      targetPage = targetPage,
+      before = annotationPageItems,
+      after = after,
+      selectedAfter = annotationIndex,
+    )
+  }
+
   fun applyRecognizedShape(shape: PenRecognizedShape, sourceStroke: PenStroke): Boolean {
     if (project == null || !penWritable) return false
     val draft = PdfAnnotationVectorDraft.fromRecognizedShape(
@@ -5096,7 +5143,7 @@ private fun ReaderHome(
     InkColorPickerDialog(
       currentColor = penStyle.color,
       onApply = { color ->
-        penColor = color
+        applyPenStyle(color = color)
         showPenColorPicker = false
       },
       onDismiss = { showPenColorPicker = false },
@@ -5106,7 +5153,7 @@ private fun ReaderHome(
     InkWidthPickerDialog(
       currentWidth = penStyle.width,
       onApply = { width ->
-        penWidth = width
+        applyPenStyle(width = width)
         showPenWidthPicker = false
       },
       onDismiss = { showPenWidthPicker = false },

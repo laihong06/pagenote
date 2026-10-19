@@ -49,6 +49,28 @@ class PenPageStore(
     return true
   }
 
+  /** Changes the style of one selected item and records a page-local undo snapshot. */
+  fun updateStyle(
+    side: PenSide,
+    page: Int,
+    index: Int,
+    color: String? = null,
+    width: Double? = null,
+  ): Boolean {
+    require(page >= 1) { "bad page: $page" }
+    val list = pages[side]?.get(page) ?: return false
+    val current = list.getOrNull(index) ?: return false
+    val updated = current.copy(
+      color = color ?: current.color,
+      width = width ?: current.width,
+    )
+    PenValidation.validate(updated, page)
+    if (updated == current) return false
+    snapshot(side, page)
+    list[index] = updated
+    return true
+  }
+
   /** Clears only the given side/page. Returns false when already empty. */
   fun clearPage(side: PenSide, page: Int): Boolean {
     require(page >= 1) { "bad page: $page" }

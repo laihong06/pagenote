@@ -226,6 +226,101 @@ class PdfAnnotationSelectionClipboardActivityTest {
           composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
         }.isSuccess
       }
+
+      composeRule.onNodeWithTag("reader_menu_command_ink_color").performScrollTo().performClick()
+      composeRule.onNodeWithTag("ink_color_swatch_red").performClick()
+      composeRule.onNodeWithTag("ink_color_apply").performClick()
+      waitForAnnotations(annotations) {
+        val rect = it[0] as? JsonObject
+        rect?.get("color")?.jsonPrimitive?.content == "#dc3545" &&
+          rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 4.0
+      }
+      composeRule.onNodeWithTag("reader_menu_command_ink_width").performScrollTo().performClick()
+      composeRule.onNodeWithTag("ink_width_10").performClick()
+      composeRule.onNodeWithTag("ink_width_apply").performClick()
+      waitForAnnotations(annotations) {
+        val rect = it[0] as? JsonObject
+        rect?.get("color")?.jsonPrimitive?.content == "#dc3545" &&
+          rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 10.0
+      }
+      assertEquals("preserve", (annotations.readPage("document", 1)[0] as JsonObject)["custom"]?.jsonPrimitive?.content)
+      assertEquals("#dc3545", (annotations.readPage("document", 1)[1] as JsonObject)["color"]?.jsonPrimitive?.content)
+      waitForEnabledCommand("reader_menu_command_pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        val rect = it[0] as? JsonObject
+        rect?.get("color")?.jsonPrimitive?.content == "#dc3545" &&
+          rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 4.0
+      }
+      waitForEnabledCommand("reader_menu_command_pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        val rect = it[0] as? JsonObject
+        rect?.get("color")?.jsonPrimitive?.content == "#185abd" &&
+          rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 4.0
+      }
+      waitForEnabledCommand("reader_menu_command_pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        (it[0] as? JsonObject)?.get("color")?.jsonPrimitive?.content == "#dc3545"
+      }
+      waitForEnabledCommand("reader_menu_command_pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        (it[0] as? JsonObject)?.get("width")?.jsonPrimitive?.content?.toDoubleOrNull() == 10.0
+      }
+
+      canvas.performTouchInput { click(pageOffset(760f, 860f)) }
+      composeRule.waitUntil(10_000) {
+        runCatching {
+          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+        }.isSuccess
+      }
+      composeRule.onNodeWithTag("reader_menu_command_ink_color").performScrollTo().performClick()
+      composeRule.onNodeWithTag("ink_color_swatch_green").performClick()
+      composeRule.onNodeWithTag("ink_color_apply").performClick()
+      composeRule.waitUntil(10_000) {
+        projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.let {
+          it.color == "#2e7d32" && it.width == originalStroke.width
+        } == true
+      }
+      composeRule.onNodeWithTag("reader_menu_command_ink_width").performScrollTo().performClick()
+      composeRule.onNodeWithTag("ink_width_6").performClick()
+      composeRule.onNodeWithTag("ink_width_apply").performClick()
+      composeRule.waitUntil(10_000) {
+        projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.width == 6.0
+      }
+      waitForEnabledCommand("reader_menu_command_pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) {
+        projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.let {
+          it.color == "#2e7d32" && it.width == originalStroke.width
+        } == true
+      }
+      waitForEnabledCommand("reader_menu_command_pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) {
+        projectPenStore.readPage(PenSide.DOCUMENT, 1) == listOf(originalStroke)
+      }
+      waitForEnabledCommand("reader_menu_command_pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) {
+        projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.color == "#2e7d32"
+      }
+      waitForEnabledCommand("reader_menu_command_pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) {
+        projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.let {
+          it.color == "#2e7d32" && it.width == 6.0
+        } == true
+      }
+      canvas.performTouchInput { click(pageOffset(250f, 100f)) }
+      composeRule.waitUntil(10_000) {
+        runCatching {
+          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+        }.isSuccess
+      }
+
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
 
       val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
@@ -382,6 +477,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
     } catch (timeout: AssertionError) {
       lastReadError?.let(timeout::addSuppressed)
       throw timeout
+    }
+  }
+
+  private fun waitForEnabledCommand(tag: String) {
+    composeRule.waitUntil(10_000) {
+      runCatching { composeRule.onNodeWithTag(tag).assertIsEnabled() }.isSuccess
     }
   }
 

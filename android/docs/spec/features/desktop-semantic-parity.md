@@ -11,7 +11,7 @@ Compare user-visible desktop workflows with Android 14/API 34 behavior. Keep the
 | Workflow | Desktop behavior | Current Android gap | Task |
 | --- | --- | --- | --- |
 | Open a standalone PDF or Markdown file | Open Document accepts `.pdf` and `.md` and imports the selected source | Open Project accepts only a pagenote project; New Project can select PDF but not Markdown | 45 |
-| Change selected annotation style | Color and width controls update the selected annotation | Controls currently update only the style used for future drawing | 44 |
+| Change selected annotation style | Color and width controls update the selected annotation | Implemented in task 44: update only the selected property, preserve other fields, and retain the style for future drawing | 44 |
 | Paste rich text into a note | Paste as Markdown converts clipboard `text/html` to Markdown | Paste as Markdown reads plain text only | 46 |
 | Customize AI prompt modules | AI Settings selects, edits, saves, and resets individual prompt modules | Android exposes endpoint/model/key only; prompt modules are read-only bundled assets | 47 |
 | Choose Markdown theme independently | `classic`/`paper` changes Markdown typography and surface independently of app appearance | Android has one reader-wide theme preference | 48 |

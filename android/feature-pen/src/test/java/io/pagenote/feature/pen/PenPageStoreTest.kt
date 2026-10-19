@@ -112,6 +112,37 @@ class PenPageStoreTest {
   }
 
   @Test
+  fun selectedStrokeStyleChangePreservesGeometryAndSupportsUndoRedo() {
+    val store = PenPageStore()
+    val original = stroke().copy(extraFields = mapOf("custom" to "preserve"))
+    store.addStroke(PenSide.DOCUMENT, 1, original)
+    store.loadAnnotationsMap(store.toAnnotationsMap())
+
+    assertTrue(store.updateStyle(PenSide.DOCUMENT, 1, 0, color = "#00ff00", width = 6.0))
+    assertEquals(original.copy(color = "#00ff00", width = 6.0), store.getItems(PenSide.DOCUMENT, 1).single())
+    assertTrue(store.undo(PenSide.DOCUMENT, 1))
+    assertEquals(listOf(original), store.getItems(PenSide.DOCUMENT, 1))
+    assertTrue(store.redo(PenSide.DOCUMENT, 1))
+    assertEquals(original.copy(color = "#00ff00", width = 6.0), store.getItems(PenSide.DOCUMENT, 1).single())
+  }
+
+  @Test
+  fun invalidOrUnchangedSelectedStyleDoesNotCreateHistory() {
+    val store = PenPageStore()
+    val original = stroke()
+    store.addStroke(PenSide.DOCUMENT, 1, original)
+    store.loadAnnotationsMap(store.toAnnotationsMap())
+
+    assertFalse(store.updateStyle(PenSide.DOCUMENT, 1, 4, color = "#00ff00"))
+    assertFalse(store.updateStyle(PenSide.DOCUMENT, 1, 0, color = original.color, width = original.width))
+    assertThrows(IllegalArgumentException::class.java) {
+      store.updateStyle(PenSide.DOCUMENT, 1, 0, color = "invalid", width = 6.0)
+    }
+    assertEquals(listOf(original), store.getItems(PenSide.DOCUMENT, 1))
+    assertFalse(store.canUndo(PenSide.DOCUMENT, 1))
+  }
+
+  @Test
   fun newEditClearsRedo() {
     val store = PenPageStore()
     store.addStroke(PenSide.DOCUMENT, 1, stroke())
