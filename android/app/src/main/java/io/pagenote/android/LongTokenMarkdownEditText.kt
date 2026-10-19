@@ -3,6 +3,7 @@ package io.pagenote.android
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextPaint
@@ -112,6 +113,18 @@ internal class LongTokenMarkdownEditText(context: Context) : EditText(context) {
       val start = minOf(markdownSelectionStart(), markdownSelectionEnd())
       val end = maxOf(markdownSelectionStart(), markdownSelectionEnd())
       replaceMarkdownSourceRange(start, end, pastedText)
+      return true
+    }
+    if (id == android.R.id.shareText) {
+      val source = markdownSourceText()
+      val start = minOf(markdownSelectionStart(), markdownSelectionEnd()).coerceIn(0, source.length)
+      val end = maxOf(markdownSelectionStart(), markdownSelectionEnd()).coerceIn(0, source.length)
+      if (start == end) return true
+      val share = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, source.substring(start, end))
+      }
+      context.startActivity(Intent.createChooser(share, null))
       return true
     }
     if (id != android.R.id.copy && id != android.R.id.cut) return super.onTextContextMenuItem(id)

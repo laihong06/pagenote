@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import android.content.ClipboardManager
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -129,6 +130,35 @@ class NoteLongMarkdownEditorTest {
     val saved = ProjectNoteStore(testResolver, project.notesUri).read()
     assertEquals(pasted, NotePage.pageAt(saved, 1))
     assertEquals("neighbor page", NotePage.pageAt(saved, 2))
+  }
+
+  @Test
+  fun sharingLongMarkdownSelection_usesOriginalTextWithoutLayoutBoundaries() {
+    val launchedIntent = AtomicReference<Intent>()
+    val context = object : ContextWrapper(composeRule.activity) {
+      override fun startActivity(intent: Intent) {
+        launchedIntent.set(intent)
+      }
+    }
+    val editor = LongTokenMarkdownEditText(context)
+    val markdown = "prefix " + "C".repeat(8_000) + " suffix"
+    val selectionStart = 100
+    val selectionEnd = 700
+
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setMarkdownSourceText(markdown)
+      editor.setMarkdownSourceSelection(selectionStart, selectionEnd)
+      assertTrue(editor.text.toString().contains("\u200e"))
+      assertTrue(editor.onTextContextMenuItem(android.R.id.shareText))
+    }
+
+    val chooser = requireNotNull(launchedIntent.get())
+    assertEquals(Intent.ACTION_CHOOSER, chooser.action)
+    val shareIntent = requireNotNull(chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java))
+    assertEquals(Intent.ACTION_SEND, shareIntent.action)
+    val sharedText = shareIntent.getStringExtra(Intent.EXTRA_TEXT)
+    assertEquals(markdown.substring(selectionStart, selectionEnd), sharedText)
+    assertTrue(!sharedText.orEmpty().contains("\u200e"))
   }
 
   @Test
