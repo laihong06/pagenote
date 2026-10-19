@@ -2,7 +2,7 @@
 
 ## Scope
 
-Enable the existing handwriting-menu color and width commands using the desktop annotation defaults and width choices. The selected style applies to new freehand pen/highlighter strokes and newly created PDF vector, text, and region annotations. Previously saved items remain unchanged. Editing the style of a selected existing annotation is out of scope because Android annotation selection/editing is not implemented yet.
+Enable the existing handwriting-menu color and width commands using the desktop annotation defaults and width choices. The selected style applies to new freehand pen/highlighter strokes and newly created PDF vector, text, and region annotations. If the user has selected one existing annotation or stroke, applying a changed color or width also updates that item as specified in `desktop-semantic-parity.md` §44. Without a selection, saved items remain unchanged.
 
 ## Interaction
 
@@ -15,8 +15,8 @@ Enable the existing handwriting-menu color and width commands using the desktop 
 ## Data and Validation
 
 - A style is a six-digit RGB hex color and one of the four desktop width options. Colors are normalized to lowercase before use.
-- Use the style for new pen/highlighter strokes and new `line`, `arrow`, `rect`, `ellipse`, `text`, and `region` annotations. Existing items retain their stored `color` and `width`.
-- Color changes update only the active drawing style; they do not rewrite annotations already on the page.
+- Use the style for new pen/highlighter strokes and new `line`, `arrow`, `rect`, `ellipse`, `text`, and `region` annotations.
+- With a selected item, update only that item through its normal page store and undo history; without a selection, update only the active drawing style.
 
 ## Acceptance (EARS)
 
@@ -24,7 +24,8 @@ Enable the existing handwriting-menu color and width commands using the desktop 
 - When the user enters an invalid color, the reader shall prevent applying it and preserve the previously active style.
 - When the user chooses one of the four width options, the reader shall apply that width to subsequently created annotations.
 - When the user navigates to another page or recreates the Activity, the reader shall keep the selected color and width.
-- When the user changes the active style, the reader shall not rewrite existing stored annotation items as a side effect.
+- When an item is selected and its style changes, the reader shall persist the selected item's new style and make the change undoable without altering other page items.
+- When no item is selected and the active style changes, the reader shall leave all existing items unchanged.
 
 ## Verification
 

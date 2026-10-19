@@ -353,4 +353,37 @@
   - API 34 平板模拟器验证停笔提交、提前抬笔、高亮笔排除、移动取消、手势取消，以及阅读器落盘/撤销/重做。
   - SPEC：`features/dwell-shape-recognition.md`。
 
+- [x] 43. 桌面工作流语义差异审计
+  - 在命令 ID 清单之外，逐项比对桌面实际行为与 Android handler，确认并记录 standalone PDF/Markdown 打开、选中批注改色/改宽、HTML 富文本粘贴、AI prompt 模块编辑、独立 Markdown 主题和格式快捷键六项缺口。
+  - 审计基线：`features/desktop-semantic-parity.md`；命令接线审计 `features/desktop-parity-gap-audit.md` 已明确仅覆盖 ID 层面。
+
+- [ ] 44. 编辑已选中批注的颜色与宽度
+  - 选择一条自由笔迹或一个原生 PDF 批注后，通过现有颜色/宽度控件修改所选项；保留未知 JSON 字段和当前活动绘制样式。
+  - 颜色与宽度分别进入对应页的原生撤销/重做历史；无选择时仅改变后续绘制样式。
+  - SPEC：`features/desktop-semantic-parity.md` §44、`features/pen-style-controls.md`。
+
+- [ ] 45. 打开独立 PDF 与 Markdown 文件
+  - Android 的打开/导入流程可将 standalone `.pdf` 或 `.md` 导入标准 pagenote 项目；保持源内容并使用现有 SAF 项目格式。
+  - 支持取消、无效扩展名和 SAF 失败清理，不留下半成项目。
+  - SPEC：`features/desktop-semantic-parity.md` §45。
+
+- [ ] 46. Markdown 笔记粘贴富 HTML
+  - 显式“按 Markdown 粘贴”支持从剪贴板 `text/html` 转换常用语义格式，替换选区/插入光标；HTML 缺失时保留纯文本回退。
+  - 转换本地完成，不执行脚本、事件属性或远程资源请求。
+  - SPEC：`features/desktop-semantic-parity.md` §46。
+
+- [ ] 47. AI 提示词模块编辑
+  - 模型设置对齐桌面模块列表，支持逐模块修改、保存和恢复内置默认；Agent 后续读取应用本地覆盖值。
+  - 提示词覆盖与 endpoint/model/key 分开保存，校验失败不覆盖最后有效内容。
+  - SPEC：`features/desktop-semantic-parity.md` §47。
+
+- [ ] 48. Markdown 阅读主题独立设置
+  - 将 `classic`/`paper` Markdown 渲染主题与应用外观设置分离并持久化；只影响 Markdown pane，不改变 PDF 原色、UI 外观或笔记源内容。
+  - SPEC：`features/desktop-semantic-parity.md` §48。
+
+- [ ] 49. Markdown 编辑格式快捷键
+  - 焦点位于可写 Markdown 编辑器时，Ctrl/Cmd+B、I、K 复用工具栏粗体、斜体、链接变换。
+  - 对话框、非笔记文本框和阅读界面不截获这些快捷键；保留选区、光标及撤销历史语义。
+  - SPEC：`features/desktop-semantic-parity.md` §49。
+
 - 实施顺序和测试/提交流程见 `reader-interaction-enhancements-plan.md`。

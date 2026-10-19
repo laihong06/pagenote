@@ -1,7 +1,7 @@
 # 桌面命令 → Android 命令缺口审计
 
-> 方法：只读审计，未改任何代码。输入为桌面 `index.html` 命令区、`android/docs/spec/features/desktop-ui-and-office-parity.md` §2、`android/docs/spec/features/desktop-command-checklist.md`、`android/docs/spec/tasks.md` task 35/36/37，以及 `android/app/src/main/java/io/pagenote/android/MainActivity.kt` 的 `menuSections`（定义约 3848 行起；`pendingCommand` 定义约 3527 行；`office_edit` 占位约 4263 行；`save_return` 占位约 4306 行；行号仅供定位，以 `id` 字符串为准）。
-> 结论先行：桌面 `index.html` 命令到 Android 命令 `id` 的逐项对照中，**唯一缺口是 `office_edit` / `save_return`（归 task 36）**，其余均为已接线。本文**不声称完整移植完成**；终态结论归 task 37，所有 gap 关闭前不得宣称完整移植。
+> 范围：本文只核对桌面 `index.html` 命令区到 Android `ReaderMenuCommand.id` 的接线，不审计已接线命令的完整行为语义。语义差异另见 `desktop-semantic-parity.md`。输入包括 `desktop-command-checklist.md`、`tasks.md` task 35/36/37 和 `MainActivity.kt` 的 `menuSections` / `pendingCommand()`。
+> 结论先行：在**命令 ID 接线层面**，唯一占位命令是 `office_edit` / `save_return`（归 task 36），其余命令均有 handler。此结论不等同于桌面工作流语义无差异，也不声称完整移植完成。
 
 ## 1. 缺口总览
 
@@ -102,15 +102,17 @@
 - 电子表格、账号体系、云协作、远程文档转换服务（同 §1，明确不在本 SPEC 范围内）。
 - PDF HTML 批注渲染/剪贴板差异另由 task 38 跟踪（task 35 原文），不属于本命令对照的缺口。
 
-## 4. 审计结论
+## 4. 命令 ID 审计结论
 
-- 桌面 `index.html` 命令到 Android 命令 `id` 的**唯一缺口是 `office_edit` / `save_return`**，两者均为 `menuSections` WORD_EDITING 组内的 `pendingCommand()` 占位，归 task 36。
+- 桌面 `index.html` 命令到 Android 命令 `id` 的**唯一未接线占位是 `office_edit` / `save_return`**，两者均为 `menuSections` WORD_EDITING 组内的 `pendingCommand()`，归 task 36。
 - 其余桌面命令均有对应已接线命令 `id`（含 `new_project`、`paste_image`、`fit_width`/`fit_page` 拆分、`shape` 合并等一对多/多对一映射，见 §2）。
+- 本命令审计不证明已接线 handler 与桌面行为完全一致；其余已发现的工作流语义差异见 `desktop-semantic-parity.md`。
 - **不声称完整移植完成**：终态结论与占位清除归 task 37；task 36 落地前 `office_edit` / `save_return` 保持明确未实现占位（与 `desktop-command-checklist.md` EARS 一致）。
 
 ## 5. 关联
 
 - 总体对齐：`desktop-ui-and-office-parity.md`
+- 工作流语义差异：`desktop-semantic-parity.md`
 - 命令清单：`desktop-command-checklist.md`
 - 任务：`../tasks.md` task 35（清单与一致性）、task 36（Office 引擎与保存事务）、task 37（收尾审计）、task 38（PDF 富 HTML 批注差异）
 - 导航契约：`adaptive-menu-navigation.md`
