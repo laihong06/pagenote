@@ -5,7 +5,7 @@
   const MAX_SVG_BYTES = 256 * 1024;
   const host = document.getElementById('render-host');
 
-  mermaid.initialize({
+  const configuration = {
     startOnLoad: false,
     securityLevel: 'strict',
     suppressErrorRendering: true,
@@ -17,13 +17,15 @@
     maxTextSize: MAX_SOURCE_CHARS,
     secure: [
       'startOnLoad', 'securityLevel', 'secure', 'maxTextSize',
-      'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'flowchart'
+      'suppressErrorRendering', 'maxEdges', 'htmlLabels', 'flowchart', 'theme'
     ]
-  });
+  };
+  mermaid.initialize(configuration);
 
   window.__pagenoteMermaidResult = { requestId: '', state: 'idle', svg: '' };
 
-  window.renderPagenoteMermaid = async (source, requestId) => {
+  window.renderPagenoteMermaid = async (source, requestId, darkTheme = false) => {
+    mermaid.initialize({ ...configuration, theme: darkTheme === true ? 'dark' : 'default' });
     const id = String(requestId);
     window.__pagenoteMermaidResult = { requestId: id, state: 'loading', svg: '' };
     document.title = `pagenote-mermaid:loading:${id}`;

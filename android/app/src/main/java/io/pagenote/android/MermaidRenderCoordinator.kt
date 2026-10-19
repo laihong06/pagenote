@@ -21,7 +21,10 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-internal class MermaidRenderCoordinator(context: Context) : AutoCloseable {
+internal class MermaidRenderCoordinator(
+  context: Context,
+  private val darkTheme: Boolean = false,
+) : AutoCloseable {
   sealed interface Result {
     data class Ready(val svg: String) : Result
     data object Empty : Result
@@ -90,8 +93,9 @@ internal class MermaidRenderCoordinator(context: Context) : AutoCloseable {
         } else {
           val sourceArgument = JSONObject.quote(source)
           val idArgument = JSONObject.quote(request.requestId)
+          val darkThemeArgument = darkTheme.toString()
           webView.evaluateJavascript(
-            "window.renderPagenoteMermaid($sourceArgument,$idArgument);",
+            "window.renderPagenoteMermaid($sourceArgument,$idArgument,$darkThemeArgument);",
             null,
           )
         }

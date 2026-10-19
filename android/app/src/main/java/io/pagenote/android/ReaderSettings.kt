@@ -10,17 +10,20 @@ data class ReaderSettings(
   val noteFontSize: Int = 15,
   val allowInkOutsidePage: Boolean = false,
   val prepareAheadPages: Int = 3,
+  val markdownTheme: String = "classic",
 )
 
 object ReaderSettingsPolicy {
   val NOTE_FONT_SIZES = listOf(12, 15, 18, 20, 24, 28, 32)
   private val THEMES = setOf("system", "light", "dark", "paper")
+  private val MARKDOWN_THEMES = setOf("classic", "paper")
   private val LANGUAGES = setOf("system", "zh-CN", "en-US")
 
   fun sanitize(settings: ReaderSettings): ReaderSettings {
     val defaults = ReaderSettings()
     return settings.copy(
       theme = settings.theme.takeIf(THEMES::contains) ?: defaults.theme,
+      markdownTheme = settings.markdownTheme.takeIf(MARKDOWN_THEMES::contains) ?: defaults.markdownTheme,
       language = settings.language.takeIf(LANGUAGES::contains) ?: defaults.language,
       leftPercent = settings.leftPercent.takeIf { it in 20..80 } ?: defaults.leftPercent,
       noteFontSize = settings.noteFontSize.takeIf(NOTE_FONT_SIZES::contains) ?: defaults.noteFontSize,
@@ -30,6 +33,7 @@ object ReaderSettingsPolicy {
 
   fun validate(settings: ReaderSettings) {
     require(THEMES.contains(settings.theme)) { "bad theme" }
+    require(MARKDOWN_THEMES.contains(settings.markdownTheme)) { "bad Markdown theme" }
     require(LANGUAGES.contains(settings.language)) { "bad language" }
     require(settings.leftPercent in 20..80) { "bad split percent" }
     require(NOTE_FONT_SIZES.contains(settings.noteFontSize)) { "bad note font size" }

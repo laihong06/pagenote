@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Handler
 import android.os.Build
@@ -282,6 +283,7 @@ private fun ReaderSettingsHost(readerSession: ReaderSessionViewModel) {
       Surface(modifier = Modifier.fillMaxSize()) {
         ReaderHome(
           settings = settings,
+          readerThemeMode = themeMode,
           settingsStore = settingsStore,
           modelSettingsStore = modelSettingsStore,
           readerSession = readerSession,
@@ -381,11 +383,21 @@ internal fun Bitmap.recycleAfterDrawFrames() {
 @Composable
 private fun ReaderHome(
   settings: ReaderSettings,
+  readerThemeMode: ReaderThemeMode,
   settingsStore: ReaderSettingsStore,
   modelSettingsStore: AgentModelSettingsStore,
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val materialColors = MaterialTheme.colorScheme
+  val markdownPalette = remember(settings.markdownTheme, readerThemeMode, materialColors) {
+    val isDark = android.graphics.Color.luminance(materialColors.background.toArgb()) < 0.5f
+    markdownContentPalette(
+      settings.markdownTheme,
+      isDark,
+      markdownClassicContentPalette(materialColors, isDark),
+    )
+  }
   val appVersion = remember(context) {
     context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
   }
@@ -4664,6 +4676,7 @@ private fun ReaderHome(
                 sourceName = activeProject.sourceName,
                 page = pageIndex + 1,
                 sourceDirectoryUri = activeProject.sourceDirectoryUri,
+                markdownPalette = markdownPalette,
                 modifier = Modifier.weight(pdfPaneWeight).fillMaxHeight(),
               )
             } else {
@@ -4788,6 +4801,7 @@ private fun ReaderHome(
               sourceDirectoryUri = activeProject.sourceDirectoryUri,
               animationEnabled = settings.noteAnimation,
               noteFontSize = settings.noteFontSize,
+              markdownPalette = markdownPalette,
               modifier = Modifier.weight(notePaneWeight).fillMaxHeight(),
             )
           }
@@ -4799,6 +4813,7 @@ private fun ReaderHome(
                 sourceName = activeProject.sourceName,
                 page = pageIndex + 1,
                 sourceDirectoryUri = activeProject.sourceDirectoryUri,
+                markdownPalette = markdownPalette,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
               )
             } else {
@@ -4907,6 +4922,7 @@ private fun ReaderHome(
               sourceDirectoryUri = activeProject.sourceDirectoryUri,
               animationEnabled = settings.noteAnimation,
               noteFontSize = settings.noteFontSize,
+              markdownPalette = markdownPalette,
               modifier = Modifier.weight(1f).fillMaxWidth(),
             )
           }
@@ -6259,27 +6275,38 @@ internal fun MarkdownSourcePane(
   sourceName: String,
   page: Int,
   sourceDirectoryUri: Uri?,
+  markdownPalette: MarkdownContentPalette? = null,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
-  val mermaidCoordinator = remember(context) { MermaidRenderCoordinator(context) }
+  val isDark = android.graphics.Color.luminance(MaterialTheme.colorScheme.background.toArgb()) < 0.5f
+  val markdownStyle = markdownPalette ?: markdownClassicContentPalette(MaterialTheme.colorScheme, isDark)
+  val contentColorInt = markdownStyle.text.toArgb()
+  val mermaidCoordinator = remember(context, markdownStyle.isDark) {
+    MermaidRenderCoordinator(context, markdownStyle.isDark)
+  }
   DisposableEffect(mermaidCoordinator) {
     onDispose { mermaidCoordinator.close() }
   }
-  val markwon = remember(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator) {
-    NoteMarkdownRenderer.createPreview(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator)
+  val markwon = remember(context, sourceDirectoryUri, markdownStyle, mermaidCoordinator) {
+    NoteMarkdownRenderer.createPreview(
+      context,
+      sourceDirectoryUri,
+      contentColorInt,
+      mermaidCoordinator,
+      palette = markdownStyle,
+    )
   }
   val (previewText, truncated) = remember(markdown, page) {
     MarkdownSourcePages.previewPage(markdown, page)
   }
   val rewritten = remember(previewText) { NotePreviewRewrite.forPreview(previewText) }
   val fullPageText = remember(markdown, page) { MarkdownSourcePages.pageAt(markdown, page) }
-  Column(modifier = modifier.padding(8.dp).testTag("markdown_source_pane")) {
+  Column(modifier = modifier.background(markdownStyle.background).padding(8.dp).testTag("markdown_source_pane")) {
     Text(
       text = "$sourceName · ${page}",
       style = MaterialTheme.typography.labelMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      color = markdownStyle.secondary,
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
     )
@@ -6294,16 +6321,22 @@ internal fun MarkdownSourcePane(
         text = stringResource(R.string.markdown_source_empty),
         modifier = Modifier.padding(top = 12.dp),
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = markdownStyle.secondary,
       )
     } else {
       AndroidView(
-        modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp).background(markdownStyle.background),
         factory = { viewContext ->
           MermaidPreviewHost(viewContext, mermaidCoordinator, contentColorInt)
         },
         update = { host ->
-          host.setMarkdown(markwon, rewritten, contentColorInt)
+          host.setMarkdown(
+            markwon,
+            rewritten,
+            contentColorInt,
+            backgroundColor = markdownStyle.background.toArgb(),
+            serif = markdownStyle.serif,
+          )
         },
       )
     }
@@ -6316,7 +6349,7 @@ internal fun MarkdownSourcePane(
         ),
         modifier = Modifier.padding(top = 4.dp).testTag("note_preview_truncated"),
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = markdownStyle.secondary,
       )
     }
   }
@@ -6672,6 +6705,7 @@ internal fun NotePanel(
   sourceDirectoryUri: Uri? = null,
   animationEnabled: Boolean,
   noteFontSize: Int = 15,
+  markdownPalette: MarkdownContentPalette? = null,
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -6680,28 +6714,30 @@ internal fun NotePanel(
   val editorTextResetCallback = rememberUpdatedState(onEditorTextReset)
   val editorAttachedCallback = rememberUpdatedState(onEditorViewAttached)
   val editorReleasedCallback = rememberUpdatedState(onEditorViewReleased)
-  val contentColorInt = MaterialTheme.colorScheme.onSurface.toArgb()
+  val isDark = android.graphics.Color.luminance(MaterialTheme.colorScheme.background.toArgb()) < 0.5f
+  val markdownStyle = markdownPalette ?: markdownClassicContentPalette(MaterialTheme.colorScheme, isDark)
+  val contentColorInt = markdownStyle.text.toArgb()
   var preview by remember { mutableStateOf(false) }
-  val mermaidCoordinator = remember(context, preview) {
-    if (preview) MermaidRenderCoordinator(context) else null
+  val mermaidCoordinator = remember(context, preview, markdownStyle.isDark) {
+    if (preview) MermaidRenderCoordinator(context, markdownStyle.isDark) else null
   }
   DisposableEffect(mermaidCoordinator) {
     onDispose { mermaidCoordinator?.close() }
   }
-  val markwon = remember(context, sourceDirectoryUri, contentColorInt, mermaidCoordinator, noteFontSize) {
+  val markwon = remember(context, sourceDirectoryUri, markdownStyle, mermaidCoordinator, noteFontSize) {
     NoteMarkdownRenderer.createPreview(
       context,
       sourceDirectoryUri,
       contentColorInt,
       mermaidCoordinator,
       baseFontSizeSp = noteFontSize.toFloat(),
+      palette = markdownStyle,
     )
   }
-  val markwonEditor = remember(context, sourceDirectoryUri, contentColorInt) {
-    NoteMarkdownRenderer.createEditor(context, sourceDirectoryUri, contentColorInt)
+  val markwonEditor = remember(context, sourceDirectoryUri, markdownStyle) {
+    NoteMarkdownRenderer.createEditor(context, sourceDirectoryUri, contentColorInt, markdownStyle)
   }
   val executor = remember { Executors.newSingleThreadExecutor() }
-  val outlineColor = MaterialTheme.colorScheme.outline.toArgb()
 
   LaunchedEffect(page, preview) {
     selectionCallback.value(null)
@@ -6784,7 +6820,7 @@ internal fun NotePanel(
               modifier = Modifier.fillMaxWidth(),
             )
             AndroidView(
-              modifier = Modifier.weight(1f).fillMaxWidth(),
+              modifier = Modifier.weight(1f).fillMaxWidth().background(markdownStyle.background),
               factory = { viewContext ->
                 MermaidPreviewHost(viewContext, requireNotNull(mermaidCoordinator), contentColorInt)
               },
@@ -6794,6 +6830,8 @@ internal fun NotePanel(
                   NotePreviewRewrite.forPreview(previewMarkdown),
                   contentColorInt,
                   noteFontSize.toFloat(),
+                  markdownStyle.background.toArgb(),
+                  markdownStyle.serif,
                 )
               },
             )
@@ -6806,13 +6844,13 @@ internal fun NotePanel(
                 ),
                 modifier = Modifier.padding(top = 4.dp).testTag("note_preview_truncated"),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = markdownStyle.secondary,
               )
             }
           }
         } else {
           AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().background(markdownStyle.background),
             factory = { viewContext ->
               LongTokenMarkdownEditText(viewContext).apply {
                 onMarkdownSelectionChanged = { selStart, selEnd ->
@@ -6827,7 +6865,8 @@ internal fun NotePanel(
                   InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
                 textSize = noteFontSize.toFloat()
                 setTextColor(contentColorInt)
-                backgroundTintList = ColorStateList.valueOf(outlineColor)
+                typeface = if (markdownStyle.serif) Typeface.SERIF else Typeface.DEFAULT
+                backgroundTintList = ColorStateList.valueOf(markdownStyle.rule.toArgb())
                 isEnabled = writable && !saving && content.page == page
                 setPadding(12, 10, 12, 10)
                 setMarkdownSourceText(content.markdown)
@@ -6861,7 +6900,8 @@ internal fun NotePanel(
             },
             update = { editText ->
               editText.setTextColor(contentColorInt)
-              editText.backgroundTintList = ColorStateList.valueOf(outlineColor)
+              editText.typeface = if (markdownStyle.serif) Typeface.SERIF else Typeface.DEFAULT
+              editText.backgroundTintList = ColorStateList.valueOf(markdownStyle.rule.toArgb())
               editText.textSize = noteFontSize.toFloat()
               editText.isEnabled = writable && !saving && content.page == page
               if (editText.markdownSourceText() != content.markdown) {

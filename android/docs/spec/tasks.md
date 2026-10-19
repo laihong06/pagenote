@@ -383,8 +383,10 @@
   - `AgentPromptCustomizationTest` 6/6、`PageTutorTest` 13/13；API 34 Pixel Tablet `AgentPromptSettingsDialogTest` 3/3（模块切换保留草稿、保存/恢复、空白拒绝、六个 APK 默认提示词可读）；Debug APK 构建及 16 KB 对齐检查通过。
   - SPEC：`features/desktop-semantic-parity.md` §47、`features/agent-prompt-customization.md`；实施计划：`agent-prompt-customization-plan.md`。
 
-- [ ] 48. Markdown 阅读主题独立设置
+- [x] 48. Markdown 阅读主题独立设置
   - 将 `classic`/`paper` Markdown 渲染主题与应用外观设置分离并持久化；只影响 Markdown pane，不改变 PDF 原色、UI 外观或笔记源内容。
+  - 聚焦 JVM 测试 24/24，API 34 Pixel Tablet AVD 设置、源文档、笔记预览和 Mermaid 仪器测试 22/22；`:app:assembleDebug` 及 arm64 Debug APK 16 KB 对齐检查通过。小米平板 5 Pro 未在本任务复测。
+  - SPEC：`features/independent-markdown-theme.md`；实施计划：`independent-markdown-theme-plan.md`。
   - SPEC：`features/desktop-semantic-parity.md` §48、`features/independent-markdown-theme.md`；实施计划：`independent-markdown-theme-plan.md`。
 
 - [ ] 49. Markdown 编辑格式快捷键

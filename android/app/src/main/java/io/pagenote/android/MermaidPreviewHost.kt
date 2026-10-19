@@ -1,6 +1,8 @@
 package io.pagenote.android
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.Typeface
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.view.Gravity
@@ -63,9 +65,18 @@ internal class MermaidPreviewHost(
     super.onDetachedFromWindow()
   }
 
-  fun setMarkdown(renderer: Markwon, markdown: String, textColor: Int, baseFontSizeSp: Float = 16f) {
+  fun setMarkdown(
+    renderer: Markwon,
+    markdown: String,
+    textColor: Int,
+    baseFontSizeSp: Float = 16f,
+    backgroundColor: Int? = null,
+    serif: Boolean = false,
+  ) {
     markdownView.setTextColor(textColor)
     markdownView.textSize = baseFontSizeSp
+    markdownView.setBackgroundColor(backgroundColor ?: Color.TRANSPARENT)
+    markdownView.typeface = if (serif) Typeface.SERIF else Typeface.DEFAULT
     if (boundRenderer !== renderer || boundMarkdown != markdown) {
       boundRenderer = renderer
       boundMarkdown = markdown

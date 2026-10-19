@@ -199,6 +199,24 @@ internal fun ReaderSettingsDialog(
         }
 
         Text(
+          stringResource(R.string.markdown_theme_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        listOf(
+          "classic" to R.string.markdown_theme_classic,
+          "paper" to R.string.markdown_theme_paper,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.markdownTheme == value,
+            enabled = !isSaving,
+            testTag = "markdown_theme_$value",
+            onSelect = { draft = draft.copy(markdownTheme = value) },
+          )
+        }
+
+        Text(
           stringResource(R.string.reader_language),
           modifier = Modifier.padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
@@ -392,7 +410,11 @@ internal fun ReaderSettingsDialog(
       ) { Text(stringResource(if (isSaving) R.string.saving else R.string.save)) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss, enabled = !isSaving) {
+      TextButton(
+        modifier = Modifier.testTag("reader_settings_cancel"),
+        onClick = onDismiss,
+        enabled = !isSaving,
+      ) {
         Text(stringResource(R.string.cancel))
       }
     },
@@ -400,9 +422,17 @@ internal fun ReaderSettingsDialog(
 }
 
 @Composable
-private fun SettingsChoice(label: String, selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
+private fun SettingsChoice(
+  label: String,
+  selected: Boolean,
+  enabled: Boolean,
+  testTag: String? = null,
+  onSelect: () -> Unit,
+) {
   Row(
-    modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onSelect),
+    modifier = Modifier.fillMaxWidth()
+      .clickable(enabled = enabled, onClick = onSelect)
+      .then(if (testTag == null) Modifier else Modifier.testTag(testTag)),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {

@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,6 +55,26 @@ class MarkdownMermaidPreviewTest {
     assertTrue("diagram should have a visible height", image.result.intrinsicHeight > 10)
     assertTrue(text.toString().contains("Before diagram"))
     assertTrue(text.toString().contains("After diagram"))
+  }
+
+  @Test
+  fun paperMermaidRenderingUsesReadableLightAndDarkThemes() {
+    val markdown = "```mermaid\nflowchart LR\n A[alpha] --> B[beta]\n```"
+    val lightHost = AtomicReference<MermaidPreviewHost?>()
+    val darkHost = AtomicReference<MermaidPreviewHost?>()
+    composeRule.setContent {
+      Row(Modifier.fillMaxSize()) {
+        MermaidTestPreview(markdown, lightHost, modifier = Modifier.weight(1f))
+        MermaidTestPreview(markdown, darkHost, darkTheme = true, modifier = Modifier.weight(1f))
+      }
+    }
+
+    val lightImage = awaitImage(lightHost) { it !is NoteImagePlaceholderDrawable }
+    val darkImage = awaitImage(darkHost) { it !is NoteImagePlaceholderDrawable }
+    val lightBitmap = (lightImage.result as android.graphics.drawable.BitmapDrawable).bitmap
+    val darkBitmap = (darkImage.result as android.graphics.drawable.BitmapDrawable).bitmap
+
+    assertFalse("dark-mode Mermaid theme must produce a separately contrasted diagram", lightBitmap.sameAs(darkBitmap))
   }
 
   @Test
@@ -292,14 +313,16 @@ class MarkdownMermaidPreviewTest {
     hostRef: AtomicReference<MermaidPreviewHost?>,
     widthFraction: Float = 1f,
     textColor: Int = Color.BLACK,
+    darkTheme: Boolean = false,
+    modifier: Modifier = Modifier,
   ) {
     val context = LocalContext.current
-    val coordinator = remember(context) { MermaidRenderCoordinator(context) }
+    val coordinator = remember(context, darkTheme) { MermaidRenderCoordinator(context, darkTheme) }
     DisposableEffect(coordinator) { onDispose { coordinator.close() } }
     val markwon = remember(coordinator) {
       NoteMarkdownRenderer.createPreview(context, null, textColor, coordinator)
     }
-    Column(Modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize()) {
       Text("Rendered Markdown")
       AndroidView(
         modifier = Modifier.weight(1f).fillMaxWidth(widthFraction).testTag("markdown_mermaid_host"),

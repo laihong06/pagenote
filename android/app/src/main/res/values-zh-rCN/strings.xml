@@ -5,6 +5,9 @@
   <string name="reader_settings_load_error_title">无法读取阅读设置</string>
   <string name="reader_settings_load_error_detail">已保存的设置未被替换。请检查存储访问权限后重试。详情：%1$s</string>
   <string name="reader_theme">主题</string>
+  <string name="markdown_theme_title">Markdown 阅读主题</string>
+  <string name="markdown_theme_classic">经典</string>
+  <string name="markdown_theme_paper">纸页</string>
   <string name="theme_system">跟随系统</string>
   <string name="theme_light">浅色</string>
   <string name="theme_dark">深色</string>

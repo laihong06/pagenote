@@ -77,6 +77,30 @@ class ReaderSettingsStoreTest {
   }
 
   @Test
+  fun markdownThemeSurvivesOpeningAnotherStoreWithoutChangingReaderAppearance() = runBlocking {
+    val file = File(temporaryFolder.root, "markdown-theme.preferences_pb")
+    val firstScope = newScope()
+    try {
+      ReaderSettingsStore(newDataStore(file, firstScope)).save(
+        ReaderSettings(theme = "dark", markdownTheme = "paper", noteFontSize = 24),
+      )
+    } finally {
+      firstScope.cancel()
+    }
+
+    val secondScope = newScope()
+    try {
+      val reopened = ReaderSettingsStore(newDataStore(file, secondScope)).settings.first()
+
+      assertEquals("paper", reopened.markdownTheme)
+      assertEquals("dark", reopened.theme)
+      assertEquals(24, reopened.noteFontSize)
+    } finally {
+      secondScope.cancel()
+    }
+  }
+
+  @Test
   fun allowInkOutsidePageDefaultsOffAndSurvivesOpeningAnotherStore() = runBlocking {
     val file = File(temporaryFolder.root, "extended-canvas.preferences_pb")
     val firstScope = newScope()
@@ -126,6 +150,7 @@ class ReaderSettingsStoreTest {
       val dataStore = newDataStore(File(temporaryFolder.root, "settings.preferences_pb"), scope)
       dataStore.edit { preferences ->
         preferences[stringPreferencesKey("theme")] = "neon"
+        preferences[stringPreferencesKey("markdown_theme")] = "sepia"
         preferences[booleanPreferencesKey("language")] = true
         preferences[intPreferencesKey("left_percent")] = 90
         preferences[intPreferencesKey("note_font_size")] = 17

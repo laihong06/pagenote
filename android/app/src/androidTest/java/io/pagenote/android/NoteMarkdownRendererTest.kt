@@ -6,11 +6,16 @@ import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.toArgb
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.noties.markwon.image.AsyncDrawable
 import io.noties.markwon.image.AsyncDrawableSpan
+import io.noties.markwon.core.spans.LinkSpan
+import io.noties.markwon.core.spans.CodeSpan
 import io.noties.markwon.ext.latex.JLatexAsyncDrawableSpan
 import io.noties.markwon.ext.tasklist.TaskListSpan
 import org.junit.Assert.assertEquals
@@ -73,6 +78,48 @@ class NoteMarkdownRendererTest {
     assertTrue("known code language must create syntax color spans", spans.any {
       it is ForegroundColorSpan
     })
+  }
+
+  @Test
+  fun paperPaletteStylesMarkdownWithoutChangingEditableSource() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val source = "# Heading\n\n[link](https://example.com)\n\nInline `plain` code.\n\n```kotlin\nval answer = 42\n```"
+    val palette = markdownContentPalette(
+      "paper",
+      isDark = false,
+      classic = MarkdownContentPalette(
+        background = ComposeColor.White,
+        text = ComposeColor.Black,
+        secondary = ComposeColor.DarkGray,
+        heading = ComposeColor.Blue,
+        rule = ComposeColor.LightGray,
+        link = ComposeColor.Blue,
+        codeBackground = ComposeColor.LightGray,
+        codeText = ComposeColor.Black,
+      ),
+    )
+    val renderer = NoteMarkdownRenderer.createPreview(
+      context,
+      null,
+      palette.text.toArgb(),
+      palette = palette,
+    )
+    val rendered = renderer.render(renderer.parse(source)) as Spanned
+    val colors = rendered.getSpans(0, rendered.length, ForegroundColorSpan::class.java)
+      .map(ForegroundColorSpan::getForegroundColor)
+    val linkPaint = TextPaint()
+    rendered.getSpans(0, rendered.length, LinkSpan::class.java).single().updateDrawState(linkPaint)
+    val codePaint = TextPaint()
+    rendered.getSpans(0, rendered.length, CodeSpan::class.java).single().updateDrawState(codePaint)
+
+    assertTrue("heading uses paper accent", palette.heading.toArgb() in colors)
+    assertEquals("link uses paper link color", palette.link.toArgb(), linkPaint.color)
+    assertEquals("inline code uses paper code color", palette.codeText.toArgb(), codePaint.color)
+    assertEquals("inline code uses paper code surface", palette.codeBackground.toArgb(), codePaint.bgColor)
+
+    val editable = SpannableStringBuilder(source)
+    NoteMarkdownRenderer.createEditor(context, null, palette = palette).process(editable)
+    assertEquals("theme must not alter Markdown source", source, editable.toString())
   }
 
   @Test

@@ -3,6 +3,7 @@ package io.pagenote.android
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ReaderSettingsTest {
@@ -10,6 +11,17 @@ class ReaderSettingsTest {
   fun defaultsPass() {
     ReaderSettingsPolicy.validate(ReaderSettings())
     assertEquals(3, ReaderSettings().prepareAheadPages)
+    assertEquals("classic", ReaderSettings().markdownTheme)
+  }
+
+  @Test
+  fun markdownThemeAcceptsOnlyClassicAndPaper() {
+    listOf("classic", "paper").forEach { value ->
+      ReaderSettingsPolicy.validate(ReaderSettings(markdownTheme = value))
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      ReaderSettingsPolicy.validate(ReaderSettings(markdownTheme = "sepia"))
+    }
   }
 
   @Test

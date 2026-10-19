@@ -6,13 +6,20 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.net.Uri
 import android.graphics.drawable.Drawable
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import io.noties.markwon.Markwon
+import io.noties.markwon.AbstractMarkwonPlugin
+import io.noties.markwon.MarkwonConfiguration
+import io.noties.markwon.RenderProps
+import io.noties.markwon.SpanFactory
+import io.noties.markwon.core.MarkwonTheme
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
@@ -26,10 +33,17 @@ import io.noties.markwon.syntax.Prism4jThemeDarkula
 import io.noties.markwon.syntax.Prism4jThemeDefault
 import io.noties.markwon.syntax.SyntaxHighlightPlugin
 import io.noties.prism4j.Prism4j
+import org.commonmark.node.Heading
+import androidx.compose.ui.graphics.toArgb
 
 internal object NoteMarkdownRenderer {
-  fun createEditor(context: Context, sourceDirectoryUri: Uri?, textColor: Int = Color.BLACK): MarkwonEditor =
-    MarkwonEditor.builder(base(context, sourceDirectoryUri, textColor).build())
+  fun createEditor(
+    context: Context,
+    sourceDirectoryUri: Uri?,
+    textColor: Int = Color.BLACK,
+    palette: MarkdownContentPalette? = null,
+  ): MarkwonEditor =
+    MarkwonEditor.builder(base(context, sourceDirectoryUri, textColor, palette = palette).build())
       .useEditHandler(UnderlineEditHandler())
       .build()
 
@@ -39,6 +53,7 @@ internal object NoteMarkdownRenderer {
     textColor: Int,
     mermaidCoordinator: MermaidRenderCoordinator? = null,
     baseFontSizeSp: Float = 16f,
+    palette: MarkdownContentPalette? = null,
   ): Markwon {
     val displayMetrics = context.resources.displayMetrics
     val latexTextSize = TypedValue.applyDimension(
@@ -51,7 +66,7 @@ internal object NoteMarkdownRenderer {
     } else {
       Prism4jThemeDefault.create()
     }
-    return base(context, sourceDirectoryUri, textColor, mermaidCoordinator)
+    val builder = base(context, sourceDirectoryUri, textColor, mermaidCoordinator)
       .usePlugin(MarkwonInlineParserPlugin.create())
       .usePlugin(
         JLatexMathPlugin.create(
@@ -64,7 +79,8 @@ internal object NoteMarkdownRenderer {
         ),
       )
       .usePlugin(SyntaxHighlightPlugin.create(Prism4j(GrammarLocatorDef()), theme))
-      .build()
+    if (palette != null) builder.usePlugin(palettePlugin(palette))
+    return builder.build()
   }
 
   private fun base(
@@ -72,8 +88,9 @@ internal object NoteMarkdownRenderer {
     sourceDirectoryUri: Uri?,
     textColor: Int,
     mermaidCoordinator: MermaidRenderCoordinator? = null,
-  ) =
-    Markwon.builder(context)
+    palette: MarkdownContentPalette? = null,
+  ): Markwon.Builder {
+    val builder = Markwon.builder(context)
       .usePlugin(TablePlugin.create(context))
       .usePlugin(StrikethroughPlugin.create())
       .usePlugin(TaskListPlugin.create(context))
@@ -85,21 +102,23 @@ internal object NoteMarkdownRenderer {
       .usePlugin(
         ImagesPlugin.create()
           .addSchemeHandler(
-            NoteAssetSchemeHandler(context, context.contentResolver, sourceDirectoryUri, textColor),
+            NoteAssetSchemeHandler(context, context.contentResolver, sourceDirectoryUri, palette?.text?.toArgb() ?: textColor),
           )
           .apply {
             if (mermaidCoordinator != null) {
-              addSchemeHandler(MermaidImageSchemeHandler(context, mermaidCoordinator, textColor))
+              addSchemeHandler(
+                MermaidImageSchemeHandler(context, mermaidCoordinator, palette?.text?.toArgb() ?: textColor),
+              )
               addMediaDecoder(MermaidSvgMediaDecoder(context) { mermaidCoordinator.renderWidthPx - 24 })
             }
           }
-          .addSchemeHandler(OfflineRemoteImageSchemeHandler(context, textColor))
+          .addSchemeHandler(OfflineRemoteImageSchemeHandler(context, palette?.text?.toArgb() ?: textColor))
           .placeholderProvider { drawable ->
             if (Uri.parse(drawable.destination).scheme == MermaidSourceCodec.SCHEME) {
               NoteImagePlaceholderDrawable(
                 context,
                 context.getString(R.string.note_rich_mermaid_loading),
-                textColor,
+                palette?.text?.toArgb() ?: textColor,
               )
             } else {
               null
@@ -110,10 +129,35 @@ internal object NoteMarkdownRenderer {
             NoteImagePlaceholderDrawable(
               context,
               context.getString(R.string.note_rich_image_missing, noteImageSourceSummary(destination)),
-              textColor,
+              palette?.text?.toArgb() ?: textColor,
             )
           },
       )
+    if (palette != null) builder.usePlugin(palettePlugin(palette))
+    return builder
+  }
+
+  private fun palettePlugin(palette: MarkdownContentPalette) = object : AbstractMarkwonPlugin() {
+    override fun configureTheme(builder: MarkwonTheme.Builder) {
+      builder
+        .linkColor(palette.link.toArgb())
+        .blockQuoteColor(palette.rule.toArgb())
+        .headingBreakColor(palette.rule.toArgb())
+        .thematicBreakColor(palette.rule.toArgb())
+        .codeTextColor(palette.codeText.toArgb())
+        .codeBlockTextColor(palette.codeText.toArgb())
+        .codeBackgroundColor(palette.codeBackground.toArgb())
+        .codeBlockBackgroundColor(palette.codeBackground.toArgb())
+      if (palette.serif) builder.headingTypeface(Typeface.SERIF)
+    }
+
+    override fun configureSpansFactory(builder: io.noties.markwon.MarkwonSpansFactory.Builder) {
+      builder.appendFactory(
+        Heading::class.java,
+        SpanFactory { _: MarkwonConfiguration, _: RenderProps -> ForegroundColorSpan(palette.heading.toArgb()) },
+      )
+    }
+  }
 }
 
 internal class FormulaFallbackDrawable(

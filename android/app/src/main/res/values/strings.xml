@@ -5,6 +5,9 @@
   <string name="reader_settings_load_error_title">Reader settings could not be loaded</string>
   <string name="reader_settings_load_error_detail">Your saved settings were not replaced. Check storage access and retry. Details: %1$s</string>
   <string name="reader_theme">Theme</string>
+  <string name="markdown_theme_title">Markdown reading theme</string>
+  <string name="markdown_theme_classic">Classic</string>
+  <string name="markdown_theme_paper">Paper</string>
   <string name="theme_system">System</string>
   <string name="theme_light">Light</string>
   <string name="theme_dark">Dark</string>
