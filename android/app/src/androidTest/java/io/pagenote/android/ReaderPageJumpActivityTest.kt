@@ -87,6 +87,22 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
+  fun adjacentPageButtonsNavigateAndRespectDocumentBoundaries() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+
+    composeRule.onNodeWithTag("reader_previous_page").assertIsNotEnabled()
+    composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 1 }
+    composeRule.onNodeWithTag("reader_page_status").assertTextEquals("2 / 3")
+
+    composeRule.onNodeWithTag("reader_previous_page").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 0 }
+    composeRule.onNodeWithTag("reader_previous_page").assertIsNotEnabled()
+  }
+
+  @Test
   fun revisionConflictKeepsCurrentPageDraftAndJumpDialogOpen() {
     val savedNotes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val editedFirstPage = "First page note with a local edit"

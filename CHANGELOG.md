@@ -4,6 +4,8 @@
 
 - Add a native Android 14+ app for page-linked PDF/Markdown reading, offline OCR, pen annotations, OpenAI-compatible page tutoring, and rich HTML PDF annotations. The separate ARM64 beta build uses `io.pagenote.android.beta`; Office editing remains deferred. JVM tests, Android test compilation, focused API 34 tablet AVD renderer/reader tests (2/2), APK startup, and 16 KB ELF/ZIP alignment checks pass. / 新增 Android 14+ 原生应用，支持逐页 PDF/Markdown 阅读、离线 OCR、手写笔批注、OpenAI 兼容逐页讲解及富 HTML PDF 批注。ARM64 测试包使用独立 `io.pagenote.android.beta`；Office 编辑仍暂缓。JVM 测试、Android 测试源码编译、API 34 平板 AVD renderer/阅读器定向测试（2/2）、APK 启动及 16 KB ELF/ZIP 对齐检查通过。
 
+- Update the Android reader with vertical PDF swipes, zoom-aware stylus writing and optional extended canvas, configurable upcoming-page preparation, and dwell-based shape recognition; record remaining acceptance gaps in the Android SPEC. / 安卓阅读器新增 PDF 上下滑动翻页、缩放下手写与可选页外画布、可配置后续页面预解析及停留识别形状，并在 Android SPEC 中记录剩余验收缺口。
+
 - State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
 
 - Look up draft releases through the authenticated release list: GitHub's tag endpoint can return 404 until publication. / 修正草稿发布查询：公开标签接口可能返回 404，改为在授权可见的发布列表中匹配。

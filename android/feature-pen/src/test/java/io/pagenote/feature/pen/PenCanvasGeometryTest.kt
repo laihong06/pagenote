@@ -68,6 +68,66 @@ class PenCanvasGeometryTest {
     assertNull(geometry.hitTest(listOf(text), xPx = 50f, yPx = 50f, radiusPx = 2f))
   }
 
+  @Test
+  fun mapsViewportPointsThroughZoomAndPanAndRendersBackToSameScreenLocation() {
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        translationX = 30f,
+        translationY = -40f,
+      ),
+    )
+
+    val stored = geometry.toDocumentPoint(330f, 360f, 0.6f)
+
+    assertEquals(PenPoint(500f, 750f, 0.6f), stored)
+    assertEquals(330f, geometry.toViewX(stored!!), 0.01f)
+    assertEquals(360f, geometry.toViewY(stored), 0.01f)
+    assertEquals(0.8f, geometry.pixelsPerDocumentUnit, 0.001f)
+    assertEquals(5f, geometry.documentUnitsForPixels(4f), 0.001f)
+  }
+
+  @Test
+  fun extendedCanvasStoresVisibleMarginCoordinatesOnlyWhenEnabled() {
+    val clipped = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(400f, 600f, allowOutsidePage = false),
+    )
+    val extended = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(400f, 600f, allowOutsidePage = true),
+    )
+
+    assertEquals(0f, clipped.toDocumentPoint(50f, 400f, 1f)!!.x, 0.01f)
+    assertEquals(-125f, extended.toDocumentPoint(50f, 400f, 1f)!!.x, 0.01f)
+    assertEquals(-125f, extended.toDocumentPoint(300f, 50f, 1f)!!.y, 0.01f)
+  }
+
+  @Test
+  fun hitTestingUsesScreenSpaceAfterViewportTransform() {
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        translationX = 30f,
+        translationY = -40f,
+      ),
+    )
+    val line = stroke(listOf(PenPoint(100f, 750f, 1f), PenPoint(900f, 750f, 1f)))
+
+    assertEquals(0, geometry.hitTest(listOf(line), xPx = 330f, yPx = 360f, radiusPx = 2f))
+    assertEquals(1.6f, geometry.strokeWidthPx(line), 0.01f)
+  }
+
   private fun stroke(points: List<PenPoint>) = PenStroke(
     type = "pen",
     color = "#123456",

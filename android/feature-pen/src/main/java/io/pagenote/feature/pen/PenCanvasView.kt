@@ -6,10 +6,13 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -32,17 +35,32 @@ class PenCanvasView @JvmOverloads constructor(
     strokeWidth = 3f
   }
   private val activePoints = mutableListOf<PenPoint>()
+  private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
   private var activePointerId = INVALID_POINTER
   private var selectionPointerId = INVALID_POINTER
   private var annotationSelectionPointerId = INVALID_POINTER
   private var gestureTool: PenCanvasTool? = null
+  private var activePointerToolType = MotionEvent.TOOL_TYPE_UNKNOWN
+  private var shapeRecognitionCancelled = false
+  private var shapePreview: PenRecognizedShape? = null
+  private var shapeDwellAnchor: Pair<Float, Float>? = null
+  private var shapeDwellTask: Runnable? = null
   private var eraseModeLatched = false
   private var activeColor = "#dc3545"
   private var activeWidth = 3.0
 
+  var pageTransform: PenCanvasPageTransform? = null
+    set(value) {
+      field = value
+      invalidate()
+    }
+
   var selectedTool: PenCanvasTool = PenCanvasTool.PEN
     set(value) {
+      if (field != value && value != PenCanvasTool.PEN && activePointerId != INVALID_POINTER) {
+        clearShapeRecognition(cancelled = true)
+      }
       field = value
       invalidate()
     }
@@ -67,9 +85,10 @@ class PenCanvasView @JvmOverloads constructor(
     }
 
   var onStrokeAdded: ((PenStroke) -> Unit)? = null
+  var onShapeRecognized: ((PenRecognizedShape, PenStroke) -> Boolean)? = null
   var onStrokeErased: ((Int) -> Unit)? = null
   var onSelectionChanged: ((Int?) -> Unit)? = null
-  var onAnnotationSelectionTouch: ((MotionEvent, Float, Int) -> Boolean)? = null
+  var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
   var selectedIndex: Int? = null
     set(value) {
@@ -93,21 +112,32 @@ class PenCanvasView @JvmOverloads constructor(
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
     if (width <= 0 || height <= 0) return
+    val geometry = geometry()
+    if (!geometry.isValid) return
     val save = canvas.save()
-    canvas.scale(width / 1000f, width / 1000f)
+    canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
+    canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
     internalStrokes.forEach { drawStroke(canvas, it) }
     selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
-        drawStroke(
-          canvas,
-          PenStroke(
-            type = if (tool == PenCanvasTool.HIGHLIGHTER) "highlight" else "pen",
-            color = activeColor,
-            width = activeWidth,
-            points = activePoints.toList(),
-          ),
-        )
+        val preview = shapePreview
+        if (preview != null) {
+          drawStroke(
+            canvas,
+            PenStroke(preview.type, activeColor, activeWidth, listOf(preview.first, preview.second)),
+          )
+        } else {
+          drawStroke(
+            canvas,
+            PenStroke(
+              type = if (tool == PenCanvasTool.HIGHLIGHTER) "highlight" else "pen",
+              color = activeColor,
+              width = activeWidth,
+              points = activePoints.toList(),
+            ),
+          )
+        }
       }
     }
     canvas.restoreToCount(save)
@@ -141,6 +171,7 @@ class PenCanvasView @JvmOverloads constructor(
             )
           }
           addPoint(event.getX(index), event.getY(index), event.getPressure(index))
+          updateShapeRecognition(event.getX(index), event.getY(index))
         }
         invalidate()
         return true
@@ -170,6 +201,7 @@ class PenCanvasView @JvmOverloads constructor(
           if (gestureTool == PenCanvasTool.ERASER) {
             eraseAt(event.getX(index), event.getY(index))
           } else {
+            cancelShapePreviewIfMoved(event.getX(index), event.getY(index))
             addPoint(event.getX(index), event.getY(index), event.getPressure(index))
             finishStroke()
           }
@@ -219,15 +251,26 @@ class PenCanvasView @JvmOverloads constructor(
     return true
   }
 
+  fun cancelActiveGesture() {
+    if (activePointerId == INVALID_POINTER) return
+    resetGesture()
+    invalidate()
+  }
+
   private fun beginGesture(event: MotionEvent, pointerIndex: Int): Boolean {
     if (!isSupportedTool(event.getToolType(pointerIndex))) return false
     activePointerId = event.getPointerId(pointerIndex)
+    activePointerToolType = event.getToolType(pointerIndex)
     requestUnbufferedDispatch(event)
     val eraserInput = event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_ERASER ||
       (event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_STYLUS &&
         hasEraserButton(event.buttonState))
     eraseModeLatched = eraserInput || selectedTool == PenCanvasTool.ERASER
     gestureTool = if (eraseModeLatched) PenCanvasTool.ERASER else selectedTool
+    shapeRecognitionCancelled = activePointerToolType != MotionEvent.TOOL_TYPE_STYLUS ||
+      gestureTool != PenCanvasTool.PEN
+    shapePreview = null
+    shapeDwellAnchor = null
     if (gestureTool == PenCanvasTool.ERASER) {
       eraseAt(event.getX(pointerIndex), event.getY(pointerIndex))
     } else {
@@ -241,7 +284,7 @@ class PenCanvasView @JvmOverloads constructor(
     if (annotationSelectionPointerId != INVALID_POINTER) {
       onAnnotationSelectionTouch?.invoke(
         event,
-        width.toFloat(),
+        geometry(),
         event.findPointerIndex(annotationSelectionPointerId),
       )
       when (event.actionMasked) {
@@ -262,7 +305,7 @@ class PenCanvasView @JvmOverloads constructor(
       MotionEvent.ACTION_DOWN -> {
         val pointerIndex = event.actionIndex
         if (!isSupportedTool(event.getToolType(pointerIndex))) return false
-        if (onAnnotationSelectionTouch?.invoke(event, width.toFloat(), pointerIndex) == true) {
+        if (onAnnotationSelectionTouch?.invoke(event, geometry(), pointerIndex) == true) {
           annotationSelectionPointerId = event.getPointerId(pointerIndex)
           selectionPointerId = annotationSelectionPointerId
           selectedIndex = null
@@ -274,7 +317,7 @@ class PenCanvasView @JvmOverloads constructor(
         selectionPointerId = event.getPointerId(pointerIndex)
         requestUnbufferedDispatch(event)
         val radius = 18f * resources.displayMetrics.density
-        val nextSelection = PenCanvasGeometry(width.toFloat(), height.toFloat())
+        val nextSelection = geometry()
           .hitTest(internalStrokes, event.getX(pointerIndex), event.getY(pointerIndex), radius)
         if (selectedIndex != nextSelection) {
           selectedIndex = nextSelection
@@ -293,7 +336,7 @@ class PenCanvasView @JvmOverloads constructor(
       }
       MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
         val hadSelectionGesture = selectionPointerId != INVALID_POINTER
-        onAnnotationSelectionTouch?.invoke(event, width.toFloat(), event.actionIndex)
+        onAnnotationSelectionTouch?.invoke(event, geometry(), event.actionIndex)
         selectionPointerId = INVALID_POINTER
         return hadSelectionGesture
       }
@@ -338,19 +381,81 @@ class PenCanvasView @JvmOverloads constructor(
       selectedTool
     }
     if (gestureTool != nextTool) {
+      clearShapeRecognition(cancelled = true)
       activePoints.clear()
       gestureTool = nextTool
     }
   }
 
+  private fun updateShapeRecognition(xPx: Float, yPx: Float) {
+    if (shapeRecognitionCancelled || activePointerToolType != MotionEvent.TOOL_TYPE_STYLUS ||
+      gestureTool != PenCanvasTool.PEN || selectedTool != PenCanvasTool.PEN ||
+      pathLength(activePoints) < MIN_RECOGNITION_PATH
+    ) {
+      return
+    }
+    val anchor = shapeDwellAnchor
+    if (shapePreview != null) {
+      if (anchor != null && distancePx(anchor, xPx, yPx) > stationaryRadiusPx()) {
+        clearShapeRecognition(cancelled = true)
+        invalidate()
+      }
+      return
+    }
+    if (anchor == null || distancePx(anchor, xPx, yPx) > stationaryRadiusPx()) {
+      cancelShapeDwell()
+      shapeDwellAnchor = xPx to yPx
+      val task = Runnable {
+        shapeDwellTask = null
+        if (inputEnabled && activePointerId != INVALID_POINTER && !shapeRecognitionCancelled &&
+          activePointerToolType == MotionEvent.TOOL_TYPE_STYLUS &&
+          gestureTool == PenCanvasTool.PEN && selectedTool == PenCanvasTool.PEN
+        ) {
+          shapePreview = PenShapeRecognizer.recognize(activePoints)
+          invalidate()
+        }
+      }
+      shapeDwellTask = task
+      shapeHandler.postDelayed(task, SHAPE_DWELL_MS)
+    }
+  }
+
+  private fun cancelShapePreviewIfMoved(xPx: Float, yPx: Float) {
+    val anchor = shapeDwellAnchor ?: return
+    if (shapePreview != null && distancePx(anchor, xPx, yPx) > stationaryRadiusPx()) {
+      clearShapeRecognition(cancelled = true)
+    }
+  }
+
+  private fun clearShapeRecognition(cancelled: Boolean) {
+    cancelShapeDwell()
+    shapeDwellAnchor = null
+    shapePreview = null
+    shapeRecognitionCancelled = cancelled
+  }
+
+  private fun cancelShapeDwell() {
+    shapeDwellTask?.let(shapeHandler::removeCallbacks)
+    shapeDwellTask = null
+  }
+
+  private fun stationaryRadiusPx() = 4f * resources.displayMetrics.density
+
+  private fun distancePx(anchor: Pair<Float, Float>, x: Float, y: Float) =
+    hypot(anchor.first - x, anchor.second - y)
+
+  private fun pathLength(points: List<PenPoint>): Float = points.zipWithNext()
+    .sumOf { (first, second) -> hypot(first.x - second.x, first.y - second.y).toDouble() }
+    .toFloat()
+
   private fun addPoint(xPx: Float, yPx: Float, pressure: Float) {
-    val point = PenCanvasGeometry(width.toFloat(), height.toFloat())
+    val point = geometry()
       .toDocumentPoint(xPx, yPx, pressure) ?: return
     if (activePoints.lastOrNull() != point) activePoints.add(point)
   }
 
   private fun eraseAt(xPx: Float, yPx: Float) {
-    val index = PenCanvasGeometry(width.toFloat(), height.toFloat())
+    val index = geometry()
       .hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
     internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
     onStrokeErased?.invoke(index)
@@ -367,18 +472,31 @@ class PenCanvasView @JvmOverloads constructor(
       points = activePoints.toList(),
     )
     PenValidation.validate(stroke, 1)
-    internalStrokes = internalStrokes + stroke
-    onStrokeAdded?.invoke(stroke)
+    val shape = shapePreview
+    val consumed = shape != null && runCatching {
+      onShapeRecognized?.invoke(shape, stroke) == true
+    }.getOrDefault(false)
+    if (!consumed) {
+      internalStrokes = internalStrokes + stroke
+      onStrokeAdded?.invoke(stroke)
+    }
   }
 
   private fun resetGesture() {
+    cancelShapeDwell()
     activePointerId = INVALID_POINTER
+    activePointerToolType = MotionEvent.TOOL_TYPE_UNKNOWN
     gestureTool = null
     eraseModeLatched = false
     activePoints.clear()
+    shapePreview = null
+    shapeDwellAnchor = null
+    shapeRecognitionCancelled = false
   }
 
   private fun hasEraserButton(buttonState: Int): Boolean = buttonState and ERASER_BUTTONS != 0
+
+  private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
 
   private fun drawStroke(canvas: Canvas, stroke: PenStroke) {
     val color = runCatching { Color.parseColor(stroke.color) }.getOrDefault(Color.BLACK)
@@ -466,5 +584,7 @@ class PenCanvasView @JvmOverloads constructor(
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
     const val SELECTION_INSET = 8f
     const val SELECTION_MIN_SIZE = 24f
+    const val MIN_RECOGNITION_PATH = 48f
+    const val SHAPE_DWELL_MS = 550L
   }
 }

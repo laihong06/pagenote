@@ -18,6 +18,12 @@
   <string name="reader_splitter_adjust">调整原文和笔记栏宽度</string>
   <string name="note_animation_title">笔记切换动画</string>
   <string name="note_animation_description">切换文档页面时，笔记使用淡入动画。</string>
+  <string name="ink_outside_page_title">允许在页面边缘书写</string>
+  <string name="ink_outside_page_description">允许在 PDF 页面外、当前阅读区域可见的空白处记录笔迹。</string>
+  <string name="prepare_ahead_title">预解析后续 PDF 页面</string>
+  <string name="prepare_ahead_summary">预解析窗口页数（包含当前页）：%1$d；设为 0 可关闭自动预解析。</string>
+  <string name="prepare_page_failed">第 %1$d 页预解析失败：%2$s</string>
+  <string name="prepare_page_warning">第 %1$d 页预解析提示：%2$s</string>
   <string name="settings_save_failed">设置无法保存，请检查设置内容并重试。</string>
   <string name="cancel">取消</string>
   <string name="save">保存</string>

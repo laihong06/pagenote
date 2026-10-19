@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import io.pagenote.feature.pen.PenStyle
+import io.pagenote.feature.pen.PenRecognizedShape
 import kotlin.math.abs
 
 internal enum class PdfAnnotationDrawTool(val type: String) {
@@ -62,5 +63,17 @@ internal class PdfAnnotationVectorDraft private constructor(
       }
       return PdfAnnotationVectorDraft(type, first, second, color, width)
     }
+
+    fun fromRecognizedShape(
+      shape: PenRecognizedShape,
+      color: String,
+      width: Double,
+    ): PdfAnnotationVectorDraft? = create(
+      type = shape.type,
+      first = shape.first.x.toDouble() to shape.first.y.toDouble(),
+      second = shape.second.x.toDouble() to shape.second.y.toDouble(),
+      color = color,
+      width = width,
+    )
   }
 }

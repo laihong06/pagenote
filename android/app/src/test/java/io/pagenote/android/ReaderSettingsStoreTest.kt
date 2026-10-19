@@ -77,6 +77,49 @@ class ReaderSettingsStoreTest {
   }
 
   @Test
+  fun allowInkOutsidePageDefaultsOffAndSurvivesOpeningAnotherStore() = runBlocking {
+    val file = File(temporaryFolder.root, "extended-canvas.preferences_pb")
+    val firstScope = newScope()
+    try {
+      val firstStore = ReaderSettingsStore(newDataStore(file, firstScope))
+      assertEquals(false, firstStore.settings.first().allowInkOutsidePage)
+      firstStore.save(ReaderSettings(allowInkOutsidePage = true))
+    } finally {
+      firstScope.cancel()
+    }
+
+    val secondScope = newScope()
+    try {
+      val secondStore = ReaderSettingsStore(newDataStore(file, secondScope))
+
+      assertEquals(true, secondStore.settings.first().allowInkOutsidePage)
+    } finally {
+      secondScope.cancel()
+    }
+  }
+
+  @Test
+  fun prepareAheadPagesSurvivesOpeningAnotherStore() = runBlocking {
+    val file = File(temporaryFolder.root, "prepare-ahead.preferences_pb")
+    val firstScope = newScope()
+    try {
+      ReaderSettingsStore(newDataStore(file, firstScope)).save(ReaderSettings(prepareAheadPages = 7))
+    } finally {
+      firstScope.cancel()
+    }
+
+    val secondScope = newScope()
+    try {
+      assertEquals(
+        7,
+        ReaderSettingsStore(newDataStore(file, secondScope)).settings.first().prepareAheadPages,
+      )
+    } finally {
+      secondScope.cancel()
+    }
+  }
+
+  @Test
   fun invalidStoredFieldsFallBackIndependently() = runBlocking {
     val scope = newScope()
     try {
@@ -86,6 +129,7 @@ class ReaderSettingsStoreTest {
         preferences[booleanPreferencesKey("language")] = true
         preferences[intPreferencesKey("left_percent")] = 90
         preferences[intPreferencesKey("note_font_size")] = 17
+        preferences[intPreferencesKey("prepare_ahead_pages")] = 11
         preferences[booleanPreferencesKey("note_animation")] = false
       }
 

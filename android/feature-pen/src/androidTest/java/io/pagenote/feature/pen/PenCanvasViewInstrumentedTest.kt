@@ -34,16 +34,123 @@ class PenCanvasViewInstrumentedTest {
   }
 
   @Test
+  fun endpointDwellCommitsOneRecognizedShapeInsteadOfFreehandInk() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        onStrokeAdded = added::add
+        onShapeRecognized = { shape, _ ->
+          recognized += shape
+          true
+        }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.6f, 4) }
+
+    assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
+    assertTrue("recognized shape must not also be persisted as freehand", added.isEmpty())
+    assertTrue(canvas.strokes.isEmpty())
+  }
+
+  @Test
+  fun liftingBeforeDwellKeepsTheOriginalFreehandStroke() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        onStrokeAdded = added::add
+        onShapeRecognized = { shape, _ ->
+          recognized += shape
+          true
+        }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.6f, 4)
+    }
+
+    assertTrue(recognized.isEmpty())
+    assertEquals(1, added.size)
+    assertEquals("pen", added.single().type)
+  }
+
+  @Test
+  fun highlighterGestureNeverTriggersShapeRecognition() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        selectedTool = PenCanvasTool.HIGHLIGHTER
+        onStrokeAdded = added::add
+        onShapeRecognized = { shape, _ ->
+          recognized += shape
+          true
+        }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.7f, 4) }
+
+    assertTrue(recognized.isEmpty())
+    assertEquals("highlight", added.single().type)
+  }
+
+  @Test
+  fun movementAfterDwellPreviewCancelsRecognitionAndKeepsFreehand() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        onStrokeAdded = added::add
+        onShapeRecognized = { shape, _ ->
+          recognized += shape
+          true
+        }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+    }
+    Thread.sleep(650)
+    onUi {
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 180f, 0.7f, 4)
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 180f, 0.7f, 5)
+    }
+
+    assertTrue(recognized.isEmpty())
+    assertEquals(1, added.size)
+    assertEquals("pen", added.single().type)
+    assertEquals(3, added.single().points.size)
+  }
+
+  @Test
   fun cancelAndDisabledInputDoNotPersistStrokes() {
     lateinit var canvas: PenCanvasView
     val added = mutableListOf<PenStroke>()
+    val recognized = mutableListOf<PenRecognizedShape>()
     onUi {
-      canvas = createCanvas().apply { onStrokeAdded = added::add }
+      canvas = createCanvas().apply {
+        onStrokeAdded = added::add
+        onShapeRecognized = { shape, _ ->
+          recognized += shape
+          true
+        }
+      }
       dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 100f, 100f, 0.5f, 2)
-      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 140f, 140f, 0.7f, 3)
-      dispatchTouch(canvas, MotionEvent.ACTION_CANCEL, 140f, 140f, 0.7f, 4)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 340f, 100f, 0.7f, 3)
+      dispatchTouch(canvas, MotionEvent.ACTION_CANCEL, 340f, 100f, 0.7f, 4)
       canvas.inputEnabled = false
     }
+    Thread.sleep(650)
     var disabledDownConsumed = false
     onUi {
       disabledDownConsumed = dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 200f, 200f, 0.6f, 5)
@@ -51,6 +158,7 @@ class PenCanvasViewInstrumentedTest {
 
     assertFalse(disabledDownConsumed)
     assertTrue(added.isEmpty())
+    assertTrue(recognized.isEmpty())
     assertTrue(canvas.strokes.isEmpty())
   }
 

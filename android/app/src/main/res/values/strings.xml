@@ -18,6 +18,12 @@
   <string name="reader_splitter_adjust">Adjust document and notes pane widths</string>
   <string name="note_animation_title">Animate page-linked notes</string>
   <string name="note_animation_description">Fade notes in when the active source page changes.</string>
+  <string name="ink_outside_page_title">Write in page margins</string>
+  <string name="ink_outside_page_description">Allow ink outside the PDF page, within the visible reader area.</string>
+  <string name="prepare_ahead_title">Prepare upcoming PDF pages</string>
+  <string name="prepare_ahead_summary">Pages in window (including current): %1$d; 0 disables automatic preparation.</string>
+  <string name="prepare_page_failed">Page %1$d could not be pre-prepared: %2$s</string>
+  <string name="prepare_page_warning">Page %1$d preparation warning: %2$s</string>
   <string name="settings_save_failed">Unable to save settings. Review the values and try again.</string>
   <string name="cancel">Cancel</string>
   <string name="save">Save</string>

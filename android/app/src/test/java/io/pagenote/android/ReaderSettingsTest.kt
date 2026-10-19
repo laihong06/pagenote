@@ -9,6 +9,19 @@ class ReaderSettingsTest {
   @Test
   fun defaultsPass() {
     ReaderSettingsPolicy.validate(ReaderSettings())
+    assertEquals(3, ReaderSettings().prepareAheadPages)
+  }
+
+  @Test
+  fun preparationWindowAcceptsZeroThroughTenPages() {
+    (0..10).forEach { count ->
+      ReaderSettingsPolicy.validate(ReaderSettings(prepareAheadPages = count))
+    }
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun preparationWindowRejectsMoreThanTenPages() {
+    ReaderSettingsPolicy.validate(ReaderSettings(prepareAheadPages = 11))
   }
 
   @Test(expected = IllegalArgumentException::class)

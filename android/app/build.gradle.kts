@@ -13,7 +13,7 @@ android {
     minSdk = 34
     targetSdk = 35
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    versionCode = 1
+    versionCode = 2
     versionName = "1.0.0"
   }
   buildTypes {
@@ -26,7 +26,7 @@ android {
     create("beta") {
       initWith(getByName("release"))
       applicationIdSuffix = ".beta"
-      versionNameSuffix = "-beta.1"
+      versionNameSuffix = "-beta.2"
       signingConfig = signingConfigs.getByName("debug")
       isDebuggable = false
       matchingFallbacks += listOf("release")

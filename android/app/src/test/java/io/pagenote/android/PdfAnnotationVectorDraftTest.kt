@@ -1,5 +1,7 @@
 package io.pagenote.android
 
+import io.pagenote.feature.pen.PenPoint
+import io.pagenote.feature.pen.PenRecognizedShape
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -58,5 +60,30 @@ class PdfAnnotationVectorDraftTest {
     assertEquals(10.0, draft.toItem()["width"])
     assertEquals("#185abd", draft.toOverlayItem().color)
     assertEquals(10.0, draft.toOverlayItem().width, 0.0)
+  }
+
+  @Test
+  fun convertsRecognizedInkToNativeShapeWithoutPressureSamples() {
+    val draft = requireNotNull(
+      PdfAnnotationVectorDraft.fromRecognizedShape(
+        PenRecognizedShape(
+          type = "arrow",
+          first = PenPoint(10f, 20f, 0.3f),
+          second = PenPoint(40f, 50f, 0.9f),
+        ),
+        color = "#185abd",
+        width = 10.0,
+      ),
+    )
+
+    assertEquals(
+      mapOf(
+        "type" to "arrow",
+        "color" to "#185abd",
+        "width" to 10.0,
+        "points" to listOf(listOf(10.0, 20.0), listOf(40.0, 50.0)),
+      ),
+      draft.toItem(),
+    )
   }
 }

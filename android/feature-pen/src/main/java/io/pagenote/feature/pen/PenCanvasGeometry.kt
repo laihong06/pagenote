@@ -6,24 +6,65 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
+data class PenCanvasPageTransform(
+  val pageWidthPx: Float,
+  val pageHeightPx: Float,
+  val scale: Float = 1f,
+  val translationX: Float = 0f,
+  val translationY: Float = 0f,
+  val allowOutsidePage: Boolean = false,
+)
+
 class PenCanvasGeometry(
   val widthPx: Float,
   val heightPx: Float,
+  pageTransform: PenCanvasPageTransform? = null,
 ) {
-  private val valid = widthPx.isFinite() && heightPx.isFinite() && widthPx > 0f && heightPx > 0f
-  private val unitsPerPixel = if (valid) 1000f / widthPx else Float.NaN
+  private val transform = pageTransform ?: PenCanvasPageTransform(widthPx, heightPx)
+  val pageWidthPx: Float = transform.pageWidthPx
+  val pageHeightPx: Float = transform.pageHeightPx
+  val scale: Float = transform.scale
+  val allowOutsidePage: Boolean = transform.allowOutsidePage
+  val isValid: Boolean = listOf(
+    widthPx, heightPx, pageWidthPx, pageHeightPx, scale,
+    transform.translationX, transform.translationY,
+  ).all(Float::isFinite) && widthPx > 0f && heightPx > 0f &&
+    pageWidthPx > 0f && pageHeightPx > 0f && scale > 0f
 
-  fun toDocumentPoint(xPx: Float, yPx: Float, pressure: Float?): PenPoint? {
-    if (!valid || !xPx.isFinite() || !yPx.isFinite()) return null
+  val pixelsPerDocumentUnit: Float = if (isValid) pageWidthPx / 1000f * scale else Float.NaN
+  val pageOriginX: Float = if (isValid) {
+    widthPx / 2f + transform.translationX - pageWidthPx * scale / 2f
+  } else {
+    Float.NaN
+  }
+  val pageOriginY: Float = if (isValid) {
+    heightPx / 2f + transform.translationY - pageHeightPx * scale / 2f
+  } else {
+    Float.NaN
+  }
+
+  fun toDocumentPoint(
+    xPx: Float,
+    yPx: Float,
+    pressure: Float?,
+    clampToPage: Boolean = !allowOutsidePage,
+  ): PenPoint? {
+    if (!isValid || !xPx.isFinite() || !yPx.isFinite()) return null
     val pressureValue = pressure?.takeIf { it.isFinite() && it > 0f }
       ?.coerceIn(0f, 1f)
       ?: PenValidation.DEFAULT_PRESSURE
+    val x = (xPx - pageOriginX) / pixelsPerDocumentUnit
+    val y = (yPx - pageOriginY) / pixelsPerDocumentUnit
+    val pageMaxY = pageHeightPx * 1000f / pageWidthPx
     return PenPoint(
-      x = xPx.coerceIn(0f, widthPx) * unitsPerPixel,
-      y = yPx.coerceIn(0f, heightPx) * unitsPerPixel,
+      x = if (clampToPage) x.coerceIn(0f, 1000f) else x,
+      y = if (clampToPage) y.coerceIn(0f, pageMaxY) else y,
       pressure = pressureValue,
     )
   }
+
+  fun documentUnitsForPixels(pixels: Float): Float =
+    if (isValid && pixels.isFinite()) pixels / pixelsPerDocumentUnit else Float.NaN
 
   fun hitTest(
     strokes: List<PenStroke>,
@@ -31,7 +72,7 @@ class PenCanvasGeometry(
     yPx: Float,
     radiusPx: Float,
   ): Int? {
-    if (!valid || !xPx.isFinite() || !yPx.isFinite() || !radiusPx.isFinite() || radiusPx < 0f) {
+    if (!isValid || !xPx.isFinite() || !yPx.isFinite() || !radiusPx.isFinite() || radiusPx < 0f) {
       return null
     }
     for (index in strokes.indices.reversed()) {
@@ -44,12 +85,12 @@ class PenCanvasGeometry(
     return null
   }
 
-  fun toViewX(point: PenPoint): Float = point.x / unitsPerPixel
+  fun toViewX(point: PenPoint): Float = pageOriginX + point.x * pixelsPerDocumentUnit
 
-  fun toViewY(point: PenPoint): Float = point.y / unitsPerPixel
+  fun toViewY(point: PenPoint): Float = pageOriginY + point.y * pixelsPerDocumentUnit
 
   fun strokeWidthPx(stroke: PenStroke): Float =
-    (stroke.width.toFloat() / unitsPerPixel) * (stroke.points.maxOfOrNull { it.pressure } ?: 1f)
+    stroke.width.toFloat() * pixelsPerDocumentUnit * (stroke.points.maxOfOrNull { it.pressure } ?: 1f)
 
   private fun distanceToStroke(stroke: PenStroke, x: Float, y: Float): Float {
     val points = stroke.points
@@ -77,7 +118,7 @@ class PenCanvasGeometry(
     val end = points.last()
     val angle = kotlin.math.atan2((end.second - start.second).toDouble(), (end.first - start.first).toDouble())
       .toFloat()
-    val headLength = (stroke.width.toFloat() * 4f).coerceIn(12f, 40f) / unitsPerPixel
+    val headLength = (stroke.width.toFloat() * 4f).coerceIn(12f, 40f) * pixelsPerDocumentUnit
     val spread = 0.55f
     val left = end.first - headLength * kotlin.math.cos(angle - spread) to
       end.second - headLength * kotlin.math.sin(angle - spread)

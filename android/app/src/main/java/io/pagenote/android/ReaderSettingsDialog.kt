@@ -230,6 +230,25 @@ internal fun ReaderSettingsDialog(
           modifier = Modifier.fillMaxWidth(),
         )
 
+        Text(
+          stringResource(R.string.prepare_ahead_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.prepare_ahead_summary, draft.prepareAheadPages),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+          value = draft.prepareAheadPages.toFloat(),
+          onValueChange = { draft = draft.copy(prepareAheadPages = it.roundToInt()) },
+          valueRange = 0f..10f,
+          steps = 9,
+          enabled = !isSaving,
+          modifier = Modifier.fillMaxWidth().testTag("prepare_ahead_slider"),
+        )
+
         Row(
           modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
@@ -246,6 +265,26 @@ internal fun ReaderSettingsDialog(
           Switch(
             checked = draft.noteAnimation,
             onCheckedChange = { draft = draft.copy(noteAnimation = it) },
+            enabled = !isSaving,
+          )
+        }
+
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(stringResource(R.string.ink_outside_page_title))
+            Text(
+              stringResource(R.string.ink_outside_page_description),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Switch(
+            checked = draft.allowInkOutsidePage,
+            onCheckedChange = { draft = draft.copy(allowInkOutsidePage = it) },
             enabled = !isSaving,
           )
         }
@@ -291,6 +330,7 @@ internal fun ReaderSettingsDialog(
     },
     confirmButton = {
       TextButton(
+        modifier = Modifier.testTag("reader_settings_save"),
         enabled = !isSaving,
         onClick = {
           scope.launch {
