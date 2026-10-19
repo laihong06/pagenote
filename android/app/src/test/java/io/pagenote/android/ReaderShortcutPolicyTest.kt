@@ -32,4 +32,25 @@ class ReaderShortcutPolicyTest {
     assertNull(ReaderShortcutPolicy.action(KeyEvent.KEYCODE_A, alt = true))
     assertNull(ReaderShortcutPolicy.action(KeyEvent.KEYCODE_S, alt = true))
   }
+
+  @Test
+  fun recognizesFormattingShortcutsForBothDesktopModifierKeys() {
+    val shortcuts = listOf(
+      KeyEvent.KEYCODE_B to ReaderShortcutAction.FORMAT_BOLD,
+      KeyEvent.KEYCODE_I to ReaderShortcutAction.FORMAT_ITALIC,
+      KeyEvent.KEYCODE_K to ReaderShortcutAction.INSERT_LINK,
+    )
+    shortcuts.forEach { (keyCode, action) ->
+      assertEquals(action, ReaderShortcutPolicy.action(keyCode, control = true))
+      assertEquals(action, ReaderShortcutPolicy.action(keyCode, meta = true))
+    }
+  }
+
+  @Test
+  fun ignoresFormattingShortcutsWithUnrelatedModifierCombinations() {
+    assertNull(ReaderShortcutPolicy.action(KeyEvent.KEYCODE_B, control = true, alt = true))
+    assertNull(ReaderShortcutPolicy.action(KeyEvent.KEYCODE_I, control = true, meta = true))
+    assertNull(ReaderShortcutPolicy.action(KeyEvent.KEYCODE_B, control = true, shift = true))
+    assertNull(ReaderShortcutPolicy.action(KeyEvent.KEYCODE_K))
+  }
 }

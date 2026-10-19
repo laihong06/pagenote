@@ -386,12 +386,12 @@
 - [x] 48. Markdown 阅读主题独立设置
   - 将 `classic`/`paper` Markdown 渲染主题与应用外观设置分离并持久化；只影响 Markdown pane，不改变 PDF 原色、UI 外观或笔记源内容。
   - 聚焦 JVM 测试 24/24，API 34 Pixel Tablet AVD 设置、源文档、笔记预览和 Mermaid 仪器测试 22/22；`:app:assembleDebug` 及 arm64 Debug APK 16 KB 对齐检查通过。小米平板 5 Pro 未在本任务复测。
-  - SPEC：`features/independent-markdown-theme.md`；实施计划：`independent-markdown-theme-plan.md`。
   - SPEC：`features/desktop-semantic-parity.md` §48、`features/independent-markdown-theme.md`；实施计划：`independent-markdown-theme-plan.md`。
 
-- [ ] 49. Markdown 编辑格式快捷键
+- [x] 49. Markdown 编辑格式快捷键
   - 焦点位于可写 Markdown 编辑器时，Ctrl/Cmd+B、I、K 复用工具栏粗体、斜体、链接变换。
   - 对话框、非笔记文本框和阅读界面不截获这些快捷键；保留选区、光标及撤销历史语义。
+  - 聚焦 JVM 测试 14/14；真实 EditText 的 API 34 Pixel Tablet AVD 活动测试 2/2，覆盖工具栏结果/选区对照、撤销、占位文本、重复键、失焦/只读及批注对话框焦点隔离；AndroidTest 编译、Debug APK 和 arm64 16 KB 对齐检查通过。
   - SPEC：`features/desktop-semantic-parity.md` §49、`features/markdown-formatting-shortcuts.md`；实施计划：`markdown-formatting-shortcuts-plan.md`。
 
 - [x] 50. 阅读器交互增强端到端复核

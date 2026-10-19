@@ -2,12 +2,14 @@ package io.pagenote.android
 
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.text.Spanned
 import android.util.TypedValue
 import android.text.style.ClickableSpan
 import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -39,6 +41,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -47,6 +50,131 @@ import kotlinx.coroutines.runBlocking
 class NoteMarkdownFormatActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+
+  @Test
+  fun keyboardFormattingShortcutsMatchToolbarAndRemainUndoable() {
+    val initial = "Lead chosen tail"
+    val savedNotes = PageNotes.join(listOf(initial, "Second page remains unchanged"))
+    val project = installProject(savedNotes)
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      runCatching { formatCommand("bold").assertIsEnabled() }.isSuccess
+    }
+
+    var editor = requireNotNull(findNoteEditor())
+    val selectedStart = initial.indexOf("chosen")
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(selectedStart, selectedStart + "chosen".length)
+    }
+    assertFalse(dispatchShortcut(KeyEvent.KEYCODE_B, KeyEvent.META_CTRL_ON, repeatCount = 1))
+    assertEquals("repeated key-down must not transform the note", initial, session.noteDraft.value)
+    val boldHandled = dispatchShortcut(KeyEvent.KEYCODE_B, KeyEvent.META_CTRL_ON)
+    assertTrue(
+      "editorFocused=${editor.hasFocus()}, activityFocus=${composeRule.activity.currentFocus?.javaClass?.simpleName}, " +
+        "windowFocused=${composeRule.activity.hasWindowFocus()}, enabled=${editor.isEnabled}, " +
+        "writable=${session.noteWritable.value}, handler=${composeRule.activity.readerShortcutHandler != null}",
+      boldHandled,
+    )
+    val bold = "Lead **chosen** tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == bold }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals(selectedStart + 2, editor.selectionStart)
+    assertEquals(selectedStart + 2 + "chosen".length, editor.selectionEnd)
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == initial }
+    editor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setSelection(selectedStart, selectedStart + "chosen".length)
+    }
+    formatCommand("bold").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == bold }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals(bold, session.noteDraft.value)
+    assertEquals(selectedStart + 2, editor.selectionStart)
+    assertEquals(selectedStart + 2 + "chosen".length, editor.selectionEnd)
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == initial }
+    editor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.setSelection(initial.length) }
+    assertTrue(dispatchShortcut(KeyEvent.KEYCODE_I, KeyEvent.META_META_ON))
+    val placeholder = composeRule.activity.getString(R.string.reader_menu_format_placeholder)
+    val italic = "$initial*$placeholder*"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == italic }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals(italic.indexOf(placeholder), editor.selectionStart)
+    assertEquals(italic.indexOf(placeholder) + placeholder.length, editor.selectionEnd)
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == initial }
+    editor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.setSelection(initial.length) }
+    formatCommand("italic").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == italic }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals(italic, session.noteDraft.value)
+    assertEquals(italic.indexOf(placeholder), editor.selectionStart)
+    assertEquals(italic.indexOf(placeholder) + placeholder.length, editor.selectionEnd)
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == initial }
+    editor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setSelection(selectedStart, selectedStart + "chosen".length)
+    }
+    assertTrue(dispatchShortcut(KeyEvent.KEYCODE_K, KeyEvent.META_META_ON))
+    val linked = "Lead [chosen](https://example.com) tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == linked }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals("Lead [".length, editor.selectionStart)
+    assertEquals("Lead [".length + "chosen".length, editor.selectionEnd)
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == initial }
+    editor = requireNotNull(findNoteEditor())
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setSelection(selectedStart, selectedStart + "chosen".length)
+    }
+    insertCommand("link").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == linked }
+    editor = requireNotNull(findNoteEditor())
+    assertEquals(linked, session.noteDraft.value)
+    assertEquals("Lead [".length, editor.selectionStart)
+    assertEquals("Lead [".length + "chosen".length, editor.selectionEnd)
+  }
+
+  @Test
+  fun formattingShortcutsRequireFocusedWritableMarkdownEditor() {
+    val initial = "Lead chosen tail"
+    val savedNotes = PageNotes.join(listOf(initial, "Second page remains unchanged"))
+    val project = installProject(savedNotes)
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    val editor = requireNotNull(findNoteEditor())
+    val selectedStart = initial.indexOf("chosen")
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(selectedStart, selectedStart + "chosen".length)
+      editor.clearFocus()
+    }
+    assertFalse(dispatchShortcut(KeyEvent.KEYCODE_B, KeyEvent.META_CTRL_ON))
+    assertEquals(initial, session.noteDraft.value)
+
+    composeRule.runOnUiThread { session.noteWritable.value = false }
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor()?.isEnabled == false }
+    assertFalse(dispatchShortcut(KeyEvent.KEYCODE_B, KeyEvent.META_CTRL_ON))
+    assertEquals(initial, session.noteDraft.value)
+
+    composeRule.runOnUiThread { session.noteWritable.value = true }
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor()?.isEnabled == true }
+    readerCommand("reviews").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("review_instruction_editor").assertIsDisplayed().performClick()
+    assertFalse(dispatchShortcut(KeyEvent.KEYCODE_B, KeyEvent.META_CTRL_ON))
+    assertEquals("dialog shortcuts must not mutate the note draft", initial, session.noteDraft.value)
+  }
 
   @Test
   fun menuFormattingCommandsWrapSelectionAndSaveOnlyCurrentPage() {
@@ -652,6 +780,34 @@ class NoteMarkdownFormatActivityTest {
       composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag(commandTag).performScrollTo()
+  }
+
+  private fun readerCommand(id: String) = run {
+    val commandTag = "reader_menu_command_$id"
+    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
+      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
+      if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag(commandTag).performScrollTo()
+  }
+
+  private fun dispatchShortcut(keyCode: Int, modifiers: Int, repeatCount: Int = 0): Boolean {
+    val handled = AtomicBoolean(false)
+    val downTime = SystemClock.uptimeMillis()
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      val down = KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, keyCode, repeatCount, modifiers)
+      val up = KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, keyCode, 0, modifiers)
+      handled.set(composeRule.activity.dispatchKeyEvent(down))
+      composeRule.activity.dispatchKeyEvent(up)
+    }
+    return handled.get()
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {

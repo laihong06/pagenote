@@ -3783,16 +3783,26 @@ private fun ReaderHome(
     readerSession.launchSessionTask { changePage(target) }
   }
   val shortcutActivity = activityResultOwner as? MainActivity
-  DisposableEffect(shortcutActivity, activeProject?.manifest?.id, pageIndex, canChangePage, noteWritable, menuBusy) {
+  DisposableEffect(
+    shortcutActivity,
+    activeProject?.manifest?.id,
+    pageIndex,
+    canChangePage,
+    noteWritable,
+    menuBusy,
+    markdownEditor,
+  ) {
     val activity = shortcutActivity ?: return@DisposableEffect onDispose {}
     val handler: (KeyEvent) -> Boolean = handler@{ event ->
       if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@handler false
-      when (ReaderShortcutPolicy.action(
+      val action = ReaderShortcutPolicy.action(
         event.keyCode,
         alt = event.isAltPressed,
         control = event.isCtrlPressed,
         meta = event.isMetaPressed,
-      )) {
+        shift = event.isShiftPressed,
+      )
+      when (action) {
         ReaderShortcutAction.PREVIOUS_PAGE -> {
           if (!canChangePage || pageIndex == 0) return@handler false
           readerSession.launchSessionTask { changePage(pageIndex - 1) }
@@ -3806,6 +3816,22 @@ private fun ReaderHome(
         ReaderShortcutAction.SAVE_NOTE -> {
           if (activeProject == null || !noteWritable || menuBusy) return@handler false
           readerSession.launchSessionTask { saveCurrentNote() }
+          true
+        }
+        ReaderShortcutAction.FORMAT_BOLD,
+        ReaderShortcutAction.FORMAT_ITALIC,
+        ReaderShortcutAction.INSERT_LINK,
+        -> {
+          val editor = markdownEditor ?: return@handler false
+          if (!canFormatMarkdown || !editor.hasFocus() || !activity.hasWindowFocus() || activity.currentFocus !== editor) {
+            return@handler false
+          }
+          when (action) {
+            ReaderShortcutAction.FORMAT_BOLD -> applyMarkdownInlineFormatting(MarkdownInlineStyle.BOLD)
+            ReaderShortcutAction.FORMAT_ITALIC -> applyMarkdownInlineFormatting(MarkdownInlineStyle.ITALIC)
+            ReaderShortcutAction.INSERT_LINK -> applyMarkdownLinkInsertion()
+            else -> return@handler false
+          }
           true
         }
         null -> false
