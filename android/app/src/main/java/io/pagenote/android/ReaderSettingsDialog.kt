@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.darkColorScheme
@@ -170,6 +172,7 @@ internal fun ReaderSettingsDialog(
   var saveError by remember { mutableStateOf<String?>(null) }
   val scope = rememberCoroutineScope()
   val genericSaveError = stringResource(R.string.settings_save_failed)
+  val inkOutsidePageLabel = stringResource(R.string.ink_outside_page_title)
 
   AlertDialog(
     onDismissRequest = { if (!isSaving) onDismiss() },
@@ -286,6 +289,11 @@ internal fun ReaderSettingsDialog(
             checked = draft.allowInkOutsidePage,
             onCheckedChange = { draft = draft.copy(allowInkOutsidePage = it) },
             enabled = !isSaving,
+            modifier = Modifier
+              .testTag("allow_ink_outside_page_switch")
+              .semantics {
+                contentDescription = inkOutsidePageLabel
+              },
           )
         }
 

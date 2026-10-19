@@ -42,10 +42,10 @@
 
 **Files:** `feature-pen/PenCanvasGeometry.kt`, `PenCanvasView.kt`, `ReaderSettingsDialog.kt`, settings stores, and focused tests.
 
-- [ ] Run zoom/pan geometry and View stylus tests plus DataStore round-trip tests on the API 34 AVD.
-- [ ] Add a focused Reader Settings interaction regression for the outside-page switch if no existing test proves the visible control saves and restores it.
-- [ ] Add any missing failing test for render/input round-trip after zoom, clipping by default, and preserving visible-margin coordinates when enabled; implement only behavior exposed by those tests.
-- [ ] Run the focused `feature-pen` and app JVM tests, affected instrumentation, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
+- [x] Run zoom/pan geometry and View stylus tests plus DataStore round-trip tests on the API 34 AVD.
+- [x] Add a focused Reader Settings interaction regression for the outside-page switch; it verifies default-off, toggle, save, and restored state.
+- [x] Confirm existing geometry/View tests cover render/input round-trip after zoom, default clipping, and visible-margin coordinates when enabled; no additional runtime change was exposed.
+- [x] Run the focused `feature-pen` and app JVM tests, affected instrumentation, `:app:compileDebugAndroidTestKotlin`, `:app:assembleDebug`, and `git diff --check`.
 - [ ] Update SPEC/task evidence and changelog; commit and push this slice.
 
 ### Task 3: Automatic forward-page preparation
