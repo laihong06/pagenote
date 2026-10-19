@@ -7,6 +7,8 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
+import android.view.View
+import android.view.ViewGroup
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsEnabled
@@ -22,6 +24,9 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.core.project.PageNotes
+import io.pagenote.feature.pen.PenCanvasGeometry
+import io.pagenote.feature.pen.PenCanvasTool
+import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenPageStore
 import io.pagenote.feature.pen.PenPoint
 import io.pagenote.feature.pen.PenSide
@@ -33,6 +38,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 class InkSelectionClipboardActivityTest {
@@ -76,9 +82,17 @@ class InkSelectionClipboardActivityTest {
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().assertIsNotEnabled()
 
       selectInkTool()
-      val canvasSize = composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size
+      val nativeCanvasRef = AtomicReference<PenCanvasView>()
+      InstrumentationRegistry.getInstrumentation().runOnMainSync {
+        nativeCanvasRef.set(findPenCanvas(composeRule.activity.window.decorView) ?: error("ink canvas missing"))
+      }
+      val nativeCanvas = nativeCanvasRef.get()
+      composeRule.waitUntil(5_000) { nativeCanvas.selectedTool == PenCanvasTool.SELECT }
+      val geometry = PenCanvasGeometry(nativeCanvas.width.toFloat(), nativeCanvas.height.toFloat(), nativeCanvas.pageTransform)
+      val strokePoint = PenPoint(325f, 400f, 0.7f)
+      val touchPoint = Offset(geometry.toViewX(strokePoint), geometry.toViewY(strokePoint))
       composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput {
-        click(Offset(canvasSize.width * 0.325f, canvasSize.height * 0.30f))
+        click(touchPoint)
       }
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().assertIsEnabled()
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performClick()
@@ -113,6 +127,16 @@ class InkSelectionClipboardActivityTest {
 
   private fun selectInkTool() {
     composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+  }
+
+  private fun findPenCanvas(view: View): PenCanvasView? {
+    if (view is PenCanvasView) return view
+    if (view is ViewGroup) {
+      for (index in 0 until view.childCount) {
+        findPenCanvas(view.getChildAt(index))?.let { return it }
+      }
+    }
+    return null
   }
 
   private fun installFixture(resolver: android.content.ContentResolver) {

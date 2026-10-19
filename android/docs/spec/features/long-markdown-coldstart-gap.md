@@ -1,13 +1,12 @@
-# 长 Markdown 冷启动缺口（task 30 唯一剩余子项）
+# 长 Markdown 冷启动缺口（已验收）
 
-本文只记录 task 30（`android/docs/spec/tasks.md` task 30）尚未覆盖的缺口，不关闭 task 30，不修改任何测试与实现。
+本文记录 task 30 曾经未覆盖的冷进程缺口及其关闭证据；不表示小米 Pad 5 Pro 当前版本已重测。
 
 ## 结论
 
-- task 30 仍为未关闭状态（`tasks.md` 中为 `- [ ] 30`）。
-- task 30 的唯一剩余子项只有一条：**在 API 34 平板 AVD 上，对隔离的 69 页项目执行应用进程冷启动、恢复/跳转第 31 页、编辑和保存，确认无系统 ANR**。
-- 已有的三项合成回归全部通过，但**均未覆盖冷进程（系统进程死亡后重建）**，也**未使用原用户 PDF**，因此不能视为该剩余子项已完成。
-- 小米实机曾报告的冷启动 ANR 记为**未复现的环境差异**，不阻塞模拟器验收，也不作为已定位根因的证据。
+- task 30 已在 `android/docs/spec/tasks.md` 标为完成。
+- 冷进程缺口通过 API 34 平板 AVD 的真实 force-stop、冷启动、Recent 重开、IME 页码跳转、编辑保存及第二次冷启动闭环补齐。
+- 本次验收使用独立合成 fixture，不覆盖原用户 PDF；小米 Pad 5 Pro 当前修复版仍未重测。
 
 ## 已有覆盖（通过，但不覆盖冷进程）
 
@@ -19,22 +18,23 @@
 
 上述第三项使用的是测试内生成的最小合成 PDF（`minimalPdf`）与 SAF 测试 Provider，不是原用户 PDF；三项均未执行进程 kill / 冷进程重建。
 
-## 剩余子项的验收边界
+## 已完成子项的验收边界
 
 - 对象：隔离的 69 页验收副本（不得改动桌面原件与原用户 PDF）。
 - 动作：应用进程冷启动 → 恢复/跳转第 31 页 → 编辑 → 保存。
 - 通过标准：无系统 ANR 对话框，正文完整可编辑，保存回读后只有当前页的测试标记变化。
 - 环境：API 34 平板 AVD 可承担验收；不新增 OEM / API / 设备矩阵，不要求实体设备。
-- 记录口径：小米 Pad 5 Pro 冷启动 ANR 仍记为“未复现的环境差异”；`minikin::getNextWordBreakForCache` 仍是候选因素而非已证实根因（详见 `large-markdown-page-layout.md` 证据节）。
+- 验收记录与保存回读见 `long-markdown-anr-instrumentation.md` 和 `large-markdown-page-layout.md`。
+- 记录口径：小米 Pad 5 Pro 冷启动 ANR 仍记为“当前修复版未在该真机重测”；加入断点后 API 34 AVD 同一路径不再复现，静态排版是已观察到的触发路径，但各因素因果贡献未单独量化。
 
 ## 非目标
 
-- 不声称 task 30 已关闭。
-- 不把合成回归的通过结论外推为“冷启动已验证”或“原用户 PDF 已验证”。
+- 不把 AVD 通过外推为小米 Pad 5 Pro 当前修复版已验证。
+- 不把合成 fixture 结果外推为原用户 PDF 已验证。
 - 不修改 `NoteLongMarkdownEditorTest.kt`，不新增实现代码。
 
 ## 关联
 
-- 任务：`android/docs/spec/tasks.md` task 30。
-- 契约：`android/docs/spec/features/large-markdown-page-layout.md`（冷进程恢复另由 task 30 验收）。
-- 回归（只读）：`android/app/src/androidTest/java/io/pagenote/android/NoteLongMarkdownEditorTest.kt`（三项合成用例）。
+- 任务：`android/docs/spec/tasks.md` task 30（已关闭）。
+- 契约与验收证据：`android/docs/spec/features/large-markdown-page-layout.md`、`long-markdown-anr-instrumentation.md`。
+- 回归：`android/app/src/androidTest/java/io/pagenote/android/NoteLongMarkdownEditorTest.kt`（4 项 API 34 AVD 用例）。

@@ -124,14 +124,14 @@
   - [x] 原生设置面板与运行时生效，契约见 `features/reader-settings-ui.md`。
   - _Requirement: 布局与适配_
 
-- [ ] 12. Android 14 平板功能验收（产品目标为小米平板 5 Pro / 骁龙 870；单一 API 34 平板 AVD 可替代常规功能验收。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
+- [x] 12. Android 14 平板功能验收（产品目标为小米平板 5 Pro / 骁龙 870；单一 API 34 平板 AVD 可替代常规功能验收。此前 API 35/16 KB/其他 AVD 结果为历史证据，不是当前门槛）
   - [x] 小米平板 5 Pro / Android 14 实机：从应用打开 SAF 目录选择器并取消，返回应用且空项目状态不变；通过 SAF 打开隔离的 69 页副本，在第 31 页修改、保存、重载。重读副本确认唯一变化是第 31 页的验收标记，第 30/32 页不变，桌面原件只读未改。
-  - [ ] API 34 平板 AVD 确认批注/笔迹可保存并重载：各创建一条 PDF 批注与手写笔迹。用户实测主动笔基础书写和压感整体正常；侧键橡皮擦未单独测试，属于未验证硬件行为，不扩展常规矩阵。本轮 `feature-pen` 7/7、`PdfPageViewportNavigationTest` 1/1、`ReaderSettingsPagePrefetchTest` 1/1 通过。已知问题：`PdfAnnotationSelectionClipboardActivityTest.nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems` 在 Pixel_Tablet_API34 连续两次复现 `waitUntil(10s)` 超时（第 193 行），`endpointDwellPersistsNativeShapeAndUsesAnnotationUndoHistory` 通过；待按 SPEC 单独调查，不阻塞其他切片。
+  - [x] API 34 平板 AVD 批注/笔迹闭环：`PdfAnnotationSelectionClipboardActivityTest` 2/2、`InkSelectionClipboardActivityTest` 1/1；覆盖原生形状、笔迹保存/回读、复制/粘贴、移动/缩放、删除及撤销/重做。先前选择超时的根因是测试在原生画布切换 Select 前发出触摸，且用宽度比例构造了落在 PDF 页外的 y 坐标（映射 y=-77.33）；测试现等待工具同步，并以 PDF 页坐标经 `PenCanvasGeometry` 投影。出问题用例连续两次通过。用户实测主动笔基础书写与压感正常；侧键橡皮擦未单独测试，明确为非阻塞未验证硬件行为。
   - [x] 第 16 页图像页离线 OCR：包内 `pp-ocrv6-tiny-onnx` 返回 `ok` 和 13 个结果块；该页仅有 20 个原生文本字符并含大幅嵌入图像。Android 私有模型配置文件不存在，未配置 API Key，因此按条件未请求 AI 页讲解。
   - [x] PDF 线条批注和一条笔迹写入隔离项目；冷重开后 `annotations.json` 与重开前 SHA-256 完全一致。用户在 Xiaomi Pad 5 Pro 实测主动式手写笔书写及压感整体正常；此次自动化持久化动作使用 ADB 触控模拟，不代表自动化测过压感。
   - [ ] 手写笔侧键橡皮擦未单独测试；不影响用户已报告的基础书写与压感正常，也不作为常规功能验收阻塞。
-  - [ ] 冷启动重开项目后跳转第 31 页曾弹出系统“pagenote 没有响应”；选择等待后恢复。仅限 pagenote 的日志显示主线程输入超时，首个可见 native 栈帧为 `minikin::getNextWordBreakForCache`；根因未确认，需后续按 SPEC 调查。
-  - [ ] API 34 平板 AVD 构建/安装与代表性功能闭环；附件和使用说明命令已分别在 task 32/33 接通。Office 编辑仍是 Android 待实现项（task 36）；任何未实现命令不得归因于 Android 版本。
+  - [x] 旧版冷启动重开项目后跳转第 31 页曾出现系统输入超时；按 task 30 在 API 34 AVD 完成 69 页合成项目冷启动、真实 IME 跳页、编辑保存和再次重开，未再出现 ANR。小米实机未重测当前修复版，见 `features/large-markdown-page-layout.md`。
+  - [x] API 34 平板 AVD 安装 Debug 包并完成 PDF 批注、笔迹、分页笔记保存/回读、Recent 重开和 OCR 代表性闭环。附件和使用说明命令已分别在 task 32/33 接通。Office 本机编辑按 Android 移植范围回桌面端处理，不属于本验收门槛；任何未实现命令不得归因于 Android 版本。
   - 只确认上述闭环，不抽查多页或多种文档，不测压力曲线、延迟、边缘性能、电量、长时间稳定性，也不要求无端点配置时验证云请求。
   - 日常只运行受影响模块的直接相关契约/JVM 测试与 Debug 构建；UI/平台改动才在唯一 API 34 平板 AVD 上跑聚焦仪器测试。无需每次重跑完整套件；Markdown 预览使用 task 5.5 的单项测试和一张截图。
   - 不运行手机、其他 OEM、API 35 或 16 KB 设备矩阵。16 KB 页大小及公开商店合规检查仅在目标 SDK/商店政策触发时作为独立发布门禁。
@@ -267,13 +267,13 @@
   - 8 个聚焦批注剪贴板/几何 JVM 用例、批注 Activity 流程及既有笔迹剪贴板回归（各 1/1）在 `Pixel_Tablet_API34` 通过；HTML 批注由 task 38 额外覆盖。Android 测试源码编译、`:app:assembleDebug` 和 `git diff --check` 通过。小米 Pad 5 Pro 实机验收仍未完成。
   - _Requirement: 桌面批注选择/剪贴板语义一致、项目数据兼容_
 
-- [ ] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致；API 34 AVD 可承担验收）
+- [x] 30. 长 Markdown 页编辑布局与冷启动 ANR 回归（完整笔记含 39K+ 连续 token 时仍可交互，正文/选区/保存保持逐字符一致；API 34 AVD 可承担验收）
   - 以隔离的 69 页验收副本第 31 页复现；冷重开曾出现 pagenote 输入分发 ANR，首个可见 native 帧为 `minikin::getNextWordBreakForCache`，长 token 是待验证假设而非已确认根因。
-  - [x] API 34 平板 AVD 三项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 的真实阅读器页跳转/编辑/按页保存低于 5 秒，原文精确保留且第 30 页未变；最近项目重开恢复长页回归也通过。此合成测试未复现小米冷启动 ANR。
+  - [x] API 34 平板 AVD 四项聚焦 `NoteLongMarkdownEditorTest` 通过：40 KB 连续 token 布局、光标/复制映射、长文本粘贴、页跳转/编辑/保存及最近项目恢复均通过，原文精确保留且相邻页未变。
   - [x] API 34 平板 AVD 从“最近项目”真实重开 31 页 PDF 并恢复第 31 页 checkpoint；SAF 读写授权、长编辑器首轮布局/保存和相邻页隔离均通过，恢复低于 5 秒。此流程不模拟系统进程死亡。
   - [x] API 34 AVD 将最近项目恢复回归扩展到 69 页合成 PDF 与约 57 KB 的第 31 页 Markdown（含 40 KB 连续 token）；恢复、首轮布局、编辑和按页保存通过，恢复/布局低于 5 秒。未使用原用户 PDF，也不模拟系统进程死亡。
   - [x] 修正 PDF 位图替换后的 worker-thread 延迟回收：`Choreographer` 调用现派发至主 Looper，继续等待两个显示帧；无 Looper instrumentation 回归通过 1/1。
-  - [ ] 在 API 34 平板 AVD 对隔离的 69 页项目执行应用进程冷启动、恢复/跳转第 31 页、编辑和保存，确认无系统 ANR；小米实机曾报告的异常作为未复现的环境差异记录，不阻塞模拟器验收。
+  - [x] API 34 平板 AVD 真正 `force-stop` 后冷启动，从最近项目重开隔离的 69 页项目，经真实页码对话框和显示中的软键盘跳转第 31 页；输入法收起后长页在 5 秒内可交互，无 ANR 对话框或新 `Input dispatching timed out`。编辑并保存 `COLDSTART_PROBE_20261020` 后 Provider 回读为 69 页，第 31 页 57,337 字符且标记在末尾，第 30/32 页保持原文；再次冷启动和跳页后标记仍在。冷启动 Activity 分别为 661 ms 与 750 ms。小米 Pad 5 Pro 实机未在本次验收。
   - SPEC：`features/large-markdown-page-layout.md`。仅运行相关 Android 14 AVD 回归、受影响 JVM 测试和 Debug 构建；不要求实体设备。
   - _Requirement: 阅读与笔记、阅读器会话恢复_
 

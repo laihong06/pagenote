@@ -1,9 +1,8 @@
 # 长 Markdown ANR 仪器操作（task 30 冷启动验收步骤）
 
-本文只给出 task 30 唯一剩余子项的可执行仪器操作步骤，不含实现代码，不新增测试代码，不关闭 task 30。
+本文保留 task 30 冷启动验收的可重复步骤、合成 fixture 保留参数和已完成的 API 34 平板 AVD 验收记录。
 
-> task 30 在 `android/docs/spec/tasks.md` 中仍为 `- [ ] 30` 未关闭状态。本文不改变该状态。
-> `minikin::getNextWordBreakForCache` 仍是候选因素而非已证实根因；小米 Pad 5 Pro 冷启动 ANR 仍记为“未复现的环境差异”。
+> task 30 已依据下方 2026-10-20 API 34 AVD 冷启动、真实 IME 跳页、编辑保存与再次重开证据关闭。小米 Pad 5 Pro 真机未在本次验收，仍是设备环境差异。
 
 ## 目标
 
@@ -14,10 +13,19 @@
 
 ## 非目标
 
-- 不声称 task 30 已关闭。
-- 不把 `NoteLongMarkdownEditorTest.kt` 三项合成回归的通过结论外推为“冷启动已验证”。
+- 不把 AVD 通过外推为小米 Pad 5 Pro 真机已验证。
+- 不把合成 fixture 结果外推为原用户 PDF 的专项复测。
 - 不使用原用户 PDF，不改动桌面原件，不新增 OEM / API / 设备矩阵，不要求实体设备（无真机矩阵）。
-- 不修改 `NoteLongMarkdownEditorTest.kt`，不写实现代码。
+- fixture 保留参数默认关闭，常规测试仍清理 SAF grant 与最近项目记录。
+
+## 已完成验收记录
+
+- 日期：2026-10-20；环境：`Pixel_Tablet_API34`，Android 14/API 34，平板分辨率 2560x1600；包：`io.pagenote.android.debug`。
+- fixture：测试 Provider 生成的隔离 69 页合成项目，第 31 页 Markdown 57,337 字符，含 40,000 个连续 `A`；未读取或修改用户 PDF。
+- 两次 `am force-stop` 后均以 `LaunchState:COLD` 启动，Activity 启动时间分别为 661 ms、750 ms。Recent 打开后页码从第 1 页开始，按 SPEC 用真实页码对话框手动跳转第 31 页。
+- 页码输入时确认系统 IME 显示（`mInputShown=true`）；点 Go 后 IME 收起（`false`），应用进程存活，长页在 ANR 阈值内完成布局，无 ANR 对话框或新输入超时日志。
+- 真实编辑器追加并保存 `COLDSTART_PROBE_20261020`。Provider 回读确认项目仍为 69 页、第 31 页标记位于末尾，且第 30/32 页分别仍为 `Page 30 note` / `Page 32 note`；再次冷启动并跳页后界面仍显示该标记和完整长正文。
+- `NoteLongMarkdownEditorTest` 五项 API 34 instrumentation 回归通过，覆盖长 token 编辑/布局、光标映射、系统剪贴板复制/剪切/粘贴与分享、真实页跳转和 SAF 恢复保存。
 
 ## 前置条件
 
@@ -59,7 +67,7 @@
 
 1. 从“最近项目”选择隔离的 69 页验收副本进入阅读器（优先走真实“最近项目”恢复路径；若不支持，则经 SAF 打开同一副本并记录所用路径）。
 2. 记录恢复发起时刻 `R0`（点击副本时刻）。
-3. 等待阅读器恢复第 31 页 checkpoint；若自动恢复页不是第 31 页，则手动跳转到第 31 页，并记录“自动恢复页码”与“手动跳转”事实。
+3. 等待阅读器恢复第 31 页 checkpoint；若自动恢复页不是第 31 页，则手动跳转到第 31 页，并记录“自动恢复页码”与“手动跳转”事实。手动跳转须实际显示并收起页码输入软键盘；仅 Compose `performTextInput` 不覆盖 IME/insets 路径。
 4. 记录第 31 页首轮布局完成且可交互时刻 `R1`（编辑器可接受输入、光标可定位）。
 5. 计时：`T_restore = R1 - R0`，期望低于 5 秒（系统输入分发 ANR 阈值参照）。
 6. ANR 判定（任一成立即为不通过）：
@@ -109,7 +117,7 @@
 
 ## 关联（只读）
 
-- 任务：`android/docs/spec/tasks.md` task 30（未关闭，唯一剩余子项即本文目标）。
+- 任务：`android/docs/spec/tasks.md` task 30（已关闭；本文件保留复现步骤和验收记录）。
 - 契约：`android/docs/spec/features/large-markdown-page-layout.md`（行为、EARS、证据与假设）。
 - 缺口说明：`android/docs/spec/features/long-markdown-coldstart-gap.md`（三项合成回归通过但均未覆盖冷进程）。
 - 回归（只读引用，未修改）：`android/app/src/androidTest/java/io/pagenote/android/NoteLongMarkdownEditorTest.kt`。

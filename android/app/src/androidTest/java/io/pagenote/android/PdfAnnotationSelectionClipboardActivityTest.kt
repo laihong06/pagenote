@@ -26,7 +26,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.pen.PenPageStore
+import io.pagenote.feature.pen.PenCanvasGeometry
 import io.pagenote.feature.pen.PenCanvasView
+import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenPoint
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
@@ -43,6 +45,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
 
@@ -186,9 +189,37 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
       val canvas = composeRule.onNodeWithTag("pdf_ink_canvas")
-      val width = canvas.fetchSemanticsNode().size.width.toFloat()
+      val nativeCanvasRef = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread {
+        nativeCanvasRef.set(findPenCanvas(composeRule.activity.window.decorView) ?: error("ink canvas missing"))
+      }
+      val nativeCanvas = nativeCanvasRef.get()
+      composeRule.waitUntil(5_000) { nativeCanvas.selectedTool == PenCanvasTool.SELECT }
+      assertEquals("Select command must reach the native ink view before input", PenCanvasTool.SELECT, nativeCanvas.selectedTool)
+      val geometry = PenCanvasGeometry(nativeCanvas.width.toFloat(), nativeCanvas.height.toFloat(), nativeCanvas.pageTransform)
+      fun pageOffset(x: Float, y: Float): Offset {
+        val point = PenPoint(x, y, 1f)
+        return Offset(geometry.toViewX(point), geometry.toViewY(point))
+      }
+      val tapOffset = pageOffset(250f, 100f)
+      val existingPoint = requireNotNull(
+        geometry.toDocumentPoint(tapOffset.x, tapOffset.y, pressure = null, clampToPage = false),
+      )
+      val pageItems = annotations.readPage("document", 1)
+      val rectIndex = pageItems.indexOfFirst { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" }
+      val expectedHit = PdfAnnotationClipboard.hitTest(
+        pageItems,
+        existingPoint.x.toDouble(),
+        existingPoint.y.toDouble(),
+        geometry.documentUnitsForPixels(18f * context.resources.displayMetrics.density).toDouble(),
+      )
+      assertEquals(
+        "Hard-coded canvas tap mapped to $existingPoint, geometry=${nativeCanvas.pageTransform}, hit=$expectedHit",
+        rectIndex,
+        expectedHit,
+      )
       canvas.performTouchInput {
-        click(Offset(width * 0.25f, width * 0.10f))
+        click(tapOffset)
       }
       composeRule.waitUntil(10_000) {
         runCatching {
@@ -210,8 +241,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals("preserve", copied["custom"]?.toString()?.trim('"'))
 
       canvas.performTouchInput {
-        down(Offset(width * 0.20f, width * 0.09f))
-        moveTo(Offset(width * 0.24f, width * 0.13f), delayMillis = 500)
+        down(pageOffset(100f, 100f))
+        moveTo(pageOffset(140f, 140f), delayMillis = 500)
         up()
       }
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
@@ -236,8 +267,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
 
       canvas.performTouchInput {
-        down(Offset(width * 0.425f, width * 0.435f))
-        moveTo(Offset(width * 0.46f, width * 0.47f), delayMillis = 500)
+        down(pageOffset(425f, 435f))
+        moveTo(pageOffset(460f, 470f), delayMillis = 500)
         up()
       }
       waitForAnnotations(annotations) {
@@ -294,10 +325,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
       waitForAnnotations(annotations) { it.size == 6 }
       assertEquals("preserve", (annotations.readPage("document", 1)[5] as JsonObject)["custom"]?.jsonPrimitive?.content)
 
-      canvas.performTouchInput { click(Offset(width * 0.25f, width * 0.12f)) }
+      canvas.performTouchInput { click(pageOffset(100f, 100f)) }
       canvas.performTouchInput {
-        down(Offset(width * 0.25f, width * 0.12f))
-        moveTo(Offset(width * 0.30f, width * 0.17f), delayMillis = 500)
+        down(pageOffset(100f, 100f))
+        moveTo(pageOffset(150f, 150f), delayMillis = 500)
         up()
       }
       waitForAnnotations(annotations) {
@@ -337,7 +368,21 @@ class PdfAnnotationSelectionClipboardActivityTest {
     store: ProjectAnnotationStore,
     predicate: (JsonArray) -> Boolean,
   ) {
-    composeRule.waitUntil(10_000) { predicate(store.readPage("document", 1)) }
+    var lastReadError: IOException? = null
+    try {
+      composeRule.waitUntil(10_000) {
+        val page = try {
+          store.readPage("document", 1)
+        } catch (error: IOException) {
+          lastReadError = error
+          null
+        }
+        page?.let(predicate) == true
+      }
+    } catch (timeout: AssertionError) {
+      lastReadError?.let(timeout::addSuppressed)
+      throw timeout
+    }
   }
 
   private fun findPenCanvas(view: View): PenCanvasView? {

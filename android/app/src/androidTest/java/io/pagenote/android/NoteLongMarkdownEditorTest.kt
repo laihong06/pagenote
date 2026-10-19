@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -51,17 +52,36 @@ class NoteLongMarkdownEditorTest {
     val startedAt = SystemClock.elapsedRealtime()
     composeRule.runOnUiThread { session.noteDraft.value = markdown }
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      editor.isLaidOut && !editor.isLayoutRequested && editor.text.length == markdown.length
+      editor.isLaidOut && !editor.isLayoutRequested && editor.markdownSourceText() == markdown
     }
     composeRule.waitForIdle()
     val layoutElapsedMs = SystemClock.elapsedRealtime() - startedAt
     assertTrue("long note update and layout took ${layoutElapsedMs}ms", layoutElapsedMs < 5_000)
-    assertEquals(markdown, editor.text.toString())
-    assertEquals(markdown.length, editor.selectionStart)
+    assertTrue("long tokens should have invisible layout boundaries", editor.text.toString().contains("\u200e"))
+    assertEquals(markdown, editor.markdownSourceText())
+    assertEquals(markdown.length, editor.markdownSourceOffset(editor.selectionStart))
+    val tokenStart = markdown.indexOf("A".repeat(40_000))
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setMarkdownSourceSelection(tokenStart + 128, tokenStart + 384)
+      assertEquals(tokenStart + 128, editor.markdownSelectionStart())
+      assertEquals(tokenStart + 384, editor.markdownSelectionEnd())
+      assertTrue(editor.onTextContextMenuItem(android.R.id.copy))
+      assertTrue(editor.onTextContextMenuItem(android.R.id.cut))
+      assertEquals(
+        markdown.removeRange(tokenStart + 128, tokenStart + 384),
+        editor.markdownSourceText(),
+      )
+      assertTrue(editor.onTextContextMenuItem(android.R.id.paste))
+      assertEquals(markdown, editor.markdownSourceText())
+    }
+    val clipboard = InstrumentationRegistry.getInstrumentation().targetContext
+      .getSystemService(ClipboardManager::class.java)
+    assertEquals("A".repeat(256), clipboard?.primaryClip?.getItemAt(0)?.text?.toString())
+
     val editStartedAt = SystemClock.elapsedRealtime()
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
-      editor.setSelection(2, 8)
-      editor.text.insert(8, " edited")
+      editor.setMarkdownSourceSelection(8)
+      editor.replaceMarkdownSourceRange(8, 8, " edited")
     }
     val edited = markdown.replaceRange(8, 8, " edited")
     composeRule.waitUntil(timeoutMillis = 10_000) {
@@ -70,7 +90,7 @@ class NoteLongMarkdownEditorTest {
     composeRule.waitForIdle()
     val editElapsedMs = SystemClock.elapsedRealtime() - editStartedAt
     assertTrue("editing the long token took ${editElapsedMs}ms", editElapsedMs < 5_000)
-    assertEquals(edited, editor.text.toString())
+    assertEquals(edited, editor.markdownSourceText())
 
     composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
@@ -78,6 +98,36 @@ class NoteLongMarkdownEditorTest {
     }
     val saved = ProjectNoteStore(testResolver, project.notesUri).read()
     assertEquals(edited, NotePage.pageAt(saved, 1))
+    assertEquals("neighbor page", NotePage.pageAt(saved, 2))
+  }
+
+  @Test
+  fun pastingLongUnbrokenToken_keepsClipboardAndSavedMarkdownUnmodified() {
+    val notes = PageNotes.join(listOf("short note", "neighbor page"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findEditor("short note") != null }
+    val editor = requireNotNull(findEditor("short note"))
+    val pasted = "B".repeat(8_000)
+    val clipboard = InstrumentationRegistry.getInstrumentation().targetContext
+      .getSystemService(ClipboardManager::class.java)
+    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(null, pasted))
+
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.setMarkdownSourceSelection(0, editor.markdownSourceText().length)
+      assertTrue(editor.onTextContextMenuItem(android.R.id.paste))
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      session.noteDraft.value == pasted && editor.markdownSourceText() == pasted &&
+        editor.text.toString().contains("\u200e")
+    }
+    assertEquals(pasted.length, editor.markdownSourceOffset(editor.selectionStart))
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == pasted
+    }
+    val saved = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(pasted, NotePage.pageAt(saved, 1))
     assertEquals("neighbor page", NotePage.pageAt(saved, 2))
   }
 
@@ -106,7 +156,7 @@ class NoteLongMarkdownEditorTest {
     val jumpElapsedMs = SystemClock.elapsedRealtime() - startedAt
     assertTrue("jump to the long note took ${jumpElapsedMs}ms", jumpElapsedMs < 5_000)
     val editor = requireNotNull(findEditor(longNote))
-    assertEquals(longNote, editor.text.toString())
+    assertEquals(longNote, editor.markdownSourceText())
 
     val edited = longNote.replaceRange(8, 8, " edited")
     InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.text.insert(8, " edited") }
@@ -216,7 +266,7 @@ class NoteLongMarkdownEditorTest {
       val restoreElapsedMs = SystemClock.elapsedRealtime() - startedAt
       assertTrue("reopening and restoring page 31 took ${restoreElapsedMs}ms", restoreElapsedMs < 5_000)
       val editor = requireNotNull(findEditor(longNote))
-      assertEquals(longNote, editor.text.toString())
+      assertEquals(longNote, editor.markdownSourceText())
 
       val edited = longNote.replaceRange(8, 8, " edited")
       InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.text.insert(8, " edited") }
@@ -228,12 +278,23 @@ class NoteLongMarkdownEditorTest {
       val saved = ProjectNoteStore(testResolver, project.notesUri).read()
       assertEquals(edited, NotePage.pageAt(saved, 31))
       assertEquals("Page 30 note", NotePage.pageAt(saved, 30))
+      composeRule.runOnIdle { assertEquals(30, session.saveCheckpoint()?.pageIndex) }
     } finally {
-      runBlocking { store.recentProjects.first().forEach { store.remove(it) } }
-      appContext.contentResolver.releasePersistableUriPermission(
-        treeUri,
-        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-      )
+      if (InstrumentationRegistry.getArguments().getString("retain_long_markdown_fixture") == "true") {
+        val remaining = runBlocking { store.recentProjects.first() }
+        assertTrue(remaining.any { it.projectId == project.manifest.id })
+        assertTrue(
+          appContext.contentResolver.persistedUriPermissions.any {
+            it.uri == treeUri && it.isReadPermission && it.isWritePermission
+          },
+        )
+      } else {
+        runBlocking { store.recentProjects.first().forEach { store.remove(it) } }
+        appContext.contentResolver.releasePersistableUriPermission(
+          treeUri,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+      }
     }
   }
 
@@ -320,7 +381,7 @@ class NoteLongMarkdownEditorTest {
   }
 
   private fun findEditor(expectedText: String): EditText? =
-    findEditor()?.takeIf { it.text.toString() == expectedText }
+    findEditor()?.takeIf { it.markdownSourceText() == expectedText }
 
   private fun View.collectEditors(destination: MutableList<EditText>) {
     if (this is EditText) destination += this

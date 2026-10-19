@@ -2570,7 +2570,7 @@ private fun ReaderHome(
       pending.editor.isEnabled &&
       noteWritable &&
       noteDraft == pending.markdown &&
-      pending.editor.text.toString() == pending.markdown
+      pending.editor.markdownSourceText() == pending.markdown
 
   fun captureMarkdownImageInsertion(): PendingMarkdownImageInsertion? {
     val activeProject = project ?: return null
@@ -2578,7 +2578,7 @@ private fun ReaderHome(
     if (isImageImporting || isOpening || isCreatingProject || isRendering || isSaving || isPenSaving ||
       isOcrRunning || isAgentRunning || isPageTutorRunning || !noteWritable || !editor.isEnabled
     ) return null
-    val markdown = editor.text.toString()
+    val markdown = editor.markdownSourceText()
     if (markdown != noteDraft) return null
     return PendingMarkdownImageInsertion(
       project = activeProject,
@@ -2587,8 +2587,8 @@ private fun ReaderHome(
       pageIndex = pageIndex,
       editor = editor,
       markdown = markdown,
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
     )
   }
 
@@ -2636,8 +2636,8 @@ private fun ReaderHome(
           reference,
         )
         pending.editor.requestFocus()
-        pending.editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-        pending.editor.setSelection(edit.cursor)
+        pending.editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+        pending.editor.setMarkdownSourceSelection(edit.cursor)
         importedForCleanup = null
         noteStatus = null
       } catch (cancelled: CancellationException) {
@@ -2685,15 +2685,15 @@ private fun ReaderHome(
   fun captureNoteImportContext(): PendingNoteImportContext? {
     val activeProject = project ?: return null
     if (!noteWritable) return null
-    val editor = markdownEditor?.takeIf { it.isEnabled && it.text.toString() == noteDraft }
-    val markdown = editor?.text?.toString() ?: noteDraft
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+    val markdown = editor?.markdownSourceText() ?: noteDraft
     return PendingNoteImportContext(
       projectId = activeProject.manifest.id,
       sourceDirectoryUri = activeProject.sourceDirectoryUri,
       pageIndex = pageIndex,
       markdown = markdown,
-      selectionStart = editor?.selectionStart ?: markdown.length,
-      selectionEnd = editor?.selectionEnd ?: markdown.length,
+      selectionStart = editor?.markdownSelectionStart() ?: markdown.length,
+      selectionEnd = editor?.markdownSelectionEnd() ?: markdown.length,
     )
   }
 
@@ -2817,12 +2817,12 @@ private fun ReaderHome(
         append(pending.markdown, edit.replaceEnd, pending.markdown.length)
       }
       val editor = markdownEditor?.takeIf {
-        it.isEnabled && it.text.toString() == pending.markdown
+        it.isEnabled && it.markdownSourceText() == pending.markdown
       }
       if (editor != null) {
         editor.requestFocus()
-        editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-        editor.setSelection(edit.cursor)
+        editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+        editor.setMarkdownSourceSelection(edit.cursor)
       } else {
         readerSession.setNoteDraft(updated)
         noteEditRequest++
@@ -3377,15 +3377,15 @@ private fun ReaderHome(
   fun applyMarkdownHistory(undo: Boolean) {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
-    val current = editor.text.toString()
+    val current = editor.markdownSourceText()
     val restored = if (undo) markdownHistory.undo(current) else markdownHistory.redo(current)
     markdownHistoryRevision++
     if (restored == null) return
     isApplyingMarkdownHistory = true
     try {
       editor.requestFocus()
-      editor.text.replace(0, editor.text.length, restored)
-      editor.setSelection(restored.length)
+      editor.setMarkdownSourceText(restored)
+      editor.setMarkdownSourceSelection(restored.length)
     } finally {
       isApplyingMarkdownHistory = false
     }
@@ -3395,100 +3395,101 @@ private fun ReaderHome(
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     val edit = MarkdownInlineFormatting.wrapSelection(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
       style = style,
       placeholder = context.getString(R.string.reader_menu_format_placeholder),
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.selectionStart, edit.selectionEnd)
   }
 
   fun applyMarkdownParagraphFormatting(prefix: MarkdownParagraphPrefix) {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     val edit = MarkdownParagraphFormatting.prefixLines(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
       prefix = prefix,
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.cursor)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.cursor)
   }
 
   fun applyMarkdownCodeBlockInsertion() {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     val edit = MarkdownCodeBlockInsertion.createEdit(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
       placeholder = context.getString(R.string.reader_menu_code_placeholder),
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.selectionStart, edit.selectionEnd)
   }
 
   fun applyMarkdownFormulaInsertion() {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     val edit = MarkdownFormulaInsertion.createEdit(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.selectionStart, edit.selectionEnd)
   }
 
   fun applyMarkdownTableInsertion() {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     val edit = MarkdownTableInsertion.createEdit(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.cursor)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.cursor)
   }
 
   fun applyMarkdownLinkInsertion() {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     val edit = MarkdownLinkInsertion.createEdit(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
       placeholder = context.getString(R.string.reader_menu_link_placeholder),
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.selectionStart, edit.selectionEnd)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.selectionStart, edit.selectionEnd)
   }
 
   fun applyMarkdownClipboardCommand(cut: Boolean) {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
-    val length = editor.text.length
-    val start = minOf(editor.selectionStart, editor.selectionEnd).coerceIn(0, length)
-    val end = maxOf(editor.selectionStart, editor.selectionEnd).coerceIn(0, length)
+    val markdown = editor.markdownSourceText()
+    val length = markdown.length
+    val start = minOf(editor.markdownSelectionStart(), editor.markdownSelectionEnd()).coerceIn(0, length)
+    val end = maxOf(editor.markdownSelectionStart(), editor.markdownSelectionEnd()).coerceIn(0, length)
     if (start == end) return
     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-    val selectedText = editor.text.subSequence(start, end).toString()
+    val selectedText = markdown.substring(start, end)
     val label = context.getString(if (cut) R.string.reader_menu_cut else R.string.reader_menu_copy)
     clipboard.setPrimaryClip(ClipData.newPlainText(label, selectedText))
     if (cut) {
       editor.requestFocus()
-      editor.text.delete(start, end)
-      editor.setSelection(start)
+      editor.replaceMarkdownSourceRange(start, end, "")
+      editor.setMarkdownSourceSelection(start)
     }
   }
 
@@ -3496,7 +3497,7 @@ private fun ReaderHome(
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
     editor.requestFocus()
-    editor.setSelection(0, editor.text.length)
+    editor.setMarkdownSourceSelection(0, editor.markdownSourceText().length)
   }
 
   fun pasteMarkdownFromClipboard() {
@@ -3513,14 +3514,14 @@ private fun ReaderHome(
       return
     }
     val edit = NoteImportPayload.insertText(
-      markdown = editor.text.toString(),
-      selectionStart = editor.selectionStart,
-      selectionEnd = editor.selectionEnd,
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
       text = text,
     )
     editor.requestFocus()
-    editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-    editor.setSelection(edit.cursor)
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.cursor)
     noteStatus = null
   }
 
@@ -3547,17 +3548,17 @@ private fun ReaderHome(
       entry.assetName.substringBeforeLast('.'),
       entry.assetName,
     )
-    val editor = markdownEditor?.takeIf { it.isEnabled && it.text.toString() == noteDraft }
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
     if (editor != null) {
       val edit = NoteImportPayload.insertText(
         markdown = noteDraft,
-        selectionStart = editor.selectionStart,
-        selectionEnd = editor.selectionEnd,
+        selectionStart = editor.markdownSelectionStart(),
+        selectionEnd = editor.markdownSelectionEnd(),
         text = reference,
       )
       editor.requestFocus()
-      editor.text.replace(edit.replaceStart, edit.replaceEnd, edit.replacement)
-      editor.setSelection(edit.cursor)
+      editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+      editor.setMarkdownSourceSelection(edit.cursor)
     } else {
       val edit = NoteImportPayload.insertText(
         markdown = noteDraft,
@@ -4633,13 +4634,13 @@ private fun ReaderHome(
               onReload = ::reloadCurrentNote,
               onSelectionChanged = { noteSelection = it },
               onEditorViewAttached = {
-                markdownHistory.reset(it.text.toString())
+                markdownHistory.reset(it.markdownSourceText())
                 markdownHistoryRevision++
                 markdownEditor = it
               },
               onEditorViewReleased = { released ->
                 if (markdownEditor === released) {
-                  markdownHistory.reset(released.text.toString())
+                  markdownHistory.reset(released.markdownSourceText())
                   markdownHistoryRevision++
                   markdownEditor = null
                 }
@@ -4752,13 +4753,13 @@ private fun ReaderHome(
               onReload = ::reloadCurrentNote,
               onSelectionChanged = { noteSelection = it },
               onEditorViewAttached = {
-                markdownHistory.reset(it.text.toString())
+                markdownHistory.reset(it.markdownSourceText())
                 markdownHistoryRevision++
                 markdownEditor = it
               },
               onEditorViewReleased = { released ->
                 if (markdownEditor === released) {
-                  markdownHistory.reset(released.text.toString())
+                  markdownHistory.reset(released.markdownSourceText())
                   markdownHistoryRevision++
                   markdownEditor = null
                 }
@@ -6640,18 +6641,12 @@ internal fun NotePanel(
           AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { viewContext ->
-              object : EditText(viewContext) {
-                override fun onSelectionChanged(selStart: Int, selEnd: Int) {
-                  super.onSelectionChanged(selStart, selEnd)
+              LongTokenMarkdownEditText(viewContext).apply {
+                onMarkdownSelectionChanged = { selStart, selEnd ->
                   selectionCallback.value(
-                    if (selStart >= 0 && selEnd >= 0 && selStart != selEnd) {
-                      TextRange(selStart, selEnd)
-                    } else {
-                      null
-                    },
+                    if (selStart != selEnd) TextRange(selStart, selEnd) else null,
                   )
                 }
-              }.apply {
                 tag = "note_markdown_editor"
                 gravity = Gravity.TOP or Gravity.START
                 inputType = InputType.TYPE_CLASS_TEXT or
@@ -6662,8 +6657,8 @@ internal fun NotePanel(
                 backgroundTintList = ColorStateList.valueOf(outlineColor)
                 isEnabled = writable && !saving && content.page == page
                 setPadding(12, 10, 12, 10)
-                setText(content.markdown)
-                setSelection(text.length)
+                setMarkdownSourceText(content.markdown)
+                setMarkdownSourceSelection(content.markdown.length)
                 addTextChangedListener(
                   MarkwonEditorTextWatcher.withPreRender(markwonEditor, executor, this),
                 )
@@ -6671,12 +6666,17 @@ internal fun NotePanel(
                   private var previousMarkdown = ""
 
                   override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                    previousMarkdown = s?.toString().orEmpty()
+                    if (!(this@apply).isSettingMarkdownSource) {
+                      previousMarkdown = markdownSourceText()
+                    }
                   }
-                  override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                  override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    (this@apply).noteMarkdownTextChanged(before, count)
+                  }
                   override fun afterTextChanged(editable: Editable?) {
-                    if (content.page == page) {
-                      val updatedMarkdown = editable?.toString().orEmpty()
+                    if (!(this@apply).isSettingMarkdownSource && content.page == page) {
+                      (this@apply).refreshBreakHintsIfNeeded()
+                      val updatedMarkdown = markdownSourceText()
                       if (previousMarkdown != updatedMarkdown) {
                         markdownMutationCallback.value(previousMarkdown, updatedMarkdown)
                       }
@@ -6691,11 +6691,11 @@ internal fun NotePanel(
               editText.backgroundTintList = ColorStateList.valueOf(outlineColor)
               editText.textSize = noteFontSize.toFloat()
               editText.isEnabled = writable && !saving && content.page == page
-              if (editText.text.toString() != content.markdown) {
+              if (editText.markdownSourceText() != content.markdown) {
                 selectionCallback.value(null)
-                editText.setText(content.markdown)
-                editText.setSelection(editText.text.length)
-                editorTextResetCallback.value(editText.text.toString())
+                editText.setMarkdownSourceText(content.markdown)
+                editText.setMarkdownSourceSelection(content.markdown.length)
+                editorTextResetCallback.value(editText.markdownSourceText())
               }
             },
             onRelease = { editor -> editorReleasedCallback.value(editor) },

@@ -1,31 +1,24 @@
-# Task 12 剩余验收收敛（未关闭）
+# Task 12 验收记录（已关闭）
 
-> 状态声明：本文仅收敛 `../tasks.md` task 12 的剩余验收条目，**不声称 task 12 已关闭**。
+> 状态声明：`../tasks.md` task 12 已按下述限定范围关闭。本文保留验收结果及未测试硬件边界。
 > 只读依据：`../tasks.md` task 12、task 30；`desktop-parity-gap-audit.md`；`desktop-command-checklist.md`。
-> 本文件为验收口径文档，不修改任何实现与既有 SPEC 结论。
+> Office 本机编辑按获批 Android 移植范围回桌面端处理；本记录不声明 Android 具有 Office 编辑能力，也不改变 task 36/37 的独立状态。
 
 ## 1. API 34 平板 AVD 批注/笔迹保存重载闭环
 
 - 在唯一 API 34 平板 AVD（`Pixel_Tablet_API34`）确认：各创建一条 PDF 批注与手写笔迹，可保存并重载。
-- 本轮相关通过项：`feature-pen` 7/7、`PdfPageViewportNavigationTest` 1/1、`ReaderSettingsPagePrefetchTest` 1/1。
-- 已知 flake（不阻塞其他切片，待按 SPEC 单独调查）：
-  - `PdfAnnotationSelectionClipboardActivityTest.nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems`
-    在 `Pixel_Tablet_API34` 连续两次复现 `waitUntil(10s)` 超时（第 193 行）。
-  - 同文件 `endpointDwellPersistsNativeShapeAndUsesAnnotationUndoHistory` 通过。
+- 2026-10-20 `PdfAnnotationSelectionClipboardActivityTest` 2/2、`InkSelectionClipboardActivityTest` 1/1 通过；覆盖形状 dwell、批注与笔迹共存、存储回读、剪贴板、移动/缩放、删除和页级撤销/重做。
+- 先前 `nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems` 连续两次超时。单项诊断发现触摸前 `PenCanvasView.selectedTool` 仍为 `PEN`；并将 `[width*0.25, width*0.10]` 映射到页外 y=-77.33。测试现等待原生 Select 状态，并将选择/移动/缩放触点由 PDF 页坐标转换为画布坐标；批注类 2/2 通过，原失败用例随后连续两次通过。未改生产批注行为。
 
 ## 2. 冷启动第 31 页 ANR 根因（归 task 30）
 
-- 现象：冷启动重开项目后跳转第 31 页，曾弹出系统“pagenote 没有响应”；选择等待后恢复。
-- 已知信息：仅限 pagenote 的日志显示主线程输入超时，首个可见 native 栈帧为
-  `minikin::getNextWordBreakForCache`；根因未确认。
-- 归属：根因调查归 task 30（`features/large-markdown-page-layout.md`），不计入本文件第 1/3 条的常规功能闭环门槛。
-- task 30 的 API 34 合成回归（`NoteLongMarkdownEditorTest`、最近项目重开恢复、69 页合成恢复等）未复现小米冷启动 ANR，
-  仅作为环境差异记录。
+- 旧版冷启动重开后跳转第 31 页曾发生输入分发超时，首个可见 native 栈帧为 `minikin::getNextWordBreakForCache`。
+- task 30 已在 API 34 AVD 完成真正 `force-stop` 冷启动、真实 IME 页码跳转、编辑/保存及再次冷启动验证；本轮无系统 ANR 或新的输入超时。回归只覆盖隔离合成 fixture，不代表小米 Pad 5 Pro 已重测当前版本。
 
 ## 3. 代表性功能闭环与 Office 待实现声明
 
-- API 34 平板 AVD 构建/安装与代表性功能闭环；附件和使用说明命令已分别在 task 32/33 接通。
-- Office 编辑仍是 Android 待实现项（归 task 36）：`office_edit` / `save_return`
+- API 34 平板 AVD 安装 Debug 包，并完成批注、笔迹、逐页 Markdown 保存/回读、Recent 重开和离线 OCR 代表性闭环；附件和使用说明命令已分别在 task 32/33 接通。
+- Office 编辑按获批 Android 移植范围回桌面端处理（独立 parity 任务归 task 36）：`office_edit` / `save_return`
   在 `desktop-command-checklist.md` 与 `desktop-parity-gap-audit.md` 中均为明确未接线 `pendingCommand()` 占位，
   终态结论归 task 37。任何未实现命令不得归因于 Android 版本。
 - 范围限定：只确认上述闭环，不抽查多页或多种文档，不测压力曲线、延迟、边缘性能、电量、长时间稳定性，
