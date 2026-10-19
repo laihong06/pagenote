@@ -397,6 +397,9 @@ private fun ReaderHome(
     onDispose { systemClipboard?.removePrimaryClipChangedListener(listener) }
   }
   val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
+  val promptSettingsStore = remember(context.applicationContext) {
+    agentPromptSettingsStore(context.applicationContext)
+  }
   val recentProjects by produceState(
     initialValue = emptyList<RecentProjectEntry>(),
     key1 = recentProjectStore,
@@ -487,6 +490,7 @@ private fun ReaderHome(
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
+  var showAgentPromptSettings by remember { mutableStateOf(false) }
   var showPageTutor by remember { mutableStateOf(false) }
   var pageTutorRegionContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
   var pageTutorInstruction by remember {
@@ -1768,6 +1772,9 @@ private fun ReaderHome(
           currentSource = loaded.first
           neighbors = loaded.second
         }
+        val promptModules = withContext(Dispatchers.IO) {
+          promptSettingsStore.readModules(AgentPromptRouting.forPageTutor())
+        }
         val result = pageTutor.explain(
           endpoint = endpoint,
           request = PageTutorRequest(
@@ -1781,6 +1788,7 @@ private fun ReaderHome(
             sourceWarnings = currentSource.warnings,
             neighbors = neighbors,
             focus = focusContext?.focus,
+            promptModules = promptModules.map { it.id to it.text },
           ),
         )
         if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex ||
@@ -1944,7 +1952,11 @@ private fun ReaderHome(
       activeRenderer,
       targetPage,
     )
-    return agentRunner.run(input.task, endpoint, input.messages, LocalToolDispatcher(handlers))
+    val promptModules = withContext(Dispatchers.IO) {
+      promptSettingsStore.readModules(AgentPromptRouting.forAgentTask(instruction))
+    }
+    val messages = AgentPromptComposition.append(input.messages, promptModules)
+    return agentRunner.run(input.task, endpoint, messages, LocalToolDispatcher(handlers))
   }
 
   fun runAgentTask(instruction: String) {
@@ -5049,6 +5061,10 @@ private fun ReaderHome(
         showSettings = false
         showAgentModelSettings = true
       },
+      onConfigurePrompts = {
+        showSettings = false
+        showAgentPromptSettings = true
+      },
       onSave = settingsStore::save,
     )
   }
@@ -5106,6 +5122,12 @@ private fun ReaderHome(
     AgentModelSettingsDialog(
       store = modelSettingsStore,
       onDismiss = { showAgentModelSettings = false },
+    )
+  }
+  if (showAgentPromptSettings) {
+    AgentPromptSettingsDialog(
+      store = promptSettingsStore,
+      onDismiss = { showAgentPromptSettings = false },
     )
   }
   if (showRecentProjectsDialog) {

@@ -377,9 +377,10 @@
   - `HtmlToMarkdownTest` 5/5、API 34 Pixel Tablet `NoteMarkdownClipboardActivityTest` 3/3；`:app:assembleDebug` 通过，arm64 Debug APK 的 16 KB LOAD 段及 ZIP 对齐检查通过。
   - SPEC：`features/desktop-semantic-parity.md` §46、`features/markdown-rich-clipboard-paste.md`；实施计划：`markdown-clipboard-paste-plan.md`。
 
-- [ ] 47. AI 提示词模块编辑
+- [x] 47. AI 提示词模块编辑
   - 模型设置对齐桌面模块列表，支持逐模块修改、保存和恢复内置默认；Agent 后续读取应用本地覆盖值。
   - 提示词覆盖与 endpoint/model/key 分开保存，校验失败不覆盖最后有效内容。
+  - `AgentPromptCustomizationTest` 6/6、`PageTutorTest` 13/13；API 34 Pixel Tablet `AgentPromptSettingsDialogTest` 3/3（模块切换保留草稿、保存/恢复、空白拒绝、六个 APK 默认提示词可读）；Debug APK 构建及 16 KB 对齐检查通过。
   - SPEC：`features/desktop-semantic-parity.md` §47、`features/agent-prompt-customization.md`；实施计划：`agent-prompt-customization-plan.md`。
 
 - [ ] 48. Markdown 阅读主题独立设置

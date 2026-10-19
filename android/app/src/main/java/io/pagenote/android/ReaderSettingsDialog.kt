@@ -165,6 +165,7 @@ internal fun ReaderSettingsDialog(
   settings: ReaderSettings,
   onDismiss: () -> Unit,
   onConfigureAgent: () -> Unit,
+  onConfigurePrompts: () -> Unit = {},
   onSave: suspend (ReaderSettings) -> Unit,
 ) {
   var draft by remember(settings) { mutableStateOf(settings) }
@@ -325,6 +326,33 @@ internal fun ReaderSettingsDialog(
             }
           },
         ) { Text(stringResource(R.string.agent_model_settings_action)) }
+
+        TextButton(
+          modifier = Modifier.fillMaxWidth().testTag("configure_agent_prompts"),
+          enabled = !isSaving,
+          onClick = {
+            scope.launch {
+              isSaving = true
+              saveError = null
+              try {
+                ReaderSettingsPolicy.validate(draft)
+                onSave(draft)
+                onDismiss()
+                onConfigurePrompts()
+              } catch (cancelled: CancellationException) {
+                throw cancelled
+              } catch (error: Exception) {
+                saveError = if (error is IllegalArgumentException) {
+                  genericSaveError
+                } else {
+                  error.message?.takeIf(String::isNotBlank) ?: genericSaveError
+                }
+              } finally {
+                isSaving = false
+              }
+            }
+          },
+        ) { Text(stringResource(R.string.agent_prompt_settings_action)) }
 
         saveError?.let {
           Text(
