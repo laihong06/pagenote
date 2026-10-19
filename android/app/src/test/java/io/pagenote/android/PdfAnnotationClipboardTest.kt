@@ -3,6 +3,8 @@ package io.pagenote.android
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -111,6 +113,70 @@ class PdfAnnotationClipboardTest {
 
     assertEquals(json.parseToJsonElement("[[15.0,10.0],[95.0,130.0]]"), resized["points"])
     assertEquals("keep", (resized["custom"] as kotlinx.serialization.json.JsonPrimitive).content)
+  }
+
+  @Test
+  fun selectedStylePatchPreservesLatestUnselectedItemsAndRejectsStaleTargets() {
+    val selected = item("""
+      {"type":"rect","color":"#185abd","width":4,"points":[[10,20],[50,80]],"custom":"keep"}
+    """)
+    val latestLine = item("""
+      {"type":"line","color":"#dc3545","width":7,"points":[[100,120],[150,180]],"concurrent":"keep"}
+    """)
+    val latest = JsonArray(listOf(selected, latestLine))
+
+    val updated = PdfAnnotationClipboard.updateSelectedStyle(
+      latest,
+      index = 0,
+      expected = selected,
+      color = "#2e7d32",
+    )!!
+
+    val updatedRect = updated[0] as JsonObject
+    assertEquals("#2e7d32", updatedRect["color"]?.jsonPrimitive?.content)
+    assertEquals(4.0, updatedRect["width"]?.jsonPrimitive?.doubleOrNull!!, 0.0)
+    assertEquals("keep", updatedRect["custom"]?.jsonPrimitive?.content)
+    assertEquals(latestLine, updated[1])
+    assertNull(PdfAnnotationClipboard.updateSelectedStyle(
+      JsonArray(listOf(latestLine)),
+      index = 0,
+      expected = selected,
+      color = "#2e7d32",
+    ))
+  }
+
+  @Test
+  fun equivalentSelectedStyleIsANoopAndFreehandCannotBeEditedAsNativeAnnotation() {
+    val uppercase = item("""
+      {"type":"rect","color":"#AABBCC","width":4,"points":[[10,20],[50,80]]}
+    """)
+    val page = JsonArray(listOf(uppercase))
+
+    assertEquals(page, PdfAnnotationClipboard.updateSelectedStyle(
+      page,
+      index = 0,
+      expected = uppercase,
+      color = "#aabbcc",
+      width = 4.0,
+    ))
+
+    val freehand = item("""
+      {"type":"pen","color":"#AABBCC","width":4,"points":[[10,20]]}
+    """)
+    assertNull(PdfAnnotationClipboard.updateSelectedStyle(
+      JsonArray(listOf(freehand)),
+      index = 0,
+      expected = freehand,
+      color = "#ff0000",
+    ))
+  }
+
+  @Test
+  fun selectedAnnotationIndexTracksDeletionBeforeOrAtSelection() {
+    assertEquals(0, PdfAnnotationClipboard.selectedIndexAfterDeletion(selectedIndex = 1, deletedIndex = 0))
+    assertNull(PdfAnnotationClipboard.selectedIndexAfterDeletion(selectedIndex = 1, deletedIndex = 1))
+    assertEquals(1, PdfAnnotationClipboard.selectedIndexAfterDeletion(selectedIndex = 1, deletedIndex = 2))
+    assertNull(PdfAnnotationClipboard.selectedIndexAfterDeletion(selectedIndex = null, deletedIndex = 0))
   }
 
   @Test

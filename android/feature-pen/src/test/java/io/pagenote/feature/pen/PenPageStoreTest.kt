@@ -129,12 +129,13 @@ class PenPageStoreTest {
   @Test
   fun invalidOrUnchangedSelectedStyleDoesNotCreateHistory() {
     val store = PenPageStore()
-    val original = stroke()
+    val original = stroke(color = "#ABCDEF")
     store.addStroke(PenSide.DOCUMENT, 1, original)
     store.loadAnnotationsMap(store.toAnnotationsMap())
 
     assertFalse(store.updateStyle(PenSide.DOCUMENT, 1, 4, color = "#00ff00"))
     assertFalse(store.updateStyle(PenSide.DOCUMENT, 1, 0, color = original.color, width = original.width))
+    assertFalse(store.updateStyle(PenSide.DOCUMENT, 1, 0, color = "#abcdef", width = original.width))
     assertThrows(IllegalArgumentException::class.java) {
       store.updateStyle(PenSide.DOCUMENT, 1, 0, color = "invalid", width = 6.0)
     }

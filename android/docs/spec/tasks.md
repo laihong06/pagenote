@@ -360,7 +360,8 @@
 - [x] 44. 编辑已选中批注的颜色与宽度
   - 选择一条自由笔迹或一个原生 PDF 批注后，通过现有颜色/宽度控件修改所选项；保留未知 JSON 字段和当前活动绘制样式。
   - 颜色与宽度分别进入对应页的原生撤销/重做历史；无选择时仅改变后续绘制样式。
-  - `PenPageStore` 与 app JVM 测试通过；API 34 平板 AVD `PdfAnnotationSelectionClipboardActivityTest` 2/2 验证原生批注和自由笔迹的独立属性更新、保存、撤销/重做；Debug APK 已构建。
+  - 在保存互斥锁内基于最新页数据只补丁未变化的目标项；保留其他并发页项目。列表删除所选项时清除选择，删除更早项目时平移索引，避免样式误套到相邻项目；等价颜色不产生历史记录。
+  - `PenPageStore` 与 app JVM 测试通过，含等价颜色无操作与删除索引映射；API 34 平板 AVD `PdfAnnotationSelectionClipboardActivityTest` 2/2 验证原生批注和自由笔迹的独立属性更新、并发字段保留、保存、撤销/重做；Debug APK 已构建。
   - SPEC：`features/desktop-semantic-parity.md` §44、`features/pen-style-controls.md`。
 
 - [ ] 45. 打开独立 PDF 与 Markdown 文件

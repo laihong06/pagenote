@@ -227,6 +227,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
         }.isSuccess
       }
 
+      val latestPage = annotations.readPage("document", 1)
+      val latestLine = JsonObject((latestPage[1] as JsonObject) + ("concurrent" to JsonPrimitive("preserve")))
+      annotations.writePage("document", 1, JsonArray(listOf(latestPage[0], latestLine, latestPage[2])))
+
       composeRule.onNodeWithTag("reader_menu_command_ink_color").performScrollTo().performClick()
       composeRule.onNodeWithTag("ink_color_swatch_red").performClick()
       composeRule.onNodeWithTag("ink_color_apply").performClick()
@@ -245,6 +249,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       assertEquals("preserve", (annotations.readPage("document", 1)[0] as JsonObject)["custom"]?.jsonPrimitive?.content)
       assertEquals("#dc3545", (annotations.readPage("document", 1)[1] as JsonObject)["color"]?.jsonPrimitive?.content)
+      assertEquals("preserve", (annotations.readPage("document", 1)[1] as JsonObject)["concurrent"]?.jsonPrimitive?.content)
       waitForEnabledCommand("reader_menu_command_pen_undo")
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {

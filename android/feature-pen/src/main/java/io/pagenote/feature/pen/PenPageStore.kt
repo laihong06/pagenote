@@ -61,11 +61,11 @@ class PenPageStore(
     val list = pages[side]?.get(page) ?: return false
     val current = list.getOrNull(index) ?: return false
     val updated = current.copy(
-      color = color ?: current.color,
+      color = color?.takeUnless { current.color.equals(it, ignoreCase = true) } ?: current.color,
       width = width ?: current.width,
     )
     PenValidation.validate(updated, page)
-    if (updated == current) return false
+    if (updated.color == current.color && updated.width == current.width) return false
     snapshot(side, page)
     list[index] = updated
     return true

@@ -879,6 +879,7 @@ private fun ReaderHome(
     selectedAfter: Int? = null,
     recordHistory: Boolean = true,
     appendItem: JsonElement? = null,
+    transformLatest: ((JsonArray) -> JsonArray?)? = null,
     onFailure: (() -> Unit)? = null,
   ) {
     val targetProject = project ?: return
@@ -886,6 +887,8 @@ private fun ReaderHome(
     var committedBefore = before
     var committedAfter = after
     var committedSelection = selectedAfter
+    var shouldCommit = true
+    var selectionWasStale = false
     isAnnotationSaving = true
     penStatus = context.getString(R.string.annotation_saving)
     scope.launch {
@@ -906,8 +909,38 @@ private fun ReaderHome(
             }
             committedAfter = JsonArray(committedBefore + appendItem)
             committedSelection = committedAfter.lastIndex
+          } else if (transformLatest != null) {
+            committedBefore = withContext(Dispatchers.IO) {
+              store.readPage("document", targetPage)
+            }
+            val transformed = transformLatest(committedBefore)
+            if (transformed == null) {
+              shouldCommit = false
+              selectionWasStale = true
+              return@withLock
+            }
+            committedAfter = transformed
+            if (committedAfter == committedBefore) {
+              shouldCommit = false
+              return@withLock
+            }
           }
-          withContext(Dispatchers.IO) { store.writePage("document", targetPage, committedAfter) }
+          if (shouldCommit) {
+            withContext(Dispatchers.IO) { store.writePage("document", targetPage, committedAfter) }
+          }
+        }
+        if (!shouldCommit) {
+          if (readerSession.project.value?.manifest?.id == targetProjectId &&
+            readerSession.pageIndex.intValue + 1 == targetPage
+          ) {
+            annotationPageItems = committedBefore
+            annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(committedBefore)
+            selectedAnnotationIndex = if (selectionWasStale) null else committedSelection
+            selectedPenIndex = null
+            annotationOverlayReload++
+          }
+          if (selectionWasStale) penStatus = context.getString(R.string.pen_selection_required)
+          return@launch
         }
         if (recordHistory) {
           annotationEditHistory.record(targetProjectId, targetPage, committedBefore, committedAfter)
@@ -968,21 +1001,33 @@ private fun ReaderHome(
     if (!penWritable) return
     val annotationIndex = selectedAnnotationIndex?.takeIf { it in annotationPageItems.indices } ?: return
     val selected = annotationPageItems[annotationIndex] as? JsonObject ?: return
-    val updatedFields = buildMap {
-      if (color != null) put("color", JsonPrimitive(nextStyle.color))
-      if (width != null) put("width", JsonPrimitive(nextStyle.width))
+    val selectedColor = color?.let { nextStyle.color }
+    val selectedWidth = width?.let { nextStyle.width }
+    val after = PdfAnnotationClipboard.updateSelectedStyle(
+      annotationPageItems,
+      annotationIndex,
+      selected,
+      color = selectedColor,
+      width = selectedWidth,
+    ) ?: run {
+      selectedAnnotationIndex = null
+      return
     }
-    if (updatedFields.isEmpty()) return
-    val updated = JsonObject(selected + updatedFields)
-    val after = JsonArray(annotationPageItems.mapIndexed { index, item ->
-      if (index == annotationIndex) updated else item
-    })
     if (after == annotationPageItems) return
     persistNativeAnnotationPage(
       targetPage = targetPage,
       before = annotationPageItems,
       after = after,
       selectedAfter = annotationIndex,
+      transformLatest = { latest ->
+        PdfAnnotationClipboard.updateSelectedStyle(
+          latest,
+          annotationIndex,
+          selected,
+          color = selectedColor,
+          width = selectedWidth,
+        )
+      },
     )
   }
 
@@ -5187,6 +5232,13 @@ private fun ReaderHome(
             store.writePage("document", targetPage, kotlinx.serialization.json.JsonArray(current))
             store.lastRetainedRecoveryCopyName
           }
+        }
+        if (targetPage == pageIndex + 1) {
+          selectedAnnotationIndex = PdfAnnotationClipboard.selectedIndexAfterDeletion(
+            selectedAnnotationIndex,
+            targetIndex,
+          )
+          annotationGesture = null
         }
         annotationOverlayReload += 1
         retainedRecoveryCopyName

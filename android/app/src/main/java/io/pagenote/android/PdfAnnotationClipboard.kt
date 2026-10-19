@@ -32,6 +32,15 @@ internal object PdfAnnotationClipboard {
   private val supportedTypes = setOf("line", "arrow", "rect", "ellipse", "text", "image", "html")
   private val json = Json
 
+  fun selectedIndexAfterDeletion(selectedIndex: Int?, deletedIndex: Int): Int? =
+    selectedIndex?.let { selected ->
+      when {
+        selected == deletedIndex -> null
+        selected > deletedIndex -> selected - 1
+        else -> selected
+      }
+    }
+
   fun encode(item: JsonObject): String {
     require(isSupported(item)) { "unsupported annotation type" }
     val payload = MARKER + json.encodeToString(JsonObject.serializer(), item.withoutLayoutAnchor())
@@ -140,6 +149,36 @@ internal object PdfAnnotationClipboard {
       right = geometryPoints.maxOf { it.first },
       bottom = geometryPoints.maxOf { it.second },
     )
+  }
+
+  fun updateSelectedStyle(
+    page: JsonArray,
+    index: Int,
+    expected: JsonObject,
+    color: String? = null,
+    width: Double? = null,
+  ): JsonArray? {
+    val current = page.getOrNull(index) as? JsonObject ?: return null
+    if (current != expected || !isSupported(current)) return null
+
+    val changes = buildMap<String, JsonElement> {
+      if (color != null) {
+        val existingColor = (current["color"] as? JsonPrimitive)?.content
+        if (existingColor?.equals(color, ignoreCase = true) != true) {
+          put("color", JsonPrimitive(color.lowercase()))
+        }
+      }
+      if (width != null) {
+        val existingWidth = (current["width"] as? JsonPrimitive)?.doubleOrNull
+        if (existingWidth != width) put("width", JsonPrimitive(width))
+      }
+    }
+    if (changes.isEmpty()) return page
+
+    val updated = JsonObject(current + changes)
+    return JsonArray(page.mapIndexed { itemIndex, item ->
+      if (itemIndex == index) updated else item
+    })
   }
 
   private fun arrowHeadPoints(item: JsonObject): List<Pair<Double, Double>> {

@@ -27,6 +27,7 @@ The earlier `desktop-parity-gap-audit.md` covers command IDs only. It must not b
 - When there is no selection, color/width changes affect only subsequent drawing, preserving the existing behavior.
 - Persist through the existing page stores; preserve unknown annotation fields and record a page-scoped undo/redo entry. Reapplying the same value is a no-op.
 - Invalid values, read-only projects, or stale selection must not partially mutate the page.
+- Concurrent edits to other page entries must survive a style update. Deleting an annotation clears selection when it deletes the selected item, and shifts the selected index when it deletes an earlier item.
 
 ### 45. Standalone PDF/Markdown import
 
