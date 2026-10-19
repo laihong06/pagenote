@@ -150,6 +150,51 @@ class NoteMarkdownClipboardActivityTest {
     assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
   }
 
+  @Test
+  fun pasteMarkdownPrefersHtmlAndSavesOnlyCurrentPage() {
+    val savedPages = listOf("Lead replace me tail", "Second page remains unchanged")
+    val savedNotes = PageNotes.join(savedPages)
+    val project = installProject(savedNotes)
+    val session = attachProjectToReader(project, savedNotes)
+    composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+
+    val editor = requireNotNull(findNoteEditor())
+    val clipboard = requireNotNull(composeRule.activity.getSystemService(ClipboardManager::class.java))
+    val selectedText = "replace me"
+    val selectedStart = savedPages.first().indexOf(selectedText)
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(selectedStart, selectedStart + selectedText.length)
+      clipboard.setPrimaryClip(
+        ClipData.newHtmlText(
+          "Rich Markdown",
+          "plain fallback",
+          "<p><strong>converted</strong> <a href='https://example.com'>link</a></p>",
+        ),
+      )
+    }
+
+    pasteMarkdownCommand().performClick()
+    val expectedDraft = "Lead **converted** [link](https://example.com) tail"
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
+    val updatedEditor = requireNotNull(findNoteEditor())
+    assertEquals(expectedDraft.indexOf(" tail"), updatedEditor.selectionStart)
+    assertEquals(updatedEditor.selectionStart, updatedEditor.selectionEnd)
+
+    editCommand("note_undo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == savedPages.first() }
+    editCommand("note_redo").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
+
+    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
+    }
+    val persisted = ProjectNoteStore(testResolver, project.notesUri).read()
+    assertEquals(expectedDraft, NotePage.pageAt(persisted, 1))
+    assertEquals(savedPages[1], NotePage.pageAt(persisted, 2))
+  }
+
   private fun editCommand(id: String) = run {
     val commandTag = "reader_menu_command_$id"
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {

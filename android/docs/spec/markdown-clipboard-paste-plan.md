@@ -67,9 +67,9 @@
 
 **Interface:** `HtmlToMarkdown.convert(html): String?` 只返回本地解析结果，不访问网络；剪贴板处理器先转换 HTML，再回退当前 `ClipData.Item.text`，最后仍调用 `NoteImportPayload.insertText`。
 
-- [ ] **Step 1: Write failing converter and reader tests**：覆盖常见语义标签、嵌套列表/表格、畸形 HTML、安全协议、script/style/事件属性、图片 alt-only 与 HTML 无输出回退；仪器用例构造同时包含 HTML/plain text 的 `ClipData` 并断言 HTML 优先、精确插入与按页保存。
-- [ ] **Step 2: Verify RED**：运行指定 API 34 平板 AVD 的单项转换/Activity 测试，确认新增断言因纯文本基线不支持 HTML 而失败。
-- [ ] **Step 3: Implement local conversion**：使用固定白名单和递归 DOM 转 Markdown；不启用加载器或网络 API；HTML 无有效正文时回退纯文本。
-- [ ] **Step 4: Verify GREEN**：重跑同一 AVD 测试，覆盖选择替换、插入点、草稿撤销和保存后相邻页不变。
-- [ ] **Step 5: Verify build and diff**：运行聚焦 JVM 测试、`:app:compileDebugAndroidTestKotlin`、`:app:assembleDebug` 与 `git diff --check`；更新 task 46 和 CHANGELOG。
+- [x] **Step 1: Write failing converter and reader tests**：转换器用例先于实现运行并因 `HtmlToMarkdown` 缺失而 RED；之后补齐格式/安全测试与 HTML 优先 Activity 用例。
+- [x] **Step 2: Verify RED**：`HtmlToMarkdownTest` 在实现前因 unresolved reference 失败。
+- [x] **Step 3: Implement local conversion**：使用固定标签/协议 allowlist 和递归 DOM 转 Markdown；不启用加载器或网络 API；HTML 无有效正文时回退纯文本。
+- [x] **Step 4: Verify GREEN**：转换器 JVM 5/5、API 34 AVD Activity 3/3，覆盖选择替换、插入点和保存后相邻页不变。
+- [x] **Step 5: Verify build and diff**：转换器 JVM 5/5、`:app:compileDebugAndroidTestKotlin` 随 connected test 通过、API 34 Activity 3/3、`:app:assembleDebug` 与 arm64 16 KB LOAD/ZIP 对齐检查通过，`git diff --check` 通过；更新 task 46 和 CHANGELOG。
 - [ ] **Step 6: Commit and push**：独立提交此功能切片及 CHANGELOG，推送当前 fork feature branch。

@@ -3507,6 +3507,7 @@ private fun ReaderHome(
       editor.requestFocus()
       editor.setMarkdownSourceText(restored)
       editor.setMarkdownSourceSelection(restored.length)
+      readerSession.setNoteDraft(restored)
     } finally {
       isApplyingMarkdownHistory = false
     }
@@ -3624,12 +3625,11 @@ private fun ReaderHome(
   fun pasteMarkdownFromClipboard() {
     val editor = markdownEditor ?: return
     if (!editor.isEnabled || !noteWritable || menuBusy) return
-    val text = context.getSystemService(ClipboardManager::class.java)
+    val clipItem = context.getSystemService(ClipboardManager::class.java)
       ?.primaryClip
       ?.takeIf { it.itemCount > 0 }
       ?.getItemAt(0)
-      ?.text
-      ?.toString()
+    val text = clipItem?.htmlText?.let(HtmlToMarkdown::convert) ?: clipItem?.text?.toString()
     if (text.isNullOrEmpty()) {
       noteStatus = context.getString(R.string.reader_menu_paste_markdown_empty)
       return

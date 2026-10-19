@@ -371,9 +371,10 @@
   - API 34 平板 AVD：`ProjectCreateOptionalPdfActivityTest` 10/10、`NewProjectDialogTest` 3/3；覆盖旧 PDF/空项目、Markdown 字节保真与首屏打开、取消、替换、实际持久化授权跨 Activity 重建及移除/取消/创建后释放、不支持格式、同名、预校验失败与复制后校验失败回滚。SAF fixture 不等同于系统文件选择器 UI或小米真机验收。
   - SPEC：`features/desktop-semantic-parity.md` §45、`features/standalone-document-import.md`；实施顺序：`standalone-document-import-plan.md`。
 
-- [ ] 46. Markdown 笔记粘贴富 HTML
+- [x] 46. Markdown 笔记粘贴富 HTML
   - 显式“按 Markdown 粘贴”支持从剪贴板 `text/html` 转换常用语义格式，替换选区/插入光标；HTML 缺失时保留纯文本回退。
-  - 转换本地完成，不执行脚本、事件属性或远程资源请求。
+  - 本地 Jsoup 转换器覆盖常见块/行内格式、列表、代码和表格；丢弃危险活动内容、事件属性与不安全链接，不加载远程资源；图片仅保留 alt 文本。
+  - `HtmlToMarkdownTest` 5/5、API 34 Pixel Tablet `NoteMarkdownClipboardActivityTest` 3/3；`:app:assembleDebug` 通过，arm64 Debug APK 的 16 KB LOAD 段及 ZIP 对齐检查通过。
   - SPEC：`features/desktop-semantic-parity.md` §46、`features/markdown-rich-clipboard-paste.md`；实施计划：`markdown-clipboard-paste-plan.md`。
 
 - [ ] 47. AI 提示词模块编辑
