@@ -89,10 +89,10 @@ class DesktopCommandChecklistTest {
   }
 
   @Test
-  fun checklistDocumentsOnlyTrackedPlaceholders() {
+  fun checklistDocumentsAllTrackedCommands() {
     val checklist = File("../docs/spec/features/desktop-command-checklist.md").readText()
-    assertTrue(checklist.contains("`office_edit`"))
-    assertTrue(checklist.contains("`save_return`"))
-    assertTrue(checklist.contains("`diagnostics`"))
+    val documented = Regex("`([a-z_0-9]+)`").findAll(checklist).map { it.groupValues[1] }.toSet()
+    val missing = wiredCommands + pendingCommands - documented
+    assertTrue("commands missing from SPEC: $missing", missing.isEmpty())
   }
 }

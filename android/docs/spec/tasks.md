@@ -305,7 +305,7 @@
   - 对照桌面 `index.html`/`src/main.js` 完成命令到 Android 行为清单；终态移除 `pendingCommand()` 占位项。
   - 以 API 34 为最低版本，平台 API 差异由兼容实现吸收，不按 OS 版本隐藏功能；PDF 文字提取现已在 API 34 走本地 PDFBox、API 35 走系统接口，保持用户能力一致。
   - 静态核对已确认除 `office_edit`/`save_return` 外，菜单命令均有 Android handler；PDF HTML 批注渲染/剪贴板差异另由 task 38 跟踪。最终对齐仍待所有 gap 实现后复核。
-  - [x] 桌面命令清单 SPEC 与 JVM 校验已落地：`features/desktop-command-checklist.md` 记录全部命令 id 与行为，`DesktopCommandChecklistTest` 校验已接线命令齐全且 `pendingCommand()` 仅保留 `office_edit` 与 `save_return`。`ReaderMenuModelTest` 与 `:app:assembleDebug` 通过。
+  - [x] 桌面命令清单 SPEC 与 JVM 校验已落地：`features/desktop-command-checklist.md` 记录全部命令 id 与行为，`DesktopCommandChecklistTest` 校验代码中的已接线与待办命令均在 SPEC 出现，且 `pendingCommand()` 仅保留 `office_edit` 与 `save_return`。`new_project` 已明确记录其目录选择与可选 PDF 导入行为。
   - 只验证受影响的用户流程与 API 34 AVD，不扩展 API 版本矩阵。
   - _Requirement: Android 版本与功能范围、桌面功能区与自适应导航_
 
