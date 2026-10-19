@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Pin the candidate Collabora Android engine revision and record the Linux builder, NDK and 16 KB alignment constraints without claiming build or integration success. / 固定 Collabora Android 引擎候选版本并记录 Linux 构建器、NDK 与 16 KB 对齐约束；不将其表述为构建或集成成功。
 - Add a native Android 14+ app for page-linked PDF/Markdown reading, offline OCR, pen annotations, OpenAI-compatible page tutoring, and rich HTML PDF annotations. The separate ARM64 beta build uses `io.pagenote.android.beta`; Office editing remains deferred. JVM tests, Android test compilation, focused API 34 tablet AVD renderer/reader tests (2/2), APK startup, and 16 KB ELF/ZIP alignment checks pass. / 新增 Android 14+ 原生应用，支持逐页 PDF/Markdown 阅读、离线 OCR、手写笔批注、OpenAI 兼容逐页讲解及富 HTML PDF 批注。ARM64 测试包使用独立 `io.pagenote.android.beta`；Office 编辑仍暂缓。JVM 测试、Android 测试源码编译、API 34 平板 AVD renderer/阅读器定向测试（2/2）、APK 启动及 16 KB ELF/ZIP 对齐检查通过。
 - Keep very long unbroken Markdown tokens responsive in the Android editor using edit-buffer-only layout boundaries; preserve source offsets, copy/cut/paste/share, drafts and saved project text. Verify API 34 tablet AVD cold start, IME page jump, save and reopen. / Android 编辑器为超长连续 Markdown token 增加仅存在于编辑缓冲区的排版边界，保持原文偏移、复制/剪切/粘贴/分享、草稿与项目保存内容不变；已在 API 34 平板模拟器验证冷启动、输入法跳页、保存和重开。
 - List Android `new_project` explicitly in the desktop-command SPEC and make its JVM check verify every wired and deferred command is documented. / 在安卓桌面命令 SPEC 中明确列出 `new_project`，并让 JVM 校验覆盖全部已接线及暂缓命令，防止文档漏项。

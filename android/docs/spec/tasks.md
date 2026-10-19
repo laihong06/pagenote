@@ -312,6 +312,7 @@
 - [ ] 36. 本地 Office 引擎与桌面格式编辑
   - 支持 `.doc/.docx/.ppt/.pptx` 项目源，在 pagenote 进程内离线阅读/编辑并保存回原格式；不调用外部 Office app 或远程服务。
   - 按 `office-editor-plan.md` 分为引擎可复现构建/嵌入、项目源与 PDF 预览、编辑与 Save & Return、可靠文字选区四个切片；先验证上游 LibreOfficeKit Android 原生引擎，不先放开无法渲染的扩展名。
+  - [x] 第一切片固定待验证的 Collabora Gerrit `online` 提交 `a27b66cad6275afe672d73bd1bdfa7627a97c9f3`，并记录 Linux builder、NDK 与 16 KB 对齐的本机约束；该哈希不是构建或集成验收通过的声明。详见 `features/office-engine-next-slice.md`。
   - [x] 先落纯 core-project 保存就绪策略：按完整源字节 SHA-256 revision 守卫，区分外部冲突、只读目标、缺少恢复副本和可保存状态。`OfficeSavePolicyTest` 6/6 通过；未接 SAF/editor，也未开放 Office 文件入口。SPEC：`features/office-save-policy.md`。
   - 通过一个 API 34 平板 AVD 闭环覆盖导入、编辑、保存、重开；不建立跨 API 测试矩阵。
   - _Requirement: Office 源格式、布局与适配_

@@ -6,6 +6,15 @@
 
 把 `../tasks.md` task 36 收敛为唯一先行可执行切片：**引擎可复现构建验证**，即 `../../office-editor-plan.md` “Implementation Slices” 第 1 项（Engine build and embedding proof）。先验证上游 LibreOfficeKit Android 原生引擎是否可在 pagenote 进程内离线运行，再谈扩展名放开、预览、编辑与 Save & Return。
 
+## 上游候选基线
+
+- 活跃源码位于 Collabora Gerrit `online` 单仓；Android 原生 engine 在 `engine/` 下构建。GitHub `online.mirror` 是只读镜像。官方 Android 构建说明要求 Linux 构建原生部分，并列出 NDK `23.0.7599858` 为已测试版本。
+- 2026-10-20 对 Gerrit `refs/heads/main` 执行 `git ls-remote` 得到候选提交 `a27b66cad6275afe672d73bd1bdfa7627a97c9f3`。任何 builder 必须 checkout 该完整 SHA，不使用浮动的 `main`。
+- 本机已有 Android SDK、NDK r28c、API 34 ARM64 平板 AVD；Docker Desktop 提供 ARM64 Linux，AMD64 只能经仿真运行。Linux builder 必须安装 Linux 版 SDK/NDK，不复用宿主 macOS 的 `local.properties` 路径。
+- 上游文档只证明 NDK 23 曾用于构建，不证明它适配当前候选提交。本项目必须先试用本机 r28c 对候选源码进行 configure/build；NDK r28 也与本项目既定 16 KB ELF 对齐目标相符。若上游构建脚本与 r28c 冲突，记录失败证据后再评估可复现的兼容补丁或固定旧版 NDK 并显式配置 16 KB 对齐。
+- 候选 SHA 仅固定待验证输入，不代表可复现构建、可嵌入或与本项目兼容；这些结论必须等构建与 API 34 进程内验证后再记录。
+- 参考：[Collabora Android 构建说明](https://github.com/CollaboraOnline/CollaboraOnline.github.io/blob/master/content/post/build-code-android.md)、[当前 Android README 镜像](https://github.com/CollaboraOnline/online.mirror/blob/main/android/README.md)、[Gerrit 源仓](https://gerrit.collaboraoffice.com/online)、[Android 16 KB 页面大小指南](https://developer.android.com/guide/practices/page-sizes)。
+
 ## 输入（只读审计，不改）
 
 - `features/office-save-policy.md`：纯 project-core 保存就绪策略已落（`OfficeSavePolicyTest` 6/6），SAF 与 editor 集成仍 open。
