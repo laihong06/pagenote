@@ -374,21 +374,21 @@
 - [ ] 46. Markdown 笔记粘贴富 HTML
   - 显式“按 Markdown 粘贴”支持从剪贴板 `text/html` 转换常用语义格式，替换选区/插入光标；HTML 缺失时保留纯文本回退。
   - 转换本地完成，不执行脚本、事件属性或远程资源请求。
-  - SPEC：`features/desktop-semantic-parity.md` §46。
+  - SPEC：`features/desktop-semantic-parity.md` §46、`features/markdown-rich-clipboard-paste.md`；实施计划：`markdown-clipboard-paste-plan.md`。
 
 - [ ] 47. AI 提示词模块编辑
   - 模型设置对齐桌面模块列表，支持逐模块修改、保存和恢复内置默认；Agent 后续读取应用本地覆盖值。
   - 提示词覆盖与 endpoint/model/key 分开保存，校验失败不覆盖最后有效内容。
-  - SPEC：`features/desktop-semantic-parity.md` §47。
+  - SPEC：`features/desktop-semantic-parity.md` §47、`features/agent-prompt-customization.md`；实施计划：`agent-prompt-customization-plan.md`。
 
 - [ ] 48. Markdown 阅读主题独立设置
   - 将 `classic`/`paper` Markdown 渲染主题与应用外观设置分离并持久化；只影响 Markdown pane，不改变 PDF 原色、UI 外观或笔记源内容。
-  - SPEC：`features/desktop-semantic-parity.md` §48。
+  - SPEC：`features/desktop-semantic-parity.md` §48、`features/independent-markdown-theme.md`；实施计划：`independent-markdown-theme-plan.md`。
 
 - [ ] 49. Markdown 编辑格式快捷键
   - 焦点位于可写 Markdown 编辑器时，Ctrl/Cmd+B、I、K 复用工具栏粗体、斜体、链接变换。
   - 对话框、非笔记文本框和阅读界面不截获这些快捷键；保留选区、光标及撤销历史语义。
-  - SPEC：`features/desktop-semantic-parity.md` §49。
+  - SPEC：`features/desktop-semantic-parity.md` §49、`features/markdown-formatting-shortcuts.md`；实施计划：`markdown-formatting-shortcuts-plan.md`。
 
 - [x] 50. 阅读器交互增强端到端复核
   - 六项验收已逐一对照现有 SPEC、代码和回归，API 34 平板 AVD 的定向验证通过；页外书写开关补齐本地化无障碍名称和保存/恢复 UI 回归。

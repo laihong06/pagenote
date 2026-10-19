@@ -39,23 +39,29 @@ The earlier `desktop-parity-gap-audit.md` covers command IDs only. It must not b
 ### 46. Rich clipboard paste
 
 - When the user explicitly chooses Paste as Markdown and the clipboard has `text/html`, convert supported semantic formatting to Markdown and replace the current selection (or insert at the caret).
-- Prefer safe HTML parsing; discard active content, event handlers, and remote resource loading. If HTML is absent, use the current plain-text behavior. Clipboard access remains user initiated.
+- Use a local HTML parser and fixed conversion allowlist. Discard active content, event handlers, style/script payloads, and remote resource loading; never dereference image, stylesheet, or link resources. Preserve safe link destinations and image alt text only.
+- If HTML is absent or converts to no useful text, use the current plain-text behavior. Clipboard access remains user initiated and only reads the first clip item.
+- Preserve current selection/caret and note-edit history behavior; do not write project files until the normal note save action.
 
 ### 47. Prompt module customization
 
-- AI Settings shall expose the same prompt module IDs as desktop, with module selection, editing, save, and reset-to-bundled-default behavior.
-- Store overrides locally and independently per module; never rewrite bundled assets or model credentials. The agent shall use the saved override on its next prompt-index read.
-- Empty/oversized/invalid settings shall fail validation without replacing the last valid value.
+- AI Settings shall expose the same six prompt module IDs as desktop: `system`, `learning`, `page-tutor`, `output`, `tag-edit`, and `learner`, with module selection, editing, save, and reset-to-bundled-default behavior.
+- Store overrides locally and independently per module; never rewrite bundled assets, project files, or model credentials. The agent shall use the saved override on its next prompt read/request assembly.
+- Validate the module ID and reject blank or over-32768-character text before writing. A rejected save leaves that module's last valid override unchanged. Reset removes only the selected override.
+- Preserve the mandatory app safety prefix that treats imported document text as untrusted, even when the editable `system` module changes.
 
 ### 48. Independent Markdown theme
 
 - Add a persisted `markdownTheme` preference (`classic` or `paper`) independent from reader appearance (`system`, `light`, `dark`, or Android's existing reader-wide `paper`).
-- Apply it only to Markdown note/source renderers; do not recolor PDF pages, dialogs, or other application surfaces. Switching either preference must not mutate Markdown content or the other preference.
+- Apply it only to Markdown source and rendered-note surfaces. `classic` follows the current app reader palette and sans-serif typography; `paper` uses a restrained paper surface, readable serif typography, and theme-aware text/code/formula colors.
+- Do not recolor PDF pages, dialogs, toolbars, or other application surfaces. Switching either preference must not mutate Markdown content or the other preference.
+- Persist with the reader settings transaction, default to `classic`, and sanitize unknown values to that default without discarding valid sibling settings.
 
 ### 49. Markdown formatting shortcuts
 
 - While a writable Markdown editor has focus, Ctrl/Cmd+B, Ctrl/Cmd+I, and Ctrl/Cmd+K shall invoke the same bold, italic, and link transformations as their toolbar commands.
-- Do not intercept these keys when a dialog, text field outside the note editor, or non-editable surface owns focus. Keep selection, caret, and Markdown undo history consistent with toolbar formatting.
+- Require the actual native Markdown editor to own focus, be enabled, writable, and not busy. Do not intercept these keys when a dialog, another text field, preview, or other surface owns focus.
+- Reuse existing transformations and preserve selection/caret plus Markdown undo/redo history exactly as the toolbar commands do.
 
 ## Verification
 
