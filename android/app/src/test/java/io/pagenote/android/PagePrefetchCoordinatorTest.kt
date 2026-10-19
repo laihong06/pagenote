@@ -55,6 +55,41 @@ class PagePrefetchCoordinatorTest {
   }
 
   @Test
+  fun changingPageCancelsObsoleteWindowAndPreparesTheNewSlidingWindow() = runBlocking {
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+    val prefetcher = ReaderPagePrefetcher<String>()
+    val identity = PagePreparationIdentity("project", "a".repeat(64))
+    val firstPageStarted = CompletableDeferred<Unit>()
+    val neverReleased = CompletableDeferred<Unit>()
+    val prepared = mutableListOf<Int>()
+    try {
+      val oldJob = prefetcher.schedule(scope, identity, 0, 5, 3) { key ->
+        if (key.pageIndex == 0) {
+          firstPageStarted.complete(Unit)
+          neverReleased.await()
+        }
+        prepared += key.pageIndex
+        "page-${key.pageIndex}"
+      }
+      firstPageStarted.await()
+
+      prefetcher.schedule(scope, identity, 1, 5, 3) { key ->
+        prepared += key.pageIndex
+        "page-${key.pageIndex}"
+      }.join()
+      oldJob.join()
+
+      assertEquals(listOf(1, 2, 3), prepared)
+      assertNull(prefetcher.cached(identity, 0))
+      assertEquals("page-1", prefetcher.cached(identity, 1))
+      assertEquals("page-3", prefetcher.cached(identity, 3))
+    } finally {
+      prefetcher.cancel()
+      scope.cancel()
+    }
+  }
+
+  @Test
   fun changingProjectOrRevisionCancelsOldWorkWithoutCachingItUnderNewIdentity() = runBlocking {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     val prefetcher = ReaderPagePrefetcher<String>()

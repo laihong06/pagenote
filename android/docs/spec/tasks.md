@@ -330,20 +330,20 @@
 - [x] 39. PDF 阅读页手势翻页与页码旁快捷按钮
   - 单指竖向滑动切换一页；手写笔、双指缩放、选择/批注模式不误触发。
   - 页码跳转旁提供上一页/下一页按钮，边界禁用，并复用统一页面切换和草稿保存逻辑。
-  - 翻页策略 JVM 测试 4/4、API 34 平板 AVD 交互/按钮流程 5/5、测试源码编译及 `:app:assembleDebug` 通过。
+  - 翻页策略 JVM 测试 4/4、PDF 视图滑动策略与真实三页 PDF 阅读器上滑/下滑及页码按钮共享状态的 API 34 AVD 流程通过。
   - SPEC：`features/reader-page-navigation.md`。
 
 - [x] 40. 缩放笔迹坐标与页外书写设置
   - 缩放/平移时使用视口变换的逆变换采集笔迹、正变换渲染与命中；默认限制在 PDF 页内，可在阅读设置允许页外可见区域书写。
   - 保持桌面兼容的 `annotations.json` 坐标与既有压力、撤销/重做语义。
-  - 几何/命中与 DataStore 定向单测、Debug APK 构建通过；唯一 API 34 平板 AVD 翻页交互回归通过。
+  - 几何/命中与 DataStore 定向单测、Debug APK 构建通过；API 34 View 仪器覆盖缩放/平移坐标回映及页外输入默认截断/启用保留。
   - SPEC：`features/zoomed-ink-and-extended-canvas.md`。
   - 回归边界补充：`features/zoomed-ink-regression-notes.md`。
 
 - [x] 41. 当前页及后续页自动预解析
   - 阅读设置配置 0-10 页窗口（默认 3）；窗口含当前页，串行后台处理本地文字和按需离线 OCR，复用缓存，不调用云端模型。
   - 页/项目/源 revision 变化时取消旧队列并复用已完成结果；失败保留原文且明确警告。
-  - 窗口/串行/重叠去重/取消/失败隔离 JVM 用例、DataStore 持久化单测、API 34 平板设置滑块保存回归、仪器源码编译和 Debug APK 构建通过。
+  - 窗口/串行/重叠去重/页码切换与 revision 取消/失败隔离 JVM 用例、DataStore 持久化单测、API 34 平板设置滑块保存回归、仪器源码编译和 Debug APK 构建通过。
   - SPEC：`features/page-prefetch.md`。
 
 - [x] 42. 手写笔末端停留识别几何形状

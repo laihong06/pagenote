@@ -29,4 +29,4 @@ Keep native stylus ink aligned with the PDF at every viewport zoom and optionall
 
 - JVM geometry tests cover forward/inverse transforms, zoom/pan, portrait-page Y coordinates, and optional boundary clamping.
 - Existing codec/persistence tests verify the project format remains unchanged.
-- One API 34 tablet AVD test covers zoomed stylus input and settings persistence; physical pressure behavior remains covered by the user's existing device check.
+- API 34 `PenCanvasView` instrumentation covers zoomed/panned stylus coordinate mapping and both extended-canvas modes. A focused DataStore round-trip test covers persistence; physical pressure behavior remains covered by the user's existing device check.

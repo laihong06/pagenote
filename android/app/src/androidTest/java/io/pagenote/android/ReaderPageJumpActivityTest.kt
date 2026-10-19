@@ -1,5 +1,7 @@
 package io.pagenote.android
 
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
@@ -18,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -29,11 +32,13 @@ import io.pagenote.feature.pen.PenStroke
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.NotePage
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
@@ -100,6 +105,54 @@ class ReaderPageJumpActivityTest {
     composeRule.onNodeWithTag("reader_previous_page").assertIsEnabled().performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 0 }
     composeRule.onNodeWithTag("reader_previous_page").assertIsNotEnabled()
+  }
+
+  @Test
+  fun verticalSwipesAndAdjacentButtonsNavigateTheSamePdfReaderPage() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes, createThreePagePdf())
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnUiThread {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.pageIndex.intValue = 0
+    }
+
+    try {
+      composeRule.waitUntil(timeoutMillis = 15_000) {
+        session.pageIndex.intValue == 0 &&
+          composeRule.onAllNodesWithTag("pdf_page_viewport").fetchSemanticsNodes().isNotEmpty()
+      }
+      composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+        val start = center.copy(y = center.y + height * 0.35f)
+        val end = center.copy(y = center.y - height * 0.35f)
+        down(0, start)
+        moveTo(0, end, delayMillis = 60)
+        up(0)
+      }
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_page_status").assertTextEquals("2 / 3")
+
+      composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+        val start = center.copy(y = center.y - height * 0.35f)
+        val end = center.copy(y = center.y + height * 0.35f)
+        down(0, start)
+        moveTo(0, end, delayMillis = 60)
+        up(0)
+      }
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 0 }
+      composeRule.onNodeWithTag("reader_page_status").assertTextEquals("1 / 3")
+
+      composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_previous_page").assertIsEnabled().performClick()
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 0 }
+      composeRule.onNodeWithTag("reader_previous_page").assertIsNotEnabled()
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null) }
+    }
   }
 
   @Test
@@ -222,7 +275,7 @@ class ReaderPageJumpActivityTest {
     )
   }
 
-  private fun installProject(notes: String): OpenedProject {
+  private fun installProject(notes: String, pdf: ByteArray = "%PDF-fixture".toByteArray()): OpenedProject {
     val manifest = """
       {"format":"pagenote-project","version":1,"id":"${"b".repeat(64)}","name":"Page jump fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
     """.trimIndent().toByteArray(Charsets.UTF_8)
@@ -232,12 +285,38 @@ class ReaderPageJumpActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, pdf)
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },
     )
     return ProjectDocumentOpener(testResolver).open(treeUri)
+  }
+
+  private fun createThreePagePdf(): ByteArray {
+    val document = PdfDocument()
+    repeat(3) { index ->
+      val page = document.startPage(PdfDocument.PageInfo.Builder(300, 400, index + 1).create())
+      page.canvas.drawColor(android.graphics.Color.WHITE)
+      page.canvas.drawText(
+        "Navigation page ${index + 1}",
+        24f,
+        48f,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+          color = android.graphics.Color.BLACK
+          textSize = 18f
+        },
+      )
+      document.finishPage(page)
+    }
+    return ByteArrayOutputStream().use { output ->
+      try {
+        document.writeTo(output)
+        output.toByteArray()
+      } finally {
+        document.close()
+      }
+    }
   }
 
   private fun replaceNotes(notes: String) {

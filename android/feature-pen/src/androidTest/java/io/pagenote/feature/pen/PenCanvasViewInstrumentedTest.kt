@@ -34,6 +34,69 @@ class PenCanvasViewInstrumentedTest {
   }
 
   @Test
+  fun zoomedAndPannedStylusInputMapsBackToDocumentCoordinates() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    val transform = PenCanvasPageTransform(
+      pageWidthPx = 300f,
+      pageHeightPx = 400f,
+      scale = 2f,
+      translationX = 30f,
+      translationY = -20f,
+    )
+    onUi {
+      canvas = createCanvas().apply {
+        pageTransform = transform
+        onStrokeAdded = added::add
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 280f, 130f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 340f, 190f, 0.75f, 3)
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 340f, 190f, 0.75f, 4)
+    }
+
+    assertEquals(1, added.size)
+    val points = added.single().points
+    assertPoint(points[0], 500f, 500f, 0.5f)
+    assertPoint(points[1], 600f, 600f, 0.75f)
+    val geometry = PenCanvasGeometry(CANVAS_SIZE.toFloat(), CANVAS_SIZE.toFloat(), transform)
+    assertEquals(280f, geometry.toViewX(points[0]), 0.01f)
+    assertEquals(130f, geometry.toViewY(points[0]), 0.01f)
+    assertEquals(340f, geometry.toViewX(points[1]), 0.01f)
+    assertEquals(190f, geometry.toViewY(points[1]), 0.01f)
+  }
+
+  @Test
+  fun extendedCanvasSettingControlsWhetherVisibleMarginInkIsClamped() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    onUi {
+      canvas = createCanvas().apply {
+        pageTransform = PenCanvasPageTransform(
+          pageWidthPx = 300f,
+          pageHeightPx = 400f,
+          translationX = -100f,
+        )
+        onStrokeAdded = added::add
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 450f, 250f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 450f, 250f, 0.5f, 3)
+      canvas.pageTransform = requireNotNull(canvas.pageTransform).copy(allowOutsidePage = true)
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 450f, 250f, 0.5f, 4)
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 450f, 250f, 0.5f, 5)
+    }
+
+    assertEquals(2, added.size)
+    assertEquals(1000f, added[0].points.single().x, 0.01f)
+    assertEquals(1500f, added[1].points.single().x, 0.01f)
+    val geometry = PenCanvasGeometry(
+      CANVAS_SIZE.toFloat(),
+      CANVAS_SIZE.toFloat(),
+      requireNotNull(canvas.pageTransform),
+    )
+    assertEquals(450f, geometry.toViewX(added[1].points.single()), 0.01f)
+  }
+
+  @Test
   fun endpointDwellCommitsOneRecognizedShapeInsteadOfFreehandInk() {
     lateinit var canvas: PenCanvasView
     val added = mutableListOf<PenStroke>()

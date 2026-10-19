@@ -28,5 +28,5 @@ Prepare the current PDF page and a configurable forward window for reading and P
 
 ## Verification
 
-- JVM tests cover window calculation, clamping, de-duplication, cancellation/revision identity, and cache reuse.
-- One API 34 tablet AVD test covers opening at page 1 and advancing to page 2 with a three-page window. OCR model inference itself remains covered by existing offline OCR tests.
+- JVM tests cover window calculation, clamping, sequential preparation, overlapping-window reuse, page/project/revision cancellation, failure isolation, and cache reuse.
+- One API 34 tablet AVD test covers saving the configured window from Reader Settings. OCR model inference itself remains covered by existing offline OCR tests; the queue's scheduling contract is tested directly without adding a production-only test hook.
