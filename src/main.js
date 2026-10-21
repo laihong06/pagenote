@@ -16,6 +16,10 @@ import {
   restorePageAnchor,
 } from './gestures.js';
 import { preparePageData } from './page-data.js';
+import {
+  currentLessonCourse,
+  selectedItem,
+} from './rain-classroom-selection.js';
 import { showWelcome, showFirstWelcome } from './hello.js';
 import {
   initializeTheme,
@@ -2181,7 +2185,10 @@ document.getElementById('newConfirm').onclick = safely(async () => {
   createDialog.close();
 });
 window.pageNotes.menuAction = async (action) => {
-  if (action === 'importRight') {
+  if (action === 'rainClassroom') {
+    $('rainClassroomDialog').showModal();
+    await refreshRainAccount();
+  } else if (action === 'importRight') {
     if (!doc) {
       toast('请先导入左侧文档或新建项目');
       return;
@@ -2200,6 +2207,336 @@ window.pageNotes.menuAction = async (action) => {
     document.body.classList.add('choose-editor');
     toast('点击左侧文档或右侧讲解，选择编辑区域');
   }
+};
+let rainCourses = [];
+let rainLessons = [];
+let rainCurrentLessons = [];
+let rainLoginPoll = null;
+let rainLivePoll = null;
+let rainLastSlide = '';
+let rainLoginId = null;
+let rainAuthenticated = false;
+let rainLivePendingSlides = 0;
+async function refreshRainAccount() {
+  const state = await request('/api/rain/status');
+  rainAuthenticated = state.account.authenticated;
+  rainLivePendingSlides = state.live.pendingSlides || 0;
+  $('rainAccountStatus').textContent = state.account.authenticated
+    ? `已登录：${state.account.user.name}`
+    : '未登录';
+  $('rainLogin').hidden = state.account.authenticated;
+  $('rainLogout').hidden = !state.account.authenticated;
+  $('rainLoadCourses').disabled = !state.account.authenticated;
+  $('rainCourse').disabled = !state.account.authenticated;
+  $('rainCurrentLesson').disabled = !state.account.authenticated;
+  $('rainLiveStatus').textContent =
+    state.live.status === 'stopped'
+      ? rainLivePendingSlides
+        ? `已停止 · ${rainLivePendingSlides} 页待重试${state.live.error ? ` · ${state.live.error}` : ''}`
+        : '未连接课堂'
+      : `实时采集：${state.live.status}`;
+  $('rainLiveStop').hidden = state.live.status === 'stopped';
+  $('rainLiveRetry').hidden = !state.live.pendingSlides;
+  syncRainCommands();
+  return state;
+}
+function syncRainCommands() {
+  const course = selectedItem($('rainCourse').value, rainCourses);
+  const lesson = selectedItem($('rainLesson').value, rainLessons);
+  const currentLesson = selectedItem(
+    $('rainCurrentLesson').value,
+    rainCurrentLessons,
+  );
+  const currentCourse = currentLessonCourse(currentLesson, rainCourses, course);
+  $('rainCurrentLessonNotice').hidden =
+    !currentLesson ||
+    (!currentLesson.classroomId && !currentLesson.courseId) ||
+    Boolean(currentCourse);
+  $('rainLesson').disabled = !course || !rainLessons.length;
+  $('rainImport').disabled = !course || !lesson;
+  $('rainLiveStart').disabled =
+    !rainAuthenticated ||
+    !currentCourse ||
+    !currentLesson?.lessonId ||
+    !doc?.projectRoot ||
+    doc?.kind !== 'pdf' ||
+    wordBusy ||
+    wordActive ||
+    rainLivePendingSlides > 0 ||
+    !$('rainLiveConsent').checked;
+}
+async function loadRainCourses() {
+  const [courseResult, currentLessonResult] = await Promise.allSettled([
+    request('/api/rain/courses'),
+    request('/api/rain/current-lessons'),
+  ]);
+  if (courseResult.status === 'rejected') throw courseResult.reason;
+  rainCourses = courseResult.value;
+  rainCurrentLessons =
+    currentLessonResult.status === 'fulfilled' ? currentLessonResult.value : [];
+  $('rainCourse').replaceChildren(
+    new Option('选择课程', ''),
+    ...rainCourses.map(
+      (course, index) =>
+        new Option(
+          `${course.name}${course.teacher ? ` · ${course.teacher}` : ''}`,
+          String(index),
+        ),
+    ),
+  );
+  $('rainCourse').disabled = false;
+  $('rainCurrentLesson').replaceChildren(
+    new Option(
+      rainCurrentLessons.length
+        ? '选择正在进行的课堂'
+        : currentLessonResult.status === 'rejected'
+          ? '当前课堂列表暂不可用'
+          : '当前没有正在进行的课堂',
+      '',
+    ),
+    ...rainCurrentLessons.map((item, index) => {
+      const linkedCourse = currentLessonCourse(item, rainCourses);
+      return new Option(
+        `${linkedCourse?.name ? `${linkedCourse.name} · ` : ''}${item.name}`,
+        String(index),
+      );
+    }),
+  );
+  $('rainCurrentLessonNotice').hidden = true;
+  $('rainCurrentLesson').disabled = false;
+  rainLessons = [];
+  $('rainLesson').replaceChildren(new Option('先选择课程', ''));
+  syncRainCommands();
+}
+async function loadRainLessons() {
+  const course = selectedItem($('rainCourse').value, rainCourses);
+  if (!course) return;
+  rainLessons = await request(
+    `/api/rain/courses/${encodeURIComponent(course.classroomId)}/lessons`,
+  );
+  $('rainLesson').replaceChildren(
+    new Option('选择课件 / 课堂', ''),
+    ...rainLessons.map(
+      (lesson, index) =>
+        new Option(
+          `${lesson.name}${lesson.createdAt ? ` · ${new Date(lesson.createdAt).toLocaleDateString()}` : ''}`,
+          String(index),
+        ),
+    ),
+  );
+  $('rainLesson').disabled = false;
+  syncRainCommands();
+}
+async function startRainLogin() {
+  clearInterval(rainLoginPoll);
+  $('rainLoginStatus').textContent = '正在连接雨课堂…';
+  $('rainQr').hidden = true;
+  const { loginId } = await request('/api/rain/login', { method: 'POST' });
+  rainLoginId = loginId;
+  const poll = async () => {
+    const state = await request(
+      `/api/rain/login/${encodeURIComponent(loginId)}`,
+    );
+    if (state.qrDataUrl) {
+      $('rainQr').src = state.qrDataUrl;
+      $('rainQr').hidden = false;
+      $('rainLoginStatus').textContent =
+        '请使用雨课堂官方客户端扫描此二维码并确认登录';
+    } else if (state.status === 'connecting') {
+      $('rainLoginStatus').textContent = '正在申请二维码…';
+    }
+    if (state.status === 'authenticated') {
+      clearInterval(rainLoginPoll);
+      $('rainQr').hidden = true;
+      $('rainLoginStatus').textContent = '登录成功';
+      await refreshRainAccount();
+      await loadRainCourses();
+    } else if (['failed', 'expired', 'not_found'].includes(state.status)) {
+      clearInterval(rainLoginPoll);
+      $('rainQr').hidden = true;
+      $('rainLoginStatus').textContent =
+        state.error || '二维码已失效，请重新登录';
+    }
+  };
+  await poll();
+  rainLoginPoll = setInterval(
+    () =>
+      poll().catch((error) => {
+        clearInterval(rainLoginPoll);
+        $('rainLoginStatus').textContent = error.message;
+      }),
+    1000,
+  );
+}
+async function pollRainLive() {
+  const live = await request('/api/rain/live/status');
+  rainLivePendingSlides = live.pendingSlides || 0;
+  $('rainLiveStatus').textContent =
+    live.status === 'stopped'
+      ? rainLivePendingSlides
+        ? `已停止 · ${rainLivePendingSlides} 页待重试${live.error ? ` · ${live.error}` : ''}`
+        : '未连接课堂'
+      : `实时采集：${{ connecting: '连接中', active: '采集中', reconnecting: '重连中', error: '发生错误' }[live.status] || live.status}${live.error ? ` · ${live.error}` : ''}${live.possibleGap ? ' · 重连期间可能缺页' : ''}`;
+  syncRainCommands();
+  $('rainLiveStop').hidden = live.status === 'stopped';
+  $('rainLiveRetry').hidden = !live.pendingSlides;
+  if (live.latest) {
+    const key = `${live.latest.presentationId}:${live.latest.sourceIndex}:${live.latest.projectPage}`;
+    if (key !== rainLastSlide) {
+      if (live.latest.added && doc?.id === window.pageNotes.rainProjectId) {
+        const refreshed = await window.pageNotes.refreshRainSource();
+        if (!refreshed) return;
+        toast(`雨课堂新页面已追加到第 ${live.latest.projectPage} 页`);
+      }
+      rainLastSlide = key;
+    }
+  }
+  if (live.status === 'stopped' || live.status === 'finished')
+    clearInterval(rainLivePoll);
+}
+$('rainClassroomButton').onclick = safely(() =>
+  window.pageNotes.menuAction('rainClassroom'),
+);
+$('rainClose').onclick = () => $('rainClassroomDialog').close();
+$('rainClassroomDialog').addEventListener('close', () => {
+  clearInterval(rainLoginPoll);
+  if (rainLoginId) {
+    request(`/api/rain/login/${encodeURIComponent(rainLoginId)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+    rainLoginId = null;
+  }
+});
+$('rainLogin').onclick = safely(startRainLogin);
+$('rainLoadCourses').onclick = safely(loadRainCourses);
+$('rainCourse').onchange = safely(loadRainLessons);
+$('rainLesson').onchange = syncRainCommands;
+$('rainCurrentLesson').onchange = () => {
+  const currentLesson = selectedItem(
+    $('rainCurrentLesson').value,
+    rainCurrentLessons,
+  );
+  const linkedCourse = currentLessonCourse(currentLesson, rainCourses);
+  if (linkedCourse) {
+    $('rainCourse').value = String(rainCourses.indexOf(linkedCourse));
+    void loadRainLessons().catch((error) => {
+      $('rainLoginStatus').textContent = error.message;
+    });
+  }
+  syncRainCommands();
+};
+$('rainLiveConsent').onchange = syncRainCommands;
+$('rainLogout').onclick = safely(async () => {
+  await request('/api/rain/logout', { method: 'POST' });
+  rainCourses = [];
+  rainCurrentLessons = [];
+  $('rainAccountStatus').textContent = '未登录';
+  $('rainCourse').replaceChildren(new Option('先登录雨课堂', ''));
+  $('rainLesson').replaceChildren(new Option('选择课程', ''));
+  await refreshRainAccount();
+});
+$('rainImport').onclick = safely(async () => {
+  const course = selectedItem($('rainCourse').value, rainCourses);
+  const lesson = selectedItem($('rainLesson').value, rainLessons);
+  if (!course || !lesson) return;
+  $('rainImport').disabled = true;
+  $('rainLoginStatus').textContent = '正在下载课件并创建项目…';
+  try {
+    await flush();
+    const meta = await request('/api/rain/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ course, lesson }),
+    });
+    await refreshLibrary();
+    await openDocument(meta);
+    window.pageNotes.rainProjectId = meta.id;
+    $('rainLoginStatus').textContent = '课件已导入';
+  } finally {
+    syncRainCommands();
+  }
+});
+$('rainLiveStart').onclick = safely(async () => {
+  const currentLesson = selectedItem(
+    $('rainCurrentLesson').value,
+    rainCurrentLessons,
+  );
+  const selectedCourse = selectedItem($('rainCourse').value, rainCourses);
+  const course = currentLessonCourse(
+    currentLesson,
+    rainCourses,
+    selectedCourse,
+  );
+  if (!course || !currentLesson?.lessonId || !doc?.projectRoot) return;
+  const lesson = {
+    lessonId: currentLesson.lessonId,
+    name: currentLesson.name,
+    classroomId: currentLesson.classroomId || course.classroomId,
+  };
+  if (!$('rainLiveConsent').checked) throw Error('请先确认课堂连接和考勤提示');
+  await flush();
+  window.pageNotes.rainProjectId = doc.id;
+  rainLastSlide = '';
+  await request('/api/rain/live/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ course, lesson, projectId: doc.id }),
+  });
+  clearInterval(rainLivePoll);
+  rainLivePoll = setInterval(
+    () =>
+      pollRainLive().catch((error) => {
+        $('rainLiveStatus').textContent = error.message;
+      }),
+    1500,
+  );
+  await pollRainLive();
+});
+$('rainLiveStop').onclick = safely(async () => {
+  await request('/api/rain/live/stop', { method: 'POST' });
+  await pollRainLive();
+});
+$('rainLiveRetry').onclick = safely(async () => {
+  await request('/api/rain/live/retry', { method: 'POST' });
+  await pollRainLive();
+});
+window.pageNotes.refreshRainSource = async () => {
+  if (
+    !doc ||
+    doc.kind !== 'pdf' ||
+    documentOpening ||
+    wordActive ||
+    wordBusy ||
+    documentMarkdownEditing
+  )
+    return false;
+  await flush();
+  const id = doc.id;
+  const anchor = documentZoomAnchor();
+  const nextPdf = await pdfjs.getDocument({
+    enableScripting: false,
+    isEvalSupported: false,
+    url: doc.url + '?rain=' + Date.now(),
+    cMapUrl: '/pdf-assets/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: '/pdf-assets/standard_fonts/',
+    wasmUrl: '/pdf-assets/wasm/',
+  }).promise;
+  const oldPdf = pdf;
+  const updatedNotes = await request(`/api/documents/${id}/notes`);
+  if (doc?.id !== id) {
+    await nextPdf.destroy();
+    return false;
+  }
+  pdf = nextPdf;
+  notes = updatedNotes;
+  total = pdf.numPages;
+  page = Math.min(page, total);
+  doc = { ...doc, modified: new Date().toISOString() };
+  updateControls();
+  await renderPage(anchor);
+  await oldPdf?.loadingTask?.destroy();
+  return true;
 };
 for (const [selector, button] of [
   ['.document-pane', 'documentEditButton'],

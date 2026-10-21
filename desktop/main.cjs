@@ -7,6 +7,7 @@ const {
   clipboard,
   nativeTheme,
   ipcMain,
+  safeStorage,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -122,6 +123,43 @@ if (!app.requestSingleInstanceLock()) {
       }
       const backend = await import(
         pathToFileURL(path.join(app.getAppPath(), 'server.mjs')).href
+      );
+      const rainModule = require('./yuketang.cjs');
+      const rainSessionFile = path.join(
+        app.getPath('userData'),
+        'rain-session.bin',
+      );
+      backend.configureRainClassroomService(
+        rainModule.createRainClassroomService({
+          secureStore: {
+            async get() {
+              try {
+                if (!safeStorage.isEncryptionAvailable())
+                  throw Error('安全存储不可用');
+                return safeStorage.decryptString(
+                  await fs.readFile(rainSessionFile),
+                );
+              } catch (error) {
+                if (error.code === 'ENOENT') return null;
+                throw error;
+              }
+            },
+            async set(value) {
+              if (!safeStorage.isEncryptionAvailable())
+                throw Error('系统安全存储不可用，无法保存雨课堂登录状态');
+              const temp = rainSessionFile + '.tmp';
+              await fs.writeFile(temp, safeStorage.encryptString(value), {
+                mode: 0o600,
+              });
+              await fs.rename(temp, rainSessionFile);
+            },
+            async clear() {
+              await fs.unlink(rainSessionFile).catch((error) => {
+                if (error.code !== 'ENOENT') throw error;
+              });
+            },
+          },
+        }),
       );
       try {
         server = await backend.startServer(4174);
@@ -517,6 +555,14 @@ if (!app.requestSingleInstanceLock()) {
               {
                 label: '文件',
                 submenu: [
+                  {
+                    label: '雨课堂导入与实时采集…',
+                    click: () =>
+                      win.webContents.executeJavaScript(
+                        'window.pageNotes.menuAction("rainClassroom")',
+                      ),
+                  },
+                  { type: 'separator' },
                   {
                     label: '导入左侧',
                     click: () =>

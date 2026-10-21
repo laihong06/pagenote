@@ -58,6 +58,7 @@ dependencies {
   implementation(project(":feature-notes"))
   implementation(project(":feature-annotations"))
   implementation(project(":feature-pen"))
+  implementation(project(":feature-yuketang"))
   implementation(project(":feature-ocr"))
   implementation(project(":agent"))
   implementation("androidx.core:core-ktx:1.15.0")

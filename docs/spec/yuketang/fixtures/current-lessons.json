@@ -1,0 +1,21 @@
+{
+  "code": 0,
+  "data": {
+    "onLessonClassrooms": [
+      {
+        "lessonId": 9282,
+        "classroomId": "fixture-classroom-1",
+        "courseId": 7351,
+        "name": "Fixture live lecture",
+        "status": 1
+      },
+      {
+        "lessonId": 9281,
+        "classroomId": "fixture-classroom-1",
+        "courseId": 7351,
+        "name": "Fixture ended lecture",
+        "status": 0
+      }
+    ]
+  }
+}

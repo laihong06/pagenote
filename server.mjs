@@ -89,6 +89,180 @@ const projects = createProjectStore({
   data,
   convertOffice: convertOffice,
 });
+let rainService = null;
+let rainLiveProject = null;
+export function configureRainClassroomService(service) {
+  rainService = service;
+}
+function requireRainService() {
+  if (!rainService) throw Error('雨课堂功能尚未初始化');
+  return rainService;
+}
+app.get('/api/rain/status', async (req, res, next) => {
+  try {
+    const service = requireRainService();
+    res.json({
+      account: await service.status(),
+      live: service.getLiveStatus(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/rain/live/status', (req, res, next) => {
+  try {
+    res.json(requireRainService().getLiveStatus());
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/rain/login', (req, res, next) => {
+  try {
+    res.json(requireRainService().startLogin());
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/rain/login/:id', async (req, res, next) => {
+  try {
+    res.json(requireRainService().loginStatus(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+});
+app.delete('/api/rain/login/:id', (req, res, next) => {
+  try {
+    requireRainService().cancelLogin(req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/rain/logout', async (req, res, next) => {
+  try {
+    res.json(await requireRainService().logout());
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/rain/courses', async (req, res, next) => {
+  try {
+    res.json(await requireRainService().listCourses());
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/rain/courses/:classroomId/lessons', async (req, res, next) => {
+  try {
+    res.json(
+      await requireRainService().listLessons(String(req.params.classroomId)),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/rain/current-lessons', async (req, res, next) => {
+  try {
+    res.json(await requireRainService().listCurrentLessons());
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/rain/import', async (req, res, next) => {
+  try {
+    const { course, lesson } = req.body || {};
+    if (
+      !course ||
+      !lesson ||
+      typeof course.courseId !== 'string' ||
+      typeof course.classroomId !== 'string' ||
+      typeof lesson.presentationId !== 'string'
+    )
+      throw Error('课程或课件信息无效');
+    const service = requireRainService();
+    const presentation = await service.fetchPresentation(lesson.presentationId);
+    const pages = [];
+    for (const page of presentation.pages)
+      pages.push({ ...page, ...(await service.downloadImage(page.imageUrl)) });
+    const name =
+      `${String(course.name || '雨课堂课程')} - ${String(lesson.name || presentation.name || '课件')}`
+        .replace(/[<>:"/\\|?*]/g, '_')
+        .slice(0, 120);
+    const meta = await projects.createRainProject({
+      name,
+      source: {
+        courseId: course.courseId,
+        classroomId: course.classroomId,
+        lessonId: lesson.lessonId || '',
+        presentationId: lesson.presentationId,
+      },
+      pages,
+    });
+    res.json(meta);
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/rain/live/start', async (req, res, next) => {
+  try {
+    const { course, lesson, projectId } = req.body || {};
+    if (
+      !course ||
+      !lesson ||
+      typeof lesson.lessonId !== 'string' ||
+      !lesson.lessonId ||
+      typeof projectId !== 'string' ||
+      !validId(projectId)
+    )
+      throw Error('实时采集需要有效的课堂和当前项目');
+    const target = { projectId, course, lesson };
+    rainLiveProject = target;
+    const result = await requireRainService().startLive({
+      lessonId: lesson.lessonId,
+      onSlide: async (page) => {
+        const image = await requireRainService().downloadImage(page.imageUrl);
+        return projects.appendRainSlide({
+          id: target.projectId,
+          source: {
+            courseId: target.course.courseId,
+            classroomId: target.course.classroomId,
+            lessonId: target.lesson.lessonId,
+            presentationId: page.presentationId,
+          },
+          page: { ...page, ...image },
+        });
+      },
+      onState: (state) => {
+        if (
+          (state.status === 'stopped' || state.status === 'finished') &&
+          !state.pendingSlides
+        )
+          rainLiveProject = null;
+      },
+    });
+    res.json(result);
+  } catch (error) {
+    rainLiveProject = null;
+    next(error);
+  }
+});
+app.post('/api/rain/live/stop', async (req, res, next) => {
+  try {
+    const state = await requireRainService().stopLive();
+    if (!state.pendingSlides) rainLiveProject = null;
+    res.json(state);
+  } catch (error) {
+    next(error);
+  }
+});
+app.post('/api/rain/live/retry', async (req, res, next) => {
+  try {
+    await requireRainService().retryLive();
+    res.json(requireRainService().getLiveStatus());
+  } catch (error) {
+    next(error);
+  }
+});
 async function convertOffice(input, output) {
   const snapshot = path.join(
     data,

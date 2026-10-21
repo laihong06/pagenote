@@ -1,0 +1,20 @@
+{
+  "format": "pagenote-yuketang-source",
+  "version": 1,
+  "provider": "www.yuketang.cn",
+  "courseId": "fixture-course-1",
+  "classroomId": "fixture-classroom-1",
+  "lessonId": "fixture-lesson-1",
+  "presentationId": "fixture-presentation-1",
+  "pages": [
+    {
+      "pageId": "fixture-slide-1",
+      "presentationId": "fixture-presentation-1",
+      "sourceIndex": 0,
+      "projectPage": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "asset": "src/assets/yuketang/fixture-slide-1-0000000000000000.jpg",
+      "firstSeenAt": "2026-10-22T08:00:00Z"
+    }
+  ]
+}

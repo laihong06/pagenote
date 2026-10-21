@@ -155,6 +155,9 @@ import io.pagenote.feature.pen.PenRecognizedShape
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
+import io.pagenote.feature.yuketang.RainClassroomClient
+import io.pagenote.feature.yuketang.RainCourse
+import io.pagenote.feature.yuketang.RainLesson
 import io.pagenote.feature.pen.PenValidation
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -167,6 +170,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
+import java.io.IOException
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.hypot
@@ -409,6 +413,7 @@ private fun ReaderHome(
     onDispose { systemClipboard?.removePrimaryClipChangedListener(listener) }
   }
   val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
+  val rainClassroomClient = remember(context) { RainClassroomClient(context.applicationContext) }
   val promptSettingsStore = remember(context.applicationContext) {
     agentPromptSettingsStore(context.applicationContext)
   }
@@ -490,6 +495,9 @@ private fun ReaderHome(
     mutableFloatStateOf(settings.leftPercent.toFloat())
   }
   var showRecentProjectsDialog by remember { mutableStateOf(false) }
+  var showRainClassroom by remember { mutableStateOf(false) }
+  var isRainImporting by remember { mutableStateOf(false) }
+  var isRainCapturing by remember { mutableStateOf(false) }
   var helpTopic by remember { mutableStateOf<ReaderHelpTopic?>(null) }
   var helpDiagnostics by remember { mutableStateOf("") }
   var showProjectAttachments by remember { mutableStateOf(false) }
@@ -2530,6 +2538,80 @@ private fun ReaderHome(
     }
   }
 
+  var pendingRainImport by remember { mutableStateOf<Pair<RainCourse, RainLesson>?>(null) }
+  val rainProjectParentPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocumentTree(),
+  ) { treeUri: Uri? ->
+    val pending = pendingRainImport
+    pendingRainImport = null
+    if (treeUri != null && pending != null) {
+      scope.launch {
+        try {
+          context.contentResolver.takePersistableUriPermission(
+            treeUri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+          )
+          isRainImporting = true
+          errorMessage = null
+          if (project != null && hasUnsavedChanges && !saveCurrentNote()) return@launch
+          val (course, lesson) = pending
+          val baseName = "${course.name} - ${lesson.name}"
+            .replace(Regex("[<>:\"/\\\\|?*]"), "_").take(120)
+          val target = withContext(Dispatchers.IO) {
+            RainProjectWriter(context).create(treeUri, baseName, course, lesson) { emitPage ->
+              rainClassroomClient.forEachPresentationPage(lesson, emitPage)
+            }
+          }
+          openProjectTree(target, manageOpening = true)
+          showRainClassroom = false
+          noteStatus = "雨课堂课件已导入为新项目"
+        } catch (error: Exception) {
+          errorMessage = "雨课堂导入失败：${error.message.orEmpty()}"
+        } finally {
+          isRainImporting = false
+        }
+      }
+    }
+  }
+  fun beginRainImport(course: RainCourse, lesson: RainLesson) {
+    if (isRainImporting || isChoosingNewProjectDir) return
+    pendingRainImport = course to lesson
+    rainProjectParentPicker.launch(null)
+  }
+  fun beginRainCapture(course: RainCourse, lesson: RainLesson) {
+    val active = project ?: return
+    if (renderer == null || isRainCapturing || active.sourceExtension != "pdf" || !noteWritable) {
+      errorMessage = "实时采集需要可写的 PDF 项目"
+      return
+    }
+    scope.launch {
+      if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+      isRainCapturing = true
+      errorMessage = null
+      try {
+        withContext(Dispatchers.IO) {
+          rainClassroomClient.startLive(lesson) { slide ->
+            withContext(Dispatchers.Main.immediate) {
+              val current = project
+              if (current?.manifest?.id != active.manifest.id) throw IOException("当前项目已切换，停止实时采集")
+              if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+              val checkpoint = readerSession.saveCheckpoint() ?: throw IOException("无法保存阅读位置")
+              val appended = RainProjectWriter(context).append(current, course, lesson, slide)
+              if (appended != null) {
+                openProjectTree(checkpoint.toProjectOpenTarget(), requestedCheckpoint = checkpoint)
+                noteStatus = "雨课堂新页面已追加到第 $appended 页"
+              }
+            }
+          }
+        }
+      } catch (error: Exception) {
+        errorMessage = "雨课堂实时采集失败：${error.message.orEmpty()}"
+      } finally {
+        isRainCapturing = false
+      }
+    }
+  }
+
   val projectAttachmentMimeTypes = remember {
     arrayOf(
       "image/*",
@@ -4023,6 +4105,9 @@ private fun ReaderHome(
       R.string.reader_menu_group_file,
       listOf(
         actionCommand(
+          "rain_classroom", R.string.rain_classroom_menu, true,
+        ) { showRainClassroom = true },
+        actionCommand(
           "open_project", R.string.open_project, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
         ) {
@@ -5202,6 +5287,20 @@ private fun ReaderHome(
       onInsertImage = ::requestProjectAttachmentImageInsertion,
       onDelete = ::deleteProjectAttachment,
       onDismiss = { showProjectAttachments = false },
+    )
+  }
+  if (showRainClassroom) {
+    RainClassroomDialog(
+      client = rainClassroomClient,
+      canCaptureLive = project?.sourceExtension == "pdf" && noteWritable && canReadDocument,
+      onImport = ::beginRainImport,
+      onStartLive = ::beginRainCapture,
+      onRetryLive = { scope.launch { runCatching { withContext(Dispatchers.IO) { rainClassroomClient.retryLive() } } } },
+      onStopLive = { rainClassroomClient.stopLive() },
+      onDismiss = {
+        rainClassroomClient.cancelLogin()
+        showRainClassroom = false
+      },
     )
   }
   helpTopic?.let { topic ->

@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "data": {
+    "activities": [
+      {
+        "lesson_id": 9281,
+        "presentation_id": "fixture-presentation-1",
+        "title": "Fixture lecture",
+        "create_time": "2026-10-22T08:00:00Z"
+      }
+    ]
+  }
+}

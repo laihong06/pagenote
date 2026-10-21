@@ -3,6 +3,7 @@ const { moveFile, copyFileSafe } = fileOps;
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { PDFDocument } from 'pdf-lib';
 export function splitPageNotes(text) {
   return text.split(
     /(?:\r?\n){2}<!--[ \t]*pagebreak[ \t]*-->(?:\r?\n){2}|^[ \t]*<!--[ \t]*pagebreak[ \t]*-->[ \t]*\r?$/gm,
@@ -30,6 +31,259 @@ export function createProjectStore({ app, data, convertOffice }) {
     await fs.writeFile(temp, text);
     await moveFile(temp, file);
   };
+  const atomicBytes = async (file, bytes) => {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const temp = file + '.' + randomUUID() + '.tmp';
+    await fs.writeFile(temp, bytes);
+    await moveFile(temp, file);
+  };
+  const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+  const assetName = (pageId, digest, extension) => {
+    const safeId =
+      String(pageId)
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 64) || 'page';
+    return `${safeId}-${digest.slice(0, 16)}.${extension}`;
+  };
+  async function pdfFromRainPages(pages) {
+    const document = await PDFDocument.create();
+    for (const page of pages) {
+      const image =
+        page.contentType === 'image/png'
+          ? await document.embedPng(page.bytes)
+          : await document.embedJpg(page.bytes);
+      const scale = Math.min(960 / image.width, 720 / image.height);
+      const width = Math.max(1, image.width * scale);
+      const height = Math.max(1, image.height * scale);
+      const target = document.addPage([width, height]);
+      target.drawImage(image, { x: 0, y: 0, width, height });
+    }
+    return Buffer.from(await document.save());
+  }
+  function rainManifest(source, pages) {
+    return {
+      format: 'pagenote-yuketang-source',
+      version: 1,
+      provider: 'www.yuketang.cn',
+      courseId: String(source.courseId),
+      classroomId: String(source.classroomId),
+      lessonId: String(source.lessonId || ''),
+      presentationId: String(source.presentationId),
+      pages,
+    };
+  }
+  async function createRainProject({ name, parent, source, pages }) {
+    const projectName = String(name || '').trim();
+    if (!projectName || /[<>:"/\\|?*]/.test(projectName))
+      throw Error('请输入有效的项目名称');
+    if (!Array.isArray(pages) || !pages.length)
+      throw Error('课件没有可导入的页面');
+    const parentDirectory = parent
+      ? path.resolve(parent)
+      : path.join(data, 'projects');
+    await fs.mkdir(parentDirectory, { recursive: true });
+    const projectRoot = path.join(parentDirectory, projectName);
+    await fs.mkdir(projectRoot);
+    try {
+      const src = path.join(projectRoot, 'src');
+      await fs.mkdir(path.join(src, 'assets', 'yuketang'), { recursive: true });
+      const pageEntries = [];
+      const pdfPages = [];
+      for (const [index, page] of pages.entries()) {
+        const digest = sha256(page.bytes);
+        const extension = page.contentType === 'image/png' ? 'png' : 'jpg';
+        const filename = assetName(page.pageId, digest, extension);
+        const asset = `src/assets/yuketang/${filename}`;
+        await fs.writeFile(path.join(projectRoot, asset), page.bytes, {
+          flag: 'wx',
+        });
+        pdfPages.push(page);
+        pageEntries.push({
+          pageId: String(page.pageId),
+          presentationId: String(source.presentationId),
+          sourceIndex: Number(page.sourceIndex),
+          projectPage: index + 1,
+          sha256: digest,
+          asset,
+          firstSeenAt: new Date().toISOString(),
+        });
+      }
+      const pdfBytes = await pdfFromRainPages(pdfPages);
+      const id = createHash('sha256').update(randomUUID()).digest('hex');
+      const manifest = {
+        format: 'pagenote-project',
+        version: 1,
+        id,
+        name: projectName,
+        created: new Date().toISOString(),
+        left: 'src/document.pdf',
+        right: 'src/right.md',
+      };
+      await atomicBytes(path.join(projectRoot, manifest.left), pdfBytes);
+      await atomic(
+        path.join(projectRoot, manifest.right),
+        Array.from({ length: pages.length }, () => '').join(
+          '\n\n<!-- pagebreak -->\n\n',
+        ),
+      );
+      await atomic(
+        path.join(src, 'yuketang-source.json'),
+        JSON.stringify(rainManifest(source, pageEntries), null, 2),
+      );
+      const file = path.join(projectRoot, 'project.pagenote');
+      await atomic(file, JSON.stringify(manifest, null, 2));
+      return await open(file);
+    } catch (error) {
+      await fs
+        .rm(projectRoot, { recursive: true, force: true })
+        .catch(() => {});
+      throw error;
+    }
+  }
+  async function appendRainSlide({ id, source, page }) {
+    const meta = await readMeta(id);
+    if (!meta.projectRoot || meta.kind !== 'pdf' || meta.ext !== '.pdf')
+      throw Error('实时雨课堂采集需要当前打开一个 PDF 项目');
+    const manifestFile =
+      meta.projectFile ||
+      path.join(meta.projectRoot, 'project.page-notes.json');
+    const projectManifest = JSON.parse(await fs.readFile(manifestFile, 'utf8'));
+    const sourcePdf = resolveLink(meta.projectRoot, projectManifest.left);
+    const rightFile = resolveLink(meta.projectRoot, projectManifest.right);
+    const sourceManifestFile = path.join(
+      meta.projectRoot,
+      'src',
+      'yuketang-source.json',
+    );
+    let sourceManifest;
+    try {
+      sourceManifest = JSON.parse(
+        await fs.readFile(sourceManifestFile, 'utf8'),
+      );
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      sourceManifest = rainManifest(source, []);
+    }
+    const digest = sha256(page.bytes);
+    const sourcePages = Array.isArray(sourceManifest.pages)
+      ? sourceManifest.pages
+      : [];
+    const previous = sourcePages.find(
+      (item) =>
+        item.pageId === String(page.pageId) &&
+        item.presentationId === String(source.presentationId) &&
+        item.sha256 === digest,
+    );
+    if (previous) return { added: false, page: previous.projectPage };
+
+    const sourceBytes = await fs.readFile(sourcePdf);
+    const pdf = await PDFDocument.load(sourceBytes);
+    const nextPageNumber = pdf.getPageCount() + 1;
+    const embedded =
+      page.contentType === 'image/png'
+        ? await pdf.embedPng(page.bytes)
+        : await pdf.embedJpg(page.bytes);
+    const scale = Math.min(960 / embedded.width, 720 / embedded.height);
+    const width = Math.max(1, embedded.width * scale);
+    const height = Math.max(1, embedded.height * scale);
+    const pdfPage = pdf.addPage([width, height]);
+    pdfPage.drawImage(embedded, { x: 0, y: 0, width, height });
+    const nextPdf = Buffer.from(await pdf.save());
+
+    const originalNotes = await fs
+      .readFile(rightFile, 'utf8')
+      .catch((error) => {
+        if (error.code === 'ENOENT') return '';
+        throw error;
+      });
+    const notePages = splitPageNotes(originalNotes);
+    if (notePages.length > nextPageNumber - 1)
+      throw Error('项目笔记页数与 PDF 不一致，已停止追加以保护现有笔记');
+    while (notePages.length < nextPageNumber - 1) notePages.push('');
+    notePages.push('');
+    const nextNotes = notePages.join('\n\n<!-- pagebreak -->\n\n');
+
+    const extension = page.contentType === 'image/png' ? 'png' : 'jpg';
+    const filename = assetName(page.pageId, digest, extension);
+    const asset = `src/assets/yuketang/${filename}`;
+    const assetPath = resolveLink(meta.projectRoot, asset);
+    await fs.mkdir(path.dirname(assetPath), { recursive: true });
+    try {
+      await fs.access(assetPath);
+    } catch {
+      await fs.writeFile(assetPath, page.bytes, { flag: 'wx' });
+    }
+    const nextSource = {
+      ...sourceManifest,
+      format: 'pagenote-yuketang-source',
+      version: 1,
+      provider: 'www.yuketang.cn',
+      courseId: String(source.courseId),
+      classroomId: String(source.classroomId),
+      lessonId: String(source.lessonId || ''),
+      presentationId: String(source.presentationId),
+      pages: [
+        ...sourcePages,
+        {
+          pageId: String(page.pageId),
+          presentationId: String(source.presentationId),
+          sourceIndex: Number(page.sourceIndex),
+          projectPage: nextPageNumber,
+          sha256: digest,
+          asset,
+          firstSeenAt: new Date().toISOString(),
+        },
+      ],
+    };
+    const notesFile = path.join(path.dirname(metaPath(id)), 'notes.json');
+    let previousNotesJson = '{}';
+    try {
+      previousNotesJson = await fs.readFile(notesFile, 'utf8');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const notesMap = JSON.parse(previousNotesJson);
+    notesMap[nextPageNumber] = '';
+    const timestamp = new Date().toISOString();
+    const sourceTemp = sourcePdf + '.' + randomUUID() + '.tmp';
+    await fs.writeFile(sourceTemp, nextPdf);
+    const oldSource = await fs.readFile(sourceManifestFile).catch(() => null);
+    const oldPdf = sourceBytes;
+    try {
+      await moveFile(sourceTemp, sourcePdf);
+      await atomic(rightFile, nextNotes);
+      await atomic(notesFile, JSON.stringify(notesMap));
+      await atomic(sourceManifestFile, JSON.stringify(nextSource, null, 2));
+      await copyFileSafe(
+        sourcePdf,
+        path.join(path.dirname(metaPath(id)), 'original.pdf'),
+      );
+      await copyFileSafe(
+        sourcePdf,
+        path.join(path.dirname(metaPath(id)), 'view.pdf'),
+      );
+      meta.modified = timestamp;
+      await atomic(metaPath(id), JSON.stringify(meta, null, 2));
+      projectManifest.modified = timestamp;
+      await atomic(manifestFile, JSON.stringify(projectManifest, null, 2));
+    } catch (error) {
+      await atomicBytes(sourcePdf, oldPdf).catch(() => {});
+      await atomic(rightFile, originalNotes).catch(() => {});
+      await atomic(notesFile, previousNotesJson).catch(() => {});
+      if (oldSource)
+        await atomic(sourceManifestFile, oldSource).catch(() => {});
+      else await fs.unlink(sourceManifestFile).catch(() => {});
+      throw error;
+    } finally {
+      await fs.unlink(sourceTemp).catch(() => {});
+    }
+    return {
+      added: true,
+      page: nextPageNumber,
+      modified: timestamp,
+      sourceAsset: asset,
+    };
+  }
   async function exportAssets(text, projectRoot) {
     for (const name of new Set(
       [...text.matchAll(/\/attachments\/([a-f0-9-]+\.[a-z0-9]+)/gi)].map(
@@ -332,6 +586,8 @@ export function createProjectStore({ app, data, convertOffice }) {
     persist,
     bindLeft,
     open,
+    createRainProject,
+    appendRainSlide,
     sourceFile: async (meta) => {
       if (!meta.projectRoot)
         return path.join(
