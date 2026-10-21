@@ -1,0 +1,26 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <provider
+      android:name="io.pagenote.android.NoteAssetSafTestProvider"
+      android:authorities="io.pagenote.android.test.note-assets"
+      android:exported="true" />
+    <provider
+      android:name="io.pagenote.android.ExistingProjectSafTestProvider"
+      android:authorities="io.pagenote.android.test.existing-project"
+      android:exported="true"
+      android:grantUriPermissions="true" />
+    <provider
+      android:name="io.pagenote.android.NoteExportSafTestProvider"
+      android:authorities="io.pagenote.android.test.note-export"
+      android:exported="true" />
+    <provider
+      android:name="io.pagenote.android.NoteImportSafTestProvider"
+      android:authorities="io.pagenote.android.test.note-import"
+      android:exported="true" />
+    <provider
+      android:name="io.pagenote.android.ProjectCreateSafTestProvider"
+      android:authorities="io.pagenote.android.test.project-create"
+      android:exported="true"
+      android:grantUriPermissions="true" />
+  </application>
+</manifest>

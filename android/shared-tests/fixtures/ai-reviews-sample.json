@@ -1,0 +1,17 @@
+[
+  {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "number": 1,
+    "side": "document",
+    "kind": "selection",
+    "page": 2,
+    "scope": "page",
+    "instruction": "补一个例子",
+    "quote": "原文引用",
+    "context": "上下文",
+    "revision": null,
+    "anchor": null,
+    "status": "open",
+    "created": "2026-10-17T00:00:00.000Z"
+  }
+]

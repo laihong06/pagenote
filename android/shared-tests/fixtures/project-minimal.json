@@ -1,0 +1,9 @@
+{
+  "format": "pagenote-project",
+  "version": 1,
+  "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "name": "fixture",
+  "created": "2026-10-17T00:00:00.000Z",
+  "left": "src/left.md",
+  "right": "src/right.md"
+}

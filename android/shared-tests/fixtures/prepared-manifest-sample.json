@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "documentId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "page": 6,
+  "sourceRevision": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "kind": "pdf",
+  "originalPreserved": true,
+  "region": {"x": 0, "y": 0, "width": 1000, "height": 1000},
+  "cacheKey": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "width": 1200,
+  "height": 1600,
+  "scale": 1.5,
+  "nativeCharacters": 120,
+  "ocrCharacters": 0,
+  "textCharacters": 120,
+  "blockCount": 4,
+  "tableCount": 0,
+  "ocr": {"status": "not-needed", "engine": "fixture"},
+  "warnings": [],
+  "visualReviewRequired": true,
+  "files": ["native-full.txt", "text.txt", "blocks.json"],
+  "visuals": []
+}

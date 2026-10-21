@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "pagenote-project",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "left", "right"],
+  "properties": {
+    "format": {"enum": ["pagenote-project", "page-notes-project"]},
+    "version": {"const": 1},
+    "id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "name": {"type": "string", "minLength": 1},
+    "created": {"type": "string"},
+    "modified": {"type": "string"},
+    "left": {"type": "string", "pattern": "^src/.+"},
+    "right": {"type": "string", "pattern": "^src/.+"},
+    "leftName": {"type": "string"},
+    "preview": {"type": "string", "pattern": "^src/.+"}
+  },
+  "additionalProperties": true
+}

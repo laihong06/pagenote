@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion><groupId>io.pagenote.thirdparty</groupId><artifactId>opencv-android</artifactId><version>4.10.0-pagenote.1</version><packaging>aar</packaging><name>Pagenote OpenCV Android runtime</name></project>

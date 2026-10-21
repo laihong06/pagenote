@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ai-reviews",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "number", "side", "kind", "page", "scope", "instruction", "status", "created"],
+    "properties": {
+      "id": {"type": "string"},
+      "number": {"type": "integer", "minimum": 1},
+      "side": {"enum": ["document", "note"]},
+      "kind": {"enum": ["overall", "selection", "region"]},
+      "page": {"type": "integer", "minimum": 1},
+      "scope": {"enum": ["document", "page"]},
+      "instruction": {"type": "string", "minLength": 1, "maxLength": 20000},
+      "quote": {"type": "string"},
+      "context": {"type": "string"},
+      "revision": {"type": ["string", "null"]},
+      "anchor": {"type": ["object", "null"]},
+      "status": {"enum": ["open", "applied", "dismissed"]},
+      "created": {"type": "string"},
+      "updated": {"type": "string"},
+      "boardPosition": {"type": "object"}
+    },
+    "additionalProperties": true
+  }
+}
