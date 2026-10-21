@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Compare frozen Android runtime sources against the integration commit while allowing the new release-notes file; adding release documentation changes the directory tree hash without changing application code. / 安卓发布校验排除新增发布说明文件，仍严格比对冻结应用代码，修正首次流水线的目录树校验失败。
+
 - Accept PR #10 into beta only and freeze Android 1.0.0-beta.5; add verified contributor-APK publication with source provenance, signature/metadata/checksum checks and explicit platform limitations. Windows release candidate and main remain unchanged. / 接收安卓 PR 并固定安卓测试版，记录来源、签名与验收边界；不改变 Windows 冻结候选及正式分支。
 
 - Align the Android beta build metadata with 1.0.0-beta.5 (versionCode 5); this source PR does not publish a release. / 将 Android 测试版构建元数据对齐到 1.0.0-beta.5（versionCode 5）；本源码 PR 不会发布版本。

@@ -2,7 +2,7 @@ name: Publish fixed Android beta
 on:
   push:
     branches: [beta]
-    paths: ['.github/android-beta-publish.json']
+    paths: ['.github/android-beta-publish.json', '.github/workflows/android-beta-publish.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -15,9 +15,12 @@ jobs:
       GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify frozen Android source and desktop versions
         run: |
-          test "$(git rev-parse HEAD:android)" = 6e6ed47df930d91613c76a02ed4039e361e93938
+          test "$(git rev-parse 18d196330c1b8a5711c00bd974fc0e06fdb3137b:android)" = 6e6ed47df930d91613c76a02ed4039e361e93938
+          git diff --exit-code 18d196330c1b8a5711c00bd974fc0e06fdb3137b HEAD -- android ':(exclude)android/docs/RELEASE-1.0.0-beta.5.md'
           node scripts/check-release-version.mjs --release
           python3 -m unittest discover -s android/scripts/tests -v
           python3 - <<'PY'
