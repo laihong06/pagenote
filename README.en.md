@@ -6,7 +6,11 @@
 
 **[⬇ Mac Apple Silicon beta DMG](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.dmg)** · [Mac beta ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.zip)
 
-This is the **beta branch**. The README and downloads on this page describe **1.1.0-beta.4**, including native Mac settings, light/dark appearance, Paper reading theme, welcome screen, prompt routing and Windows trackpad changes. [Stable branch](https://github.com/laihong06/pagenote/tree/main).
+**[⬇ Android tablet beta APK](https://github.com/laihong06/pagenote/releases/download/android-v1.0.0-beta.5/pagenote-android-1.0.0-beta.5-arm64-v8a.apk)** · [Android release notes, source and checksums](https://github.com/laihong06/pagenote/releases/tag/android-v1.0.0-beta.5)
+
+This is the **beta branch**. Desktop downloads remain **1.1.0-beta.4**; Android is independently fixed at **1.0.0-beta.5**. Platforms are tested and released separately. [Stable branch](https://github.com/laihong06/pagenote/tree/main).
+
+Android requires **Android 14+ and ARM64**. It includes page-linked PDF/Markdown reading, notes, ink, offline OCR and an in-app tutoring agent. The APK preserves the contributor's signature and uses a separate beta application ID. Office editing and full desktop parity remain incomplete; physical stylus pressure/buttons still need validation. Future updates require the same signing key; back up projects before uninstalling. [Android testing scope and provenance](android/docs/RELEASE-1.0.0-beta.5.md).
 
 Beta installs as **pagenote Beta**, with a separate installation identity, shortcuts and local settings/data directory. It does not take over stable project file associations. Project files you explicitly open are still shared files: copy a project before testing if you want to keep its stable copy unchanged.
 

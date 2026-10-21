@@ -6,7 +6,11 @@
 
 **[⬇ Mac Apple Silicon 测试版 DMG](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.dmg)** · [Mac 测试版 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-mac-arm64.zip)
 
-这里是 **beta 测试分支**。本页说明与下载对应 **1.1.0-beta.4**，包含 Mac 原生设置、明暗主题、纸张阅读主题、欢迎页及既有提示词路由和 Windows 触控板适配。[前往 main 正式分支](https://github.com/laihong06/pagenote/tree/main)。
+**[⬇ Android 平板测试版 APK](https://github.com/laihong06/pagenote/releases/download/android-v1.0.0-beta.5/pagenote-android-1.0.0-beta.5-arm64-v8a.apk)** · [安卓发布说明、源码与校验值](https://github.com/laihong06/pagenote/releases/tag/android-v1.0.0-beta.5)
+
+这里是 **beta 测试分支**。桌面下载对应 **1.1.0-beta.4**，安卓独立固定为 **1.0.0-beta.5**；各平台分别验收、分别发布。[前往 main 正式分支](https://github.com/laihong06/pagenote/tree/main)。
+
+安卓要求 **Android 14 及以上、ARM64**，支持 PDF/Markdown 逐页阅读、笔记、手写、离线 OCR 和内置 AI 讲解。APK 原样保留贡献者签名，使用独立包名；Office 编辑与完整桌面功能对齐尚未完成，真机压感、侧键等仍需测试。后续升级要求同一签名，卸载前请备份项目。[安卓测试说明与来源](android/docs/RELEASE-1.0.0-beta.5.md)。
 
 测试版以 **pagenote Beta** 独立安装，使用独立的快捷方式、安装标识和本地设置、数据目录，不接管正式版的项目文件关联。主动打开的项目仍是同一份文件；想保留正式版项目原样，请先复制项目再测试。
 
