@@ -68,6 +68,9 @@
   "pages": [
     {
       "pageId": "string",
+      "courseId": "string",
+      "classroomId": "string",
+      "lessonId": "string",
       "sourceIndex": 0,
       "projectPage": 1,
       "sha256": "hex",
@@ -80,7 +83,7 @@
 
 清单只写稳定来源标识、源页号、项目页号、内容散列、本地资源相对路径和时间；不写 QR ticket、Cookie、Token、签名 URL、用户隐私字段或学习统计。项目 PDF 使用原始页序；实时新页按首次成功采集顺序追加，并在清单中保留原课件页号。项目 `src/right.md` 页数必须与 PDF 页数同步，新增笔记页为空。
 
-页面去重键为 `provider + classroomId + presentationId + pageId + sha256`。同 ID 同散列视为回翻或重复消息；内容散列变化时追加新的来源版本，不覆盖已有项目页、笔记、批注或笔迹。课件结构映射不确定时停止自动更新并给出可读状态。
+页面去重键为 `provider + classroomId + presentationId + pageId + sha256`。每条页面来源记录都保留课程、课堂和课件身份，不能依赖清单的单一顶层来源字段推断旧页面所属课堂。旧版 v1 清单在首次追加时按其顶层来源补齐页面身份。同 ID 同散列视为同一课堂内的回翻或重复消息；内容散列变化或课堂身份变化时追加新的来源版本，不覆盖已有项目页、笔记、批注或笔迹。课件结构映射不确定时停止自动更新并给出可读状态。
 
 ## 5. 历史导入和实时队列
 

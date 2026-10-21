@@ -3,6 +3,7 @@ package io.pagenote.feature.yuketang
 import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class RainProtocolTest {
@@ -88,6 +89,19 @@ class RainProtocolTest {
         courses,
       ),
     )
+  }
+
+  @Test
+  fun rain_page_identity_keeps_the_same_page_distinct_between_classrooms() {
+    val firstClass = RainSourcePageIdentity(
+      classroomId = "classroom-a",
+      presentationId = "presentation-shared",
+      pageId = "page-shared",
+      sha256 = "a".repeat(64),
+    )
+
+    assertEquals(firstClass, firstClass.copy())
+    assertNotEquals(firstClass, firstClass.copy(classroomId = "classroom-b"))
   }
 
   private fun fixture(name: String): File {

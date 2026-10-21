@@ -15,6 +15,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.yuketang.RainCourse
 import io.pagenote.feature.yuketang.RainLesson
+import io.pagenote.feature.yuketang.RainSourcePageIdentity
 import io.pagenote.feature.yuketang.RainSlideImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,7 +60,7 @@ internal class RainProjectWriter(
           addPdfPage(document, page)
           val entry = writeAsset(rainAssets, page)
           pageCount++
-          sourceEntries.put(sourceEntry(page, entry, pageCount))
+          sourceEntries.put(sourceEntry(page, entry, pageCount, course, lesson))
         }
         require(pageCount > 0) { "雨课堂课件没有可导入的页面" }
         writeBytes(src, "document.pdf", "application/pdf", savePdf(document))
@@ -107,12 +108,21 @@ internal class RainProjectWriter(
     } ?: sourceManifest(course, lesson, page.slide.presentationId, JSONArray())
     val entries = sourceManifest.optJSONArray("pages") ?: JSONArray()
     val digest = sha256(page.bytes)
+    val incomingIdentity = RainSourcePageIdentity(
+      course.classroomId,
+      page.slide.presentationId,
+      page.slide.pageId,
+      digest,
+    )
     for (index in 0 until entries.length()) {
       val entry = entries.optJSONObject(index) ?: continue
-      if (entry.optString("pageId") == page.slide.pageId &&
-        entry.optString("presentationId") == page.slide.presentationId &&
-        entry.optString("sha256") == digest
-      ) return@withContext null
+      val existingIdentity = RainSourcePageIdentity(
+        entry.optString("classroomId").ifBlank { sourceManifest.optString("classroomId") },
+        entry.optString("presentationId"),
+        entry.optString("pageId"),
+        entry.optString("sha256"),
+      )
+      if (existingIdentity == incomingIdentity) return@withContext null
     }
 
     var nextPageNumber = 0
@@ -130,6 +140,14 @@ internal class RainProjectWriter(
     notes.add("")
     val newNotes = PageNotes.join(notes)
     val assetEntry = writeAsset(rainAssets, page)
+    val migratedEntries = JSONArray()
+    for (index in 0 until entries.length()) {
+      val entry = JSONObject(entries.getJSONObject(index).toString())
+      if (!entry.has("courseId")) entry.put("courseId", sourceManifest.optString("courseId"))
+      if (!entry.has("classroomId")) entry.put("classroomId", sourceManifest.optString("classroomId"))
+      if (!entry.has("lessonId")) entry.put("lessonId", sourceManifest.optString("lessonId"))
+      migratedEntries.put(entry)
+    }
     val updatedManifest = sourceManifest
       .put("format", "pagenote-yuketang-source")
       .put("version", 1)
@@ -138,7 +156,7 @@ internal class RainProjectWriter(
       .put("classroomId", course.classroomId)
       .put("lessonId", lesson.lessonId.orEmpty())
       .put("presentationId", page.slide.presentationId)
-      .put("pages", entries.put(sourceEntry(page, assetEntry, nextPage)))
+      .put("pages", migratedEntries.put(sourceEntry(page, assetEntry, nextPage, course, lesson)))
     val previousManifestBytes = sourceManifestUri?.let { uri ->
       resolver.openInputStream(uri)?.use { it.readBytes() }
         ?: throw IOException("无法备份雨课堂来源记录")
@@ -214,8 +232,17 @@ internal class RainProjectWriter(
     return "src/assets/yuketang/$name"
   }
 
-  private fun sourceEntry(page: RainSlideImage, asset: String, projectPage: Int) = JSONObject()
+  private fun sourceEntry(
+    page: RainSlideImage,
+    asset: String,
+    projectPage: Int,
+    course: RainCourse,
+    lesson: RainLesson,
+  ) = JSONObject()
     .put("pageId", page.slide.pageId)
+    .put("courseId", course.courseId)
+    .put("classroomId", course.classroomId)
+    .put("lessonId", lesson.lessonId.orEmpty())
     .put("presentationId", page.slide.presentationId)
     .put("sourceIndex", page.slide.sourceIndex)
     .put("projectPage", projectPage)

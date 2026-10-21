@@ -24,6 +24,13 @@ data class RainTimelineReplay(
   val possibleGap: Boolean,
 )
 
+data class RainSourcePageIdentity(
+  val classroomId: String,
+  val presentationId: String,
+  val pageId: String,
+  val sha256: String,
+)
+
 internal fun normalizeCurrentLessons(payload: JSONObject): List<RainCurrentLesson> {
   val code = payload.optInt("code", 0)
   if (code != 0) throw IOException("雨课堂请求失败：${payload.optString("msg", "code $code")}")

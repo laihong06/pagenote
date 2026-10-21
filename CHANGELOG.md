@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Preserve course, classroom, and lesson identity on every Rain Classroom source page so duplicate detection remains correct when a project is reused across classes; migrate legacy manifests on append. / 雨课堂来源清单为每一页保留课程、课堂和课次身份，修正项目跨课堂复用时的重复判定，并在追加时迁移旧清单。
+
 - Add an Electron UI regression for the native File → Rain Classroom entry, confirming it opens the in-app panel, shows the signed-out state and keeps live capture disabled until attendance consent. No Rain account or classroom is used. / 新增 Electron UI 回归，验证原生“文件 → 雨课堂导入与实时采集”会打开应用内面板、显示未登录状态，并在确认签到提示前禁用实时采集；不使用真实账号或课堂。
 
 - Record fresh Rain Classroom packaging and runtime boundaries: Node regressions and Android API 34 tablet AVD launch/QR display pass; no account confirmation, history import, or real live lesson was performed. Windows x64 packaging completes with a missing `mcp-dist/mcp-node.exe` warning; the rebuilt Mac arm64 bundle awaits cold-start because the host is locked. No public release. / 更新雨课堂最新打包与运行边界：Node 回归及 Android 14 平板 AVD 启动、应用内二维码显示通过；未确认真实账号、导入历史课件或进入真实课堂。Windows x64 打包完成但提示缺少 `mcp-dist/mcp-node.exe`；Mac arm64 已重打包，主机锁屏，仍待冷启动。未发布公开版本。

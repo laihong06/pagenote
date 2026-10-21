@@ -100,6 +100,9 @@ export function createProjectStore({ app, data, convertOffice }) {
         pdfPages.push(page);
         pageEntries.push({
           pageId: String(page.pageId),
+          courseId: String(source.courseId),
+          classroomId: String(source.classroomId),
+          lessonId: String(source.lessonId || ''),
           presentationId: String(source.presentationId),
           sourceIndex: Number(page.sourceIndex),
           projectPage: index + 1,
@@ -171,6 +174,8 @@ export function createProjectStore({ app, data, convertOffice }) {
     const previous = sourcePages.find(
       (item) =>
         item.pageId === String(page.pageId) &&
+        String(item.classroomId ?? sourceManifest.classroomId ?? '') ===
+          String(source.classroomId) &&
         item.presentationId === String(source.presentationId) &&
         item.sha256 === digest,
     );
@@ -223,9 +228,19 @@ export function createProjectStore({ app, data, convertOffice }) {
       lessonId: String(source.lessonId || ''),
       presentationId: String(source.presentationId),
       pages: [
-        ...sourcePages,
+        ...sourcePages.map((item) => ({
+          ...item,
+          courseId: String(item.courseId ?? sourceManifest.courseId ?? ''),
+          classroomId: String(
+            item.classroomId ?? sourceManifest.classroomId ?? '',
+          ),
+          lessonId: String(item.lessonId ?? sourceManifest.lessonId ?? ''),
+        })),
         {
           pageId: String(page.pageId),
+          courseId: String(source.courseId),
+          classroomId: String(source.classroomId),
+          lessonId: String(source.lessonId || ''),
           presentationId: String(source.presentationId),
           sourceIndex: Number(page.sourceIndex),
           projectPage: nextPageNumber,

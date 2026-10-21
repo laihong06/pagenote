@@ -38,6 +38,9 @@
         ],
         "properties": {
           "pageId": { "type": "string", "minLength": 1 },
+          "courseId": { "type": "string", "minLength": 1 },
+          "classroomId": { "type": "string", "minLength": 1 },
+          "lessonId": { "type": "string" },
           "presentationId": { "type": "string", "minLength": 1 },
           "sourceIndex": { "type": "integer", "minimum": 0 },
           "projectPage": { "type": "integer", "minimum": 1 },

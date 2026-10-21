@@ -9,6 +9,9 @@
   "pages": [
     {
       "pageId": "fixture-slide-1",
+      "courseId": "fixture-course-1",
+      "classroomId": "fixture-classroom-1",
+      "lessonId": "fixture-lesson-1",
       "presentationId": "fixture-presentation-1",
       "sourceIndex": 0,
       "projectPage": 1,

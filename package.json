@@ -18,7 +18,7 @@
     "package:dir": "npm run build && node scripts/package-desktop.mjs --dir",
     "test:release": "node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs && npm run test:reading && npm run test:workflows",
     "test:reading": "node tests/continuous.mjs && node tests/ai-workspace.mjs && npm run test:trackpad",
-    "test:yuketang": "node tests/yuketang-login.mjs && node tests/yuketang-current-lessons.mjs && node tests/yuketang-selection.mjs && node tests/yuketang-live-recovery.mjs && node tests/yuketang-live-service.mjs",
+    "test:yuketang": "node tests/yuketang-login.mjs && node tests/yuketang-current-lessons.mjs && node tests/yuketang-selection.mjs && node tests/yuketang-live-recovery.mjs && node tests/yuketang-live-service.mjs && node tests/yuketang-projects.mjs",
     "test:english": "node tests/english-windows.mjs",
     "test:acceptance": "node tests/acceptance-recovery.mjs",
     "test:soak": "node tests/soak.mjs",
