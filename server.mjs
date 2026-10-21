@@ -170,15 +170,19 @@ app.get('/api/rain/current-lessons', async (req, res, next) => {
 });
 app.post('/api/rain/import', async (req, res, next) => {
   try {
-    const { course, lesson } = req.body || {};
+    const { course, lesson, parent } = req.body || {};
     if (
       !course ||
       !lesson ||
       typeof course.courseId !== 'string' ||
       typeof course.classroomId !== 'string' ||
-      typeof lesson.presentationId !== 'string'
+      typeof lesson.presentationId !== 'string' ||
+      typeof parent !== 'string' ||
+      !path.isAbsolute(parent)
     )
-      throw Error('课程或课件信息无效');
+      throw Error('课程、课件或导入目录无效');
+    const destination = await fs.stat(parent);
+    if (!destination.isDirectory()) throw Error('导入目标必须是文件夹');
     const service = requireRainService();
     const presentation = await service.fetchPresentation(lesson.presentationId);
     const pages = [];
@@ -190,6 +194,7 @@ app.post('/api/rain/import', async (req, res, next) => {
         .slice(0, 120);
     const meta = await projects.createRainProject({
       name,
+      parent,
       source: {
         courseId: course.courseId,
         classroomId: course.classroomId,

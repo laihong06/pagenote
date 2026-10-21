@@ -513,6 +513,18 @@ if (!app.requestSingleInstanceLock()) {
       } catch {}
       const translate = (label) =>
         catalog[label]?.[locale === 'en-US' ? 1 : 0] || label;
+      ipcMain.handle('pagenote:rain-import-directory', async (event) => {
+        if (!win || event.sender !== win.webContents)
+          throw Error('Invalid Rain import directory request');
+        const chosen = await dialog.showOpenDialog(win, {
+          title:
+            locale === 'en-US'
+              ? 'Choose Rain Classroom import folder'
+              : '选择雨课堂课件导入目录',
+          properties: ['openDirectory'],
+        });
+        return chosen.canceled ? null : chosen.filePaths[0] || null;
+      });
       function localize(items) {
         return items.map((item) => ({
           ...item,

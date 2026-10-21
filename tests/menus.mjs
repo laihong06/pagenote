@@ -59,6 +59,27 @@ try {
   assert.ok(await w.locator('#rainLogin').isVisible());
   assert.ok(await w.locator('#rainLiveConsent').isVisible());
   assert.ok(await w.locator('#rainLiveStart').isDisabled());
+  const rainImportDirectory = path.join(root, 'tests', 'rain-import-target');
+  const selectedRainImportDirectory = await app.evaluate(
+    async ({ BrowserWindow, dialog }, directory) => {
+      const targetWindow = BrowserWindow.getAllWindows()[0];
+      const original = dialog.showOpenDialog;
+      dialog.showOpenDialog = async (_parent, options) => {
+        if (!options.properties.includes('openDirectory'))
+          throw new Error('Rain import must choose a destination directory');
+        return { canceled: false, filePaths: [directory] };
+      };
+      try {
+        return await targetWindow.webContents.executeJavaScript(
+          'window.desktopSettings.chooseRainImportDirectory()',
+        );
+      } finally {
+        dialog.showOpenDialog = original;
+      }
+    },
+    rainImportDirectory,
+  );
+  assert.equal(selectedRainImportDirectory, rainImportDirectory);
   await w.locator('#rainClose').click();
   await w.locator('#rainClassroomDialog[open]').waitFor({ state: 'detached' });
   const editMenu = menus.find((m) => m.label === '编辑');

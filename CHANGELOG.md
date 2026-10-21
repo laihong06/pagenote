@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Let desktop Rain Classroom imports choose their destination folder through the native directory picker; Android continues to use SAF. / 桌面雨课堂导入现在可通过系统目录选择器指定目标文件夹；Android 继续使用 SAF。
+
 - Preserve course, classroom, and lesson identity on every Rain Classroom source page so duplicate detection remains correct when a project is reused across classes; migrate legacy manifests on append. / 雨课堂来源清单为每一页保留课程、课堂和课次身份，修正项目跨课堂复用时的重复判定，并在追加时迁移旧清单。
 
 - Add an Electron UI regression for the native File → Rain Classroom entry, confirming it opens the in-app panel, shows the signed-out state and keeps live capture disabled until attendance consent. No Rain account or classroom is used. / 新增 Electron UI 回归，验证原生“文件 → 雨课堂导入与实时采集”会打开应用内面板、显示未登录状态，并在确认签到提示前禁用实时采集；不使用真实账号或课堂。

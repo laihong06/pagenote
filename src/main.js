@@ -2440,13 +2440,15 @@ $('rainImport').onclick = safely(async () => {
   const lesson = selectedItem($('rainLesson').value, rainLessons);
   if (!course || !lesson) return;
   $('rainImport').disabled = true;
-  $('rainLoginStatus').textContent = '正在下载课件并创建项目…';
   try {
+    const parent = await window.desktopSettings.chooseRainImportDirectory();
+    if (!parent) return;
+    $('rainLoginStatus').textContent = '正在下载课件并创建项目…';
     await flush();
     const meta = await request('/api/rain/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ course, lesson }),
+      body: JSON.stringify({ course, lesson, parent }),
     });
     await refreshLibrary();
     await openDocument(meta);
