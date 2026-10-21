@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add an Electron UI regression for the native File → Rain Classroom entry, confirming it opens the in-app panel, shows the signed-out state and keeps live capture disabled until attendance consent. No Rain account or classroom is used. / 新增 Electron UI 回归，验证原生“文件 → 雨课堂导入与实时采集”会打开应用内面板、显示未登录状态，并在确认签到提示前禁用实时采集；不使用真实账号或课堂。
+
 - Record fresh Rain Classroom packaging and runtime boundaries: Node regressions and Android API 34 tablet AVD launch/QR display pass; no account confirmation, history import, or real live lesson was performed. Windows x64 packaging completes with a missing `mcp-dist/mcp-node.exe` warning; the rebuilt Mac arm64 bundle awaits cold-start because the host is locked. No public release. / 更新雨课堂最新打包与运行边界：Node 回归及 Android 14 平板 AVD 启动、应用内二维码显示通过；未确认真实账号、导入历史课件或进入真实课堂。Windows x64 打包完成但提示缺少 `mcp-dist/mcp-node.exe`；Mac arm64 已重打包，主机锁屏，仍待冷启动。未发布公开版本。
 
 - Add bilingual beta README downloads for the published Android 1.0.0-beta.5 prerelease, with Android 14+/ARM64, contributor signing and incomplete Office/parity scope; desktop downloads remain Beta 4. Publication workflow passed, and local APK SHA256 plus six native-library 16 KB ELF/ZIP checks passed. / Beta 首页新增安卓测试版下载与限制说明；发布流程及本地 APK 校验通过，桌面下载保持不变。
