@@ -40,6 +40,6 @@
 ## D. 集成与交付
 
 - [x] D1 汇总三端精简证据并区分模拟与真实联通：Node 脱敏 fixture/fake-WebSocket、Rain 项目追加/同课堂去重/跨课堂身份/旧清单迁移，以及导入 API 必须使用所选目录并在其内创建标准项目的回归通过；桌面 Electron UI 回归确认原生“文件 → 雨课堂”打开应用内面板、显示未登录状态、未确认签到提示前禁用实时采集，并通过 IPC 验证原生目录选择器返回目标路径；Windows x64 目录包构建成功并包含 Rain 模块，但提示缺少 `mcp-dist/mcp-node.exe`，未做 Windows 实机运行；Android API 34 JVM/Debug 构建通过，Pixel Tablet API 34 AVD 已启动应用、打开雨课堂入口并成功显示登录二维码，关闭面板后应用仍运行。未确认账号、未导入历史课件、未进入真实课堂，因此真实课堂采集仍未验证。
-- [ ] D2 `release/mac-arm64/pagenote.app` 已重新构建为 arm64；当前 app.asar 时间戳为 2026-10-22 03:55:50，晚于 `dist/index.html`（03:55:45）、`desktop/main.cjs` / `desktop/preload.cjs` / `server.mjs` / `src/main.js`（03:53:57）及 `projects.mjs`（03:49:52），Bundle 版本 `1.0.0-beta.1`。主机锁屏导致无法正常退出旧实例或冷启动；需解锁后验证固定入口、恢复和重试 UI。
+- [ ] D2 `release/mac-arm64/pagenote.app` 已重新构建为 arm64；当前 app.asar 时间戳为 2026-10-22 04:01:46，晚于 `dist/index.html`（04:01:41）、`desktop/main.cjs` / `server.mjs` / `src/main.js`（03:59:03）、`desktop/preload.cjs`（03:57:38）、`projects.mjs`（03:49:52）及 Rain 协议模块（02:53:07）；ASAR 已确认包含桌面 Rain 模块、preload、server 与渲染构建。Bundle 版本 `1.0.0-beta.1`，Mach-O 为 arm64。主机锁屏导致无法正常退出旧实例或冷启动；需解锁后验证固定入口、恢复和重试 UI。
 - [x] D3 更新 Unreleased changelog 与 Android 雨课堂模块第三方协议/许可证清单；公开 release 尚未发布。
 - [x] D4 实现分支 `codex/yuketang-cross-platform` 提交 `ec48470` 已快进合并并推送个人 `main`；上游 PR #11（`codex/yuketang-upstream-pr` → `beta`）已创建并保持 open。
