@@ -39,7 +39,7 @@
 
 ## D. 集成与交付
 
-- [x] D1 汇总三端精简证据并区分模拟与真实联通：Node 脱敏 fixture/fake-WebSocket、Rain 项目创建/追加/去重 smoke、Android API 34 JVM 与 Debug APK 通过；Windows x64 目录包内包含 Rain 模块但未运行，构建提示缺少 `mcp-node.exe`；真实账号/课堂联通未验证。
-- [ ] D2 `release/mac-arm64/pagenote.app` 已更新为 arm64 1.1.0-beta.4，app.asar 时间戳为 2026-10-22 03:00:13，晚于源码和 dist；需解锁后正常退出旧实例并冷启动验证恢复/重试 UI。
+- [x] D1 汇总三端精简证据并区分模拟与真实联通：Node 脱敏 fixture/fake-WebSocket 与 Rain 项目追加/去重 smoke 通过；Windows x64 目录包构建成功并包含 Rain 模块，但提示缺少 `mcp-dist/mcp-node.exe`，未做 Windows 实机运行；Android API 34 JVM/Debug 构建通过，Pixel Tablet API 34 AVD 已启动应用、打开雨课堂入口并成功显示登录二维码，关闭面板后应用仍运行。未确认账号、未导入历史课件、未进入真实课堂，因此真实课堂采集仍未验证。
+- [ ] D2 `release/mac-arm64/pagenote.app` 已重新构建为 arm64；当前 app.asar 时间戳为 2026-10-22 03:19:22，晚于 `dist/index.html`（03:19:16）和雨课堂运行源码。主机锁屏导致无法正常退出旧实例或冷启动；需解锁后验证固定入口、恢复和重试 UI。
 - [x] D3 更新 Unreleased changelog 与 Android 雨课堂模块第三方协议/许可证清单；公开 release 尚未发布。
 - [x] D4 实现分支 `codex/yuketang-cross-platform` 提交 `ec48470` 已快进合并并推送个人 `main`；上游 PR #11（`codex/yuketang-upstream-pr` → `beta`）已创建并保持 open。

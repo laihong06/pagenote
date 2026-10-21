@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Record fresh Rain Classroom packaging and runtime boundaries: Node regressions and Android API 34 tablet AVD launch/QR display pass; no account confirmation, history import, or real live lesson was performed. Windows x64 packaging completes with a missing `mcp-dist/mcp-node.exe` warning; the rebuilt Mac arm64 bundle awaits cold-start because the host is locked. No public release. / 更新雨课堂最新打包与运行边界：Node 回归及 Android 14 平板 AVD 启动、应用内二维码显示通过；未确认真实账号、导入历史课件或进入真实课堂。Windows x64 打包完成但提示缺少 `mcp-dist/mcp-node.exe`；Mac arm64 已重打包，主机锁屏，仍待冷启动。未发布公开版本。
+
 - Add bilingual beta README downloads for the published Android 1.0.0-beta.5 prerelease, with Android 14+/ARM64, contributor signing and incomplete Office/parity scope; desktop downloads remain Beta 4. Publication workflow passed, and local APK SHA256 plus six native-library 16 KB ELF/ZIP checks passed. / Beta 首页新增安卓测试版下载与限制说明；发布流程及本地 APK 校验通过，桌面下载保持不变。
 
 - Compare frozen Android runtime sources against the integration commit while allowing the new release-notes file; adding release documentation changes the directory tree hash without changing application code. / 安卓发布校验排除新增发布说明文件，仍严格比对冻结应用代码，修正首次流水线的目录树校验失败。
