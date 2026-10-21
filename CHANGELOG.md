@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Accept PR #10 into beta only and freeze Android 1.0.0-beta.5; add verified contributor-APK publication with source provenance, signature/metadata/checksum checks and explicit platform limitations. Windows release candidate and main remain unchanged. / 接收安卓 PR 并固定安卓测试版，记录来源、签名与验收边界；不改变 Windows 冻结候选及正式分支。
+
 - Align the Android beta build metadata with 1.0.0-beta.5 (versionCode 5); this source PR does not publish a release. / 将 Android 测试版构建元数据对齐到 1.0.0-beta.5（versionCode 5）；本源码 PR 不会发布版本。
 - Give the outside-page ink setting switch a localized accessibility name and add API 34 Compose coverage for its default-off, toggle, save, and restored states. Verified both settings instrumentation tests, AndroidTest source compilation, and Debug APK assembly; no ink behavior changed. / 为页外书写设置开关关联本地化无障碍名称，并增加 Android 14 Compose 回归，覆盖默认关闭、切换、保存和状态回显。设置仪器测试 2/2、AndroidTest 源码编译和 Debug APK 构建通过；未改变手写行为。
 - Complete the reader-interaction acceptance audit on the API 34 tablet AVD and add an Activity regression for failed native-annotation writes falling back to the original pressure-bearing freehand stroke. Existing Activity coverage proves shape persistence and undo/redo. Verified navigation 5/5, pen View 9/9, settings 2/2, shape history 1/1, fallback 1/1, focused JVM tests, AndroidTest compilation, and Debug APK assembly; no public release was published. / 完成 Android 14 平板模拟器上的阅读器交互验收，并增加原生批注写入失败后回退为原始含压感自由笔迹的 Activity 回归；已有 Activity 回归覆盖识形落盘与撤销/重做。翻页 5/5、笔迹 View 9/9、设置 2/2、识形历史 1/1、失败回退 1/1、定向 JVM、AndroidTest 编译和 Debug APK 构建通过；未发布公开版本。

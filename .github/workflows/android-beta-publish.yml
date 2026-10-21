@@ -1,0 +1,54 @@
+name: Publish fixed Android beta
+on:
+  push:
+    branches: [beta]
+    paths: ['.github/android-beta-publish.json']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify frozen Android source and desktop versions
+        run: |
+          test "$(git rev-parse HEAD:android)" = 6e6ed47df930d91613c76a02ed4039e361e93938
+          node scripts/check-release-version.mjs --release
+          python3 -m unittest discover -s android/scripts/tests -v
+          python3 - <<'PY'
+          import json
+          r = json.load(open('.github/android-beta-publish.json'))
+          assert r == {'tag': 'android-v1.0.0-beta.5', 'android_tree': '6e6ed47df930d91613c76a02ed4039e361e93938', 'apk_sha256': '56820881beb69e82ef2aa4a79892f0412e4a63fc829d954de0888b41b331de11'}
+          PY
+      - name: Retrieve and verify contributed APK
+        run: |
+          mkdir artifacts
+          gh release download android-v1.0.0-beta.5 --repo obroccolio/pagenote --pattern 'pagenote-android-1.0.0-beta.5-arm64-v8a.apk' --dir artifacts
+          echo '56820881beb69e82ef2aa4a79892f0412e4a63fc829d954de0888b41b331de11  artifacts/pagenote-android-1.0.0-beta.5-arm64-v8a.apk' | sha256sum --check
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/aapt" dump badging artifacts/*.apk | tee apk-metadata.txt
+          grep -q "package: name='io.pagenote.android.beta'.*versionCode='5'.*versionName='1.0.0-beta.5'" apk-metadata.txt
+          grep -q "sdkVersion:'34'" apk-metadata.txt
+          grep -q "native-code: 'arm64-v8a'" apk-metadata.txt
+          "$tools/apksigner" verify --print-certs artifacts/*.apk | tee artifacts/SIGNING.txt
+          "$tools/zipalign" -c -P 16 4 artifacts/*.apk
+      - name: Package source and provenance
+        run: |
+          git archive --format=zip --prefix=pagenote/ HEAD > artifacts/pagenote-android-1.0.0-beta.5-source.zip
+          cp android/docs/RELEASE-1.0.0-beta.5.md artifacts/RELEASE-NOTES.md
+          printf 'Repository commit: %s\nAndroid tree: %s\nContributor source tag commit: %s\nContributor PR head: %s\nAPK is byte-for-byte contributor build, not a maintainer rebuild.\n' "$GITHUB_SHA" 6e6ed47df930d91613c76a02ed4039e361e93938 64f3527f96c867d8a2427f9919470b9ac25af8a3 0b84e5d63eabd1afe9ea675e55766b4bd5fa7e6e > artifacts/PROVENANCE.txt
+          (cd artifacts && sha256sum *.apk *.zip SIGNING.txt RELEASE-NOTES.md PROVENANCE.txt > SHA256SUMS.txt)
+      - name: Publish Android prerelease without replacing existing releases
+        run: |
+          tag=android-v1.0.0-beta.5
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to replace it.' >&2
+            exit 1
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease --title 'Android 1.0.0-beta.5 · Android 平板测试版' --notes-file android/docs/RELEASE-1.0.0-beta.5.md artifacts/*
+          gh release edit "$tag" --draft=false --prerelease --latest=false
