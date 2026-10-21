@@ -39,7 +39,7 @@
 
 ## D. 集成与交付
 
-- [ ] D1 汇总 Windows、Mac arm64、Android API 34 的精简验证记录，并区分模拟协议与真实账号/课堂证据。
-- [ ] D2 已刷新 `release/mac-arm64/pagenote.app`，包内 `app.asar` 时间戳晚于源码；需解锁后正常退出旧实例并冷启动验证本次恢复/重试 UI。Android API 34 arm64 debug APK 编译通过。Windows 包仍待 CI/Windows 主机，未声称已验证。
+- [x] D1 汇总三端精简证据并区分模拟与真实联通：Node 脱敏 fixture/fake-WebSocket、Rain 项目创建/追加/去重 smoke、Android API 34 JVM 与 Debug APK 通过；Windows x64 目录包内包含 Rain 模块但未运行，构建提示缺少 `mcp-node.exe`；真实账号/课堂联通未验证。
+- [ ] D2 `release/mac-arm64/pagenote.app` 已更新为 arm64 1.1.0-beta.4，app.asar 时间戳为 2026-10-22 03:00:13，晚于源码和 dist；需解锁后正常退出旧实例并冷启动验证恢复/重试 UI。
 - [x] D3 更新 Unreleased changelog 与 Android 雨课堂模块第三方协议/许可证清单；公开 release 尚未发布。
-- [ ] D4 提交实现分支，合并个人仓库 main，推送并创建 laihong 上游 PR。
+- [x] D4 实现分支 `codex/yuketang-cross-platform` 提交 `ec48470` 已快进合并并推送个人 `main`；上游 PR #11（`codex/yuketang-upstream-pr` → `beta`）已创建并保持 open。
