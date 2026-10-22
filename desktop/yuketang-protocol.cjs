@@ -15,6 +15,12 @@ function asId(value) {
 }
 
 function asIndex(value, fallback = null) {
+  if (
+    value == null ||
+    typeof value === 'boolean' ||
+    (typeof value === 'string' && !value.trim())
+  )
+    return fallback;
   const index = typeof value === 'number' ? value : Number(value);
   return Number.isInteger(index) && index >= 0 ? index : fallback;
 }
@@ -25,12 +31,22 @@ function unwrapData(payload) {
       'PROTOCOL_CHANGED',
       '雨课堂返回了无法识别的数据',
     );
-  if (payload.code !== undefined && Number(payload.code) !== 0)
+  const code = payload.code ?? payload.errcode;
+  if (code !== undefined && Number(code) !== 0)
     throw new RainClassroomError(
-      payload.code === 401 || payload.code === 403
-        ? 'AUTH_REQUIRED'
-        : 'REMOTE_ERROR',
-      String(payload.msg || payload.message || '雨课堂请求失败'),
+      (payload.msg || payload.errmsg) === 'LESSON_ON'
+        ? 'LESSON_ON'
+        : Number(code) === 401 || Number(code) === 403
+          ? 'AUTH_REQUIRED'
+          : 'REMOTE_ERROR',
+      (payload.msg || payload.errmsg) === 'LESSON_ON'
+        ? '该课堂正在上课，请选择正在进行的课堂并开始实时采集'
+        : String(
+            payload.msg ||
+              payload.errmsg ||
+              payload.message ||
+              '雨课堂请求失败',
+          ),
     );
   return payload.data ?? payload;
 }
@@ -88,14 +104,19 @@ function normalizeLessons(payload, classroomId) {
     );
   return list
     .map((item) => {
-      const presentationId = asId(
-        item.presentation_id ?? item.presentationId ?? item.courseware_id,
+      const presentationId = asId(item.presentation_id ?? item.presentationId);
+      const reportType = [3, 14].includes(Number(item.type));
+      if (item.type != null && !reportType && !presentationId) return null;
+      const lessonId = asId(
+        item.lesson_id ??
+          item.lessonId ??
+          (reportType ? item.courseware_id : null),
       );
-      if (!presentationId) return null;
+      if (!presentationId && !lessonId) return null;
       return {
         classroomId: String(classroomId),
-        lessonId: asId(item.lesson_id ?? item.lessonId),
-        presentationId,
+        lessonId,
+        presentationId: presentationId || `report-${lessonId}`,
         name: String(item.title || item.name || '未命名课件'),
         createdAt: item.create_time ?? item.created_at ?? null,
         status: item.status ?? null,
@@ -108,18 +129,29 @@ function normalizeCurrentLessons(payload) {
   const data = unwrapData(payload);
   const list = Array.isArray(data.onLessonClassrooms)
     ? data.onLessonClassrooms
-    : Array.isArray(data.result)
-      ? data.result
-      : Array.isArray(data)
-        ? data
-        : null;
+    : Array.isArray(data.on_lesson_classrooms)
+      ? data.on_lesson_classrooms
+      : Array.isArray(data.result)
+        ? data.result
+        : Array.isArray(data)
+          ? data
+          : null;
   if (!list)
     throw new RainClassroomError(
       'PROTOCOL_CHANGED',
       '无法识别雨课堂当前课堂列表',
     );
   return list
-    .filter((item) => String(item?.status) === '1')
+    .filter(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        (item.status === undefined ||
+          item.status === null ||
+          item.status === true ||
+          String(item.status) === '1'),
+    )
     .map((item) => {
       const lessonId = asId(item.lessonId ?? item.lesson_id ?? item.id);
       if (!lessonId) return null;
@@ -127,13 +159,26 @@ function normalizeCurrentLessons(payload) {
         item.course && typeof item.course === 'object' ? item.course : {};
       return {
         lessonId,
-        classroomId: asId(item.classroomId ?? item.classroom_id),
-        courseId: asId(item.courseId ?? item.course_id ?? course.id),
+        classroomId: asId(
+          item.classroomId ?? item.classroom_id ?? item.classroom?.id,
+        ),
+        courseId: asId(
+          item.courseId ??
+            item.course_id ??
+            course.courseId ??
+            course.course_id ??
+            course.id,
+        ),
         name: String(
           item.name ||
             item.title ||
+            item.lessonName ||
             item.lesson_name ||
             course.name ||
+            item.classroomName ||
+            item.classroom_name ||
+            item.courseName ||
+            item.course_name ||
             '正在进行的课堂',
         ),
       };
@@ -150,22 +195,43 @@ function slideImageUrl(slide) {
   return null;
 }
 
-function normalizePresentation(payload, presentationId) {
-  const data = unwrapData(payload);
-  if (!Array.isArray(data.slides))
+function normalizeSlides(slides, presentationId, visibleOnly = false) {
+  if (!Array.isArray(slides))
     throw new RainClassroomError('PROTOCOL_CHANGED', '无法识别雨课堂课件页面');
-  const pages = data.slides
+  const pages = slides
     .map((slide, order) => {
-      const pageId = asId(slide.id ?? slide.pageId ?? slide.page_id);
+      if (visibleOnly && ![true, 1, 'true', '1'].includes(slide.visible))
+        return null;
+      const pageId = asId(
+        slide.id ??
+          slide.pageId ??
+          slide.page_id ??
+          slide.slideId ??
+          slide.slide_id,
+      );
       const url = slideImageUrl(slide);
-      if (!pageId || !url) return null;
+      if (!pageId || !url) {
+        if (visibleOnly)
+          throw new RainClassroomError(
+            'PROTOCOL_CHANGED',
+            '雨课堂已开放的课件页面数据不完整',
+          );
+        return null;
+      }
       return {
         pageId,
+        presentationId: String(presentationId),
         sourceIndex: asIndex(slide.index, order),
         imageUrl: new URL(url, ORIGIN).href,
       };
     })
     .filter(Boolean);
+  return pages;
+}
+
+function normalizePresentation(payload, presentationId) {
+  const data = unwrapData(payload);
+  const pages = normalizeSlides(data.slides, presentationId);
   if (!pages.length)
     throw new RainClassroomError('PROTOCOL_CHANGED', '课件没有可用的页面图片');
   return {
@@ -175,17 +241,29 @@ function normalizePresentation(payload, presentationId) {
   };
 }
 
+function liveSlideKey(slide) {
+  return slide.sourceIndex != null
+    ? `${slide.presentationId}:${slide.sourceIndex}`
+    : `${slide.presentationId}:page:${slide.pageId}`;
+}
+
+function liveSlideReference(item) {
+  const presentationId = asId(item?.pres);
+  const sourceIndex = asIndex(item?.si);
+  const pageId = sourceIndex == null ? asId(item?.sid) : null;
+  if (!presentationId || (sourceIndex == null && !pageId)) return null;
+  return { presentationId, sourceIndex, ...(pageId ? { pageId } : {}) };
+}
+
 function normalizeLiveMessage(message) {
   const op = String(message?.op || '');
   if (op === 'lessonfinished') return { type: 'finished' };
   if (['hello', 'fetchtimeline'].includes(op)) {
     const timeline = Array.isArray(message.timeline) ? message.timeline : [];
     const slides = timeline
-      .map((item) => ({
-        presentationId: asId(item?.pres),
-        sourceIndex: asIndex(item?.si),
-      }))
-      .filter((item) => item.presentationId && item.sourceIndex !== null);
+      .filter((item) => item && (item.type == null || item.type === 'slide'))
+      .map(liveSlideReference)
+      .filter(Boolean);
     const current = {
       presentationId: asId(message.presentation),
       sourceIndex: asIndex(message.slideindex),
@@ -207,29 +285,39 @@ function normalizeLiveMessage(message) {
       'showfinished',
     ].includes(op)
   ) {
-    const presentationId = asId(message.presentation);
-    const sourceIndex = asIndex(message.slideindex);
-    return presentationId && sourceIndex !== null
-      ? { type: 'slide', presentationId, sourceIndex }
-      : { type: 'state' };
+    const slide = liveSlideReference({
+      pres: message.presentation ?? message.slide?.pres,
+      si: message.slideindex ?? message.slide?.si,
+      sid: message.slide?.sid,
+    });
+    return slide ? { type: 'slide', ...slide } : { type: 'state' };
   }
   if (op === 'slidenav') {
-    const presentationId = asId(message.slide?.pres);
-    const sourceIndex = asIndex(message.slide?.si);
-    return presentationId && sourceIndex !== null
-      ? { type: 'slide', presentationId, sourceIndex }
-      : { type: 'state' };
+    const slide = liveSlideReference(message.slide);
+    return slide ? { type: 'slide', ...slide } : { type: 'state' };
   }
   return { type: 'ignored' };
 }
 
-function selectTimelineReplay(slides, cursor, initialConnection) {
+function selectTimelineReplay(
+  slides,
+  cursor,
+  initialConnection,
+  pageCursor = null,
+) {
   const valid = Array.isArray(slides) ? slides : [];
   if (!valid.length) return { slides: [], possibleGap: false };
-  if (initialConnection) return { slides: [valid.at(-1)], possibleGap: false };
-  if (cursor) {
+  if (initialConnection)
+    return {
+      slides: [
+        ...new Map(valid.map((slide) => [liveSlideKey(slide), slide])).values(),
+      ],
+      possibleGap: false,
+    };
+  if (cursor || pageCursor) {
     const cursorIndex = valid.findLastIndex(
-      (slide) => `${slide.presentationId}:${slide.sourceIndex}` === cursor,
+      (slide) =>
+        liveSlideKey(slide) === cursor || liveSlideKey(slide) === pageCursor,
     );
     if (cursorIndex >= 0)
       return { slides: valid.slice(cursorIndex + 1), possibleGap: false };
@@ -284,6 +372,9 @@ module.exports = {
   normalizeLessons,
   normalizeCurrentLessons,
   normalizePresentation,
+  normalizeSlides,
+  unwrapData,
+  liveSlideKey,
   normalizeLiveMessage,
   selectTimelineReplay,
   assertRainAssetUrl,

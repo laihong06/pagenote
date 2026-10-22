@@ -86,7 +86,7 @@ assert.equal(first.sent[0].op, 'hello');
 first.emit('message', {
   data: JSON.stringify({
     op: 'hello',
-    timeline: [{ pres: 'fixture-presentation-a', si: 0 }],
+    timeline: [{ type: 'slide', pres: 'fixture-presentation-a', sid: 'a-0' }],
   }),
 });
 await waitFor(() => service.getLiveStatus().latest?.sourceIndex === 0);

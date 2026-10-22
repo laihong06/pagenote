@@ -41,5 +41,13 @@ assert.equal(
   courses[0],
 );
 assert.equal(currentLessonCourse(null, courses, courses[0]), null);
+assert.equal(
+  currentLessonCourse(
+    { classroomId: 'room1', courseId: 'live-course-alias' },
+    courses,
+  ),
+  courses[0],
+  'the unique classroom identity is authoritative when the two endpoints expose different course namespaces',
+);
 
 console.log('Yuketang selection tests passed');

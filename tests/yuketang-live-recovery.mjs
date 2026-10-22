@@ -27,8 +27,8 @@ assert.deepEqual(
   selectTimelineReplay(normalized.slides, null, true).slides.map(
     (slide) => slide.sourceIndex,
   ),
-  [1],
-  'first connection imports the currently visible slide only',
+  [0, 1, 0, 1],
+  'first connection backfills the complete visible timeline',
 );
 
 const cursor = 'fixture-presentation-a:0';
@@ -61,3 +61,28 @@ assert.deepEqual(
 );
 
 console.log('Yuketang live timeline recovery tests passed');
+
+const stablePages = normalizeLiveMessage({
+  op: 'hello',
+  timeline: [
+    { type: 'slide', pres: 'deck', sid: 'slide-zero' },
+    { type: 'question', pres: 'deck', sid: 'not-a-slide' },
+    { type: 'slide', pres: 'deck', si: null, sid: 'slide-one' },
+  ],
+});
+assert.deepEqual(stablePages.slides, [
+  { presentationId: 'deck', sourceIndex: null, pageId: 'slide-zero' },
+  { presentationId: 'deck', sourceIndex: null, pageId: 'slide-one' },
+]);
+assert.deepEqual(
+  selectTimelineReplay(
+    stablePages.slides,
+    'deck:0',
+    false,
+    'deck:page:slide-zero',
+  ),
+  {
+    slides: [stablePages.slides[1]],
+    possibleGap: false,
+  },
+);

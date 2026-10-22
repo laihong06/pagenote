@@ -31,9 +31,86 @@ import {
 } from './theme.js';
 import './theme.css';
 import './reading-theme.css';
+import { createBookshelf } from './bookshelf.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = worker;
 const $ = (id) => document.getElementById(id);
+const bookshelfUI = createBookshelf({
+  loadRecent: refreshLibrary,
+  request,
+  pdfjs,
+  onError: (error) => toast(error.message),
+  onNew: () => window.pageNotes.menuAction('newProject'),
+  onImport: () => shelfFileInput.click(),
+  onSettings: () => openSettings(),
+  openBook: async (book) => {
+    await window.pageNotes.openProject(book.projectFile);
+    let position;
+    try {
+      position = JSON.parse(
+        localStorage.getItem('bookshelf-position:' + book.key),
+      );
+    } catch {}
+    await goTo(
+      position?.id === book.id && Number.isSafeInteger(position.page)
+        ? Math.min(total, Math.max(1, position.page))
+        : 1,
+    );
+  },
+});
+const shelfFileInput = document.createElement('input');
+shelfFileInput.id = 'shelfFileInput';
+shelfFileInput.type = 'file';
+shelfFileInput.accept = '.pdf,.md,.markdown';
+shelfFileInput.hidden = true;
+document.body.append(shelfFileInput);
+shelfFileInput.onchange = safely(async () => {
+  try {
+    await importShelfDocument(shelfFileInput.files[0]);
+  } finally {
+    shelfFileInput.value = '';
+  }
+});
+function rememberBookPosition() {
+  const book = bookshelfUI
+    .state()
+    .books.find((item) => item.projectFile === doc?.projectFile);
+  if (book)
+    localStorage.setItem(
+      'bookshelf-position:' + book.key,
+      JSON.stringify({ id: doc.id, page }),
+    );
+}
+async function showBookshelf() {
+  await window.pageNotes.finishEditing();
+  rememberBookPosition();
+  readingGestures?.cancel();
+  for (const task of pageTasks.values()) task.cancel();
+  await bookshelfUI.show();
+}
+async function importShelfDocument(file) {
+  if (!file) return;
+  await window.pageNotes.finishEditing();
+  const form = new FormData();
+  form.append('file', file);
+  const uploaded = await request('/api/documents', {
+    method: 'POST',
+    body: form,
+  });
+  const name =
+    file.name
+      .replace(/\.(pdf|md|markdown)$/i, '')
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .slice(0, 120) || t('未命名');
+  const meta = await request('/api/bookshelf/projects/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ documentId: uploaded.id, name }),
+  });
+  await refreshLibrary();
+  await bookshelfUI.refresh();
+  await openDocument(meta);
+}
 let layout = {
     noteWidth: 1000,
     padding: 28,
@@ -501,6 +578,7 @@ async function syncScrollPage() {
   }
 }
 function paintVisible() {
+  if (bookshelfUI.state().visible) return;
   const scroller = $('documentScroll'),
     bounds = scroller.getBoundingClientRect();
   pageSheets.forEach((sheet, i) => {
@@ -533,6 +611,7 @@ async function endMarkdownDocument() {
   await renderPage();
 }
 async function renderPage(anchor = null) {
+  if (bookshelfUI.state().visible) return;
   if (documentMarkdownEditing) return;
   readingGestures?.cancel();
   const epoch = ++documentBuild;
@@ -664,6 +743,7 @@ async function openDocument(meta, fromWord = false) {
   }
 }
 async function performOpenDocument(meta, fromWord = false) {
+  rememberBookPosition();
   if (wordBusy && !fromWord) await waitWordIdle();
   if (wordActive) await endWord();
   await flush();
@@ -704,6 +784,7 @@ async function performOpenDocument(meta, fromWord = false) {
     pdf = newPdf;
     mdPages = newPages;
     notes = newNotes;
+    bookshelfUI.hide();
     total = pdf?.numPages || mdPages.length;
     page = Math.min(
       total,
@@ -744,6 +825,7 @@ async function refreshLibrary() {
 }
 async function importFile(file) {
   if (!file) return;
+  if (bookshelfUI.state().visible) return importShelfDocument(file);
   await endMarkdownDocument();
   if (wordBusy) await waitWordIdle();
   if (wordActive) await endWord();
@@ -1188,6 +1270,11 @@ $('exportNote').onclick = safely(async () => {
 $('helpButton').onclick = () => $('help').showModal();
 $('closeHelp').onclick = () => $('help').close();
 $('settingsButton').onclick = () => openSettings();
+$('bookshelfDirectoryChange').onclick = safely(async () => {
+  await bookshelfUI.chooseDirectory();
+  $('bookshelfDirectory').textContent =
+    (await request('/api/bookshelf/config')).root || t('尚未绑定书架目录');
+});
 $('closeSettings').onclick = () => $('settings').close();
 let defaultAIPrompt = '';
 let promptDrafts = {},
@@ -1227,6 +1314,8 @@ async function openWebAISettings() {
   $('aiSettings').showModal();
 }
 async function openSettings(pane) {
+  $('bookshelfDirectory').textContent =
+    (await request('/api/bookshelf/config')).root || t('尚未绑定书架目录');
   if (window.desktopSettings) {
     try {
       const result = await window.desktopSettings.open(pane);
@@ -1788,6 +1877,7 @@ function getSettingsState() {
     markdownTheme: getMarkdownTheme(),
     noteAnimation: layout.noteAnimation,
     expandEditor: layout.expandEditor,
+    bookshelfRoot: bookshelfUI.state().config.root || '',
   };
 }
 async function applySetting(key, value) {
@@ -1802,6 +1892,9 @@ async function applySetting(key, value) {
   return getSettingsState();
 }
 window.pageNotes = {
+  showBookshelf,
+  getBookshelfState: () => bookshelfUI.state(),
+  chooseBookshelfDirectory: () => bookshelfUI.chooseDirectory(),
   openSettings,
   getSettingsState,
   applySetting,
@@ -1926,6 +2019,7 @@ window.pageNotes = {
     if (!meta) throw Error('文档不存在');
     if (
       doc?.id !== id ||
+      bookshelfUI.state().visible ||
       forceReload ||
       (new URLSearchParams(location.search).has('capture') &&
         doc?.modified !== meta.modified)
@@ -2143,10 +2237,9 @@ new MutationObserver(() => {
 updateControls();
 window.pageNotes.ready = (async () => {
   applyLayout(await request('/api/layout'));
-  const docs = await refreshLibrary();
-  const last = docs.find((d) => d.id === localStorage.getItem('last-document'));
-  if (last && !new URLSearchParams(location.search).has('capture'))
-    await openDocument(last);
+  await refreshLibrary();
+  if (!new URLSearchParams(location.search).has('capture'))
+    await bookshelfUI.show();
 })().catch((e) => toast(e.message));
 
 // Close compact menus after an action or an outside click.
@@ -2172,12 +2265,17 @@ document.getElementById('newConfirm').onclick = safely(async () => {
   const name = document.getElementById('newName').value.trim();
   if (!name) return;
   await window.pageNotes.finishEditing();
+  const libraryRoot = (await request('/api/bookshelf/config')).root;
+  const selectedParent = $('newParent').value.trim();
   const meta = await request('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
-      parent: $('newParent').value.trim() || undefined,
+      parent:
+        selectedParent && selectedParent !== libraryRoot
+          ? selectedParent
+          : undefined,
     }),
   });
   await refreshLibrary();
@@ -2199,6 +2297,7 @@ window.pageNotes.menuAction = async (action) => {
     if ($('newName').value === '未命名' || $('newName').value === 'Untitled')
       $('newName').value = t('未命名');
     document.getElementById('newTitle').textContent = '新建项目';
+    $('newParent').value = (await request('/api/bookshelf/config')).root || '';
     createDialog.showModal();
   } else if (action === 'reviewLeft' || action === 'reviewRight')
     reviews.show(action === 'reviewLeft' ? 'document' : 'note');
@@ -2217,10 +2316,15 @@ let rainLastSlide = '';
 let rainLoginId = null;
 let rainAuthenticated = false;
 let rainLivePendingSlides = 0;
+let rainCaptureStatus = 'stopped';
 async function refreshRainAccount() {
+  if (!$('rainProjectParent').dataset.explicit)
+    $('rainProjectParent').value =
+      (await request('/api/bookshelf/config')).root || '';
   const state = await request('/api/rain/status');
   rainAuthenticated = state.account.authenticated;
   rainLivePendingSlides = state.live.pendingSlides || 0;
+  rainCaptureStatus = state.live.status;
   $('rainAccountStatus').textContent = state.account.authenticated
     ? `已登录：${state.account.user.name}`
     : '未登录';
@@ -2254,16 +2358,18 @@ function syncRainCommands() {
     Boolean(currentCourse);
   $('rainLesson').disabled = !course || !rainLessons.length;
   $('rainImport').disabled = !course || !lesson;
-  $('rainLiveStart').disabled =
+  const cannotStart =
     !rainAuthenticated ||
     !currentCourse ||
     !currentLesson?.lessonId ||
-    !doc?.projectRoot ||
-    doc?.kind !== 'pdf' ||
     wordBusy ||
     wordActive ||
     rainLivePendingSlides > 0 ||
+    !['stopped', 'finished'].includes(rainCaptureStatus) ||
     !$('rainLiveConsent').checked;
+  $('rainLiveNew').disabled = cannotStart;
+  $('rainLiveStart').disabled =
+    cannotStart || !doc?.projectRoot || doc?.kind !== 'pdf';
 }
 async function loadRainCourses() {
   const [courseResult, currentLessonResult] = await Promise.allSettled([
@@ -2370,6 +2476,7 @@ async function startRainLogin() {
 }
 async function pollRainLive() {
   const live = await request('/api/rain/live/status');
+  rainCaptureStatus = live.status;
   rainLivePendingSlides = live.pendingSlides || 0;
   $('rainLiveStatus').textContent =
     live.status === 'stopped'
@@ -2377,10 +2484,24 @@ async function pollRainLive() {
         ? `已停止 · ${rainLivePendingSlides} 页待重试${live.error ? ` · ${live.error}` : ''}`
         : '未连接课堂'
       : `实时采集：${{ connecting: '连接中', active: '采集中', reconnecting: '重连中', error: '发生错误' }[live.status] || live.status}${live.error ? ` · ${live.error}` : ''}${live.possibleGap ? ' · 重连期间可能缺页' : ''}`;
+  if (live.backfillPendingPages)
+    $('rainLiveStatus').textContent +=
+      ` · 正在补采 ${live.backfillPendingPages} 页`;
   syncRainCommands();
   $('rainLiveStop').hidden = live.status === 'stopped';
   $('rainLiveRetry').hidden = !live.pendingSlides;
   if (live.latest) {
+    if (window.pageNotes.rainNewProjectPending && live.latest.projectId) {
+      const documents = await refreshLibrary();
+      const created = documents.find(
+        (item) => item.id === live.latest.projectId,
+      );
+      if (created) {
+        window.pageNotes.rainProjectId = created.id;
+        window.pageNotes.rainNewProjectPending = false;
+        await bookshelfUI.refresh();
+      }
+    }
     const key = `${live.latest.presentationId}:${live.latest.sourceIndex}:${live.latest.projectPage}`;
     if (key !== rainLastSlide) {
       if (live.latest.added && doc?.id === window.pageNotes.rainProjectId) {
@@ -2397,6 +2518,13 @@ async function pollRainLive() {
 $('rainClassroomButton').onclick = safely(() =>
   window.pageNotes.menuAction('rainClassroom'),
 );
+$('rainChooseParent').onclick = safely(async () => {
+  const parent = await window.desktopSettings.chooseRainImportDirectory();
+  if (parent) {
+    $('rainProjectParent').value = parent;
+    $('rainProjectParent').dataset.explicit = 'true';
+  }
+});
 $('rainClose').onclick = () => $('rainClassroomDialog').close();
 $('rainClassroomDialog').addEventListener('close', () => {
   clearInterval(rainLoginPoll);
@@ -2441,7 +2569,9 @@ $('rainImport').onclick = safely(async () => {
   if (!course || !lesson) return;
   $('rainImport').disabled = true;
   try {
-    const parent = await window.desktopSettings.chooseRainImportDirectory();
+    const parent =
+      $('rainProjectParent').value ||
+      (await window.desktopSettings.chooseRainImportDirectory());
     if (!parent) return;
     $('rainLoginStatus').textContent = '正在下载课件并创建项目…';
     await flush();
@@ -2458,7 +2588,7 @@ $('rainImport').onclick = safely(async () => {
     syncRainCommands();
   }
 });
-$('rainLiveStart').onclick = safely(async () => {
+async function beginRainLiveCapture(newProject = false) {
   const currentLesson = selectedItem(
     $('rainCurrentLesson').value,
     rainCurrentLessons,
@@ -2469,21 +2599,38 @@ $('rainLiveStart').onclick = safely(async () => {
     rainCourses,
     selectedCourse,
   );
-  if (!course || !currentLesson?.lessonId || !doc?.projectRoot) return;
+  if (!course || !currentLesson?.lessonId || (!newProject && !doc?.projectRoot))
+    return;
   const lesson = {
     lessonId: currentLesson.lessonId,
     name: currentLesson.name,
     classroomId: currentLesson.classroomId || course.classroomId,
   };
   if (!$('rainLiveConsent').checked) throw Error('请先确认课堂连接和考勤提示');
+  const parent = newProject
+    ? $('rainProjectParent').value ||
+      (await window.desktopSettings.chooseRainImportDirectory())
+    : null;
+  if (newProject && !parent) return;
+  const name = (
+    $('rainProjectName').value.trim() || `${course.name} - ${lesson.name}`
+  )
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .slice(0, 100);
   await flush();
-  window.pageNotes.rainProjectId = doc.id;
+  window.pageNotes.rainProjectId = newProject ? null : doc.id;
   rainLastSlide = '';
   await request('/api/rain/live/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ course, lesson, projectId: doc.id }),
+    body: JSON.stringify({
+      course,
+      lesson,
+      consent: true,
+      ...(newProject ? { parent, name } : { projectId: doc.id }),
+    }),
   });
+  window.pageNotes.rainNewProjectPending = newProject;
   clearInterval(rainLivePoll);
   rainLivePoll = setInterval(
     () =>
@@ -2493,7 +2640,9 @@ $('rainLiveStart').onclick = safely(async () => {
     1500,
   );
   await pollRainLive();
-});
+}
+$('rainLiveStart').onclick = safely(() => beginRainLiveCapture(false));
+$('rainLiveNew').onclick = safely(() => beginRainLiveCapture(true));
 $('rainLiveStop').onclick = safely(async () => {
   await request('/api/rain/live/stop', { method: 'POST' });
   await pollRainLive();
@@ -2626,6 +2775,7 @@ window.pageNotes.ready = Promise.all([
 let externalRefreshBusy = false;
 window.pageNotes.refreshExternalSource = async () => {
   if (
+    bookshelfUI.state().visible ||
     !doc ||
     documentOpening ||
     externalRefreshBusy ||

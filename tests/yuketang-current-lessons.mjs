@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const fixture = require('../docs/spec/yuketang/fixtures/current-lessons.json');
+const noStatusFixture = require('../docs/spec/yuketang/fixtures/current-lessons-no-status.json');
 const { normalizeCurrentLessons } = require('../desktop/yuketang-protocol.cjs');
 const { createRainClassroomService } = require('../desktop/yuketang.cjs');
 
@@ -13,6 +14,14 @@ assert.deepEqual(normalizeCurrentLessons(fixture), [
     classroomId: 'fixture-classroom-1',
     courseId: '7351',
     name: 'Fixture live lecture',
+  },
+]);
+assert.deepEqual(normalizeCurrentLessons(noStatusFixture), [
+  {
+    lessonId: '9283',
+    classroomId: 'fixture-classroom-2',
+    courseId: null,
+    name: 'Fixture course without status',
   },
 ]);
 

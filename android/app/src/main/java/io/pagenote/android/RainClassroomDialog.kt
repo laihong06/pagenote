@@ -47,8 +47,11 @@ import kotlinx.coroutines.withContext
 internal fun RainClassroomDialog(
   client: RainClassroomClient,
   canCaptureLive: Boolean,
+  busy: Boolean,
+  waitingForFirstPage: String?,
   onImport: (RainCourse, RainLesson) -> Unit,
   onStartLive: (RainCourse, RainLesson) -> Unit,
+  onCreateLiveProject: (RainCourse, RainLesson, Boolean) -> Unit,
   onRetryLive: () -> Unit,
   onStopLive: () -> Unit,
   onDismiss: () -> Unit,
@@ -79,7 +82,7 @@ internal fun RainClassroomDialog(
       courses = withContext(Dispatchers.IO) { client.listCourses() }
       try {
         currentLessons = withContext(Dispatchers.IO) { client.listCurrentLessons() }
-        currentLesson = null
+        currentLesson = currentLessons.singleOrNull()
         error = null
       } catch (failure: Exception) {
         currentLessons = emptyList()
@@ -94,8 +97,11 @@ internal fun RainClassroomDialog(
 
   LaunchedEffect(Unit) {
     runCatching { withContext(Dispatchers.IO) { client.refreshLogin() } }
-      .onSuccess { if (it.status == "authenticated") loadCourses() }
       .onFailure { error = it.message }
+  }
+
+  LaunchedEffect(login.status) {
+    if (login.status == "authenticated") loadCourses()
   }
 
   fun matchingCourse(item: RainCurrentLesson): RainCourse? = matchCurrentLessonCourse(item, courses)
@@ -149,6 +155,7 @@ internal fun RainClassroomDialog(
             TextButton(enabled = !loading, onClick = { scope.launch { loadCourses() } }) { Text(stringResource(R.string.rain_refresh_courses)) }
           }
         }
+        Text(stringResource(R.string.rain_history_section), style = MaterialTheme.typography.titleSmall)
         Box {
           OutlinedButton(enabled = courses.isNotEmpty(), onClick = { expandedCourses = true }, modifier = Modifier.fillMaxWidth()) {
             Text(course?.name ?: if (login.status == "authenticated") stringResource(R.string.rain_choose_course) else stringResource(R.string.rain_choose_course_first))
@@ -183,6 +190,13 @@ internal fun RainClassroomDialog(
             }
           }
         }
+        Text(stringResource(R.string.rain_import_info))
+        Button(enabled = lesson != null && !loading && !busy && live.status in setOf("stopped", "finished") && live.pendingPages == 0, onClick = {
+          val selectedCourse = course ?: return@Button
+          val selectedLesson = lesson ?: return@Button
+          onImport(selectedCourse, selectedLesson)
+        }) { Text(stringResource(R.string.rain_import_button)) }
+        Text(stringResource(R.string.rain_live_section), style = MaterialTheme.typography.titleSmall)
         Box {
           OutlinedButton(
             enabled = currentLessons.isNotEmpty(),
@@ -191,7 +205,8 @@ internal fun RainClassroomDialog(
           ) {
             Text(currentLesson?.name ?: stringResource(
               if (error != null && currentLessons.isEmpty()) R.string.rain_current_lessons_unavailable
-              else R.string.rain_current_lessons_empty,
+              else if (currentLessons.isEmpty()) R.string.rain_current_lessons_empty
+              else R.string.rain_choose_current_lesson,
             ))
           }
           DropdownMenu(expanded = expandedCurrentLessons, onDismissRequest = { expandedCurrentLessons = false }) {
@@ -201,7 +216,6 @@ internal fun RainClassroomDialog(
                 text = { Text(matching?.let { "${it.name} · ${item.name}" } ?: item.name, maxLines = 2) },
                 onClick = {
                   currentLesson = item
-                  if (matching != null) course = matching
                   expandedCurrentLessons = false
                 },
               )
@@ -212,14 +226,6 @@ internal fun RainClassroomDialog(
           (currentLesson?.classroomId != null || currentLesson?.courseId != null) && liveCourse == null
         ) {
           Text(stringResource(R.string.rain_current_lesson_unmatched), color = MaterialTheme.colorScheme.error)
-        }
-        Text(stringResource(R.string.rain_import_info))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Button(enabled = lesson != null && !loading, onClick = {
-            val selectedCourse = course ?: return@Button
-            val selectedLesson = lesson ?: return@Button
-            onImport(selectedCourse, selectedLesson)
-          }) { Text(stringResource(R.string.rain_import_button)) }
         }
         Text(stringResource(R.string.rain_live_warning), color = MaterialTheme.colorScheme.error)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -235,31 +241,27 @@ internal fun RainClassroomDialog(
           else -> R.string.rain_live_stopped
         })
         Text(stringResource(R.string.rain_live_state, liveLabel) + live.error?.let { " · $it" }.orEmpty())
+        waitingForFirstPage?.let { Text(stringResource(R.string.rain_live_waiting_page, it)) }
+        if (live.backfillPendingPages > 0) Text(stringResource(R.string.rain_live_backfilling, live.backfillPendingPages))
         if (live.possibleGap) {
           Text(stringResource(R.string.rain_live_possible_gap), color = MaterialTheme.colorScheme.error)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Button(
-            enabled = allowAttendance && canCaptureLive && liveCourse != null && currentLesson != null && live.status == "stopped" && live.pendingPages == 0,
-            onClick = {
-              val selectedCourse = liveCourse ?: return@Button
-              val selectedLesson = currentLesson ?: return@Button
-              onStartLive(
-                selectedCourse,
-                RainLesson(
-                  classroomId = selectedLesson.classroomId ?: selectedCourse.classroomId,
-                  lessonId = selectedLesson.lessonId,
-                  presentationId = "",
-                  name = selectedLesson.name,
-                ),
-              )
-            },
-          ) { Text(stringResource(R.string.rain_live_start)) }
-          TextButton(enabled = live.pendingPages > 0, onClick = onRetryLive) {
-            Text(stringResource(R.string.rain_live_retry, live.pendingPages))
-          }
-          TextButton(enabled = live.status != "stopped", onClick = onStopLive) { Text(stringResource(R.string.rain_live_stop)) }
+        fun selectedLiveLesson(): RainLesson? = currentLesson?.let { selected ->
+          liveCourse?.let { matched -> RainLesson(selected.classroomId ?: matched.classroomId, selected.lessonId, "", selected.name) }
         }
+        RainLiveActions(
+          live = live, hasSelection = liveCourse != null && currentLesson != null,
+          canAppend = canCaptureLive, consent = allowAttendance, busy = busy || loading,
+          onCreateProject = {
+            val selected = selectedLiveLesson()
+            if (selected != null && liveCourse != null) onCreateLiveProject(liveCourse, selected, allowAttendance)
+          },
+          onAppend = {
+            val selected = selectedLiveLesson()
+            if (selected != null && liveCourse != null) onStartLive(liveCourse, selected)
+          },
+          onRetry = onRetryLive, onStop = onStopLive,
+        )
         if (loading) Text(stringResource(R.string.rain_loading))
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
       }

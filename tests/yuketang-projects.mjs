@@ -52,6 +52,27 @@ try {
   assert.equal(appended.added, true);
   assert.equal(appended.page, 2);
 
+  const multiDeck = await store.createRainProject({
+    name: 'Multi-deck project',
+    parent: path.join(root, 'projects'),
+    source,
+    pages: [
+      { ...page, presentationId: 'deck-a' },
+      { ...page, presentationId: 'deck-b' },
+    ],
+  });
+  const deckSource = JSON.parse(
+    await fs.readFile(
+      path.join(multiDeck.projectRoot, 'src', 'yuketang-source.json'),
+      'utf8',
+    ),
+  );
+  assert.deepEqual(
+    deckSource.pages.map((page) => page.presentationId),
+    ['deck-a', 'deck-b'],
+  );
+  assert.equal(new Set(deckSource.pages.map((page) => page.asset)).size, 2);
+
   const manifestPath = path.join(
     project.projectRoot,
     'src',

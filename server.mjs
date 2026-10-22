@@ -4,6 +4,7 @@ import promptStoreModule from './desktop/prompts.cjs';
 const { moveFile, copyFileSafe } = fileOps;
 import { registerExternalDocuments } from './external-documents.mjs';
 import { createProjectStore } from './projects.mjs';
+import bookshelfModule from './desktop/bookshelf.cjs';
 import macOfficeModule from './desktop/mac-office.cjs';
 import express from 'express';
 import multer from 'multer';
@@ -84,13 +85,73 @@ app.put('/api/ai-settings', async (req, res, next) => {
     next(error);
   }
 });
+const bookshelf = bookshelfModule.createBookshelfStore({ data });
+let writeQueue = Promise.resolve();
+async function defaultProjectParent() {
+  const directory = (await bookshelf.config()).root;
+  if (!directory) return path.join(data, 'projects');
+  if (!(await fs.stat(directory)).isDirectory()) throw Error('书架目录不可用');
+  return directory;
+}
 const projects = createProjectStore({
   app,
   data,
   convertOffice: convertOffice,
+  defaultParent: defaultProjectParent,
+  beforeOpen: () => writeQueue,
+});
+app.post('/api/bookshelf/projects/import', async (req, res, next) => {
+  try {
+    res.json(await projects.createFromDocument(req.body || {}));
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/bookshelf/config', async (req, res, next) => {
+  try {
+    res.json(await bookshelf.config());
+  } catch (error) {
+    next(error);
+  }
+});
+app.put('/api/bookshelf/config', async (req, res, next) => {
+  try {
+    if (req.body.root !== undefined) await bookshelf.bind(req.body.root);
+    res.json(await bookshelf.setView(req.body));
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/bookshelf', async (req, res, next) => {
+  try {
+    res.json(await bookshelf.scan());
+  } catch (error) {
+    next(error);
+  }
+});
+app.put('/api/bookshelf/:key/appearance', async (req, res, next) => {
+  try {
+    res.json(await bookshelf.saveAppearance(req.params.key, req.body));
+  } catch (error) {
+    next(error);
+  }
+});
+app.get('/api/bookshelf/:key/cover-source', async (req, res, next) => {
+  try {
+    const source = await bookshelf.coverSource(req.params.key);
+    res
+      .set('Cache-Control', 'no-cache')
+      .type(source.type)
+      .sendFile(source.file, (error) => {
+        if (error) next(error);
+      });
+  } catch (error) {
+    next(error);
+  }
 });
 let rainService = null;
 let rainLiveProject = null;
+let rainLiveStarting = false;
 export function configureRainClassroomService(service) {
   rainService = service;
 }
@@ -184,7 +245,7 @@ app.post('/api/rain/import', async (req, res, next) => {
     const destination = await fs.stat(parent);
     if (!destination.isDirectory()) throw Error('导入目标必须是文件夹');
     const service = requireRainService();
-    const presentation = await service.fetchPresentation(lesson.presentationId);
+    const presentation = await service.fetchLesson(lesson);
     const pages = [];
     for (const page of presentation.pages)
       pages.push({ ...page, ...(await service.downloadImage(page.imageUrl)) });
@@ -209,46 +270,96 @@ app.post('/api/rain/import', async (req, res, next) => {
   }
 });
 app.post('/api/rain/live/start', async (req, res, next) => {
+  if (rainLiveStarting) return next(Error('课堂连接正在建立，请稍候'));
+  rainLiveStarting = true;
+  let startingTarget = null;
   try {
-    const { course, lesson, projectId } = req.body || {};
+    const { course, lesson, projectId, parent, name, consent } = req.body || {};
+    if (consent !== true) throw Error('请先确认课堂连接和考勤提示');
     if (
       !course ||
       !lesson ||
       typeof lesson.lessonId !== 'string' ||
       !lesson.lessonId ||
-      typeof projectId !== 'string' ||
-      !validId(projectId)
+      typeof course.courseId !== 'string' ||
+      !course.courseId ||
+      typeof course.classroomId !== 'string' ||
+      !course.classroomId ||
+      (lesson.classroomId && lesson.classroomId !== course.classroomId) ||
+      (projectId != null &&
+        (typeof projectId !== 'string' || !validId(projectId)))
     )
       throw Error('实时采集需要有效的课堂和当前项目');
-    const target = { projectId, course, lesson };
+    if (projectId == null) {
+      if (
+        typeof parent !== 'string' ||
+        !path.isAbsolute(parent) ||
+        typeof name !== 'string' ||
+        !name.trim() ||
+        /[<>:"/\\|?*]/.test(name)
+      )
+        throw Error('请选择保存目录并输入有效项目名称');
+      if (!(await fs.stat(parent)).isDirectory())
+        throw Error('导入目标必须是文件夹');
+      const exists = await fs
+        .stat(path.join(parent, name.trim()))
+        .catch((error) => {
+          if (error.code === 'ENOENT') return null;
+          throw error;
+        });
+      if (exists) throw Error('保存目录中已存在同名项目');
+    }
+    const target = { projectId, course, lesson, parent, name: name?.trim() };
+    startingTarget = target;
     rainLiveProject = target;
     const result = await requireRainService().startLive({
       lessonId: lesson.lessonId,
       onSlide: async (page) => {
         const image = await requireRainService().downloadImage(page.imageUrl);
-        return projects.appendRainSlide({
-          id: target.projectId,
-          source: {
-            courseId: target.course.courseId,
-            classroomId: target.course.classroomId,
-            lessonId: target.lesson.lessonId,
-            presentationId: page.presentationId,
-          },
-          page: { ...page, ...image },
-        });
+        const source = {
+          courseId: target.course.courseId,
+          classroomId: target.course.classroomId,
+          lessonId: target.lesson.lessonId,
+          presentationId: page.presentationId,
+        };
+        // Slide transactions and note autosaves must not replace each other's snapshots.
+        const write = async () => {
+          if (!target.projectId) {
+            const created = await projects.createRainProject({
+              name: target.name,
+              parent: target.parent,
+              source,
+              pages: [{ ...page, ...image }],
+            });
+            target.projectId = created.id;
+            return { added: true, page: 1, projectId: created.id };
+          }
+          const appended = await projects.appendRainSlide({
+            id: target.projectId,
+            source,
+            page: { ...page, ...image },
+          });
+          return { ...appended, projectId: target.projectId };
+        };
+        const job = writeQueue.then(write);
+        writeQueue = job.catch(() => {});
+        return job;
       },
       onState: (state) => {
         if (
           (state.status === 'stopped' || state.status === 'finished') &&
-          !state.pendingSlides
+          !state.pendingSlides &&
+          rainLiveProject === target
         )
           rainLiveProject = null;
       },
     });
     res.json(result);
   } catch (error) {
-    rainLiveProject = null;
+    if (rainLiveProject === startingTarget) rainLiveProject = null;
     next(error);
+  } finally {
+    rainLiveStarting = false;
   }
 });
 app.post('/api/rain/live/stop', async (req, res, next) => {
@@ -400,6 +511,30 @@ const upload = multer({
   dest: path.join(data, 'uploads'),
   limits: { fileSize: 200 * 1024 * 1024 },
 });
+const coverUpload = multer({
+  dest: path.join(data, 'uploads'),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+app.post(
+  '/api/bookshelf/:key/cover',
+  coverUpload.single('file'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) throw Error('请选择封面图片');
+      res.json(
+        await bookshelf.saveCover(
+          req.params.key,
+          await fs.readFile(req.file.path),
+          req.body.appearance ? JSON.parse(req.body.appearance) : undefined,
+        ),
+      );
+    } catch (error) {
+      next(error);
+    } finally {
+      if (req.file) await fs.rm(req.file.path, { force: true }).catch(() => {});
+    }
+  },
+);
 const validId = (id) => /^[a-f0-9]{64}$/.test(id);
 const metaFile = (id) => path.join(data, 'documents', id, 'meta.json');
 const run = promisify(execFile);
@@ -523,7 +658,9 @@ app.get('/api/documents', async (req, res, next) => {
     res.json(
       results
         .filter(Boolean)
-        .sort((a, b) => b.created.localeCompare(a.created)),
+        .sort((a, b) =>
+          String(b.created || '').localeCompare(String(a.created || '')),
+        ),
     );
   } catch (e) {
     next(e);
@@ -632,7 +769,6 @@ app.get('/api/documents/:id/notes', async (req, res, next) => {
     next(e);
   }
 });
-let writeQueue = Promise.resolve();
 async function readHandoffs(id) {
   const file = path.join(path.dirname(metaFile(id)), 'ai-handoffs.json');
   try {

@@ -34,6 +34,18 @@ internal class RainProjectWriter(
 ) {
   private val documents = SafPreparedDocumentAccess(resolver)
 
+  fun validateDestination(parentTreeUri: Uri, name: String) {
+    require(name.isNotBlank() && !Regex("[<>:\"/\\\\|?*]").containsMatchIn(name)) { "请输入有效的项目名称" }
+    val rootId = DocumentsContract.getTreeDocumentId(parentTreeUri)
+    val rootUri = DocumentsContract.buildDocumentUriUsingTree(parentTreeUri, rootId)
+    require(documents.findChild(rootUri.toString(), name) == null) { "所选目录中已存在同名项目：$name" }
+    resolver.query(rootUri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use { cursor ->
+      require(cursor.moveToFirst()) { "无法读取所选目录" }
+      val flags = cursor.getInt(cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_FLAGS))
+      require(flags and DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE != 0) { "所选目录无法创建项目" }
+    } ?: throw IOException("无法读取所选目录")
+  }
+
   suspend fun create(
     parentTreeUri: Uri,
     name: String,
@@ -41,10 +53,9 @@ internal class RainProjectWriter(
     lesson: RainLesson,
     downloadPages: suspend (suspend (RainSlideImage) -> Unit) -> Unit,
   ): ProjectOpenTarget = withContext(Dispatchers.IO) {
-    require(name.isNotBlank() && !Regex("[<>:\"/\\\\|?*]").containsMatchIn(name)) { "请输入有效的项目名称" }
+    validateDestination(parentTreeUri, name)
     val rootId = DocumentsContract.getTreeDocumentId(parentTreeUri)
     val rootUri = DocumentsContract.buildDocumentUriUsingTree(parentTreeUri, rootId)
-    require(documents.findChild(rootUri.toString(), name) == null) { "所选目录中已存在同名项目：$name" }
     val projectUri = DocumentsContract.createDocument(
       resolver, rootUri, DocumentsContract.Document.MIME_TYPE_DIR, name,
     ) ?: throw IOException("所选目录无法创建项目")
@@ -68,7 +79,8 @@ internal class RainProjectWriter(
         document.close()
       }
       writeText(src, "right.md", "text/markdown", PageNotes.join(List(pageCount) { "" }))
-      writeText(src, "yuketang-source.json", "application/json", sourceManifest(course, lesson, lesson.presentationId, sourceEntries).toString(2))
+      val firstPresentationId = sourceEntries.getJSONObject(0).getString("presentationId")
+      writeText(src, "yuketang-source.json", "application/json", sourceManifest(course, lesson, firstPresentationId, sourceEntries).toString(2))
       val projectId = sha256(UUID.randomUUID().toString().toByteArray())
       val manifest = JSONObject()
         .put("format", "pagenote-project")

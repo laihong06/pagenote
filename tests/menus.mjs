@@ -52,6 +52,11 @@ try {
       .click();
   });
   await w.locator('#rainClassroomDialog[open]').waitFor();
+  await w.waitForFunction(
+    () =>
+      document.getElementById('rainAccountStatus').textContent.trim() ===
+      '未登录',
+  );
   assert.equal(
     (await w.locator('#rainAccountStatus').textContent()).trim(),
     '未登录',
@@ -59,6 +64,7 @@ try {
   assert.ok(await w.locator('#rainLogin').isVisible());
   assert.ok(await w.locator('#rainLiveConsent').isVisible());
   assert.ok(await w.locator('#rainLiveStart').isDisabled());
+  assert.ok(await w.locator('#rainLiveNew').isDisabled());
   const rainImportDirectory = path.join(root, 'tests', 'rain-import-target');
   const selectedRainImportDirectory = await app.evaluate(
     async ({ BrowserWindow, dialog }, directory) => {

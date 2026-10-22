@@ -6,4 +6,6 @@ contextBridge.exposeInMainWorld('desktopSettings', {
   sync: () => ipcRenderer.send('pagenote:settings-sync'),
   chooseRainImportDirectory: () =>
     ipcRenderer.invoke('pagenote:rain-import-directory'),
+  chooseBookshelfDirectory: () =>
+    ipcRenderer.invoke('pagenote:bookshelf-directory'),
 });

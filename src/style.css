@@ -369,7 +369,8 @@ select:focus-visible {
   color: #4b5563;
   font-size: 13px;
 }
-.rain-current-field select {
+.rain-current-field select,
+.rain-current-field input {
   min-width: 0;
   width: 100%;
 }

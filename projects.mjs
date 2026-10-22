@@ -4,12 +4,20 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
+import bookshelfPaths from './desktop/bookshelf.cjs';
+const { safeFile } = bookshelfPaths;
 export function splitPageNotes(text) {
   return text.split(
     /(?:\r?\n){2}<!--[ \t]*pagebreak[ \t]*-->(?:\r?\n){2}|^[ \t]*<!--[ \t]*pagebreak[ \t]*-->[ \t]*\r?$/gm,
   );
 }
-export function createProjectStore({ app, data, convertOffice }) {
+export function createProjectStore({
+  app,
+  data,
+  convertOffice,
+  defaultParent = async () => path.join(data, 'projects'),
+  beforeOpen = async () => {},
+}) {
   const metaPath = (id) => path.join(data, 'documents', id, 'meta.json'),
     valid = (id) => /^[a-f0-9]{64}$/.test(id);
   const readMeta = async (id) => {
@@ -92,7 +100,7 @@ export function createProjectStore({ app, data, convertOffice }) {
       for (const [index, page] of pages.entries()) {
         const digest = sha256(page.bytes);
         const extension = page.contentType === 'image/png' ? 'png' : 'jpg';
-        const filename = assetName(page.pageId, digest, extension);
+        const filename = `${index + 1}-${assetName(page.pageId, digest, extension)}`;
         const asset = `src/assets/yuketang/${filename}`;
         await fs.writeFile(path.join(projectRoot, asset), page.bytes, {
           flag: 'wx',
@@ -103,7 +111,7 @@ export function createProjectStore({ app, data, convertOffice }) {
           courseId: String(source.courseId),
           classroomId: String(source.classroomId),
           lessonId: String(source.lessonId || ''),
-          presentationId: String(source.presentationId),
+          presentationId: String(page.presentationId || source.presentationId),
           sourceIndex: Number(page.sourceIndex),
           projectPage: index + 1,
           sha256: digest,
@@ -305,7 +313,11 @@ export function createProjectStore({ app, data, convertOffice }) {
         (m) => m[1],
       ),
     )) {
-      const destination = path.join(projectRoot, 'src', 'assets', name);
+      const destination = await safeFile(
+        projectRoot,
+        'src/assets/' + name,
+        true,
+      );
       await fs.mkdir(path.dirname(destination), { recursive: true });
       try {
         await copyFileSafe(path.join(data, 'uploads', name), destination);
@@ -325,7 +337,7 @@ export function createProjectStore({ app, data, convertOffice }) {
       await fs.mkdir(path.join(data, 'uploads'), { recursive: true });
       try {
         await copyFileSafe(
-          resolveLink(projectRoot, 'src/assets/' + name),
+          await safeFile(projectRoot, 'src/assets/' + name),
           path.join(data, 'uploads', name),
         );
       } catch (e) {
@@ -346,6 +358,17 @@ export function createProjectStore({ app, data, convertOffice }) {
             path.join(meta.projectRoot, 'project.page-notes.json'),
           manifest = JSON.parse(await fs.readFile(manifestFile, 'utf8')),
           dir = path.dirname(metaPath(id));
+        await safeFile(meta.projectRoot, manifest.left, true);
+        await safeFile(meta.projectRoot, manifest.right, true);
+        if (manifest.preview)
+          await safeFile(meta.projectRoot, manifest.preview, true);
+        for (const name of [
+          'notes.json',
+          'annotations.json',
+          'ai-reviews.json',
+          'ai-handoffs.json',
+        ])
+          await safeFile(meta.projectRoot, 'src/' + name, true);
         if (source) {
           if (meta.kind === 'markdown')
             await atomic(
@@ -422,8 +445,8 @@ export function createProjectStore({ app, data, convertOffice }) {
       !valid(manifest.id)
     )
       throw Error('不是有效的 pagenote 项目');
-    const left = resolveLink(root, manifest.left),
-      right = resolveLink(root, manifest.right),
+    const left = await safeFile(root, manifest.left),
+      right = await safeFile(root, manifest.right),
       ext = path.extname(left).toLowerCase();
     if (
       !['.md', '.markdown', '.pdf', '.doc', '.docx', '.ppt', '.pptx'].includes(
@@ -443,7 +466,11 @@ export function createProjectStore({ app, data, convertOffice }) {
     if (kind === 'pdf') {
       if (ext === '.pdf') await copyFileSafe(left, path.join(dir, 'view.pdf'));
       else {
-        const preview = resolveLink(root, manifest.preview || 'src/view.pdf');
+        const preview = await safeFile(
+          root,
+          manifest.preview || 'src/view.pdf',
+          true,
+        );
         let rebuild = false;
         try {
           rebuild =
@@ -474,7 +501,7 @@ export function createProjectStore({ app, data, convertOffice }) {
         await atomic(
           path.join(dir, name),
           await importAssets(
-            await fs.readFile(path.join(root, 'src', name), 'utf8'),
+            await fs.readFile(await safeFile(root, 'src/' + name), 'utf8'),
             root,
           ),
         );
@@ -546,39 +573,80 @@ export function createProjectStore({ app, data, convertOffice }) {
     await atomic(metaPath(id), JSON.stringify(updated, null, 2));
     return updated;
   }
-  app.post('/api/projects', async (req, res, next) => {
+  async function create({ name: requestedName, parent: requestedParent }) {
+    const name = String(requestedName || '').trim();
+    if (
+      !name ||
+      ['.', '..'].includes(name) ||
+      /[<>:"/\\|?*\x00-\x1f]/.test(name)
+    )
+      throw Error('请输入有效的项目名称');
+    const parent = requestedParent
+      ? path.resolve(requestedParent)
+      : await defaultParent();
+    await fs.mkdir(parent, { recursive: true });
+    const root = path.join(parent, name);
+    await fs.mkdir(root);
+    const id = createHash('sha256').update(randomUUID()).digest('hex'),
+      manifest = {
+        format: 'pagenote-project',
+        version: 1,
+        id,
+        name,
+        created: new Date().toISOString(),
+        left: 'src/left.md',
+        right: 'src/right.md',
+      };
     try {
-      const name = String(req.body.name || '').trim();
-      if (!name || /[<>:"/\\|?*]/.test(name))
-        throw Error('请输入有效的项目名称');
-      const parent = req.body.parent
-        ? path.resolve(req.body.parent)
-        : path.join(data, 'projects');
-      await fs.mkdir(parent, { recursive: true });
-      const root = path.join(parent, name);
-      await fs.mkdir(root);
       await fs.mkdir(path.join(root, 'src'));
-      const id = createHash('sha256').update(randomUUID()).digest('hex'),
-        manifest = {
-          format: 'pagenote-project',
-          version: 1,
-          id,
-          name,
-          created: new Date().toISOString(),
-          left: 'src/left.md',
-          right: 'src/right.md',
-        };
       await atomic(path.join(root, 'src', 'left.md'), '# ' + name + '\n');
       await atomic(path.join(root, 'src', 'right.md'), '');
       const file = path.join(root, 'project.pagenote');
       await atomic(file, JSON.stringify(manifest, null, 2));
-      res.json(await open(file));
+      return await open(file);
+    } catch (error) {
+      await fs.rm(root, { recursive: true, force: true }).catch(() => {});
+      await fs
+        .rm(path.dirname(metaPath(id)), { recursive: true, force: true })
+        .catch(() => {});
+      throw error;
+    }
+  }
+  async function createFromDocument({ name, parent, documentId }) {
+    const source = await readMeta(documentId);
+    if (!['.pdf', '.md', '.markdown'].includes(source.ext))
+      throw Error('书架导入支持 PDF 和 Markdown');
+    const original = path.join(
+      path.dirname(metaPath(documentId)),
+      'original' + source.ext,
+    );
+    await fs.access(original);
+    const project = await create({ name, parent });
+    try {
+      return await bindLeft(source, project.id);
+    } catch (error) {
+      await fs
+        .rm(project.projectRoot, { recursive: true, force: true })
+        .catch(() => {});
+      await fs
+        .rm(path.dirname(metaPath(project.id)), {
+          recursive: true,
+          force: true,
+        })
+        .catch(() => {});
+      throw error;
+    }
+  }
+  app.post('/api/projects', async (req, res, next) => {
+    try {
+      res.json(await create(req.body || {}));
     } catch (e) {
       next(e);
     }
   });
   app.post('/api/projects/open', async (req, res, next) => {
     try {
+      await beforeOpen();
       await writes;
       res.json(await open(String(req.body.filePath)));
     } catch (e) {
@@ -603,6 +671,8 @@ export function createProjectStore({ app, data, convertOffice }) {
     open,
     createRainProject,
     appendRainSlide,
+    create,
+    createFromDocument,
     sourceFile: async (meta) => {
       if (!meta.projectRoot)
         return path.join(

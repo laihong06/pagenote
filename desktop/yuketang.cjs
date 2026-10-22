@@ -7,6 +7,9 @@ const {
   normalizeLessons,
   normalizeCurrentLessons,
   normalizePresentation,
+  normalizeSlides,
+  unwrapData,
+  liveSlideKey,
   normalizeLiveMessage,
   selectTimelineReplay,
   assertRainAssetUrl,
@@ -44,6 +47,13 @@ function setCookieHeader(response) {
       );
   }
   return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+function bearerAuthorization(value) {
+  const token = String(value || '')
+    .replace(/^Bearer\s*/i, '')
+    .trim();
+  return token ? `Bearer ${token}` : null;
 }
 
 async function fetchLoginQrImage(ticket, fetchImpl) {
@@ -121,6 +131,13 @@ function createRainClassroomService({
   const pendingLogins = new Map();
   const presentations = new Map();
   let live = null;
+  let sessionWrites = Promise.resolve();
+
+  function updateSession(update) {
+    const task = sessionWrites.then(async () => update(await storedSession()));
+    sessionWrites = task.catch(() => {});
+    return task;
+  }
 
   async function storedSession() {
     const serialized = await secureStore.get();
@@ -142,20 +159,40 @@ function createRainClassroomService({
     const url = new URL(path, ORIGIN);
     if (url.origin !== ORIGIN)
       throw new RainClassroomError('INVALID_URL', '雨课堂请求地址无效');
+    const saved = cookie ? await storedSession() : null;
+    const bearer = bearerAuthorization(
+      authorization || (saved?.cookie === cookie ? saved?.authorization : null),
+    );
     const response = await fetchImpl(url, {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
         Accept: 'application/json',
         Referer: `${ORIGIN}/web?next=/v2/web/index&type=3`,
+        Origin: ORIGIN,
+        xtbz: 'ykt',
+        'X-Client': 'h5',
         'User-Agent': 'pagenote/desktop',
         ...(cookie ? { Cookie: cookie } : {}),
-        ...(authorization ? { Authorization: authorization } : {}),
+        ...(bearer ? { Authorization: bearer } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      redirect: 'error',
       signal: AbortSignal.timeout(25_000),
     });
+    const rotated = response.headers.get('set-auth');
+    if (response.ok && rotated && saved && saved.cookie === cookie) {
+      await updateSession(async (current) => {
+        if (current && current.cookie === cookie)
+          await secureStore.set(
+            JSON.stringify({
+              ...current,
+              authorization: bearerAuthorization(rotated),
+            }),
+          );
+      });
+    }
     if (response.status === 401 || response.status === 403)
       throw new RainClassroomError(
         'AUTH_REQUIRED',
@@ -176,9 +213,17 @@ function createRainClassroomService({
     }
   }
 
-  async function validateCookie(cookie) {
-    const { payload } = await request('/api/v3/user/basic-info', { cookie });
-    return normalizeUser(payload);
+  async function validateCookie(cookie, authorization) {
+    const { payload, response } = await request('/api/v3/user/basic-info', {
+      cookie,
+      authorization,
+    });
+    return {
+      user: normalizeUser(payload),
+      authorization: bearerAuthorization(
+        response.headers.get('set-auth') || authorization,
+      ),
+    };
   }
 
   async function finishLogin(login, auth) {
@@ -194,6 +239,7 @@ function createRainClassroomService({
           'User-Agent': 'pagenote/desktop',
         },
         body: JSON.stringify({ UserID: auth.UserID, Auth: auth.Auth }),
+        redirect: 'error',
         signal: AbortSignal.timeout(25_000),
       });
       if (!response.ok)
@@ -207,11 +253,20 @@ function createRainClassroomService({
           'AUTH_REQUIRED',
           '雨课堂没有返回有效登录会话',
         );
-      const user = await validateCookie(cookie);
-      await secureStore.set(
-        JSON.stringify({ cookie, user, savedAt: new Date().toISOString() }),
-      );
-      login.state = { status: 'authenticated', user };
+      const authorization = response.headers.get('set-auth');
+      const validated = await validateCookie(cookie, authorization);
+      await updateSession(async () => {
+        if (pendingLogins.get(login.id) !== login) return;
+        await secureStore.set(
+          JSON.stringify({
+            cookie,
+            ...validated,
+            savedAt: new Date().toISOString(),
+          }),
+        );
+      });
+      if (pendingLogins.get(login.id) === login)
+        login.state = { status: 'authenticated', user: validated.user };
     } catch (error) {
       login.state = {
         status: 'failed',
@@ -318,11 +373,13 @@ function createRainClassroomService({
     const session = await storedSession();
     if (!session) return { authenticated: false };
     try {
-      const user = await validateCookie(session.cookie);
+      const { user } = await validateCookie(session.cookie);
       return { authenticated: true, user };
     } catch (error) {
       if (error.code === 'AUTH_REQUIRED') {
-        await secureStore.clear();
+        await updateSession(async (current) => {
+          if (current?.cookie === session.cookie) await secureStore.clear();
+        });
         return { authenticated: false };
       }
       throw error;
@@ -337,7 +394,8 @@ function createRainClassroomService({
         '还有未写入的课堂页面，请重试后再退出登录',
       );
     }
-    await secureStore.clear();
+    for (const id of [...pendingLogins.keys()]) cancelLogin(id);
+    await updateSession(() => secureStore.clear());
     presentations.clear();
     return { authenticated: false };
   }
@@ -394,7 +452,7 @@ function createRainClassroomService({
         `/api/v3/lesson/presentation/fetch?${query}`,
         {
           cookie: session.cookie,
-          authorization,
+          authorization: session.authorization || authorization,
         },
       );
       const latestAuth = response.headers.get('set-auth');
@@ -407,9 +465,59 @@ function createRainClassroomService({
     });
   }
 
+  async function fetchLesson(lesson) {
+    if (!lesson?.lessonId) return fetchPresentation(lesson?.presentationId);
+    return withSession(async (session) => {
+      const query = new URLSearchParams({ lesson_id: String(lesson.lessonId) });
+      const { payload } = await request(
+        `/api/v3/classroom-report/student/lesson-info?${query}`,
+        { cookie: session.cookie },
+      );
+      const data = unwrapData(payload);
+      if (!Array.isArray(data.presentationIds))
+        throw new RainClassroomError(
+          'PROTOCOL_CHANGED',
+          '无法识别雨课堂课后报告课件列表',
+        );
+      const pages = [];
+      for (const id of [
+        ...new Set(data.presentationIds.filter((id) => id != null).map(String)),
+      ]) {
+        const deckQuery = new URLSearchParams({
+          lesson_id: String(lesson.lessonId),
+          presentationId: id,
+        });
+        const { payload: deckPayload } = await request(
+          `/api/v3/classroom-report/student/ppt?${deckQuery}`,
+          { cookie: session.cookie },
+        );
+        pages.push(
+          ...normalizeSlides(unwrapData(deckPayload).slideList, id, true).sort(
+            (a, b) => a.sourceIndex - b.sourceIndex,
+          ),
+        );
+      }
+      const visible = [
+        ...new Map(
+          pages.map((page) => [
+            JSON.stringify([page.presentationId, page.pageId]),
+            page,
+          ]),
+        ).values(),
+      ];
+      if (!visible.length)
+        throw new RainClassroomError(
+          'NO_VISIBLE_PAGES',
+          '该课堂没有已开放的课件页面',
+        );
+      return { name: lesson.name || '', pages: visible };
+    });
+  }
+
   async function downloadImage(value) {
     const url = assertRainAssetUrl(value);
     const response = await fetchImpl(url, {
+      redirect: 'error',
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok)
@@ -436,12 +544,14 @@ function createRainClassroomService({
 
   function beginLiveStop(state) {
     state.stopped = true;
+    state.stopping = true;
     clearTimeout(state.reconnectTimer);
     state.socket?.close();
   }
 
   function finishLiveStop(state) {
-    if (!state.stopped) return;
+    if (!state.stopped || state.queuedMessages > 0) return;
+    state.stopping = false;
     state.status = 'stopped';
     state.onState?.({
       status: 'stopped',
@@ -465,6 +575,11 @@ function createRainClassroomService({
 
   async function startLive({ lessonId, onSlide, onState }) {
     if (live) {
+      if (live.stopping)
+        throw new RainClassroomError(
+          'LIVE_ACTIVE',
+          '课堂正在停止并保存页面，请稍候',
+        );
       if (live.stopped && !live.pendingSlides.size) live = null;
       else if (live.stopped)
         throw new RainClassroomError(
@@ -500,8 +615,13 @@ function createRainClassroomService({
       attempts: 0,
       connections: 0,
       stopped: false,
+      stopping: false,
+      queuedMessages: 0,
       presentations: new Map(),
       lastTimelineKey: null,
+      lastTimelinePageKey: null,
+      initialTimelineReceived: false,
+      initialReplayKeys: new Set(),
       possibleGap: false,
       pendingSlides: new Map(),
       onSlide,
@@ -513,7 +633,7 @@ function createRainClassroomService({
     live = state;
 
     const handleSlide = async (event) => {
-      const key = `${event.presentationId}:${event.sourceIndex}`;
+      const key = liveSlideKey(event);
       state.pendingSlides.set(key, event);
       let presentation = state.presentations.get(event.presentationId);
       if (!presentation) {
@@ -524,30 +644,40 @@ function createRainClassroomService({
         state.authorization = presentation.authorization || state.authorization;
         state.presentations.set(event.presentationId, presentation);
       }
-      const page = presentation.pages.find(
-        (item) => item.sourceIndex === event.sourceIndex,
+      const page = presentation.pages.find((item) =>
+        event.sourceIndex != null
+          ? item.sourceIndex === event.sourceIndex
+          : item.pageId === event.pageId,
       );
       if (!page)
         throw new RainClassroomError(
           'PAGE_NOT_FOUND',
-          `课件中找不到第 ${event.sourceIndex + 1} 页`,
+          '课件中找不到时间线指定的页面',
         );
       const appended = await onSlide({
         ...page,
         presentationId: event.presentationId,
       });
-      state.lastTimelineKey = `${event.presentationId}:${event.sourceIndex}`;
+      state.lastTimelineKey = `${event.presentationId}:${page.sourceIndex}`;
+      state.lastTimelinePageKey = `${event.presentationId}:page:${page.pageId}`;
       state.pendingSlides.delete(key);
+      state.initialReplayKeys.delete(key);
       state.latest = {
         presentationId: event.presentationId,
         sourceIndex: page.sourceIndex,
         projectPage: appended?.page ?? null,
+        projectId: appended?.projectId ?? null,
         added: appended?.added ?? false,
         changedAt: Date.now(),
       };
     };
 
     const handleMessage = async (raw) => {
+      if (
+        ['presentationupdated', 'presentationcreated'].includes(raw.op) &&
+        raw.presentation != null
+      )
+        state.presentations.delete(String(raw.presentation));
       const event = normalizeLiveMessage(raw);
       if (event.type === 'finished') {
         onState?.({
@@ -558,11 +688,14 @@ function createRainClassroomService({
         return;
       }
       if (event.type === 'timeline') {
+        const initial = !state.initialTimelineReceived;
         const replay = selectTimelineReplay(
           event.slides,
           state.lastTimelineKey,
-          state.connections === 1,
+          initial,
+          state.lastTimelinePageKey,
         );
+        state.initialTimelineReceived = true;
         if (replay.possibleGap) {
           state.possibleGap = true;
           onState?.({
@@ -572,7 +705,8 @@ function createRainClassroomService({
           });
         }
         for (const slide of replay.slides) {
-          const key = `${slide.presentationId}:${slide.sourceIndex}`;
+          const key = liveSlideKey(slide);
+          if (initial) state.initialReplayKeys.add(key);
           if (!state.pendingSlides.has(key))
             state.pendingSlides.set(key, slide);
         }
@@ -581,7 +715,7 @@ function createRainClassroomService({
         return;
       }
       if (event.type === 'slide') {
-        const key = `${event.presentationId}:${event.sourceIndex}`;
+        const key = liveSlideKey(event);
         if (!state.pendingSlides.has(key)) state.pendingSlides.set(key, event);
         for (const slide of [...state.pendingSlides.values()])
           await handleSlide(slide);
@@ -629,8 +763,10 @@ function createRainClassroomService({
         );
       });
       socket.addEventListener('message', (message) => {
+        if (state.stopped) return;
         const raw = parseMessage(message);
         if (!raw) return;
+        state.queuedMessages += 1;
         state.eventQueue = state.eventQueue
           .then(() => handleMessage(raw))
           .catch((error) => {
@@ -643,6 +779,7 @@ function createRainClassroomService({
             });
           })
           .finally(() => {
+            state.queuedMessages -= 1;
             if (state.stopped) finishLiveStop(state);
           });
       });
@@ -672,6 +809,7 @@ function createRainClassroomService({
     listLessons,
     listCurrentLessons,
     fetchPresentation,
+    fetchLesson,
     downloadImage,
     startLive,
     stopLive,
@@ -707,6 +845,8 @@ function createRainClassroomService({
             error: live.error || null,
             possibleGap: live.possibleGap || false,
             pendingSlides: live.pendingSlides?.size || 0,
+            backfillPendingPages: live.initialReplayKeys?.size || 0,
+            initialTimelineReceived: live.initialTimelineReceived,
           }
         : {
             status: 'stopped',

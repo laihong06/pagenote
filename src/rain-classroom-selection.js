@@ -9,10 +9,10 @@ export function selectedItem(value, items) {
 export function currentLessonCourse(lesson, courses, selectedCourse = null) {
   if (!lesson) return null;
   if (!lesson.classroomId && !lesson.courseId) return selectedCourse;
-  const matches = courses.filter(
-    (course) =>
-      (!lesson.classroomId || course.classroomId === lesson.classroomId) &&
-      (!lesson.courseId || course.courseId === lesson.courseId),
+  const matches = courses.filter((course) =>
+    lesson.classroomId
+      ? course.classroomId === lesson.classroomId
+      : course.courseId === lesson.courseId,
   );
   return matches.length === 1 ? matches[0] : null;
 }

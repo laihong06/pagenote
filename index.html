@@ -374,6 +374,10 @@
     </dialog>
     <dialog id="settings">
       <h2>设置</h2>
+      <section class="shelf-directory-setting">
+        <strong>书架目录</strong><output id="bookshelfDirectory"></output
+        ><button id="bookshelfDirectoryChange">更改目录</button>
+      </section>
       <label class="setting-toggle"
         >Markdown 主题
         <select id="markdownThemeSetting">
@@ -535,8 +539,7 @@
       </div>
       <hr />
       <p class="rain-warning">
-        实时连接课堂可能产生考勤或签到记录。请确认课程允许后再开始；每次课件翻页会追加到当前打开的
-        PDF 项目。
+        实时连接课堂可能产生考勤或签到记录。请确认课程允许后再开始。
       </p>
       <label class="rain-consent"
         ><input
@@ -544,10 +547,26 @@
           type="checkbox"
         />我已了解，允许连接当前课堂并可能产生考勤记录</label
       >
+      <label class="rain-current-field"
+        >新项目名称<input
+          id="rainProjectName"
+          maxlength="100"
+          placeholder="使用课程与课堂名称"
+      /></label>
+      <label class="rain-current-field"
+        >项目保存目录<input id="rainProjectParent" readonly /><button
+          id="rainChooseParent"
+        >
+          更改目录
+        </button></label
+      >
       <div class="history-actions">
         <span id="rainLiveStatus" role="status">未连接课堂</span>
+        <button id="rainLiveNew" class="primary" disabled>
+          新建项目并采集
+        </button>
         <button id="rainLiveStart" class="primary" disabled>
-          开始实时采集
+          追加到当前 PDF
         </button>
         <button id="rainLiveStop" hidden>停止采集</button>
         <button id="rainLiveRetry" hidden>重试失败页面</button>

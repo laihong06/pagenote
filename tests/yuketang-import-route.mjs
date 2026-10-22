@@ -20,13 +20,13 @@ try {
     '../server.mjs'
   );
   configureRainClassroomService({
-    fetchPresentation: async (presentationId) => ({
+    fetchLesson: async (lesson) => ({
       name: 'Fixture presentation',
       pages: [
         {
           pageId: 'fixture-slide',
           sourceIndex: 0,
-          presentationId,
+          presentationId: 'actual-report-deck',
           imageUrl: 'https://cdn.yuketang.cn/fixture.png',
         },
       ],
@@ -70,6 +70,13 @@ try {
   assert.ok(
     await fs.stat(path.join(project.projectRoot, 'src', 'document.pdf')),
   );
+  const source = JSON.parse(
+    await fs.readFile(
+      path.join(project.projectRoot, 'src', 'yuketang-source.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(source.pages[0].presentationId, 'actual-report-deck');
   console.log('Yuketang import destination route tests passed');
 } finally {
   if (server) await new Promise((resolve) => server.close(resolve));

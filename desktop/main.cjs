@@ -391,6 +391,10 @@ if (!app.requestSingleInstanceLock()) {
               },
             ),
           onQuit: () => app.quit(),
+          chooseBookshelfDirectory: () =>
+            win.webContents.executeJavaScript(
+              'window.pageNotes.chooseBookshelfDirectory()',
+            ),
           onClosed: () => {
             if (!quitting && !closing) showMainWindow();
           },
@@ -525,6 +529,15 @@ if (!app.requestSingleInstanceLock()) {
         });
         return chosen.canceled ? null : chosen.filePaths[0] || null;
       });
+      ipcMain.handle('pagenote:bookshelf-directory', async (event) => {
+        if (!win || event.sender !== win.webContents)
+          throw Error('Invalid bookshelf directory request');
+        const chosen = await dialog.showOpenDialog(win, {
+          title: translate('选择书架目录'),
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        return chosen.canceled ? null : chosen.filePaths[0] || null;
+      });
       function localize(items) {
         return items.map((item) => ({
           ...item,
@@ -567,6 +580,14 @@ if (!app.requestSingleInstanceLock()) {
               {
                 label: '文件',
                 submenu: [
+                  {
+                    label: '书架',
+                    click: () =>
+                      win.webContents
+                        .executeJavaScript('window.pageNotes.showBookshelf()')
+                        .catch(() => {}),
+                  },
+                  { type: 'separator' },
                   {
                     label: '雨课堂导入与实时采集…',
                     click: () =>

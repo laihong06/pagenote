@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.webkit.WebSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,6 +78,8 @@ data class RainLiveState(
   val eventNumber: Long = 0,
   val possibleGap: Boolean = false,
   val pendingPages: Int = 0,
+  val backfillPendingPages: Int = 0,
+  val initialTimelineReceived: Boolean = false,
 )
 
 class RainClassroomClient(context: Context) {
@@ -94,11 +97,15 @@ class RainClassroomClient(context: Context) {
     val reconnectPending: AtomicBoolean = AtomicBoolean(),
     var connections: Int = 0,
     var lastTimelineKey: String? = null,
+    var lastTimelinePageKey: String? = null,
+    var initialTimelineReceived: Boolean = false,
+    val initialReplayKeys: MutableSet<String> = linkedSetOf(),
     var stopped: Boolean = false,
     val pendingMessages: AtomicInteger = AtomicInteger(),
     val pendingSlides: LinkedHashMap<String, RainLiveSlideEvent> = LinkedHashMap(),
   )
   private val appContext = context.applicationContext
+  private val userAgent = WebSettings.getDefaultUserAgent(appContext)
   private val sessionStore = RainSessionStore(appContext)
   private val http = OkHttpClient.Builder()
     .callTimeout(35, TimeUnit.SECONDS)
@@ -117,6 +124,8 @@ class RainClassroomClient(context: Context) {
   private var lessonAuthorization: String? = null
   private var activeLive: ActiveLive? = null
   private val presentations = mutableMapOf<String, List<RainSlide>>()
+
+  private data class RainJsonResponse(val payload: JSONObject, val setAuth: String?)
 
   fun startLogin() {
     loginSocket?.cancel()
@@ -214,16 +223,18 @@ class RainClassroomClient(context: Context) {
     try {
       val body = JSONObject().put("UserID", auth.get("UserID")).put("Auth", auth.get("Auth"))
       val response = postRaw("https://www.yuketang.cn/pc/web_login", body, null)
-      val cookies = response.use {
-        it.headers("Set-Cookie").mapNotNull { cookie -> cookie.substringBefore(';').takeIf(String::isNotBlank) }
+      val (cookies, authorization) = response.use {
+        it.headers("Set-Cookie").mapNotNull { cookie -> cookie.substringBefore(';').takeIf(String::isNotBlank) } to
+          it.header("Set-Auth")
       }
       if (cookies.isEmpty()) throw IOException("雨课堂没有返回登录会话")
       val cookie = cookies.joinToString("; ")
-      val payload = requestJson("https://www.yuketang.cn/api/v3/user/basic-info", cookie)
+      val userResponse = requestJsonResponse("https://www.yuketang.cn/api/v3/user/basic-info", cookie)
+      val payload = userResponse.payload
       val data = unwrap(payload)
       val user = data.optJSONObject("user") ?: data
       val name = user.optString("name", user.optString("nickname", "雨课堂用户"))
-      sessionStore.save(cookie, name)
+      sessionStore.save(cookie, name, userResponse.setAuth ?: authorization)
       _login.value = RainLoginState(status = "authenticated", accountName = name)
     } catch (error: Exception) {
       _login.value = RainLoginState(status = "failed", error = error.message ?: "雨课堂登录失败")
@@ -236,15 +247,16 @@ class RainClassroomClient(context: Context) {
   suspend fun refreshLogin(): RainLoginState {
     val session = sessionStore.read() ?: return RainLoginState()
     return try {
-      val payload = requestJson("https://www.yuketang.cn/api/v3/user/basic-info", session.first)
+      val payload = requestJson("https://www.yuketang.cn/api/v3/user/basic-info", session.cookie)
       val data = unwrap(payload)
       val user = data.optJSONObject("user") ?: data
-      val name = user.optString("name", user.optString("nickname", session.second))
+      val name = user.optString("name", user.optString("nickname", session.name))
       _login.value = RainLoginState(status = "authenticated", accountName = name)
       _login.value
     } catch (error: Exception) {
       if (error.message?.contains("401") == true || error.message?.contains("403") == true) {
         sessionStore.clear()
+        lessonAuthorization = null
         _login.value = RainLoginState()
       }
       throw error
@@ -266,12 +278,13 @@ class RainClassroomClient(context: Context) {
       }
       sessionStore.clear()
       presentations.clear()
+      lessonAuthorization = null
       _login.value = RainLoginState()
     }
   }
 
   suspend fun listCourses(): List<RainCourse> {
-    val cookie = sessionStore.read()?.first ?: error("请先登录雨课堂")
+    val cookie = sessionStore.read()?.cookie ?: error("请先登录雨课堂")
     val data = unwrap(requestJson("https://www.yuketang.cn/v2/api/web/courses/list?identity=2", cookie))
     val list = data.optJSONArray("list") ?: data.optJSONArray("data") ?: error("无法识别雨课堂课程列表")
     return buildList {
@@ -290,23 +303,13 @@ class RainClassroomClient(context: Context) {
   }
 
   suspend fun listLessons(classroomId: String): List<RainLesson> {
-    val cookie = sessionStore.read()?.first ?: error("请先登录雨课堂")
+    val cookie = sessionStore.read()?.cookie ?: error("请先登录雨课堂")
     val url = "https://www.yuketang.cn/v2/api/web/logs/learn/${java.net.URLEncoder.encode(classroomId, "UTF-8")}?actype=-1&page=0&offset=100&sort=-1"
-    val data = unwrap(requestJson(url, cookie))
-    val list = data.optJSONArray("activities") ?: error("无法识别雨课堂历史课件")
-    return buildList {
-      for (index in 0 until list.length()) {
-        val item = list.optJSONObject(index) ?: continue
-        val presentation = item.stringId("presentation_id", "presentationId", "courseware_id") ?: continue
-        add(RainLesson(classroomId, item.stringId("lesson_id", "lessonId"), presentation,
-          item.optString("title", item.optString("name", "未命名课件")),
-          item.optString("create_time", item.optString("created_at", "")).ifBlank { null }))
-      }
-    }
+    return normalizeHistoryLessons(requestJson(url, cookie), classroomId)
   }
 
   suspend fun listCurrentLessons(): List<RainCurrentLesson> {
-    val cookie = sessionStore.read()?.first ?: error("请先登录雨课堂")
+    val cookie = sessionStore.read()?.cookie ?: error("请先登录雨课堂")
     val payload = requestJson("https://www.yuketang.cn/api/v3/classroom/on-lesson", cookie)
     return normalizeCurrentLessons(payload)
   }
@@ -318,8 +321,8 @@ class RainClassroomClient(context: Context) {
   }
 
   suspend fun forEachPresentationPage(lesson: RainLesson, onPage: suspend (RainSlideImage) -> Unit) {
-    val cookie = sessionStore.read()?.first ?: error("请先登录雨课堂")
-    val slides = fetchSlides(lesson.presentationId, cookie, null)
+    val cookie = sessionStore.read()?.cookie ?: error("请先登录雨课堂")
+    val slides = loadRainImportSlides(lesson) { path -> requestJson("https://www.yuketang.cn$path", cookie) }
     for (slide in slides) {
       onPage(downloadSlide(slide))
     }
@@ -336,16 +339,17 @@ class RainClassroomClient(context: Context) {
       }
     }
     val session = sessionStore.read() ?: error("请先登录雨课堂")
+    presentations.clear()
     _live.value = RainLiveState(status = "joining", lessonId = lesson.lessonId)
     val response = postRaw("https://www.yuketang.cn/api/v3/lesson/checkin", JSONObject()
-      .put("source", 5).put("lessonId", lesson.lessonId), session.first,
+      .put("source", 5).put("lessonId", lesson.lessonId), session.cookie,
       "https://www.yuketang.cn/lesson/fullscreen/v3/${lesson.lessonId}?source=5")
     lessonAuthorization = response.header("Set-Auth")
     val data = response.use { unwrap(JSONObject(it.body?.string().orEmpty())) }
     val token = data.optString("lessonToken").takeIf(String::isNotBlank) ?: error("进入雨课堂失败")
     val identity = data.stringId("identityId") ?: error("课堂身份无效")
     _live.value = RainLiveState(status = "connecting", lessonId = lesson.lessonId)
-    val active = ActiveLive(lesson.lessonId, token, identity, session.first, onSlide)
+    val active = ActiveLive(lesson.lessonId, token, identity, session.cookie, onSlide)
     activeLive = active
     connectLive(active)
   }
@@ -379,11 +383,13 @@ class RainClassroomClient(context: Context) {
         scope.launch {
           liveMutex.withLock {
             runCatching {
+              val initialReplay = normalized.timeline && !active.initialTimelineReceived
               val replay = if (normalized.timeline) {
                 val result = selectTimelineReplay(
                   normalized.slides,
                   active.lastTimelineKey,
-                  initialConnection = active.connections == 1,
+                  initialConnection = initialReplay,
+                  pageCursor = active.lastTimelinePageKey,
                 )
                 if (result.possibleGap) {
                   _live.value = _live.value.copy(
@@ -394,9 +400,14 @@ class RainClassroomClient(context: Context) {
                 result.slides
               } else normalized.slides
               for (event in replay) {
-                val key = "${event.presentationId}:${event.sourceIndex}"
-                active.pendingSlides.putIfAbsent(key, event)
+                active.pendingSlides.putIfAbsent(event.key, event)
+                if (initialReplay) active.initialReplayKeys.add(event.key)
               }
+              if (initialReplay) {
+                active.initialTimelineReceived = true
+                _live.value = _live.value.copy(initialTimelineReceived = true)
+              }
+              _live.value = _live.value.copy(pendingPages = active.pendingSlides.size, backfillPendingPages = active.initialReplayKeys.size)
               processPendingLiveSlides(active)
             }.onFailure { error ->
               _live.value = _live.value.copy(
@@ -480,19 +491,21 @@ class RainClassroomClient(context: Context) {
         active.cookie,
         lessonAuthorization,
       ).also { presentations[event.presentationId] = it }
-      val slide = slides.firstOrNull { it.sourceIndex == event.sourceIndex }
-        ?: throw IOException("课件中找不到第 ${event.sourceIndex + 1} 页")
+      val slide = resolveRainLiveSlide(event, slides)
       val image = downloadSlide(slide)
       active.onSlide(image)
       active.pendingSlides.remove(key)
-      active.lastTimelineKey = "${event.presentationId}:${event.sourceIndex}"
+      active.initialReplayKeys.remove(key)
+      active.lastTimelineKey = "${slide.presentationId}:${slide.sourceIndex}"
+      active.lastTimelinePageKey = "${slide.presentationId}:page:${slide.pageId}"
       _live.value = _live.value.copy(
         status = if (active.stopped) "stopped" else "active",
         error = null,
         pageId = slide.pageId,
-        sourceIndex = event.sourceIndex,
+        sourceIndex = slide.sourceIndex,
         eventNumber = _live.value.eventNumber + 1,
         pendingPages = active.pendingSlides.size,
+        backfillPendingPages = active.initialReplayKeys.size,
       )
     }
   }
@@ -501,29 +514,14 @@ class RainClassroomClient(context: Context) {
     val encodedId = java.net.URLEncoder.encode(presentationId, "UTF-8")
     val url = "https://www.yuketang.cn/api/v3/lesson/presentation/fetch?presentation_id=$encodedId"
     val response = requestJsonResponse(url, cookie, authorization = authorization)
-    lessonAuthorization = response.second.header("Set-Auth") ?: authorization
-    val data = unwrap(response.first)
-    val array = data.optJSONArray("slides") ?: error("无法识别雨课堂课件页面")
-    return buildList {
-      for (order in 0 until array.length()) {
-        val item = array.optJSONObject(order) ?: continue
-        val pageId = item.stringId("id", "pageId", "page_id") ?: continue
-        val cover = item.opt("cover")
-        val image = when (cover) {
-          is String -> cover
-          is JSONObject -> cover.optString("url", cover.optString("src", cover.optString("image_url")))
-          else -> item.optString("imageUrl", item.optString("image_url", ""))
-        }
-        if (image.isBlank()) continue
-        add(RainSlide(pageId, item.intValue("index") ?: order, presentationId, URL(URL("https://www.yuketang.cn"), image).toString()))
-      }
-    }.also { if (it.isEmpty()) error("课件没有可用页面") }
+    lessonAuthorization = response.setAuth ?: authorization
+    return normalizeRainPresentation(response.payload, presentationId)
   }
 
   private suspend fun downloadSlide(slide: RainSlide): RainSlideImage {
     val request = Request.Builder().url(requireRainAsset(slide.imageUrl)).build()
     return http.newCall(request).execute().use { response ->
-      if (!response.isSuccessful) throw IOException("课件页面下载失败（HTTP ${response.code}）")
+      if (!response.isSuccessful) throw rainHttpError(slide.imageUrl, response.code, "课件页面下载失败")
       val type = response.header("Content-Type").orEmpty().substringBefore(';').lowercase()
       if (type !in setOf("image/jpeg", "image/png")) throw IOException("课件页面格式不支持")
       val bytes = response.body?.bytes() ?: throw IOException("课件页面为空")
@@ -540,33 +538,65 @@ class RainClassroomClient(context: Context) {
     return url.toString()
   }
 
-  private fun requestJson(url: String, cookie: String): JSONObject = requestJsonResponse(url, cookie).first
+  private fun requestJson(url: String, cookie: String): JSONObject = requestJsonResponse(url, cookie).payload
 
-  private fun requestJsonResponse(url: String, cookie: String, authorization: String? = null): Pair<JSONObject, Response> {
-    val request = Request.Builder().url(url).header("Accept", "application/json")
-      .header("Referer", "https://www.yuketang.cn/web?next=/v2/web/index&type=3")
-      .header("Cookie", cookie).apply { if (!authorization.isNullOrBlank()) header("Authorization", authorization) }.build()
+  private fun requestJsonResponse(url: String, cookie: String, authorization: String? = null): RainJsonResponse {
+    val savedAuthorization = sessionStore.read()?.takeIf { it.cookie == cookie }?.authorization
+    val request = Request.Builder().url(url).apply {
+      rainApiHeaders(
+        cookie = cookie,
+        authorization = authorization ?: savedAuthorization,
+        referer = "https://www.yuketang.cn/web?next=/v2/web/index&type=3",
+        userAgent = userAgent,
+      ).forEach { (name, value) -> header(name, value) }
+    }.build()
     val response = http.newCall(request).execute()
     if (!response.isSuccessful) {
       val code = response.code
+      if (code == 401 || code == 403) {
+        sessionStore.clearAuthorization(cookie)
+        lessonAuthorization = null
+      }
       response.close()
-      throw IOException("雨课堂请求失败（HTTP $code）")
+      throw rainHttpError(url, code)
     }
-    return response.use { Pair(JSONObject(it.body?.string().orEmpty()), it) }
+    val setAuth = response.header("Set-Auth")
+    if (!setAuth.isNullOrBlank()) sessionStore.updateAuthorization(cookie, setAuth)
+    return response.use {
+      val payload = try {
+        JSONObject(it.body?.string().orEmpty())
+      } catch (_: Exception) {
+        throw IOException("雨课堂返回了无法识别的数据（${URL(url).path}）")
+      }
+      RainJsonResponse(payload, setAuth)
+    }
   }
 
   private fun postRaw(url: String, body: JSONObject, cookie: String?, referer: String? = null): Response {
-    val request = Request.Builder().url(url).post(body.toString().toRequestBodyJson())
-      .header("Accept", "application/json").apply {
-        if (!cookie.isNullOrBlank()) header("Cookie", cookie)
-        header("Referer", referer ?: "https://www.yuketang.cn/web?next=/v2/web/index&type=3")
-      }.build()
+    val savedAuthorization = cookie?.let { sessionCookie ->
+      sessionStore.read()?.takeIf { it.cookie == sessionCookie }?.authorization
+    }
+    val request = Request.Builder().url(url).post(body.toString().toRequestBodyJson()).apply {
+      rainApiHeaders(
+        cookie = cookie.orEmpty(),
+        authorization = savedAuthorization,
+        referer = referer ?: "https://www.yuketang.cn/web?next=/v2/web/index&type=3",
+        userAgent = userAgent,
+      ).forEach { (name, value) -> header(name, value) }
+      header("Content-Type", "application/json; charset=utf-8")
+    }.build()
     val response = http.newCall(request).execute()
     if (!response.isSuccessful) {
       val code = response.code
+      if (code == 401 || code == 403) {
+        if (!cookie.isNullOrBlank()) sessionStore.clearAuthorization(cookie)
+        lessonAuthorization = null
+      }
       response.close()
-      throw IOException("雨课堂请求失败（HTTP $code）")
+      throw rainHttpError(url, code)
     }
+    val setAuth = response.header("Set-Auth")
+    if (!cookie.isNullOrBlank() && !setAuth.isNullOrBlank()) sessionStore.updateAuthorization(cookie, setAuth)
     return response
   }
 
@@ -590,30 +620,49 @@ private fun String.toRequestBodyJson() =
   toRequestBody("application/json; charset=utf-8".toMediaType())
 
 private class RainSessionStore(context: Context) {
+  data class Session(val cookie: String, val name: String, val authorization: String?)
+
   private val preferences = context.getSharedPreferences("rain-session", Context.MODE_PRIVATE)
   private val alias = "pagenote.rain.session.v1"
 
-  fun save(cookie: String, name: String) {
+  fun save(cookie: String, name: String, authorization: String? = null) {
     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
     cipher.init(Cipher.ENCRYPT_MODE, secretKey())
-    val encrypted = cipher.doFinal(JSONObject().put("cookie", cookie).put("name", name).toString().toByteArray())
+    val token = bearerAuthorization(authorization)?.removePrefix("Bearer ")
+    val encrypted = cipher.doFinal(
+      JSONObject().put("cookie", cookie).put("name", name).put("authorization", token).toString().toByteArray(),
+    )
     val bytes = cipher.iv + encrypted
     preferences.edit().putString("session", Base64.encodeToString(bytes, Base64.NO_WRAP)).commit()
     check(preferences.contains("session")) { "无法保存雨课堂登录状态" }
   }
 
-  fun read(): Pair<String, String>? {
+  fun read(): Session? {
     val encoded = preferences.getString("session", null) ?: return null
     return try {
       val bytes = Base64.decode(encoded, Base64.NO_WRAP)
       val cipher = Cipher.getInstance("AES/GCM/NoPadding")
       cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
       val value = JSONObject(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size))))
-      value.getString("cookie") to value.optString("name", "雨课堂用户")
+      Session(
+        cookie = value.getString("cookie"),
+        name = value.optString("name", "雨课堂用户"),
+        authorization = value.optString("authorization").takeIf(String::isNotBlank),
+      )
     } catch (_: Exception) {
       clear()
       null
     }
+  }
+
+  fun updateAuthorization(cookie: String, authorization: String) {
+    val current = read()?.takeIf { it.cookie == cookie } ?: return
+    save(cookie, current.name, authorization)
+  }
+
+  fun clearAuthorization(cookie: String) {
+    val current = read()?.takeIf { it.cookie == cookie } ?: return
+    save(cookie, current.name)
   }
 
   fun clear() { preferences.edit().remove("session").commit() }
