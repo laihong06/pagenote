@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pagenote.app/spec/yuketang/source-manifest-v1.schema.json",
+  "title": "pagenote Rain Classroom source manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "provider",
+    "courseId",
+    "classroomId",
+    "lessonId",
+    "presentationId",
+    "pages"
+  ],
+  "properties": {
+    "format": { "const": "pagenote-yuketang-source" },
+    "version": { "const": 1 },
+    "provider": { "const": "www.yuketang.cn" },
+    "courseId": { "type": "string", "minLength": 1 },
+    "classroomId": { "type": "string", "minLength": 1 },
+    "lessonId": { "type": "string" },
+    "presentationId": { "type": "string", "minLength": 1 },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pageId",
+          "presentationId",
+          "sourceIndex",
+          "projectPage",
+          "sha256",
+          "asset",
+          "firstSeenAt"
+        ],
+        "properties": {
+          "pageId": { "type": "string", "minLength": 1 },
+          "courseId": { "type": "string", "minLength": 1 },
+          "classroomId": { "type": "string", "minLength": 1 },
+          "lessonId": { "type": "string" },
+          "presentationId": { "type": "string", "minLength": 1 },
+          "sourceIndex": { "type": "integer", "minimum": 0 },
+          "projectPage": { "type": "integer", "minimum": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "asset": {
+            "type": "string",
+            "pattern": "^src/assets/yuketang/[^/]+$"
+          },
+          "firstSeenAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

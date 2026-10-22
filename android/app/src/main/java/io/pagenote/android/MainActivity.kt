@@ -27,6 +27,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.ViewModelProvider
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -113,6 +114,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -155,6 +157,10 @@ import io.pagenote.feature.pen.PenRecognizedShape
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
+import io.pagenote.feature.yuketang.RainClassroomClient
+import io.pagenote.feature.yuketang.RainCourse
+import io.pagenote.feature.yuketang.RainLesson
+import io.pagenote.feature.yuketang.RainLessonOngoingException
 import io.pagenote.feature.pen.PenValidation
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -167,6 +173,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
+import java.io.IOException
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.hypot
@@ -409,6 +416,7 @@ private fun ReaderHome(
     onDispose { systemClipboard?.removePrimaryClipChangedListener(listener) }
   }
   val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
+  val rainClassroomClient = remember(context) { RainClassroomClient(context.applicationContext) }
   val promptSettingsStore = remember(context.applicationContext) {
     agentPromptSettingsStore(context.applicationContext)
   }
@@ -421,6 +429,10 @@ private fun ReaderHome(
   val densityScale = LocalDensity.current.density
   val activityResultOwner = LocalActivityResultRegistryOwner.current
   val scope = rememberCoroutineScope()
+  var showBookshelf by rememberSaveable { mutableStateOf(true) }
+  val bookshelf = rememberBookshelfController(context, showBookshelf, activityResultOwner as? androidx.lifecycle.LifecycleOwner)
+  PersistBookReadingPosition(readerSession, bookshelf)
+  val libraryTree = bookshelf.tree
   val richHtmlRenderer = remember(context) { RichHtmlAnnotationRenderer(context) }
   DisposableEffect(richHtmlRenderer) {
     onDispose { richHtmlRenderer.close() }
@@ -490,6 +502,17 @@ private fun ReaderHome(
     mutableFloatStateOf(settings.leftPercent.toFloat())
   }
   var showRecentProjectsDialog by remember { mutableStateOf(false) }
+  var showRainClassroom by remember { mutableStateOf(false) }
+  var isRainImporting by remember { mutableStateOf(false) }
+  var isRainCapturing by remember { mutableStateOf(false) }
+  val rainLive by produceState(rainClassroomClient.live.value, rainClassroomClient) {
+    rainClassroomClient.live.collect { value = it }
+  }
+  val rainCaptureLocked = isRainCapturing || rainLive.status !in setOf("stopped", "finished") || rainLive.pendingPages > 0
+  var rainWaitingProjectName by remember { mutableStateOf<String?>(null) }
+  LaunchedEffect(rainLive.status, rainLive.pendingPages) {
+    if (rainLive.status in setOf("stopped", "finished") && rainLive.pendingPages == 0) rainWaitingProjectName = null
+  }
   var helpTopic by remember { mutableStateOf<ReaderHelpTopic?>(null) }
   var helpDiagnostics by remember { mutableStateOf("") }
   var showProjectAttachments by remember { mutableStateOf(false) }
@@ -2121,6 +2144,10 @@ private fun ReaderHome(
   var opensStandaloneDocumentAfterPicker by rememberSaveable { mutableStateOf(false) }
   var newProjectError by remember { mutableStateOf<String?>(null) }
 
+  LaunchedEffect(showNewProject, libraryTree) {
+    if (showNewProject && libraryTree != null) newProjectDir = libraryTree
+  }
+
   fun handleNewProjectDirectoryResult(treeUri: Uri?) {
     isChoosingNewProjectDir = false
     showNewProject = true
@@ -2278,14 +2305,20 @@ private fun ReaderHome(
     target: ProjectOpenTarget,
     manageOpening: Boolean = true,
     requestedCheckpoint: ReaderSessionCheckpoint? = null,
+    captureUpdate: Boolean = false,
   ) {
+    val live = rainClassroomClient.live.value
+    if (!captureUpdate && (isRainCapturing || live.status !in setOf("stopped", "finished") || live.pendingPages > 0)) {
+      errorMessage = context.getString(R.string.rain_capture_busy)
+      return
+    }
     if (manageOpening) {
       isOpening = true
       errorMessage = null
     }
     try {
       if (project != null) readerSession.flushDraftRecovery()
-      val checkpoint = requestedCheckpoint ?: readerSession.checkpointFor(target)
+      val checkpoint = requestedCheckpoint ?: readerSession.checkpointFor(target) ?: bookshelf.store.checkpoint(target)
       var writable = true
       if (checkpoint != null && !target.needsPersistablePermission) {
         val grants = context.contentResolver.persistedUriPermissions.filter { it.uri == target.accessTreeUri }
@@ -2445,6 +2478,8 @@ private fun ReaderHome(
       readerSession.viewportBookmark.value = loaded.checkpoint?.viewportBookmark ?: PdfViewportBookmark.DEFAULT
       penTool = loaded.checkpoint?.resolvedPenTool() ?: PenCanvasTool.PEN
       readerSession.rememberOpenedProject(target)
+      showBookshelf = false
+      bookshelf.refresh()
       val hasPersistedReadGrant = runCatching {
         context.contentResolver.persistedUriPermissions.any {
           it.uri == target.accessTreeUri && it.isReadPermission
@@ -2489,7 +2524,7 @@ private fun ReaderHome(
   fun createNewProject() {
     if (isCreatingProject || isChoosingNewProjectDir || isChoosingNewProjectDocument) return
     val name = newProjectName.trim()
-    val dir = newProjectDir
+    val dir = libraryTree ?: newProjectDir
     val sourceUri = newProjectDocumentUri
     val sourceName = newProjectDocumentName
     if (name.isEmpty() || name.contains(Regex("[<>:\"/\\|?*]"))) {
@@ -2527,6 +2562,134 @@ private fun ReaderHome(
   ) { treeUri: Uri? ->
     if (treeUri != null) {
       readerSession.launchSessionTask { openProjectTree(ProjectOpenTarget.fromSelectedTree(treeUri)) }
+    }
+  }
+
+  var pendingRainProject by remember { mutableStateOf<RainProjectRequest?>(null) }
+  var rainProjectName by remember { mutableStateOf("") }
+  var rainProjectDirectory by remember { mutableStateOf<Uri?>(null) }
+  var rainProjectConsent by remember { mutableStateOf(false) }
+  var rainProjectError by remember { mutableStateOf<String?>(null) }
+  val rainProjectParentPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocumentTree(),
+  ) { treeUri: Uri? ->
+    if (treeUri != null && pendingRainProject != null) {
+      try {
+        context.contentResolver.takePersistableUriPermission(
+          treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+        rainProjectDirectory = treeUri
+        rainProjectError = null
+      } catch (error: Exception) {
+        rainProjectError = error.message
+      }
+    }
+  }
+
+  suspend fun startRainCapture(course: RainCourse, lesson: RainLesson, newCapture: RainLiveProjectCapture? = null): Boolean {
+    val active = project
+    if (isRainCapturing || isRainImporting) return false
+    if (newCapture == null && (active == null || renderer == null || active.sourceExtension != "pdf" || !noteWritable)) {
+      errorMessage = "实时采集需要可写的 PDF 项目"
+      return false
+    }
+    isRainCapturing = true
+    errorMessage = null
+    var capturedProjectId = if (newCapture == null) active?.manifest?.id else null
+    try {
+      if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+      newCapture?.prepare()
+      withContext(Dispatchers.IO) {
+        rainClassroomClient.startLive(lesson) { slide ->
+          withContext(Dispatchers.Main.immediate) {
+            val current = project
+            if (capturedProjectId != null && current?.manifest?.id != capturedProjectId) throw IOException("当前项目已切换，停止实时采集")
+            if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+            val checkpoint = if (capturedProjectId != null) readerSession.saveCheckpoint() else null
+            val written = if (newCapture != null) newCapture.accept(slide) else {
+              val destination = checkpoint?.toProjectOpenTarget() ?: throw IOException("无法保存阅读位置")
+              val opened = current ?: throw IOException("采集项目已关闭")
+              RainLiveProjectWrite(destination, opened, RainProjectWriter(context).append(opened, course, lesson, slide))
+            }
+            if (written.pageNumber != null || current?.manifest?.id != written.project.manifest.id) {
+              openProjectTree(written.target, requestedCheckpoint = checkpoint, captureUpdate = true)
+            }
+            if (project?.manifest?.id != written.project.manifest.id) throw IOException("无法打开采集项目，请重试待写入页面")
+            capturedProjectId = written.project.manifest.id
+            rainWaitingProjectName = null
+            showRainClassroom = false
+            written.pageNumber?.let { noteStatus = context.getString(R.string.rain_live_page_added, it) }
+          }
+        }
+      }
+      return true
+    } catch (cancelled: CancellationException) {
+      rainClassroomClient.stopLive()
+      throw cancelled
+    } catch (error: Exception) {
+      rainClassroomClient.stopLive()
+      rainWaitingProjectName = null
+      errorMessage = context.getString(R.string.rain_live_failed, error.message.orEmpty())
+      return false
+    } finally {
+      isRainCapturing = false
+    }
+  }
+
+  fun beginRainProject(course: RainCourse, lesson: RainLesson, mode: RainProjectMode, consent: Boolean = false) {
+    if (isRainImporting || rainCaptureLocked || isChoosingNewProjectDir || isOpening || isSaving || isPenSaving || failedPenSave != null || isCreatingProject) return
+    pendingRainProject = RainProjectRequest(course, lesson, mode)
+    rainProjectName = "${course.name} - ${lesson.name}".replace(Regex("[<>:\"/\\\\|?*]"), "_").take(100)
+    rainProjectDirectory = libraryTree
+    rainProjectConsent = consent
+    rainProjectError = null
+    showRainClassroom = false
+  }
+
+  fun confirmRainProject() {
+    val request = pendingRainProject ?: return
+    val directory = rainProjectDirectory ?: return
+    val name = rainProjectName.trim()
+    if (isRainImporting || isRainCapturing || (request.mode == RainProjectMode.LIVE && !rainProjectConsent)) return
+    if (name.isEmpty() || Regex("[<>:\"/\\\\|?*]").containsMatchIn(name)) {
+      rainProjectError = context.getString(R.string.new_project_bad_name)
+      return
+    }
+    scope.launch {
+      rainProjectError = null
+      errorMessage = null
+      if (request.mode == RainProjectMode.LIVE) {
+        rainWaitingProjectName = name
+        showRainClassroom = true
+        if (startRainCapture(request.course, request.lesson, RainLiveProjectCapture(context, directory, name, request.course, request.lesson))) {
+          pendingRainProject = null
+        } else {
+          showRainClassroom = false
+          rainProjectError = errorMessage
+        }
+      } else {
+        isRainImporting = true
+        try {
+          if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+          val target = withContext(Dispatchers.IO) {
+            RainProjectWriter(context).create(directory, name, request.course, request.lesson) { emit ->
+              rainClassroomClient.forEachPresentationPage(request.lesson, emit)
+            }
+          }
+          openProjectTree(target)
+          pendingRainProject = null
+          showRainClassroom = false
+          noteStatus = context.getString(R.string.rain_import_done)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: RainLessonOngoingException) {
+          pendingRainProject = request.copy(mode = RainProjectMode.LIVE)
+          rainProjectConsent = false
+          rainProjectError = context.getString(R.string.rain_lesson_ongoing)
+        } catch (error: Exception) {
+          rainProjectError = context.getString(R.string.rain_import_failed, error.message.orEmpty())
+        } finally { isRainImporting = false }
+      }
     }
   }
 
@@ -3271,7 +3434,8 @@ private fun ReaderHome(
     }
   }
 
-  LaunchedEffect(readerSession) {
+  LaunchedEffect(readerSession, showBookshelf) {
+    if (showBookshelf || project != null) return@LaunchedEffect
     val checkpoint = readerSession.claimRestorationCheckpoint() ?: return@LaunchedEffect
     openProjectTree(
       target = checkpoint.toProjectOpenTarget(),
@@ -3288,7 +3452,8 @@ private fun ReaderHome(
     penStrokes = penPageStore.getItems(PenSide.DOCUMENT, pageIndex + 1)
   }
 
-  LaunchedEffect(renderer, pageIndex) {
+  LaunchedEffect(renderer, pageIndex, showBookshelf) {
+    if (showBookshelf) return@LaunchedEffect
     val activeRenderer = renderer ?: return@LaunchedEffect
     isRendering = true
     try {
@@ -3322,10 +3487,11 @@ private fun ReaderHome(
     activeMarkdown,
     pageIndex,
     settings.prepareAheadPages,
+    showBookshelf,
   ) {
     val currentProject = activeProject
     val currentRenderer = activeRenderer
-    if (currentProject == null || currentRenderer == null || activeMarkdown != null) {
+    if (showBookshelf || currentProject == null || currentRenderer == null || activeMarkdown != null) {
       pagePrefetcher.cancel()
       return@LaunchedEffect
     }
@@ -3767,9 +3933,29 @@ private fun ReaderHome(
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
   val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting &&
+    !rainCaptureLocked && !isRainImporting &&
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
     !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
+  fun returnToBookshelf() {
+    if (!canOpenProject) {
+      errorMessage = context.getString(if (rainCaptureLocked) R.string.rain_capture_busy else R.string.reader_menu_busy)
+      return
+    }
+    readerSession.launchSessionTask {
+      if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
+      penSaveMutex.withLock { }
+      if (failedPenSave != null) return@launchSessionTask
+      try { readerSession.saveCheckpoint()?.let { bookshelf.store.saveCheckpoint(it) } }
+      catch (cancelled: CancellationException) { throw cancelled }
+      catch (failure: Exception) { errorMessage = failure.message; return@launchSessionTask }
+      readerSession.flushDraftRecovery()
+      errorMessage = null
+      showBookshelf = true
+      bookshelf.refresh()
+    }
+  }
+  BackHandler(enabled = !showBookshelf) { returnToBookshelf() }
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canExportNotes = activeProject != null && !menuBusy
   val canUsePdf = canReadDocument && !isMarkdownReading
@@ -3791,9 +3977,11 @@ private fun ReaderHome(
     noteWritable,
     menuBusy,
     markdownEditor,
+    showBookshelf,
   ) {
     val activity = shortcutActivity ?: return@DisposableEffect onDispose {}
     val handler: (KeyEvent) -> Boolean = handler@{ event ->
+      if (showBookshelf) return@handler false
       if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@handler false
       val action = ReaderShortcutPolicy.action(
         event.keyCode,
@@ -4022,6 +4210,10 @@ private fun ReaderHome(
       ReaderMenuGroup.FILE,
       R.string.reader_menu_group_file,
       listOf(
+        actionCommand("bookshelf", R.string.bookshelf_return, canOpenProject) { returnToBookshelf() },
+        actionCommand(
+          "rain_classroom", R.string.rain_classroom_menu, true,
+        ) { showRainClassroom = true },
         actionCommand(
           "open_project", R.string.open_project, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
@@ -4528,6 +4720,25 @@ private fun ReaderHome(
     LaunchedEffect(menuLayout) {
       if (menuLayout != ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = false
     }
+    if (showBookshelf) {
+      BookshelfScreen(
+        preferences = bookshelf.preferences, books = bookshelf.books, scanning = bookshelf.scanning,
+        error = errorMessage ?: bookshelf.error, warnings = bookshelf.warnings, busy = !canOpenProject,
+        onBind = { errorMessage = null; bookshelf.chooseDirectory() },
+        onRefresh = { errorMessage = null; bookshelf.refresh() },
+        onPresentation = bookshelf::presentation,
+        onNew = { newProjectDir = libraryTree; showNewProject = true },
+        onImport = { chooseNewProjectDocument(openAfterSelection = true) },
+        onExternal = { projectPicker.launch(null) },
+        onRain = { showRainClassroom = true },
+        onSettings = { showSettings = true },
+        onOpen = { book -> readerSession.launchSessionTask {
+          if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
+          openProjectTree(book.target)
+        } },
+        repository = bookshelf.repository,
+      )
+    } else {
     ReaderAdaptiveMenu(
       layout = menuLayout,
       groups = menuSections,
@@ -4542,6 +4753,7 @@ private fun ReaderHome(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
+        ShelfIcon(Icons.Default.Home, stringResource(R.string.bookshelf_return), "reader_bookshelf", canOpenProject) { returnToBookshelf() }
         if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) {
           ReaderMenuTrigger(onClick = { menuDrawerOpen = true })
         }
@@ -4988,6 +5200,7 @@ private fun ReaderHome(
   }
     }
   }
+  }
 
   if (showPageJumpDialog && activeProject != null && totalPages > 0) {
     PageJumpDialog(
@@ -5098,6 +5311,8 @@ private fun ReaderHome(
   if (showSettings) {
     ReaderSettingsDialog(
       settings = settings,
+      libraryDirectory = bookshelf.preferences?.name?.takeIf { libraryTree != null },
+      onChangeLibrary = { errorMessage = null; bookshelf.chooseDirectory() },
       onDismiss = { showSettings = false },
       onConfigureAgent = {
         showSettings = false
@@ -5204,6 +5419,42 @@ private fun ReaderHome(
       onDismiss = { showProjectAttachments = false },
     )
   }
+  if (showRainClassroom && pendingRainProject == null) {
+    RainClassroomDialog(
+      client = rainClassroomClient,
+      canCaptureLive = project?.sourceExtension == "pdf" && noteWritable && canReadDocument,
+      busy = isRainCapturing || isRainImporting || isOpening || isSaving || isPenSaving || failedPenSave != null,
+      waitingForFirstPage = rainWaitingProjectName,
+      onImport = { course, lesson -> beginRainProject(course, lesson, RainProjectMode.IMPORT) },
+      onStartLive = { course, lesson -> scope.launch { startRainCapture(course, lesson) } },
+      onCreateLiveProject = { course, lesson, consent -> beginRainProject(course, lesson, RainProjectMode.LIVE, consent) },
+      onRetryLive = {
+        scope.launch {
+          runCatching { withContext(Dispatchers.IO) { rainClassroomClient.retryLive() } }
+            .onFailure { errorMessage = context.getString(R.string.rain_live_failed, it.message.orEmpty()) }
+        }
+      },
+      onStopLive = { rainClassroomClient.stopLive() },
+      onDismiss = {
+        rainClassroomClient.cancelLogin()
+        showRainClassroom = false
+      },
+    )
+  }
+  pendingRainProject?.let { request ->
+    RainProjectDialog(
+      mode = request.mode, name = rainProjectName,
+      folder = if (rainProjectDirectory == libraryTree && libraryTree != null) bookshelf.preferences?.name
+        else rainProjectDirectory?.let { DocumentsContract.getTreeDocumentId(it) },
+      folderLocked = libraryTree != null,
+      consent = rainProjectConsent, busy = isRainImporting || isRainCapturing, error = rainProjectError,
+      onNameChange = { rainProjectName = it },
+      onChooseFolder = { rainProjectParentPicker.launch(rainProjectDirectory) },
+      onConsentChange = { rainProjectConsent = it },
+      onConfirm = ::confirmRainProject,
+      onDismiss = { pendingRainProject = null; showRainClassroom = true },
+    )
+  }
   helpTopic?.let { topic ->
     ReaderHelpDialog(
       topic = topic,
@@ -5219,6 +5470,7 @@ private fun ReaderHome(
       name = newProjectName,
       onNameChange = { newProjectName = it },
       hasDir = newProjectDir != null,
+      directoryLabel = bookshelf.preferences?.name?.takeIf { libraryTree != null },
       sourceDisplayName = newProjectDocumentName,
       error = newProjectError,
       creating = isCreatingProject,
@@ -5494,6 +5746,7 @@ internal fun NewProjectDialog(
   onClearSource: () -> Unit,
   onConfirm: () -> Unit,
   onDismiss: () -> Unit,
+  directoryLabel: String? = null,
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -5507,7 +5760,10 @@ internal fun NewProjectDialog(
           label = { Text(stringResource(R.string.new_project_name)) },
           singleLine = true,
         )
-        TextButton(
+        if (directoryLabel != null) Text(
+          stringResource(R.string.bookshelf_folder) + ": " + directoryLabel,
+          maxLines = 2, overflow = TextOverflow.Ellipsis,
+        ) else TextButton(
           modifier = Modifier.testTag("new_project_choose_dir"),
           onClick = onChooseDir,
           enabled = !creating,

@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "data": {
+    "list": [
+      {
+        "course_id": 7351,
+        "classroom_id": "fixture-classroom-1",
+        "name": "Fixture course",
+        "teacher": { "name": "Fixture teacher" },
+        "term_name": "Fixture term"
+      }
+    ]
+  }
+}

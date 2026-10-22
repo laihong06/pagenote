@@ -7,6 +7,7 @@ const {
   clipboard,
   nativeTheme,
   ipcMain,
+  safeStorage,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -122,6 +123,43 @@ if (!app.requestSingleInstanceLock()) {
       }
       const backend = await import(
         pathToFileURL(path.join(app.getAppPath(), 'server.mjs')).href
+      );
+      const rainModule = require('./yuketang.cjs');
+      const rainSessionFile = path.join(
+        app.getPath('userData'),
+        'rain-session.bin',
+      );
+      backend.configureRainClassroomService(
+        rainModule.createRainClassroomService({
+          secureStore: {
+            async get() {
+              try {
+                if (!safeStorage.isEncryptionAvailable())
+                  throw Error('安全存储不可用');
+                return safeStorage.decryptString(
+                  await fs.readFile(rainSessionFile),
+                );
+              } catch (error) {
+                if (error.code === 'ENOENT') return null;
+                throw error;
+              }
+            },
+            async set(value) {
+              if (!safeStorage.isEncryptionAvailable())
+                throw Error('系统安全存储不可用，无法保存雨课堂登录状态');
+              const temp = rainSessionFile + '.tmp';
+              await fs.writeFile(temp, safeStorage.encryptString(value), {
+                mode: 0o600,
+              });
+              await fs.rename(temp, rainSessionFile);
+            },
+            async clear() {
+              await fs.unlink(rainSessionFile).catch((error) => {
+                if (error.code !== 'ENOENT') throw error;
+              });
+            },
+          },
+        }),
       );
       try {
         server = await backend.startServer(4174);
@@ -353,6 +391,10 @@ if (!app.requestSingleInstanceLock()) {
               },
             ),
           onQuit: () => app.quit(),
+          chooseBookshelfDirectory: () =>
+            win.webContents.executeJavaScript(
+              'window.pageNotes.chooseBookshelfDirectory()',
+            ),
           onClosed: () => {
             if (!quitting && !closing) showMainWindow();
           },
@@ -475,6 +517,27 @@ if (!app.requestSingleInstanceLock()) {
       } catch {}
       const translate = (label) =>
         catalog[label]?.[locale === 'en-US' ? 1 : 0] || label;
+      ipcMain.handle('pagenote:rain-import-directory', async (event) => {
+        if (!win || event.sender !== win.webContents)
+          throw Error('Invalid Rain import directory request');
+        const chosen = await dialog.showOpenDialog(win, {
+          title:
+            locale === 'en-US'
+              ? 'Choose Rain Classroom import folder'
+              : '选择雨课堂课件导入目录',
+          properties: ['openDirectory'],
+        });
+        return chosen.canceled ? null : chosen.filePaths[0] || null;
+      });
+      ipcMain.handle('pagenote:bookshelf-directory', async (event) => {
+        if (!win || event.sender !== win.webContents)
+          throw Error('Invalid bookshelf directory request');
+        const chosen = await dialog.showOpenDialog(win, {
+          title: translate('选择书架目录'),
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        return chosen.canceled ? null : chosen.filePaths[0] || null;
+      });
       function localize(items) {
         return items.map((item) => ({
           ...item,
@@ -517,6 +580,22 @@ if (!app.requestSingleInstanceLock()) {
               {
                 label: '文件',
                 submenu: [
+                  {
+                    label: '书架',
+                    click: () =>
+                      win.webContents
+                        .executeJavaScript('window.pageNotes.showBookshelf()')
+                        .catch(() => {}),
+                  },
+                  { type: 'separator' },
+                  {
+                    label: '雨课堂导入与实时采集…',
+                    click: () =>
+                      win.webContents.executeJavaScript(
+                        'window.pageNotes.menuAction("rainClassroom")',
+                      ),
+                  },
+                  { type: 'separator' },
                   {
                     label: '导入左侧',
                     click: () =>

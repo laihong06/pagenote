@@ -16,6 +16,10 @@ import {
   restorePageAnchor,
 } from './gestures.js';
 import { preparePageData } from './page-data.js';
+import {
+  currentLessonCourse,
+  selectedItem,
+} from './rain-classroom-selection.js';
 import { showWelcome, showFirstWelcome } from './hello.js';
 import {
   initializeTheme,
@@ -27,9 +31,86 @@ import {
 } from './theme.js';
 import './theme.css';
 import './reading-theme.css';
+import { createBookshelf } from './bookshelf.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = worker;
 const $ = (id) => document.getElementById(id);
+const bookshelfUI = createBookshelf({
+  loadRecent: refreshLibrary,
+  request,
+  pdfjs,
+  onError: (error) => toast(error.message),
+  onNew: () => window.pageNotes.menuAction('newProject'),
+  onImport: () => shelfFileInput.click(),
+  onSettings: () => openSettings(),
+  openBook: async (book) => {
+    await window.pageNotes.openProject(book.projectFile);
+    let position;
+    try {
+      position = JSON.parse(
+        localStorage.getItem('bookshelf-position:' + book.key),
+      );
+    } catch {}
+    await goTo(
+      position?.id === book.id && Number.isSafeInteger(position.page)
+        ? Math.min(total, Math.max(1, position.page))
+        : 1,
+    );
+  },
+});
+const shelfFileInput = document.createElement('input');
+shelfFileInput.id = 'shelfFileInput';
+shelfFileInput.type = 'file';
+shelfFileInput.accept = '.pdf,.md,.markdown';
+shelfFileInput.hidden = true;
+document.body.append(shelfFileInput);
+shelfFileInput.onchange = safely(async () => {
+  try {
+    await importShelfDocument(shelfFileInput.files[0]);
+  } finally {
+    shelfFileInput.value = '';
+  }
+});
+function rememberBookPosition() {
+  const book = bookshelfUI
+    .state()
+    .books.find((item) => item.projectFile === doc?.projectFile);
+  if (book)
+    localStorage.setItem(
+      'bookshelf-position:' + book.key,
+      JSON.stringify({ id: doc.id, page }),
+    );
+}
+async function showBookshelf() {
+  await window.pageNotes.finishEditing();
+  rememberBookPosition();
+  readingGestures?.cancel();
+  for (const task of pageTasks.values()) task.cancel();
+  await bookshelfUI.show();
+}
+async function importShelfDocument(file) {
+  if (!file) return;
+  await window.pageNotes.finishEditing();
+  const form = new FormData();
+  form.append('file', file);
+  const uploaded = await request('/api/documents', {
+    method: 'POST',
+    body: form,
+  });
+  const name =
+    file.name
+      .replace(/\.(pdf|md|markdown)$/i, '')
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .slice(0, 120) || t('未命名');
+  const meta = await request('/api/bookshelf/projects/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ documentId: uploaded.id, name }),
+  });
+  await refreshLibrary();
+  await bookshelfUI.refresh();
+  await openDocument(meta);
+}
 let layout = {
     noteWidth: 1000,
     padding: 28,
@@ -497,6 +578,7 @@ async function syncScrollPage() {
   }
 }
 function paintVisible() {
+  if (bookshelfUI.state().visible) return;
   const scroller = $('documentScroll'),
     bounds = scroller.getBoundingClientRect();
   pageSheets.forEach((sheet, i) => {
@@ -529,6 +611,7 @@ async function endMarkdownDocument() {
   await renderPage();
 }
 async function renderPage(anchor = null) {
+  if (bookshelfUI.state().visible) return;
   if (documentMarkdownEditing) return;
   readingGestures?.cancel();
   const epoch = ++documentBuild;
@@ -660,6 +743,7 @@ async function openDocument(meta, fromWord = false) {
   }
 }
 async function performOpenDocument(meta, fromWord = false) {
+  rememberBookPosition();
   if (wordBusy && !fromWord) await waitWordIdle();
   if (wordActive) await endWord();
   await flush();
@@ -700,6 +784,7 @@ async function performOpenDocument(meta, fromWord = false) {
     pdf = newPdf;
     mdPages = newPages;
     notes = newNotes;
+    bookshelfUI.hide();
     total = pdf?.numPages || mdPages.length;
     page = Math.min(
       total,
@@ -740,6 +825,7 @@ async function refreshLibrary() {
 }
 async function importFile(file) {
   if (!file) return;
+  if (bookshelfUI.state().visible) return importShelfDocument(file);
   await endMarkdownDocument();
   if (wordBusy) await waitWordIdle();
   if (wordActive) await endWord();
@@ -1184,6 +1270,11 @@ $('exportNote').onclick = safely(async () => {
 $('helpButton').onclick = () => $('help').showModal();
 $('closeHelp').onclick = () => $('help').close();
 $('settingsButton').onclick = () => openSettings();
+$('bookshelfDirectoryChange').onclick = safely(async () => {
+  await bookshelfUI.chooseDirectory();
+  $('bookshelfDirectory').textContent =
+    (await request('/api/bookshelf/config')).root || t('尚未绑定书架目录');
+});
 $('closeSettings').onclick = () => $('settings').close();
 let defaultAIPrompt = '';
 let promptDrafts = {},
@@ -1223,6 +1314,8 @@ async function openWebAISettings() {
   $('aiSettings').showModal();
 }
 async function openSettings(pane) {
+  $('bookshelfDirectory').textContent =
+    (await request('/api/bookshelf/config')).root || t('尚未绑定书架目录');
   if (window.desktopSettings) {
     try {
       const result = await window.desktopSettings.open(pane);
@@ -1784,6 +1877,7 @@ function getSettingsState() {
     markdownTheme: getMarkdownTheme(),
     noteAnimation: layout.noteAnimation,
     expandEditor: layout.expandEditor,
+    bookshelfRoot: bookshelfUI.state().config.root || '',
   };
 }
 async function applySetting(key, value) {
@@ -1798,6 +1892,9 @@ async function applySetting(key, value) {
   return getSettingsState();
 }
 window.pageNotes = {
+  showBookshelf,
+  getBookshelfState: () => bookshelfUI.state(),
+  chooseBookshelfDirectory: () => bookshelfUI.chooseDirectory(),
   openSettings,
   getSettingsState,
   applySetting,
@@ -1922,6 +2019,7 @@ window.pageNotes = {
     if (!meta) throw Error('文档不存在');
     if (
       doc?.id !== id ||
+      bookshelfUI.state().visible ||
       forceReload ||
       (new URLSearchParams(location.search).has('capture') &&
         doc?.modified !== meta.modified)
@@ -2139,10 +2237,9 @@ new MutationObserver(() => {
 updateControls();
 window.pageNotes.ready = (async () => {
   applyLayout(await request('/api/layout'));
-  const docs = await refreshLibrary();
-  const last = docs.find((d) => d.id === localStorage.getItem('last-document'));
-  if (last && !new URLSearchParams(location.search).has('capture'))
-    await openDocument(last);
+  await refreshLibrary();
+  if (!new URLSearchParams(location.search).has('capture'))
+    await bookshelfUI.show();
 })().catch((e) => toast(e.message));
 
 // Close compact menus after an action or an outside click.
@@ -2168,12 +2265,17 @@ document.getElementById('newConfirm').onclick = safely(async () => {
   const name = document.getElementById('newName').value.trim();
   if (!name) return;
   await window.pageNotes.finishEditing();
+  const libraryRoot = (await request('/api/bookshelf/config')).root;
+  const selectedParent = $('newParent').value.trim();
   const meta = await request('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name,
-      parent: $('newParent').value.trim() || undefined,
+      parent:
+        selectedParent && selectedParent !== libraryRoot
+          ? selectedParent
+          : undefined,
     }),
   });
   await refreshLibrary();
@@ -2181,7 +2283,10 @@ document.getElementById('newConfirm').onclick = safely(async () => {
   createDialog.close();
 });
 window.pageNotes.menuAction = async (action) => {
-  if (action === 'importRight') {
+  if (action === 'rainClassroom') {
+    $('rainClassroomDialog').showModal();
+    await refreshRainAccount();
+  } else if (action === 'importRight') {
     if (!doc) {
       toast('请先导入左侧文档或新建项目');
       return;
@@ -2192,6 +2297,7 @@ window.pageNotes.menuAction = async (action) => {
     if ($('newName').value === '未命名' || $('newName').value === 'Untitled')
       $('newName').value = t('未命名');
     document.getElementById('newTitle').textContent = '新建项目';
+    $('newParent').value = (await request('/api/bookshelf/config')).root || '';
     createDialog.showModal();
   } else if (action === 'reviewLeft' || action === 'reviewRight')
     reviews.show(action === 'reviewLeft' ? 'document' : 'note');
@@ -2200,6 +2306,388 @@ window.pageNotes.menuAction = async (action) => {
     document.body.classList.add('choose-editor');
     toast('点击左侧文档或右侧讲解，选择编辑区域');
   }
+};
+let rainCourses = [];
+let rainLessons = [];
+let rainCurrentLessons = [];
+let rainLoginPoll = null;
+let rainLivePoll = null;
+let rainLastSlide = '';
+let rainLoginId = null;
+let rainAuthenticated = false;
+let rainLivePendingSlides = 0;
+let rainCaptureStatus = 'stopped';
+async function refreshRainAccount() {
+  if (!$('rainProjectParent').dataset.explicit)
+    $('rainProjectParent').value =
+      (await request('/api/bookshelf/config')).root || '';
+  const state = await request('/api/rain/status');
+  rainAuthenticated = state.account.authenticated;
+  rainLivePendingSlides = state.live.pendingSlides || 0;
+  rainCaptureStatus = state.live.status;
+  $('rainAccountStatus').textContent = state.account.authenticated
+    ? `已登录：${state.account.user.name}`
+    : '未登录';
+  $('rainLogin').hidden = state.account.authenticated;
+  $('rainLogout').hidden = !state.account.authenticated;
+  $('rainLoadCourses').disabled = !state.account.authenticated;
+  $('rainCourse').disabled = !state.account.authenticated;
+  $('rainCurrentLesson').disabled = !state.account.authenticated;
+  $('rainLiveStatus').textContent =
+    state.live.status === 'stopped'
+      ? rainLivePendingSlides
+        ? `已停止 · ${rainLivePendingSlides} 页待重试${state.live.error ? ` · ${state.live.error}` : ''}`
+        : '未连接课堂'
+      : `实时采集：${state.live.status}`;
+  $('rainLiveStop').hidden = state.live.status === 'stopped';
+  $('rainLiveRetry').hidden = !state.live.pendingSlides;
+  syncRainCommands();
+  return state;
+}
+function syncRainCommands() {
+  const course = selectedItem($('rainCourse').value, rainCourses);
+  const lesson = selectedItem($('rainLesson').value, rainLessons);
+  const currentLesson = selectedItem(
+    $('rainCurrentLesson').value,
+    rainCurrentLessons,
+  );
+  const currentCourse = currentLessonCourse(currentLesson, rainCourses, course);
+  $('rainCurrentLessonNotice').hidden =
+    !currentLesson ||
+    (!currentLesson.classroomId && !currentLesson.courseId) ||
+    Boolean(currentCourse);
+  $('rainLesson').disabled = !course || !rainLessons.length;
+  $('rainImport').disabled = !course || !lesson;
+  const cannotStart =
+    !rainAuthenticated ||
+    !currentCourse ||
+    !currentLesson?.lessonId ||
+    wordBusy ||
+    wordActive ||
+    rainLivePendingSlides > 0 ||
+    !['stopped', 'finished'].includes(rainCaptureStatus) ||
+    !$('rainLiveConsent').checked;
+  $('rainLiveNew').disabled = cannotStart;
+  $('rainLiveStart').disabled =
+    cannotStart || !doc?.projectRoot || doc?.kind !== 'pdf';
+}
+async function loadRainCourses() {
+  const [courseResult, currentLessonResult] = await Promise.allSettled([
+    request('/api/rain/courses'),
+    request('/api/rain/current-lessons'),
+  ]);
+  if (courseResult.status === 'rejected') throw courseResult.reason;
+  rainCourses = courseResult.value;
+  rainCurrentLessons =
+    currentLessonResult.status === 'fulfilled' ? currentLessonResult.value : [];
+  $('rainCourse').replaceChildren(
+    new Option('选择课程', ''),
+    ...rainCourses.map(
+      (course, index) =>
+        new Option(
+          `${course.name}${course.teacher ? ` · ${course.teacher}` : ''}`,
+          String(index),
+        ),
+    ),
+  );
+  $('rainCourse').disabled = false;
+  $('rainCurrentLesson').replaceChildren(
+    new Option(
+      rainCurrentLessons.length
+        ? '选择正在进行的课堂'
+        : currentLessonResult.status === 'rejected'
+          ? '当前课堂列表暂不可用'
+          : '当前没有正在进行的课堂',
+      '',
+    ),
+    ...rainCurrentLessons.map((item, index) => {
+      const linkedCourse = currentLessonCourse(item, rainCourses);
+      return new Option(
+        `${linkedCourse?.name ? `${linkedCourse.name} · ` : ''}${item.name}`,
+        String(index),
+      );
+    }),
+  );
+  $('rainCurrentLessonNotice').hidden = true;
+  $('rainCurrentLesson').disabled = false;
+  rainLessons = [];
+  $('rainLesson').replaceChildren(new Option('先选择课程', ''));
+  syncRainCommands();
+}
+async function loadRainLessons() {
+  const course = selectedItem($('rainCourse').value, rainCourses);
+  if (!course) return;
+  rainLessons = await request(
+    `/api/rain/courses/${encodeURIComponent(course.classroomId)}/lessons`,
+  );
+  $('rainLesson').replaceChildren(
+    new Option('选择课件 / 课堂', ''),
+    ...rainLessons.map(
+      (lesson, index) =>
+        new Option(
+          `${lesson.name}${lesson.createdAt ? ` · ${new Date(lesson.createdAt).toLocaleDateString()}` : ''}`,
+          String(index),
+        ),
+    ),
+  );
+  $('rainLesson').disabled = false;
+  syncRainCommands();
+}
+async function startRainLogin() {
+  clearInterval(rainLoginPoll);
+  $('rainLoginStatus').textContent = '正在连接雨课堂…';
+  $('rainQr').hidden = true;
+  const { loginId } = await request('/api/rain/login', { method: 'POST' });
+  rainLoginId = loginId;
+  const poll = async () => {
+    const state = await request(
+      `/api/rain/login/${encodeURIComponent(loginId)}`,
+    );
+    if (state.qrDataUrl) {
+      $('rainQr').src = state.qrDataUrl;
+      $('rainQr').hidden = false;
+      $('rainLoginStatus').textContent =
+        '请使用雨课堂官方客户端扫描此二维码并确认登录';
+    } else if (state.status === 'connecting') {
+      $('rainLoginStatus').textContent = '正在申请二维码…';
+    }
+    if (state.status === 'authenticated') {
+      clearInterval(rainLoginPoll);
+      $('rainQr').hidden = true;
+      $('rainLoginStatus').textContent = '登录成功';
+      await refreshRainAccount();
+      await loadRainCourses();
+    } else if (['failed', 'expired', 'not_found'].includes(state.status)) {
+      clearInterval(rainLoginPoll);
+      $('rainQr').hidden = true;
+      $('rainLoginStatus').textContent =
+        state.error || '二维码已失效，请重新登录';
+    }
+  };
+  await poll();
+  rainLoginPoll = setInterval(
+    () =>
+      poll().catch((error) => {
+        clearInterval(rainLoginPoll);
+        $('rainLoginStatus').textContent = error.message;
+      }),
+    1000,
+  );
+}
+async function pollRainLive() {
+  const live = await request('/api/rain/live/status');
+  rainCaptureStatus = live.status;
+  rainLivePendingSlides = live.pendingSlides || 0;
+  $('rainLiveStatus').textContent =
+    live.status === 'stopped'
+      ? rainLivePendingSlides
+        ? `已停止 · ${rainLivePendingSlides} 页待重试${live.error ? ` · ${live.error}` : ''}`
+        : '未连接课堂'
+      : `实时采集：${{ connecting: '连接中', active: '采集中', reconnecting: '重连中', error: '发生错误' }[live.status] || live.status}${live.error ? ` · ${live.error}` : ''}${live.possibleGap ? ' · 重连期间可能缺页' : ''}`;
+  if (live.backfillPendingPages)
+    $('rainLiveStatus').textContent +=
+      ` · 正在补采 ${live.backfillPendingPages} 页`;
+  syncRainCommands();
+  $('rainLiveStop').hidden = live.status === 'stopped';
+  $('rainLiveRetry').hidden = !live.pendingSlides;
+  if (live.latest) {
+    if (window.pageNotes.rainNewProjectPending && live.latest.projectId) {
+      const documents = await refreshLibrary();
+      const created = documents.find(
+        (item) => item.id === live.latest.projectId,
+      );
+      if (created) {
+        window.pageNotes.rainProjectId = created.id;
+        window.pageNotes.rainNewProjectPending = false;
+        await bookshelfUI.refresh();
+      }
+    }
+    const key = `${live.latest.presentationId}:${live.latest.sourceIndex}:${live.latest.projectPage}`;
+    if (key !== rainLastSlide) {
+      if (live.latest.added && doc?.id === window.pageNotes.rainProjectId) {
+        const refreshed = await window.pageNotes.refreshRainSource();
+        if (!refreshed) return;
+        toast(`雨课堂新页面已追加到第 ${live.latest.projectPage} 页`);
+      }
+      rainLastSlide = key;
+    }
+  }
+  if (live.status === 'stopped' || live.status === 'finished')
+    clearInterval(rainLivePoll);
+}
+$('rainClassroomButton').onclick = safely(() =>
+  window.pageNotes.menuAction('rainClassroom'),
+);
+$('rainChooseParent').onclick = safely(async () => {
+  const parent = await window.desktopSettings.chooseRainImportDirectory();
+  if (parent) {
+    $('rainProjectParent').value = parent;
+    $('rainProjectParent').dataset.explicit = 'true';
+  }
+});
+$('rainClose').onclick = () => $('rainClassroomDialog').close();
+$('rainClassroomDialog').addEventListener('close', () => {
+  clearInterval(rainLoginPoll);
+  if (rainLoginId) {
+    request(`/api/rain/login/${encodeURIComponent(rainLoginId)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+    rainLoginId = null;
+  }
+});
+$('rainLogin').onclick = safely(startRainLogin);
+$('rainLoadCourses').onclick = safely(loadRainCourses);
+$('rainCourse').onchange = safely(loadRainLessons);
+$('rainLesson').onchange = syncRainCommands;
+$('rainCurrentLesson').onchange = () => {
+  const currentLesson = selectedItem(
+    $('rainCurrentLesson').value,
+    rainCurrentLessons,
+  );
+  const linkedCourse = currentLessonCourse(currentLesson, rainCourses);
+  if (linkedCourse) {
+    $('rainCourse').value = String(rainCourses.indexOf(linkedCourse));
+    void loadRainLessons().catch((error) => {
+      $('rainLoginStatus').textContent = error.message;
+    });
+  }
+  syncRainCommands();
+};
+$('rainLiveConsent').onchange = syncRainCommands;
+$('rainLogout').onclick = safely(async () => {
+  await request('/api/rain/logout', { method: 'POST' });
+  rainCourses = [];
+  rainCurrentLessons = [];
+  $('rainAccountStatus').textContent = '未登录';
+  $('rainCourse').replaceChildren(new Option('先登录雨课堂', ''));
+  $('rainLesson').replaceChildren(new Option('选择课程', ''));
+  await refreshRainAccount();
+});
+$('rainImport').onclick = safely(async () => {
+  const course = selectedItem($('rainCourse').value, rainCourses);
+  const lesson = selectedItem($('rainLesson').value, rainLessons);
+  if (!course || !lesson) return;
+  $('rainImport').disabled = true;
+  try {
+    const parent =
+      $('rainProjectParent').value ||
+      (await window.desktopSettings.chooseRainImportDirectory());
+    if (!parent) return;
+    $('rainLoginStatus').textContent = '正在下载课件并创建项目…';
+    await flush();
+    const meta = await request('/api/rain/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ course, lesson, parent }),
+    });
+    await refreshLibrary();
+    await openDocument(meta);
+    window.pageNotes.rainProjectId = meta.id;
+    $('rainLoginStatus').textContent = '课件已导入';
+  } finally {
+    syncRainCommands();
+  }
+});
+async function beginRainLiveCapture(newProject = false) {
+  const currentLesson = selectedItem(
+    $('rainCurrentLesson').value,
+    rainCurrentLessons,
+  );
+  const selectedCourse = selectedItem($('rainCourse').value, rainCourses);
+  const course = currentLessonCourse(
+    currentLesson,
+    rainCourses,
+    selectedCourse,
+  );
+  if (!course || !currentLesson?.lessonId || (!newProject && !doc?.projectRoot))
+    return;
+  const lesson = {
+    lessonId: currentLesson.lessonId,
+    name: currentLesson.name,
+    classroomId: currentLesson.classroomId || course.classroomId,
+  };
+  if (!$('rainLiveConsent').checked) throw Error('请先确认课堂连接和考勤提示');
+  const parent = newProject
+    ? $('rainProjectParent').value ||
+      (await window.desktopSettings.chooseRainImportDirectory())
+    : null;
+  if (newProject && !parent) return;
+  const name = (
+    $('rainProjectName').value.trim() || `${course.name} - ${lesson.name}`
+  )
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .slice(0, 100);
+  await flush();
+  window.pageNotes.rainProjectId = newProject ? null : doc.id;
+  rainLastSlide = '';
+  await request('/api/rain/live/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      course,
+      lesson,
+      consent: true,
+      ...(newProject ? { parent, name } : { projectId: doc.id }),
+    }),
+  });
+  window.pageNotes.rainNewProjectPending = newProject;
+  clearInterval(rainLivePoll);
+  rainLivePoll = setInterval(
+    () =>
+      pollRainLive().catch((error) => {
+        $('rainLiveStatus').textContent = error.message;
+      }),
+    1500,
+  );
+  await pollRainLive();
+}
+$('rainLiveStart').onclick = safely(() => beginRainLiveCapture(false));
+$('rainLiveNew').onclick = safely(() => beginRainLiveCapture(true));
+$('rainLiveStop').onclick = safely(async () => {
+  await request('/api/rain/live/stop', { method: 'POST' });
+  await pollRainLive();
+});
+$('rainLiveRetry').onclick = safely(async () => {
+  await request('/api/rain/live/retry', { method: 'POST' });
+  await pollRainLive();
+});
+window.pageNotes.refreshRainSource = async () => {
+  if (
+    !doc ||
+    doc.kind !== 'pdf' ||
+    documentOpening ||
+    wordActive ||
+    wordBusy ||
+    documentMarkdownEditing
+  )
+    return false;
+  await flush();
+  const id = doc.id;
+  const anchor = documentZoomAnchor();
+  const nextPdf = await pdfjs.getDocument({
+    enableScripting: false,
+    isEvalSupported: false,
+    url: doc.url + '?rain=' + Date.now(),
+    cMapUrl: '/pdf-assets/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: '/pdf-assets/standard_fonts/',
+    wasmUrl: '/pdf-assets/wasm/',
+  }).promise;
+  const oldPdf = pdf;
+  const updatedNotes = await request(`/api/documents/${id}/notes`);
+  if (doc?.id !== id) {
+    await nextPdf.destroy();
+    return false;
+  }
+  pdf = nextPdf;
+  notes = updatedNotes;
+  total = pdf.numPages;
+  page = Math.min(page, total);
+  doc = { ...doc, modified: new Date().toISOString() };
+  updateControls();
+  await renderPage(anchor);
+  await oldPdf?.loadingTask?.destroy();
+  return true;
 };
 for (const [selector, button] of [
   ['.document-pane', 'documentEditButton'],
@@ -2287,6 +2775,7 @@ window.pageNotes.ready = Promise.all([
 let externalRefreshBusy = false;
 window.pageNotes.refreshExternalSource = async () => {
   if (
+    bookshelfUI.state().visible ||
     !doc ||
     documentOpening ||
     externalRefreshBusy ||
