@@ -41,7 +41,7 @@ jobs:
         if: always()
         run: echo 'Paper ink reflow test outcome — ${{ steps.paper.outcome }}. See KNOWN_ISSUES.md; this test is diagnostic and does not grant a pass.' >> "$GITHUB_STEP_SUMMARY"
       - name: Reading and project persistence
-        run: node tests/project-open.mjs && npm run test:reading && npm run test:workflows
+        run: node tests/project-layout.mjs && node tests/project-import.mjs && node tests/project-open.mjs && npm run test:reading && npm run test:workflows
       - run: node scripts/package-desktop.mjs --mac
       - name: Packaged native settings and project opening
         shell: bash

@@ -35,8 +35,8 @@ try {
     folder = state.document.projectRoot,
     manifestFile = state.document.projectFile;
   let manifest = JSON.parse(await fs.readFile(manifestFile));
-  assert.equal(manifest.left, 'src/left.md');
-  assert.equal(manifest.right, 'src/right.md');
+  assert.equal(manifest.left, 'src/source.md');
+  assert.equal(manifest.right, 'src/notes.md');
   await w.locator('#aiSharedTools [data-ai-pointer=mouse]').click();
   assert.ok(await w.locator('.mouse-options').isVisible());
   await w.locator('#aiSharedTools [data-ai-pointer=mouse]').click();
@@ -82,7 +82,7 @@ try {
     handoffSummary,
   );
   await fs.writeFile(
-    path.join(folder, 'src/right.md'),
+    path.join(folder, 'src/notes.md'),
     '右侧保存的解释。（按链接重新读取）',
   );
   await w.evaluate((file) => window.pageNotes.openProject(file), manifestFile);
@@ -114,7 +114,7 @@ try {
   );
   assert.ok(state.markdown.includes('右侧保存'));
   manifest = JSON.parse(await fs.readFile(manifestFile));
-  assert.equal(manifest.left, 'src/left.pdf');
+  assert.equal(manifest.left, 'src/source.pdf');
   assert.equal(
     (await fs.stat(path.join(folder, manifest.left))).size,
     (await fs.stat(path.join(root, 'tests/fixtures/sample.pdf'))).size,
@@ -212,7 +212,7 @@ try {
   );
   await w.evaluate(() => window.pageNotes.finishEditing());
   assert.ok(
-    (await fs.readFile(path.join(folder, 'src/right.md'), 'utf8')).includes(
+    (await fs.readFile(path.join(folder, 'src/notes.md'), 'utf8')).includes(
       'assets/' + imageName,
     ),
   );
@@ -220,7 +220,7 @@ try {
   const moved = path.join(projectParent, '移动后的项目');
   await fs.cp(folder, moved, { recursive: true });
   await fs.writeFile(
-    path.join(moved, 'src/right.md'),
+    path.join(moved, 'src/notes.md'),
     '从项目 src 链接读取的右侧内容。\n\n![图片](assets/' + imageName + ')',
   );
   await fs.rename(

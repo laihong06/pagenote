@@ -1,6 +1,6 @@
 {
   "name": "pagenote",
-  "version": "1.1.0-beta.4",
+  "version": "1.1.0-beta.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "test:markdown": "node tests/rich-editor.mjs",
     "test:mcp": "node tests/mcp.mjs",
     "package:dir": "npm run build && node scripts/package-desktop.mjs --dir",
-    "test:release": "node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs && npm run test:reading && npm run test:workflows",
+    "test:release": "node tests/project-layout.mjs && node tests/project-import.mjs && node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs && npm run test:reading && npm run test:workflows",
     "test:reading": "node tests/continuous.mjs && node tests/ai-workspace.mjs && npm run test:trackpad",
     "test:english": "node tests/english-windows.mjs",
     "test:acceptance": "node tests/acceptance-recovery.mjs",
@@ -41,7 +41,9 @@
     "test:trackpad": "node tests/trackpad.mjs",
     "pretest:trackpad": "node scripts/ensure-electron.mjs",
     "test:ui": "node tests/footer-stability.mjs && node tests/paper-theme.mjs && node tests/theme.mjs && node tests/hello.mjs",
-    "test:native-settings": "node tests/native-settings.mjs && node tests/native-settings-app.mjs && node tests/native-settings-fallback.mjs && node tests/settings-quit-race.mjs"
+    "test:native-settings": "node tests/native-settings.mjs && node tests/native-settings-app.mjs && node tests/native-settings-fallback.mjs && node tests/settings-quit-race.mjs",
+    "test:project-layout": "node tests/project-layout.mjs",
+    "test:project-import": "node tests/project-import.mjs"
   },
   "dependencies": {
     "sharp": "0.35.5",

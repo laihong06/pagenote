@@ -364,11 +364,16 @@ app.post('/api/documents', upload.single('file'), async (req, res, next) => {
     const bytes = await fs.readFile(req.file.path);
     const id = createHash('sha256').update(ext).update(bytes).digest('hex');
     const dir = path.join(data, 'documents', id);
+    let existing;
     try {
-      const existing = JSON.parse(await fs.readFile(metaFile(id), 'utf8'));
+      existing = JSON.parse(await fs.readFile(metaFile(id), 'utf8'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (existing) {
       await fs.unlink(req.file.path);
       return res.json(await projects.bindLeft(existing, req.body.projectId));
-    } catch {}
+    }
     await fs.mkdir(dir, { recursive: true });
     const original = path.join(dir, `original${ext}`);
     await moveFile(req.file.path, original);

@@ -14,6 +14,8 @@ Android requires **Android 14+ and ARM64**. It includes page-linked PDF/Markdown
 
 Beta installs as **pagenote Beta**, with a separate installation identity, shortcuts and local settings/data directory. It does not take over stable project file associations. Project files you explicitly open are still shared files: copy a project before testing if you want to keep its stable copy unchanged.
 
+**In development: desktop 1.1.0-beta.5** unifies project folders: `project.pagenote` links the source and raw Markdown under `src/`. Standalone imports create projects and older entries are converted without deleting their managed history. [Project layout](docs/PROJECTS.zh-CN.md). Published downloads above remain Beta 4.
+
 <img src="build/icon.png" alt="pagenote paired-page icon" width="88">
 
 English · [简体中文](README.md)

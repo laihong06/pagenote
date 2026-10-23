@@ -51,13 +51,7 @@ try {
     await w.locator('#wordTools').isHidden(),
     'embedded editor is not used',
   );
-  const file = path.join(
-    profile,
-    'documents-data',
-    'documents',
-    before.document.id,
-    'original.docx',
-  );
+  const file = path.join(before.document.projectRoot, 'src', 'source.docx');
   const result = await promisify(execFile)(
     'powershell.exe',
     [

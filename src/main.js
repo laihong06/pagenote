@@ -663,6 +663,10 @@ async function performOpenDocument(meta, fromWord = false) {
   if (wordBusy && !fromWord) await waitWordIdle();
   if (wordActive) await endWord();
   await flush();
+  if (!meta.projectFile && !new URLSearchParams(location.search).has('capture'))
+    meta = await request('/api/projects/' + meta.id + '/adopt', {
+      method: 'POST',
+    });
   if (meta.projectFile && !new URLSearchParams(location.search).has('capture'))
     meta = await request('/api/projects/open', {
       method: 'POST',

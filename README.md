@@ -14,6 +14,8 @@
 
 测试版以 **pagenote Beta** 独立安装，使用独立的快捷方式、安装标识和本地设置、数据目录，不接管正式版的项目文件关联。主动打开的项目仍是同一份文件；想保留正式版项目原样，请先复制项目再测试。
 
+**开发中：桌面 1.1.0-beta.5** 统一项目目录，`project.pagenote` 链接 `src/` 内的原文与原始 Markdown。直接导入建立项目，旧独立文档复制转换并保留历史。[项目结构与迁移说明](docs/PROJECTS.zh-CN.md)。上方已发布安装包仍为 Beta 4。
+
 <img src="build/icon.png" alt="pagenote 双页图标" width="88">
 
 [English](README.en.md) · 简体中文

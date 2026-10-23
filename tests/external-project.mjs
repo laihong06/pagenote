@@ -54,7 +54,10 @@ try {
       document.querySelector('#toast').textContent.includes('default app'),
   );
   const file = await app.evaluate(() => globalThis.testExternalFile);
-  assert.equal(file, path.join(before.document.projectRoot, 'src', 'left.pdf'));
+  assert.equal(
+    file,
+    path.join(before.document.projectRoot, 'src', 'source.pdf'),
+  );
   await fs.appendFile(file, '\n% External save\n');
   await w.evaluate(() => window.pageNotes.refreshExternalSource());
   const after = await w.evaluate(() => window.pageNotes.getState());
@@ -64,7 +67,7 @@ try {
   assert.ok(
     (
       await fs.readFile(
-        path.join(after.document.projectRoot, 'src', 'right.md'),
+        path.join(after.document.projectRoot, 'src', 'notes.md'),
         'utf8',
       )
     ).includes('Keep project notes'),

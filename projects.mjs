@@ -66,6 +66,126 @@ export function createProjectStore({ app, data, convertOffice }) {
     return text.replace(/assets\/([a-f0-9-]+\.[a-z0-9]+)/gi, '/attachments/$1');
   }
   let writes = Promise.resolve();
+  const projectName = (value) => {
+    const name = String(value || '').trim();
+    if (
+      !name ||
+      name.length > 120 ||
+      /[<>:"/\\|?*\x00-\x1f]/.test(name) ||
+      /[. ]$/.test(name) ||
+      /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)
+    )
+      throw Error('请输入有效的项目名称');
+    return name;
+  };
+  // Old standalone documents are copied into portable projects; their cache
+  // and history remain intact until the complete project has been written.
+  async function ensureProject(meta) {
+    const job = writes
+      .catch(() => {})
+      .then(async () => {
+        const current = await readMeta(meta.id);
+        if (current.projectRoot) return current;
+        const name = projectName(
+          path
+            .basename(current.name || '未命名', current.ext)
+            .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+            .replace(/[. ]+$/, '')
+            .slice(0, 100) || '未命名',
+        );
+        const parent = path.join(data, 'projects');
+        await fs.mkdir(parent, { recursive: true });
+        let root;
+        for (let suffix = 0; ; suffix++) {
+          root = path.join(parent, name + (suffix ? ` (${suffix + 1})` : ''));
+          try {
+            await fs.mkdir(root);
+            break;
+          } catch (error) {
+            if (error.code !== 'EEXIST') throw error;
+          }
+        }
+        await fs.mkdir(path.join(root, 'src', 'assets'), { recursive: true });
+        const dir = path.dirname(metaPath(current.id));
+        const manifest = {
+          format: 'pagenote-project',
+          version: 1,
+          id: current.id,
+          name,
+          created: current.created || new Date().toISOString(),
+          left: 'src/source' + current.ext,
+          right: 'src/notes.md',
+          leftName: current.name,
+        };
+        if (current.kind === 'markdown') {
+          await atomic(
+            resolveLink(root, manifest.left),
+            await exportAssets(
+              await fs.readFile(
+                path.join(dir, 'original' + current.ext),
+                'utf8',
+              ),
+              root,
+            ),
+          );
+        } else {
+          await copyFileSafe(
+            path.join(dir, 'original' + current.ext),
+            resolveLink(root, manifest.left),
+          );
+          if (current.ext !== '.pdf') {
+            manifest.preview = 'src/view.pdf';
+            await copyFileSafe(
+              path.join(dir, 'view.pdf'),
+              resolveLink(root, manifest.preview),
+            );
+          }
+        }
+        let notes = {};
+        try {
+          notes = JSON.parse(
+            await fs.readFile(path.join(dir, 'notes.json'), 'utf8'),
+          );
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+        const count = Math.max(1, ...Object.keys(notes).map(Number));
+        await atomic(
+          resolveLink(root, manifest.right),
+          await exportAssets(
+            Array.from({ length: count }, (_, i) => notes[i + 1] || '').join(
+              '\n\n<!-- pagebreak -->\n\n',
+            ),
+            root,
+          ),
+        );
+        for (const filename of [
+          'notes.json',
+          'annotations.json',
+          'ai-reviews.json',
+          'ai-handoffs.json',
+        ]) {
+          try {
+            await atomic(
+              path.join(root, 'src', filename),
+              await exportAssets(
+                await fs.readFile(path.join(dir, filename), 'utf8'),
+                root,
+              ),
+            );
+          } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+          }
+        }
+        const file = path.join(root, 'project.pagenote');
+        await atomic(file, JSON.stringify(manifest, null, 2));
+        const updated = { ...current, projectRoot: root, projectFile: file };
+        await atomic(metaPath(current.id), JSON.stringify(updated, null, 2));
+        return updated;
+      });
+    writes = job;
+    return job;
+  }
   async function persist(id, source = false, writeRight = false) {
     const job = writes
       .catch(() => {})
@@ -157,6 +277,14 @@ export function createProjectStore({ app, data, convertOffice }) {
       right = resolveLink(root, manifest.right),
       ext = path.extname(left).toLowerCase();
     if (
+      !['.md', '.markdown'].includes(path.extname(right).toLowerCase()) ||
+      left.toLowerCase() === right.toLowerCase()
+    )
+      throw Error('项目笔记必须是独立的 Markdown 文件');
+    // Validate both links before changing the managed cache.
+    await fs.access(left);
+    await fs.access(right);
+    if (
       !['.md', '.markdown', '.pdf', '.doc', '.docx', '.ppt', '.pptx'].includes(
         ext,
       )
@@ -234,32 +362,48 @@ export function createProjectStore({ app, data, convertOffice }) {
     return meta;
   }
   async function bindLeft(meta, id) {
-    if (!id) return meta;
+    if (!id) return ensureProject(meta);
+    const job = writes.catch(() => {}).then(() => replaceLeft(meta, id));
+    writes = job;
+    return job;
+  }
+  async function replaceLeft(meta, id) {
     const project = await readMeta(id);
     if (!project.projectRoot) throw Error('当前文档不是项目');
     const file = project.projectFile,
       manifest = JSON.parse(await fs.readFile(file, 'utf8')),
       from = path.dirname(metaPath(meta.id)),
       to = path.dirname(metaPath(id));
-    manifest.left = 'src/left' + meta.ext;
+    manifest.left = 'src/source' + meta.ext;
     manifest.leftName = meta.name;
     await copyFileSafe(
       path.join(from, 'original' + meta.ext),
       resolveLink(project.projectRoot, manifest.left),
     );
-    await copyFileSafe(
-      path.join(from, 'original' + meta.ext),
-      path.join(to, 'original' + meta.ext),
-    );
-    if (meta.kind === 'pdf') {
+    if (from !== to)
       await copyFileSafe(
-        path.join(from, 'view.pdf'),
-        path.join(to, 'view.pdf'),
+        path.join(from, 'original' + meta.ext),
+        path.join(to, 'original' + meta.ext),
       );
+    if (meta.kind === 'pdf') {
+      if (from !== to)
+        await copyFileSafe(
+          path.join(from, 'view.pdf'),
+          path.join(to, 'view.pdf'),
+        );
       manifest.preview = 'src/view.pdf';
       await copyFileSafe(
         path.join(from, 'view.pdf'),
         resolveLink(project.projectRoot, manifest.preview),
+      );
+    } else {
+      delete manifest.preview;
+      await atomic(
+        resolveLink(project.projectRoot, manifest.left),
+        await exportAssets(
+          await fs.readFile(path.join(from, 'original' + meta.ext), 'utf8'),
+          project.projectRoot,
+        ),
       );
     }
     const updated = {
@@ -279,16 +423,14 @@ export function createProjectStore({ app, data, convertOffice }) {
   }
   app.post('/api/projects', async (req, res, next) => {
     try {
-      const name = String(req.body.name || '').trim();
-      if (!name || /[<>:"/\\|?*]/.test(name))
-        throw Error('请输入有效的项目名称');
+      const name = projectName(req.body.name);
       const parent = req.body.parent
         ? path.resolve(req.body.parent)
         : path.join(data, 'projects');
       await fs.mkdir(parent, { recursive: true });
       const root = path.join(parent, name);
       await fs.mkdir(root);
-      await fs.mkdir(path.join(root, 'src'));
+      await fs.mkdir(path.join(root, 'src', 'assets'), { recursive: true });
       const id = createHash('sha256').update(randomUUID()).digest('hex'),
         manifest = {
           format: 'pagenote-project',
@@ -296,11 +438,11 @@ export function createProjectStore({ app, data, convertOffice }) {
           id,
           name,
           created: new Date().toISOString(),
-          left: 'src/left.md',
-          right: 'src/right.md',
+          left: 'src/source.md',
+          right: 'src/notes.md',
         };
-      await atomic(path.join(root, 'src', 'left.md'), '# ' + name + '\n');
-      await atomic(path.join(root, 'src', 'right.md'), '');
+      await atomic(path.join(root, 'src', 'source.md'), '# ' + name + '\n');
+      await atomic(path.join(root, 'src', 'notes.md'), '');
       const file = path.join(root, 'project.pagenote');
       await atomic(file, JSON.stringify(manifest, null, 2));
       res.json(await open(file));
@@ -308,9 +450,16 @@ export function createProjectStore({ app, data, convertOffice }) {
       next(e);
     }
   });
+  app.post('/api/projects/:id/adopt', async (req, res, next) => {
+    try {
+      res.json(await ensureProject(await readMeta(req.params.id)));
+    } catch (error) {
+      next(error);
+    }
+  });
   app.post('/api/projects/open', async (req, res, next) => {
     try {
-      await writes;
+      await writes.catch(() => {});
       res.json(await open(String(req.body.filePath)));
     } catch (e) {
       next(e);
@@ -331,6 +480,7 @@ export function createProjectStore({ app, data, convertOffice }) {
   return {
     persist,
     bindLeft,
+    ensureProject,
     open,
     sourceFile: async (meta) => {
       if (!meta.projectRoot)
