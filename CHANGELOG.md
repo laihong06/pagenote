@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Adopt PolyForm Noncommercial 1.0.0 for newly licensed founder-original material; preserve historical MIT/contributor permissions and third-party notices, update bilingual scope and package metadata, and include both scope and legacy notices in future distributions. Published binaries and tags are unchanged. / 新增原创内容改用非商业许可，保留历史 MIT、贡献者和依赖授权，未来分发携带许可范围与旧声明，不替换历史包。
+
 - Add bilingual beta README downloads for the published Android 1.0.0-beta.5 prerelease, with Android 14+/ARM64, contributor signing and incomplete Office/parity scope; desktop downloads remain Beta 4. Publication workflow passed, and local APK SHA256 plus six native-library 16 KB ELF/ZIP checks passed. / Beta 首页新增安卓测试版下载与限制说明；发布流程及本地 APK 校验通过，桌面下载保持不变。
 
 - Compare frozen Android runtime sources against the integration commit while allowing the new release-notes file; adding release documentation changes the directory tree hash without changing application code. / 安卓发布校验排除新增发布说明文件，仍严格比对冻结应用代码，修正首次流水线的目录树校验失败。
