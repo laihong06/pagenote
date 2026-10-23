@@ -467,6 +467,8 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val isLayoutPreview = context.packageName.endsWith(".beta.preview")
+  var previewHandMode by rememberSaveable { mutableStateOf(true) }
   val materialColors = MaterialTheme.colorScheme
   val markdownPalette = remember(settings.markdownTheme, readerThemeMode, materialColors) {
     val isDark = android.graphics.Color.luminance(materialColors.background.toArgb()) < 0.5f
@@ -6223,6 +6225,17 @@ private fun ReaderHome(
       drawerOpen = menuDrawerOpen,
       onDrawerOpenChange = { menuDrawerOpen = it },
       collapseToTrigger = activeRenderer != null,
+      preview = isLayoutPreview,
+      onPreviewHand = {
+        previewHandMode = true
+        pdfTextSelectionMode = false
+        readerOcrState = ReaderOcrState()
+        selectedPenIndex = null
+        selectedAnnotationIndex = null
+        selectAnnotationDrawTool(null)
+      },
+      onPreviewTool = { previewHandMode = false },
+      onPreviewEdit = { noteEditRequest++ },
     ) {
       Column(modifier = Modifier.fillMaxSize()) {
       Row(
@@ -6230,8 +6243,8 @@ private fun ReaderHome(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        ShelfIcon(Icons.Default.Home, stringResource(R.string.bookshelf_return), "reader_bookshelf", canOpenProject) { returnToBookshelf() }
-        if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER || (!menuSidebarExpanded && activeRenderer != null)) {
+        if (!isLayoutPreview) ShelfIcon(Icons.Default.Home, stringResource(R.string.bookshelf_return), "reader_bookshelf", canOpenProject) { returnToBookshelf() }
+        if (!isLayoutPreview && (menuLayout == ReaderMenuLayout.COMPACT_DRAWER || (!menuSidebarExpanded && activeRenderer != null))) {
           ReaderMenuTrigger(onClick = {
             if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = true
             else menuSidebarExpanded = true
@@ -6470,7 +6483,7 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
+                inputEnabled = (!isLayoutPreview || !previewHandMode) && (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onShapeRecognized = ::applyRecognizedShape,
@@ -6612,7 +6625,7 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
+                inputEnabled = (!isLayoutPreview || !previewHandMode) && (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onShapeRecognized = ::applyRecognizedShape,
@@ -8779,7 +8792,8 @@ internal fun NotePanel(
   val isDark = android.graphics.Color.luminance(MaterialTheme.colorScheme.background.toArgb()) < 0.5f
   val markdownStyle = markdownPalette ?: markdownClassicContentPalette(MaterialTheme.colorScheme, isDark)
   val contentColorInt = markdownStyle.text.toArgb()
-  var preview by remember { mutableStateOf(false) }
+  val isLayoutPreview = context.packageName.endsWith(".beta.preview")
+  var preview by remember { mutableStateOf(isLayoutPreview) }
   val mermaidCoordinator = remember(context, preview, markdownStyle.isDark) {
     if (preview) MermaidRenderCoordinator(context, markdownStyle.isDark) else null
   }
@@ -8827,7 +8841,11 @@ internal fun NotePanel(
         onHistory = onHistory,
       )
     }
-    TabRow(selectedTabIndex = if (preview) 1 else 0) {
+    if (isLayoutPreview) {
+      TextButton(onClick = { preview = !preview }, modifier = Modifier.testTag("preview_note_edit_toggle")) {
+        Text(stringResource(if (preview) R.string.note_edit else R.string.preview_done))
+      }
+    } else TabRow(selectedTabIndex = if (preview) 1 else 0) {
       Tab(
         selected = !preview,
         onClick = { preview = false },

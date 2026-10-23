@@ -130,8 +130,16 @@ internal fun ReaderAdaptiveMenu(
   drawerOpen: Boolean,
   onDrawerOpenChange: (Boolean) -> Unit,
   collapseToTrigger: Boolean = false,
+  preview: Boolean = false,
+  onPreviewHand: () -> Unit = {},
+  onPreviewTool: () -> Unit = {},
+  onPreviewEdit: () -> Unit = {},
   content: @Composable () -> Unit,
 ) {
+  if (preview) {
+    ReaderPreviewToolbar(groups, onPreviewHand, onPreviewTool, onPreviewEdit, content)
+    return
+  }
   val menuColorScheme = desktopReaderMenuColorScheme(MaterialTheme.colorScheme)
 
   if (layout == ReaderMenuLayout.COMPACT_DRAWER) {

@@ -826,4 +826,10 @@
   <string name="page_preview_search">Find page number</string>
   <string name="page_preview_page">Page %1$d</string>
   <string name="page_preview_failed">Preview unavailable</string>
+  <string name="preview_select">Select</string>
+  <string name="preview_hand">Hand</string>
+  <string name="preview_write">Write</string>
+  <string name="preview_ai">AI</string>
+  <string name="preview_more">More</string>
+  <string name="preview_done">Done</string>
 </resources>

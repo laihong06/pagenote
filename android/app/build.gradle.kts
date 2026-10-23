@@ -8,12 +8,13 @@ plugins {
 android {
   namespace = "io.pagenote.android"
   compileSdk = 35
+  testBuildType = providers.gradleProperty("pagenoteTestBuildType").orElse("debug").get()
   defaultConfig {
     applicationId = "io.pagenote.android"
     minSdk = 34
     targetSdk = 35
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    versionCode = 5
+    versionCode = 6
     versionName = "1.0.0"
   }
   buildTypes {
@@ -26,10 +27,18 @@ android {
     create("beta") {
       initWith(getByName("release"))
       applicationIdSuffix = ".beta"
-      versionNameSuffix = "-beta.5"
+      versionNameSuffix = "-beta.6"
       signingConfig = signingConfigs.getByName("debug")
       isDebuggable = false
       matchingFallbacks += listOf("release")
+    }
+    create("preview") {
+      initWith(getByName("debug"))
+      applicationIdSuffix = ".beta.preview"
+      versionNameSuffix = "-beta.6-preview.1"
+      signingConfig = signingConfigs.getByName("debug")
+      matchingFallbacks += listOf("debug")
+      resValue("string", "app_name", "pagenote Layout Preview")
     }
   }
   splits {
@@ -97,6 +106,7 @@ dependencies {
   kapt("io.noties:prism4j-bundler:2.0.0")
   testImplementation("junit:junit:4.13.2")
   debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.6")
+  add("previewImplementation", "androidx.compose.ui:ui-test-manifest:1.7.6")
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
   androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.6")

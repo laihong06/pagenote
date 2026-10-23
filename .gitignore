@@ -12,6 +12,7 @@ ai-connection.json
 ai-key.txt
 local.properties
 android/.gradle/
+android/.kotlin/
 android/build/
 android/*/build/
 android/local.properties

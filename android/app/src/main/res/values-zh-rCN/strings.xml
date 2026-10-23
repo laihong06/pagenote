@@ -826,4 +826,10 @@
   <string name="page_preview_search">查找页码</string>
   <string name="page_preview_page">第 %1$d 页</string>
   <string name="page_preview_failed">预览加载失败</string>
+  <string name="preview_select">选择</string>
+  <string name="preview_hand">手形</string>
+  <string name="preview_write">书写</string>
+  <string name="preview_ai">AI</string>
+  <string name="preview_more">更多</string>
+  <string name="preview_done">完成</string>
 </resources>
