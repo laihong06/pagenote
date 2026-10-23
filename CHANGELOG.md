@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Adopt PolyForm Noncommercial 1.0.0 for newly licensed founder-original material; preserve historical MIT/contributor permissions and third-party notices, update bilingual scope and package metadata, and include both scope and legacy notices in future distributions. Published binaries and tags are unchanged. / 新增原创内容改用非商业许可，保留历史 MIT、贡献者和依赖授权，未来分发携带许可范围与旧声明，不替换历史包。
+
 - State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
 
 ### 1.0.1 Windows patch candidate

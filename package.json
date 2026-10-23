@@ -143,6 +143,14 @@
       {
         "from": "build/licenses/Guten-OCR-LICENSE.txt",
         "to": "LICENSE-Guten-OCR.txt"
+      },
+      {
+        "from": "LICENSING.md",
+        "to": "LICENSING.md"
+      },
+      {
+        "from": "licenses/MIT-legacy.txt",
+        "to": "licenses/MIT-legacy.txt"
       }
     ],
     "win": {
@@ -184,5 +192,5 @@
   "engines": {
     "node": ">=22.13.0"
   },
-  "license": "MIT"
+  "license": "PolyForm-Noncommercial-1.0.0"
 }

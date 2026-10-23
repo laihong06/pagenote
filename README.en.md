@@ -1,6 +1,6 @@
 # pagenote · Stable
 
-**Usage policy: This project is for non-commercial use only. Commercial use is not permitted.**
+**License: PolyForm Noncommercial 1.0.0 for newly licensed original material. Personal noncommercial use and modification are permitted; other commercial use requires separate authorization. [Scope and historical-license exceptions](LICENSING.md).**
 
 **[⬇ Windows stable installer](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [Stable portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · [Stable source](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
 
@@ -151,7 +151,7 @@ For suggestions or a conversation about the project, email me at [chennanfeng310
 
 ## License
 
-The author prohibits commercial use. The current [LICENSE](LICENSE) remains MIT and is inconsistent with this usage policy; it has not yet been changed, and this statement does not replace its existing terms. Dependencies have separate licenses; retain `THIRD-PARTY-NOTICES.txt`, the Node.js license and Electron/Chromium license files when distributing. Microsoft Office licensing is the user's responsibility.
+See [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md). The founder’s newly licensed original material uses PolyForm Noncommercial 1.0.0; existing MIT releases and contributions retain their permissions and preserved notices. Third-party licenses remain independent. This is source-available software with noncommercial restrictions for the applicable material. Commercial authorization inquiries: [email](mailto:chennanfeng310@gmail.com).
 
 MCP integration: [English](docs/MCP.en-US.md) · [中文](MCP接口说明.md)
 

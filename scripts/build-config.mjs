@@ -40,6 +40,8 @@ if (platform === 'win') {
       { from: 'mcp-dist/node-runtime.json', to: 'node-runtime.json' },
       { from: 'THIRD-PARTY-NOTICES.txt', to: 'THIRD-PARTY-NOTICES.txt' },
       { from: 'LICENSE', to: 'LICENSE-pagenote.txt' },
+      { from: 'LICENSING.md', to: 'LICENSING.md' },
+      { from: 'licenses/MIT-legacy.txt', to: 'licenses/MIT-legacy.txt' },
       {
         from: 'build/licenses/PaddleOCR-LICENSE.txt',
         to: 'LICENSE-PaddleOCR.txt',
@@ -95,6 +97,8 @@ if (platform === 'win') {
       { from: 'mcp-dist/node-runtime.json', to: 'node-runtime.json' },
       { from: 'THIRD-PARTY-NOTICES.txt', to: 'THIRD-PARTY-NOTICES.txt' },
       { from: 'LICENSE', to: 'LICENSE-pagenote.txt' },
+      { from: 'LICENSING.md', to: 'LICENSING.md' },
+      { from: 'licenses/MIT-legacy.txt', to: 'licenses/MIT-legacy.txt' },
       {
         from: 'build/licenses/PaddleOCR-LICENSE.txt',
         to: 'LICENSE-PaddleOCR.txt',

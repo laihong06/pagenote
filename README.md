@@ -1,6 +1,6 @@
 # pagenote · 正式版
 
-**使用要求：本项目仅供非商业用途，不允许商业使用。**
+**许可：新增原创内容采用 PolyForm Noncommercial 1.0.0。允许个人非商业下载、使用和修改；超出许可范围的商业用途须另行授权。[适用范围与历史授权例外](LICENSING.md)。**
 
 **[⬇ Windows 正式版安装包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe)** · [正式版免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64.zip) · [正式版源码](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-source.zip)
 
@@ -159,7 +159,7 @@ npm run desktop
 
 ## 许可
 
-作者要求禁止商业使用。当前 [LICENSE](LICENSE) 仍为 MIT，与上述使用要求不一致；许可文件尚未调整，本声明不替代现有许可证条款。依赖组件有各自的许可；分发时须保留生成的 `THIRD-PARTY-NOTICES.txt`、Node.js 许可及 Electron/Chromium 许可。Microsoft Office 的授权由使用者负责。
+参见 [LICENSE](LICENSE) 和 [许可范围](LICENSING.md)。发起人新增原创内容采用 PolyForm Noncommercial 1.0.0；历史 MIT 版本及已有贡献保留原授权和声明，第三方依赖仍遵守各自许可。本项目相关部分属于源码可见、限制商业用途的软件。商业授权咨询：[Email](mailto:chennanfeng310@gmail.com)。
 
 MCP 接入文档：[中文](MCP接口说明.md) · [English](docs/MCP.en-US.md)
 
