@@ -491,4 +491,16 @@
   <string name="agent_task_bad_range">Bad page range: %1$s</string>
   <string name="agent_task_rate_limited">Rate limited; stopped. Incomplete pages: %1$s</string>
   <string name="agent_task_incomplete">Some pages incomplete: %1$s</string>
+  <string name="pen_ballpoint">Ballpoint pen</string>
+  <string name="pen_laser">Laser pointer</string>
+  <string name="pen_style_title">Pen settings</string>
+  <string name="pen_custom_color">Custom color</string>
+  <string name="pen_color_value">Ink color: %1$s</string>
+  <string name="pen_width_value">Stroke width: %1$s</string>
+  <string name="page_preview_title">Page previews</string>
+  <string name="page_preview_count">%1$d pages</string>
+  <string name="page_preview_close">Close page previews</string>
+  <string name="page_preview_search">Find page number</string>
+  <string name="page_preview_page">Page %1$d</string>
+  <string name="page_preview_failed">Preview unavailable</string>
 </resources>

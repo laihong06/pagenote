@@ -29,6 +29,7 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
   private static final String EXTRA_URI = "uri";
   private static final String EXTRA_MIME_TYPE = "mime_type";
   private static volatile boolean corruptNextCopiedPdfForValidation;
+  private static volatile String failNextWriteSuffix;
   private static final String[] COLUMNS = {
       DocumentsContract.Document.COLUMN_DOCUMENT_ID,
       DocumentsContract.Document.COLUMN_DISPLAY_NAME,
@@ -60,6 +61,10 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
 
   public static void clearTestFailures(ContentResolver resolver) {
     resolver.call(treeUri(), METHOD_CLEAR_TEST_FAILURES, null, Bundle.EMPTY);
+  }
+
+  public static void failNextWrite(ContentResolver resolver, String suffix) {
+    resolver.call(treeUri(), "test:failNextWrite", suffix, Bundle.EMPTY);
   }
 
   @Override
@@ -121,6 +126,11 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
       }
       if (METHOD_CLEAR_TEST_FAILURES.equals(method)) {
         corruptNextCopiedPdfForValidation = false;
+        failNextWriteSuffix = null;
+        return Bundle.EMPTY;
+      }
+      if ("test:failNextWrite".equals(method)) {
+        failNextWriteSuffix = arg;
         return Bundle.EMPTY;
       }
     } catch (Exception error) {
@@ -193,6 +203,10 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
     try {
       String documentId = DocumentsContract.getDocumentId(uri);
       File file = fileForId(documentId);
+      if (mode.contains("w") && failNextWriteSuffix != null && documentId.endsWith(failNextWriteSuffix)) {
+        failNextWriteSuffix = null;
+        throw new IOException("simulated Rain sidecar write failure");
+      }
       if (mode.contains("r") && documentId.endsWith("/src/document.pdf") &&
           corruptNextCopiedPdfForValidation) {
         corruptNextCopiedPdfForValidation = false;

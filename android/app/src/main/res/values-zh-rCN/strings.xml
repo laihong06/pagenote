@@ -491,4 +491,16 @@
   <string name="agent_task_bad_range">页范围无效：%1$s</string>
   <string name="agent_task_rate_limited">触发限流，已停止。未完成页：%1$s</string>
   <string name="agent_task_incomplete">部分页未完成：%1$s</string>
+  <string name="pen_ballpoint">圆珠笔</string>
+  <string name="pen_laser">激光笔</string>
+  <string name="pen_style_title">笔迹设置</string>
+  <string name="pen_custom_color">自定义颜色</string>
+  <string name="pen_color_value">笔迹颜色：%1$s</string>
+  <string name="pen_width_value">笔迹粗细：%1$s</string>
+  <string name="page_preview_title">页面预览</string>
+  <string name="page_preview_count">%1$d 页</string>
+  <string name="page_preview_close">关闭页面预览</string>
+  <string name="page_preview_search">查找页码</string>
+  <string name="page_preview_page">第 %1$d 页</string>
+  <string name="page_preview_failed">预览加载失败</string>
 </resources>

@@ -17,7 +17,11 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-enum class PenCanvasTool { SELECT, PEN, HIGHLIGHTER, ERASER }
+enum class PenCanvasTool(val persistedType: String?) {
+  SELECT(null), PEN("pen"), BALLPOINT("pen"), HIGHLIGHTER("highlight"), LASER(null), ERASER(null);
+
+  fun pointPressure(pressure: Float): Float = if (this == BALLPOINT || this == LASER) 1f else pressure
+}
 
 /** Native ink layer. Persistence and page-scoped history remain with the caller. */
 class PenCanvasView @JvmOverloads constructor(
@@ -49,15 +53,21 @@ class PenCanvasView @JvmOverloads constructor(
   private var eraseModeLatched = false
   private var activeColor = "#dc3545"
   private var activeWidth = 3.0
+  private var laserTrail: List<PenPoint> = emptyList()
+  private var laserColor = "#dc3545"
+  private var laserWidth = 3.0
+  private val clearLaser = Runnable { laserTrail = emptyList(); invalidate() }
 
   var pageTransform: PenCanvasPageTransform? = null
     set(value) {
+      if (field != value) clearLaserTrail()
       field = value
       invalidate()
     }
 
   var selectedTool: PenCanvasTool = PenCanvasTool.PEN
     set(value) {
+      if (field != value) clearLaserTrail()
       if (field != value && value != PenCanvasTool.PEN && activePointerId != INVALID_POINTER) {
         clearShapeRecognition(cancelled = true)
       }
@@ -118,11 +128,14 @@ class PenCanvasView @JvmOverloads constructor(
     canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
     canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
     internalStrokes.forEach { drawStroke(canvas, it) }
+    if (laserTrail.isNotEmpty()) drawLaser(canvas, laserTrail, laserColor, laserWidth)
     selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
         val preview = shapePreview
-        if (preview != null) {
+        if (tool == PenCanvasTool.LASER) {
+          drawLaser(canvas, activePoints, activeColor, activeWidth)
+        } else if (preview != null) {
           drawStroke(
             canvas,
             PenStroke(preview.type, activeColor, activeWidth, listOf(preview.first, preview.second)),
@@ -131,7 +144,7 @@ class PenCanvasView @JvmOverloads constructor(
           drawStroke(
             canvas,
             PenStroke(
-              type = if (tool == PenCanvasTool.HIGHLIGHTER) "highlight" else "pen",
+              type = tool.persistedType ?: "pen",
               color = activeColor,
               width = activeWidth,
               points = activePoints.toList(),
@@ -252,13 +265,27 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   fun cancelActiveGesture() {
+    clearLaserTrail()
     if (activePointerId == INVALID_POINTER) return
     resetGesture()
     invalidate()
   }
 
+  override fun onDetachedFromWindow() {
+    cancelActiveGesture()
+    cancelShapeDwell()
+    super.onDetachedFromWindow()
+  }
+
+  private fun clearLaserTrail() {
+    shapeHandler.removeCallbacks(clearLaser)
+    laserTrail = emptyList()
+    invalidate()
+  }
+
   private fun beginGesture(event: MotionEvent, pointerIndex: Int): Boolean {
     if (!isSupportedTool(event.getToolType(pointerIndex))) return false
+    clearLaserTrail()
     activePointerId = event.getPointerId(pointerIndex)
     activePointerToolType = event.getToolType(pointerIndex)
     requestUnbufferedDispatch(event)
@@ -450,7 +477,7 @@ class PenCanvasView @JvmOverloads constructor(
 
   private fun addPoint(xPx: Float, yPx: Float, pressure: Float) {
     val point = geometry()
-      .toDocumentPoint(xPx, yPx, pressure) ?: return
+      .toDocumentPoint(xPx, yPx, (gestureTool ?: selectedTool).pointPressure(pressure)) ?: return
     if (activePoints.lastOrNull() != point) activePoints.add(point)
   }
 
@@ -465,8 +492,15 @@ class PenCanvasView @JvmOverloads constructor(
   private fun finishStroke() {
     if (activePoints.isEmpty()) return
     val tool = gestureTool ?: return
+    if (tool == PenCanvasTool.LASER) {
+      laserTrail = activePoints.toList()
+      laserColor = activeColor
+      laserWidth = activeWidth
+      shapeHandler.postDelayed(clearLaser, 750L)
+      return
+    }
     val stroke = PenStroke(
-      type = if (tool == PenCanvasTool.HIGHLIGHTER) "highlight" else "pen",
+      type = tool.persistedType ?: return,
       color = activeColor,
       width = activeWidth,
       points = activePoints.toList(),
@@ -563,6 +597,12 @@ class PenCanvasView @JvmOverloads constructor(
       }
       canvas.drawPath(path, drawPaint)
     }
+  }
+
+  private fun drawLaser(canvas: Canvas, points: List<PenPoint>, color: String, width: Double) {
+    val stroke = PenStroke("pen", color, width, points)
+    drawStroke(canvas, stroke.copy(width = width * 2.5))
+    drawStroke(canvas, stroke.copy(color = "#ffffff", width = width * 0.55))
   }
 
   private fun drawArrowHead(canvas: Canvas, start: PenPoint, end: PenPoint, paint: Paint) {

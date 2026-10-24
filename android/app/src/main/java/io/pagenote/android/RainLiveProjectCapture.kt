@@ -14,6 +14,8 @@ internal data class RainLiveProjectWrite(
   val target: ProjectOpenTarget,
   val project: OpenedProject,
   val pageNumber: Int?,
+  val focusPage: Int = pageNumber ?: 1,
+  val pageMap: Map<Int, Int> = emptyMap(),
 )
 
 internal class RainLiveProjectCapture(
@@ -38,8 +40,8 @@ internal class RainLiveProjectCapture(
         emit(slide)
       }.also { target = it }
       val opened = ProjectDocumentOpener(context.contentResolver).open(destination.accessTreeUri, destination.rootDocumentId)
-      val page = if (previous == null) 1 else writer.append(opened, course, lesson, slide)
-      RainLiveProjectWrite(destination, opened, page)
+      val write = if (previous == null) RainPageWrite(1, true) else writer.insert(opened, course, lesson, slide)
+      RainLiveProjectWrite(destination, opened, if (write.added) write.pageNumber else null, write.pageNumber, write.pageMap)
     }
   }
 }

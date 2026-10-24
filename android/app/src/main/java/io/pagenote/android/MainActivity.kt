@@ -505,6 +505,8 @@ private fun ReaderHome(
   var showRainClassroom by remember { mutableStateOf(false) }
   var isRainImporting by remember { mutableStateOf(false) }
   var isRainCapturing by remember { mutableStateOf(false) }
+  var isRainApplyingPage by remember { mutableStateOf(false) }
+  var rainPageEpoch by remember { mutableIntStateOf(0) }
   val rainLive by produceState(rainClassroomClient.live.value, rainClassroomClient) {
     rainClassroomClient.live.collect { value = it }
   }
@@ -523,7 +525,7 @@ private fun ReaderHome(
   var isDeletingProjectAttachment by remember { mutableStateOf(false) }
   var pendingProjectAttachmentImport by remember { mutableStateOf<Pair<String, Uri>?>(null) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
-  var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
+  var menuSidebarExpanded by rememberSaveable { mutableStateOf(false) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
   var showAgentPromptSettings by remember { mutableStateOf(false) }
   var showPageTutor by remember { mutableStateOf(false) }
@@ -540,7 +542,6 @@ private fun ReaderHome(
   var showPageJumpDialog by remember { mutableStateOf(false) }
   var showHeadingLevelDialog by remember { mutableStateOf(false) }
   var showNoteFontSizeDialog by remember { mutableStateOf(false) }
-  var pageJumpInput by remember { mutableStateOf("") }
   var isPageJumpRunning by remember { mutableStateOf(false) }
   var agentInstruction by remember { mutableStateOf("") }
   var agentPageRange by remember { mutableStateOf("") }
@@ -592,16 +593,18 @@ private fun ReaderHome(
   val lastEditWasAnnotation = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     mutableMapOf<Int, Boolean>()
   }
+  val liveAnnotationHistory = rememberUpdatedState(annotationEditHistory)
+  val liveLastAnnotationEdits = rememberUpdatedState(lastEditWasAnnotation)
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
   var markdownEditor by remember { mutableStateOf<EditText?>(null) }
-  val markdownHistory = remember(project?.manifest?.id, pageIndex) {
+  val markdownHistory = remember(project?.manifest?.id, pageIndex, rainPageEpoch) {
     MarkdownEditHistory(noteDraft)
   }
-  var markdownHistoryRevision by remember(project?.manifest?.id, pageIndex) {
+  var markdownHistoryRevision by remember(project?.manifest?.id, pageIndex, rainPageEpoch) {
     mutableIntStateOf(0)
   }
-  var isApplyingMarkdownHistory by remember(project?.manifest?.id, pageIndex) {
+  var isApplyingMarkdownHistory by remember(project?.manifest?.id, pageIndex, rainPageEpoch) {
     mutableStateOf(false)
   }
   var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
@@ -841,6 +844,7 @@ private fun ReaderHome(
   }
 
   fun applyPenStroke(stroke: PenStroke) {
+    if (isRainApplyingPage) return
     val targetPage = pageIndex + 1
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
@@ -1558,7 +1562,7 @@ private fun ReaderHome(
     val pageCount = renderer?.pageCount
       ?: markdownSource?.let { MarkdownSourcePages.pageCount(it, notesMarkdown) }
       ?: 0
-    if (readerOcrState.inputLocked || pdfTextSelectionMode || isImageImporting || isExportingNotes ||
+    if (isRainApplyingPage || readerOcrState.inputLocked || pdfTextSelectionMode || isImageImporting || isExportingNotes ||
       nextPage !in 0 until pageCount
     ) {
       return false
@@ -2604,21 +2608,44 @@ private fun ReaderHome(
           withContext(Dispatchers.Main.immediate) {
             val current = project
             if (capturedProjectId != null && current?.manifest?.id != capturedProjectId) throw IOException("当前项目已切换，停止实时采集")
-            if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
-            val checkpoint = if (capturedProjectId != null) readerSession.saveCheckpoint() else null
-            val written = if (newCapture != null) newCapture.accept(slide) else {
-              val destination = checkpoint?.toProjectOpenTarget() ?: throw IOException("无法保存阅读位置")
-              val opened = current ?: throw IOException("采集项目已关闭")
-              RainLiveProjectWrite(destination, opened, RainProjectWriter(context).append(opened, course, lesson, slide))
+            if (isAgentRunning || isPageTutorRunning || isAnnotationSaving || isImageImporting || isImportingNotes || isExportingNotes || isOpening || isSaving || failedPenSave != null) {
+              throw IOException("当前页仍在处理，请完成后重试待采集页面")
             }
-            if (written.pageNumber != null || current?.manifest?.id != written.project.manifest.id) {
-              openProjectTree(written.target, requestedCheckpoint = checkpoint, captureUpdate = true)
-            }
-            if (project?.manifest?.id != written.project.manifest.id) throw IOException("无法打开采集项目，请重试待写入页面")
-            capturedProjectId = written.project.manifest.id
-            rainWaitingProjectName = null
-            showRainClassroom = false
-            written.pageNumber?.let { noteStatus = context.getString(R.string.rain_live_page_added, it) }
+            isRainApplyingPage = true
+            try {
+              // The socket callback outlives the composition that started capture.
+              val dirty = readerSession.noteDraft.value != NotePage.pageAt(readerSession.notesMarkdown.value, readerSession.pageIndex.intValue + 1)
+              if (dirty && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+              penSaveMutex.withLock { }
+              if (failedPenSave != null) throw IOException("手写笔迹尚未保存，请先重试保存")
+              val checkpoint = if (capturedProjectId != null) readerSession.saveCheckpoint() else null
+              if (checkpoint != null && readerSession.findDraftRecoveries(checkpoint.toProjectOpenTarget(), checkpoint.projectId).isNotEmpty()) {
+                throw IOException("项目仍有待恢复的笔记草稿，请先处理后重试采集")
+              }
+              val written = if (newCapture != null) newCapture.accept(slide) else {
+                val destination = checkpoint?.toProjectOpenTarget() ?: throw IOException("无法保存阅读位置")
+                val opened = current ?: throw IOException("采集项目已关闭")
+                val write = RainProjectWriter(context).insert(opened, course, lesson, slide)
+                RainLiveProjectWrite(destination, opened, if (write.added) write.pageNumber else null, write.pageNumber, write.pageMap)
+              }
+              if (written.pageNumber != null) {
+                rainPageEpoch++
+                liveAnnotationHistory.value.remapPages(written.project.manifest.id, written.pageMap)
+                liveLastAnnotationEdits.value.clear()
+                annotationOverlayReload++
+                selectedAnnotationIndex = null
+              }
+              val focus = ReaderSessionCheckpoint(
+                written.target.accessTreeUri.toString(), written.target.rootDocumentId, written.project.manifest.id,
+                written.focusPage - 1, PdfViewportBookmark.DEFAULT, penTool.name,
+              )
+              openProjectTree(written.target, requestedCheckpoint = focus, captureUpdate = true)
+              if (errorMessage != null || project?.manifest?.id != written.project.manifest.id || pageIndex != focus.pageIndex) throw IOException("无法打开采集项目，请重试待写入页面")
+              capturedProjectId = written.project.manifest.id
+              rainWaitingProjectName = null
+              showRainClassroom = false
+              written.pageNumber?.let { noteStatus = context.getString(R.string.rain_live_page_added, it) }
+            } finally { isRainApplyingPage = false }
           }
         }
       }
@@ -3534,7 +3561,7 @@ private fun ReaderHome(
       },
     ).join()
   }
-  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode
+  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode || isRainApplyingPage
   LaunchedEffect(
     activeProject?.manifest?.id,
     activeProject?.sourceDirectoryUri,
@@ -4746,6 +4773,7 @@ private fun ReaderHome(
       onExpandedChange = { menuSidebarExpanded = it },
       drawerOpen = menuDrawerOpen,
       onDrawerOpenChange = { menuDrawerOpen = it },
+      collapseToTrigger = activeRenderer != null,
     ) {
       Column(modifier = Modifier.fillMaxSize()) {
       Row(
@@ -4754,8 +4782,11 @@ private fun ReaderHome(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         ShelfIcon(Icons.Default.Home, stringResource(R.string.bookshelf_return), "reader_bookshelf", canOpenProject) { returnToBookshelf() }
-        if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) {
-          ReaderMenuTrigger(onClick = { menuDrawerOpen = true })
+        if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER || (!menuSidebarExpanded && activeRenderer != null)) {
+          ReaderMenuTrigger(onClick = {
+            if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = true
+            else menuSidebarExpanded = true
+          })
         }
         Text(
           text = activeProject?.name ?: "pagenote",
@@ -4787,7 +4818,6 @@ private fun ReaderHome(
               modifier = Modifier.testTag("reader_page_status"),
               enabled = canChangePage && totalPages > 0,
               onClick = {
-                pageJumpInput = (pageIndex + 1).toString()
                 showPageJumpDialog = true
               },
             ) {
@@ -4897,8 +4927,28 @@ private fun ReaderHome(
     }
 
     if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
+      Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+      if (activeRenderer != null) {
+        ReaderPenRail(
+          tool = penTool,
+          drawTool = annotationDrawTool,
+          style = penStyle,
+          enabled = canUsePen,
+          selectionEnabled = canSelectPen,
+          onTool = { nextTool ->
+            selectedPenIndex = null
+            selectedAnnotationIndex = null
+            selectAnnotationDrawTool(null)
+            penTool = nextTool
+          },
+          onShape = ::selectAnnotationDrawTool,
+          onColor = { applyPenStyle(color = it) },
+          onWidth = { applyPenStyle(width = it) },
+          onCustomColor = { showPenColorPicker = true },
+        )
+      }
       BoxWithConstraints(
-        modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 8.dp, vertical = 4.dp),
       ) {
         if (maxWidth >= 840.dp) {
           val (pdfPaneWeight, notePaneWeight) = readerPaneWeights(
@@ -5004,7 +5054,7 @@ private fun ReaderHome(
               editRequest = noteEditRequest,
               markdown = noteDraft,
               dirty = hasUnsavedChanges,
-              writable = noteWritable,
+              writable = noteWritable && !isRainApplyingPage,
               saving = isSaving || isExportingNotes,
               status = noteStatus,
               onMarkdownChange = readerSession::setNoteDraft,
@@ -5125,7 +5175,7 @@ private fun ReaderHome(
               editRequest = noteEditRequest,
               markdown = noteDraft,
               dirty = hasUnsavedChanges,
-              writable = noteWritable,
+              writable = noteWritable && !isRainApplyingPage,
               saving = isSaving || isExportingNotes,
               status = noteStatus,
               onMarkdownChange = readerSession::setNoteDraft,
@@ -5166,6 +5216,7 @@ private fun ReaderHome(
           }
         }
       }
+      }
     } else {
       Box(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -5203,13 +5254,14 @@ private fun ReaderHome(
   }
 
   if (showPageJumpDialog && activeProject != null && totalPages > 0) {
-    PageJumpDialog(
-      input = pageJumpInput,
+    PagePreviewDrawer(
+      renderer = activeRenderer,
+      markdown = activeMarkdown,
       totalPages = totalPages,
+      currentPage = pageIndex,
       isRunning = isPageJumpRunning,
-      onInputChange = { pageJumpInput = it },
       onDismiss = { showPageJumpDialog = false },
-      onConfirm = { targetPage ->
+      onSelect = { targetPage ->
         if (!isPageJumpRunning) {
           isPageJumpRunning = true
           readerSession.launchSessionTask {
@@ -6712,6 +6764,7 @@ internal fun PdfPageViewport(
   val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
   val latestOnAnnotationSelectionTouch by rememberUpdatedState(onAnnotationSelectionTouch)
   var inkCanvasView by remember { mutableStateOf<PenCanvasView?>(null) }
+  LaunchedEffect(page) { inkCanvasView?.cancelActiveGesture() }
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds().testTag("pdf_page_viewport"),

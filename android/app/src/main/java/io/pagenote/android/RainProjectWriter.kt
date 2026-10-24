@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.tom_roush.pdfbox.cos.COSDictionary
+import com.tom_roush.pdfbox.cos.COSName
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
@@ -12,6 +14,8 @@ import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
 import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.yuketang.RainCourse
 import io.pagenote.feature.yuketang.RainLesson
@@ -24,6 +28,7 @@ import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.File
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
@@ -63,7 +68,7 @@ internal class RainProjectWriter(
       val src = Uri.parse(documents.createDirectory(projectUri.toString(), "src"))
       val assets = Uri.parse(documents.createDirectory(src.toString(), "assets"))
       val rainAssets = Uri.parse(documents.createDirectory(assets.toString(), "yuketang"))
-      val sourceEntries = JSONArray()
+      var sourceEntries = JSONArray()
       val document = newPdf()
       var pageCount = 0
       try {
@@ -74,13 +79,18 @@ internal class RainProjectWriter(
           sourceEntries.put(sourceEntry(page, entry, pageCount, course, lesson))
         }
         require(pageCount > 0) { "雨课堂课件没有可导入的页面" }
+        val order = RainPageOrder(sourceManifest(course, lesson, "", sourceEntries), pageCount)
+        reorderPdf(document, order)
+        sourceEntries = order.pages
         writeBytes(src, "document.pdf", "application/pdf", savePdf(document))
       } finally {
         document.close()
       }
       writeText(src, "right.md", "text/markdown", PageNotes.join(List(pageCount) { "" }))
       val firstPresentationId = sourceEntries.getJSONObject(0).getString("presentationId")
-      writeText(src, "yuketang-source.json", "application/json", sourceManifest(course, lesson, firstPresentationId, sourceEntries).toString(2))
+      val manifestSource = sourceManifest(course, lesson, firstPresentationId, sourceEntries)
+        .put("sections", RainPageOrder(sourceManifest(course, lesson, firstPresentationId, sourceEntries), pageCount).sections)
+      writeText(src, "yuketang-source.json", "application/json", manifestSource.toString(2))
       val projectId = sha256(UUID.randomUUID().toString().toByteArray())
       val manifest = JSONObject()
         .put("format", "pagenote-project")
@@ -103,7 +113,14 @@ internal class RainProjectWriter(
     course: RainCourse,
     lesson: RainLesson,
     page: RainSlideImage,
-  ): Int? = withContext(Dispatchers.IO) {
+  ): Int? = insert(project, course, lesson, page).let { if (it.added) it.pageNumber else null }
+
+  suspend fun insert(
+    project: OpenedProject,
+    course: RainCourse,
+    lesson: RainLesson,
+    page: RainSlideImage,
+  ): RainPageWrite = withContext(Dispatchers.IO) {
     require(project.sourceExtension == "pdf") { "实时雨课堂采集需要 PDF 项目" }
     val sourceUri = project.sourceUri
     val oldPdf = resolver.openInputStream(sourceUri)?.use { it.readBytes() }
@@ -134,32 +151,40 @@ internal class RainProjectWriter(
         entry.optString("pageId"),
         entry.optString("sha256"),
       )
-      if (existingIdentity == incomingIdentity) return@withContext null
+      if (existingIdentity == incomingIdentity) return@withContext RainPageWrite(entry.getInt("projectPage"), false)
     }
 
-    var nextPageNumber = 0
+    val assetEntry = writeAsset(rainAssets, page)
+    lateinit var order: RainPageOrder
+    var oldPageCount = 0
     val nextPdf = PDDocument.load(ByteArrayInputStream(oldPdf)).use { document ->
+      oldPageCount = document.numberOfPages
+      order = RainPageOrder(sourceManifest, oldPageCount, sourceEntry(page, assetEntry, oldPageCount + 1, course, lesson))
       addPdfPage(document, page)
-      nextPageNumber = document.numberOfPages
+      reorderPdf(document, order)
       savePdf(document)
     }
     val oldNotes = ProjectNoteStore(resolver, project.notesUri).read()
     val notes = PageNotes.split(oldNotes).toMutableList()
-    if (notes.size > nextPageNumber - 1)
+    if (notes.size > oldPageCount)
       throw IOException("项目笔记页数与 PDF 不一致，已停止追加以保护现有笔记")
-    while (notes.size < nextPageNumber - 1) notes.add("")
-    val nextPage = nextPageNumber
+    while (notes.size < oldPageCount) notes.add("")
+    val nextPage = order.oldToNew.getValue(oldPageCount + 1)
     notes.add("")
-    val newNotes = PageNotes.join(notes)
-    val assetEntry = writeAsset(rainAssets, page)
-    val migratedEntries = JSONArray()
-    for (index in 0 until entries.length()) {
-      val entry = JSONObject(entries.getJSONObject(index).toString())
-      if (!entry.has("courseId")) entry.put("courseId", sourceManifest.optString("courseId"))
-      if (!entry.has("classroomId")) entry.put("classroomId", sourceManifest.optString("classroomId"))
-      if (!entry.has("lessonId")) entry.put("lessonId", sourceManifest.optString("lessonId"))
-      migratedEntries.put(entry)
+    val newNotes = PageNotes.join(order.slots.map { notes[it.oldPage - 1] })
+    data class Sidecar(val uri: Uri, val old: ByteArray, val updated: ByteArray)
+    val sidecars = listOf("annotations.json", "ai-reviews.json", "ai-handoffs.json").mapNotNull { name ->
+      val uri = access.findChild(src.toString(), name)?.let(Uri::parse) ?: return@mapNotNull null
+      val old = resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("无法备份 $name")
+      Sidecar(uri, old, order.remapSidecar(name, old.toString(Charsets.UTF_8)).toByteArray(Charsets.UTF_8))
     }
+    val historyDirectory = NoteHistoryMirror.directory(context.filesDir, project.manifest.id)
+    val historyMoves = order.oldToNew.filter { (old, next) -> old <= oldPageCount && old != next }.flatMap { (old, next) ->
+      NoteHistoryMirror.entries(context.filesDir, project.manifest.id, old).map { version ->
+        File(historyDirectory, version.id) to File(historyDirectory, version.id.removeSuffix("-page$old.md") + "-page$next.md")
+      }
+    }
+    require(historyMoves.none { it.second.exists() }) { "笔记历史目标已存在，已停止插页" }
     val updatedManifest = sourceManifest
       .put("format", "pagenote-yuketang-source")
       .put("version", 1)
@@ -168,23 +193,34 @@ internal class RainProjectWriter(
       .put("classroomId", course.classroomId)
       .put("lessonId", lesson.lessonId.orEmpty())
       .put("presentationId", page.slide.presentationId)
-      .put("pages", migratedEntries.put(sourceEntry(page, assetEntry, nextPage, course, lesson)))
+      .put("pages", order.pages)
+      .put("sections", order.sections)
     val previousManifestBytes = sourceManifestUri?.let { uri ->
       resolver.openInputStream(uri)?.use { it.readBytes() }
         ?: throw IOException("无法备份雨课堂来源记录")
     }
     var writtenManifestUri = sourceManifestUri
+    val attemptedSidecars = mutableListOf<Sidecar>()
+    val movedHistory = mutableListOf<Pair<File, File>>()
     try {
       resolver.openOutputStream(sourceUri, "wt")?.use { it.write(nextPdf) }
         ?: throw IOException("无法写入当前项目 PDF")
       ProjectNoteStore(resolver, project.notesUri).write(newNotes, oldNotes)
+      for (sidecar in sidecars) {
+        attemptedSidecars.add(sidecar)
+        overwrite(sidecar.uri, sidecar.updated)
+      }
+      for (move in historyMoves) {
+        if (!move.first.renameTo(move.second)) throw IOException("无法调整笔记历史页码")
+        movedHistory.add(move)
+      }
       val manifestUri = sourceManifestUri ?: Uri.parse(
         access.createFile(src.toString(), "application/json", "yuketang-source.json"),
       ).also { writtenManifestUri = it }
       resolver.openOutputStream(manifestUri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use {
         it.write(updatedManifest.toString(2))
       } ?: throw IOException("无法更新雨课堂来源记录")
-      nextPage
+      RainPageWrite(nextPage, true, order.oldToNew.filterKeys { it <= oldPageCount })
     } catch (error: Exception) {
       runCatching {
         resolver.openOutputStream(sourceUri, "wt")?.use { it.write(oldPdf) }
@@ -192,6 +228,12 @@ internal class RainProjectWriter(
       }.onFailure(error::addSuppressed)
       runCatching { ProjectNoteStore(resolver, project.notesUri).write(oldNotes, newNotes) }
         .onFailure(error::addSuppressed)
+      for (sidecar in attemptedSidecars.asReversed()) {
+        runCatching { overwrite(sidecar.uri, sidecar.old) }.onFailure(error::addSuppressed)
+      }
+      for ((old, next) in movedHistory.asReversed()) {
+        runCatching { if (!next.renameTo(old)) throw IOException("无法回滚笔记历史页码") }.onFailure(error::addSuppressed)
+      }
       if (previousManifestBytes != null) {
         runCatching {
           resolver.openOutputStream(checkNotNull(writtenManifestUri), "wt")?.use { it.write(previousManifestBytes) }
@@ -232,6 +274,40 @@ internal class RainProjectWriter(
   private fun savePdf(document: PDDocument): ByteArray = ByteArrayOutputStream().use { output ->
     document.save(output)
     output.toByteArray()
+  }
+
+  private fun overwrite(uri: Uri, bytes: ByteArray) {
+    resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+      ?: throw IOException("无法写入项目文件")
+  }
+
+  private fun reorderPdf(document: PDDocument, order: RainPageOrder) {
+    val sectionKey = COSName.getPDFName("PagenoteRainSection")
+    fun copyOutline(item: PDOutlineItem): PDOutlineItem {
+      val dictionary = COSDictionary(item.cosObject)
+      for (key in listOf(COSName.PARENT, COSName.PREV, COSName.NEXT, COSName.FIRST, COSName.LAST, COSName.COUNT)) dictionary.removeItem(key)
+      return PDOutlineItem(dictionary).apply {
+        for (child in item.children()) addLast(copyOutline(child))
+        if (item.isNodeOpen) openNode()
+      }
+    }
+    val retainedOutlines = document.documentCatalog.documentOutline?.children()
+      ?.filterNot { it.cosObject.getBoolean(sectionKey, false) }?.map(::copyOutline).orEmpty()
+    val original = (0 until document.numberOfPages).map(document::getPage)
+    while (document.numberOfPages > 0) document.removePage(0)
+    for (slot in order.slots) document.addPage(original[slot.oldPage - 1])
+    val outline = PDDocumentOutline()
+    document.documentCatalog.documentOutline = outline
+    retainedOutlines.forEach(outline::addLast)
+    for (index in 0 until order.sections.length()) {
+      val section = order.sections.getJSONObject(index)
+      outline.addLast(PDOutlineItem().apply {
+        cosObject.setBoolean(sectionKey, true)
+        title = section.getString("title")
+        setDestination(document.getPage(section.getInt("startPage") - 1))
+      })
+    }
+    outline.openNode()
   }
 
   private fun writeAsset(directory: Uri, page: RainSlideImage): String {

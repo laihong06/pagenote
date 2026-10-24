@@ -401,3 +401,10 @@
   - SPEC：`features/reader-interaction-enhancements.md`；计划：`reader-interaction-acceptance-plan.md`。
 
 - 实施顺序和测试/提交流程见 `reader-interaction-enhancements-plan.md`。
+
+- [x] 51. 窄笔盒与右侧页面预览
+  - 左侧象形笔工具带宽度固定为 44dp，按 Android 参考密度约 7 毫米；PDF 阅读时菜单默认折叠到顶部入口。
+  - 钢笔压感、圆珠笔恒定粗细、荧光笔、临时激光笔、橡皮擦及现有颜色/宽度/形状工具。
+  - 点击页码打开右侧真实 PDF / Markdown 预览，点选复用保存后跳页和冲突保护，栏外或 Back 关闭。
+  - SPEC 与进度：`features/reader-tools-and-page-previews.md`。仅 API 34 平板定向验收，不扩展设备矩阵。
+  - 最终 API 34 平板定向测试 7/7，相关 JVM 67 项通过，Debug APK 与 AndroidTest APK 已构建；没有卸载或清空登录数据。真机物理宽度与新增笔型硬件行为未在本轮复测。

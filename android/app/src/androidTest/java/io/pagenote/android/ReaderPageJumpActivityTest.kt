@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import android.graphics.Paint
+import android.content.Intent
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Bundle
@@ -14,15 +15,18 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.feature.pen.PenPageStore
@@ -33,6 +37,8 @@ import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.NotePage
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,11 +46,63 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
+import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ReaderPageJumpActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousLibrary: BookshelfPreferences? = null
+  private var releaseFixtureGrant = false
+
+  @After fun restoreLibrary() = runBlocking {
+    composeRule.runOnUiThread {
+      val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+      if (session.project.value?.sourceUri?.authority == ExistingProjectSafTestProvider.AUTHORITY) {
+        session.noteDraft.value = NotePage.pageAt(session.notesMarkdown.value, session.pageIndex.intValue + 1)
+        session.clearCurrentDraftRecovery()
+      }
+    }
+    previousLibrary?.let { BookshelfStore(composeRule.activity).bind(it.tree, it.name) }
+    if (releaseFixtureGrant) composeRule.activity.contentResolver.releasePersistableUriPermission(
+      treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+    )
+    Unit
+  }
+
+  @Test
+  fun nativePdfShowsNarrowRailAndRealThumbnailDrawer() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnUiThread {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penWritable.value = true
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("reader_pen_rail").assertWidthIsEqualTo(44.dp)
+    composeRule.onNodeWithTag("reader_pen_ballpoint").performClick()
+    composeRule.runOnIdle { assertEquals(io.pagenote.feature.pen.PenCanvasTool.BALLPOINT, session.penTool.value) }
+    saveUiScreenshot("reader-pen-rail.png")
+    composeRule.onNodeWithTag("reader_page_status").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("page_preview_bitmap_0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    saveUiScreenshot("reader-page-previews.png")
+    composeRule.onNodeWithTag("page_preview_item_1").performScrollTo().performClick()
+    composeRule.waitUntil(10_000) { session.pageIndex.intValue == 1 }
+  }
+
+  private fun saveUiScreenshot(name: String) {
+    composeRule.waitForIdle()
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    instrumentation.uiAutomation.waitForIdle(300, 5_000)
+    val bitmap = instrumentation.uiAutomation.takeScreenshot()
+    try { File(instrumentation.targetContext.cacheDir, name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
+    finally { bitmap.recycle() }
+  }
 
   @Test
   fun pageStatusValidatesAndJumpsAfterSavingDirtyPage() {
@@ -68,16 +126,14 @@ class ReaderPageJumpActivityTest {
     editNativeNote("First page note", editedFirstPage)
 
     composeRule.onNodeWithTag("reader_page_status").assertTextEquals("1 / 3").performClick()
-    composeRule.onNodeWithTag("page_jump_dialog").assertIsDisplayed()
-    val pageInput = composeRule.onNodeWithTag("page_jump_input").assertIsDisplayed().fetchSemanticsNode()
-    assertEquals(AnnotatedString("1"), pageInput.config[SemanticsProperties.EditableText])
+    composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
 
     enterPageNumber("4")
-    composeRule.onNodeWithTag("page_jump_confirm").assertIsNotEnabled()
-    composeRule.onNodeWithTag("page_jump_error").assertIsDisplayed()
+    assertTrue(composeRule.onAllNodesWithTag("page_preview_item_2").fetchSemanticsNodes().isEmpty())
+    composeRule.onNodeWithTag("page_preview_invalid").assertIsDisplayed()
 
     enterPageNumber("3")
-    composeRule.onNodeWithTag("page_jump_confirm").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("page_preview_item_2").assertIsEnabled().performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { session.pageIndex.intValue == 2 }
 
     composeRule.onNodeWithTag("reader_page_status").assertTextEquals("3 / 3")
@@ -88,7 +144,7 @@ class ReaderPageJumpActivityTest {
     assertEquals(PageNotes.revision("Third page note"), session.noteBaseRevision.value)
     assertEquals(listOf(targetStroke), session.penStrokes.value)
     assertEquals(PdfViewportBookmark.DEFAULT, session.viewportBookmark.value)
-    assertTrue(composeRule.onAllNodesWithTag("page_jump_dialog").fetchSemanticsNodes().isEmpty())
+    assertTrue(composeRule.onAllNodesWithTag("page_preview_drawer").fetchSemanticsNodes().isEmpty())
   }
 
   @Test
@@ -118,6 +174,7 @@ class ReaderPageJumpActivityTest {
       session.markdownSource.value = null
       session.replaceRenderer(renderer)
       session.pageIndex.intValue = 0
+      session.penTool.value = io.pagenote.feature.pen.PenCanvasTool.PEN
     }
 
     try {
@@ -168,7 +225,7 @@ class ReaderPageJumpActivityTest {
 
     composeRule.onNodeWithTag("reader_page_status").assertIsEnabled().performClick()
     enterPageNumber("3")
-    composeRule.onNodeWithTag("page_jump_confirm").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("page_preview_item_2").assertIsEnabled().performClick()
 
     val expectedConflict = PageNoteConflictException().message
     try {
@@ -180,7 +237,7 @@ class ReaderPageJumpActivityTest {
       )
     }
     composeRule.onNodeWithTag("reader_page_status").assertTextEquals("1 / 3")
-    composeRule.onNodeWithTag("page_jump_dialog").assertIsDisplayed()
+    composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
     assertEquals(0, session.pageIndex.intValue)
     assertEquals(editedFirstPage, session.noteDraft.value)
     assertEquals(externalNotes, ProjectNoteStore(testResolver, project.notesUri).read())
@@ -196,12 +253,12 @@ class ReaderPageJumpActivityTest {
 
     composeRule.onNodeWithTag("reader_page_status").performClick()
     enterPageNumber("3")
-    composeRule.onNodeWithTag("page_jump_confirm").assertIsEnabled().performClick()
+    composeRule.onNodeWithTag("page_preview_item_2").assertIsEnabled().performClick()
     try {
       assertTrue("the note save should reach the paused SAF write", waitForPausedNoteWrite())
-      composeRule.onNodeWithTag("page_jump_input").assertIsNotEnabled()
-      composeRule.onNodeWithTag("page_jump_confirm").assertIsNotEnabled()
-      composeRule.onNodeWithTag("page_jump_cancel").assertIsNotEnabled()
+      composeRule.onNodeWithTag("page_preview_search").assertIsNotEnabled()
+      composeRule.onNodeWithTag("page_preview_item_2").assertIsNotEnabled()
+      composeRule.onNodeWithTag("page_preview_close").assertIsNotEnabled()
       assertEquals(0, session.pageIndex.intValue)
     } finally {
       releaseNoteWrite()
@@ -212,12 +269,41 @@ class ReaderPageJumpActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    val activity = composeRule.activity
+    val resolver = activity.contentResolver
+    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    releaseFixtureGrant = resolver.persistedUriPermissions.none { it.uri == treeUri && it.isReadPermission && it.isWritePermission }
+    activity.grantUriPermission(activity.packageName, treeUri,
+      flags or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+    resolver.takePersistableUriPermission(treeUri, flags)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    val fixtureTarget = ProjectOpenTarget(treeUri, ExistingProjectSafTestProvider.ROOT_ID, needsPersistablePermission = false)
     composeRule.runOnUiThread {
+      session.findDraftRecoveries(fixtureTarget, project.manifest.id).forEach { record ->
+        session.clearDraftRecovery(fixtureTarget, project.manifest.id, record.page)
+      }
+    }
+    val library = BookshelfStore(composeRule.activity)
+    runBlocking {
+      previousLibrary = library.preferences.first()
+      library.bind(treeUri.toString(), "Navigation fixture")
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      composeRule.onAllNodesWithTag("bookshelf_book_Page jump fixture").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("bookshelf_book_Page jump fixture").performClick()
+    try {
+      composeRule.waitUntil(timeoutMillis = 15_000) {
+        composeRule.onAllNodesWithTag("reader_page_status").fetchSemanticsNodes().isNotEmpty()
+      }
+    } catch (failure: Throwable) {
+      throw AssertionError("Fixture open failed: ${session.errorMessage.value}; ${session.noteStatus.value}\n${composeRule.onRoot().printToString()}", failure)
+    }
+    composeRule.runOnUiThread {
+      session.replaceRenderer(null)
       session.project.value = project
+      session.pageIndex.intValue = 0
+      session.penTool.value = io.pagenote.feature.pen.PenCanvasTool.PEN
       session.markdownSource.value = PageNotes.join(listOf("Source one", "Source two", "Source three"))
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
@@ -245,7 +331,7 @@ class ReaderPageJumpActivityTest {
   }
 
   private fun enterPageNumber(value: String) {
-    val field = composeRule.onNodeWithTag("page_jump_input")
+    val field = composeRule.onNodeWithTag("page_preview_search")
     field.performTextClearance()
     field.performTextInput(value)
   }
@@ -275,7 +361,7 @@ class ReaderPageJumpActivityTest {
     )
   }
 
-  private fun installProject(notes: String, pdf: ByteArray = "%PDF-fixture".toByteArray()): OpenedProject {
+  private fun installProject(notes: String, pdf: ByteArray = createThreePagePdf()): OpenedProject {
     val manifest = """
       {"format":"pagenote-project","version":1,"id":"${"b".repeat(64)}","name":"Page jump fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
     """.trimIndent().toByteArray(Charsets.UTF_8)
