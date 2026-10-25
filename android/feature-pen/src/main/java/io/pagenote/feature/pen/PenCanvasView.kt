@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.os.Handler
 import android.os.Looper
@@ -534,11 +535,10 @@ class PenCanvasView @JvmOverloads constructor(
 
   private fun drawStroke(canvas: Canvas, stroke: PenStroke) {
     val color = runCatching { Color.parseColor(stroke.color) }.getOrDefault(Color.BLACK)
-    val isHighlight = stroke.type == "highlight"
     val points = stroke.points
     if (points.isEmpty()) return
     drawPaint.color = color
-    drawPaint.alpha = if (isHighlight) HIGHLIGHT_ALPHA else Color.alpha(color)
+    drawPaint.alpha = Color.alpha(color)
     drawPaint.style = Paint.Style.STROKE
     drawPaint.strokeWidth = stroke.width.toFloat()
 
@@ -574,14 +574,32 @@ class PenCanvasView @JvmOverloads constructor(
           if (stroke.type == "arrow") drawArrowHead(canvas, first, last, drawPaint)
         }
       }
-      "pen", "highlight" -> drawFreehand(canvas, points, stroke.width.toFloat(), isHighlight)
+      "pen" -> drawFreehand(canvas, points, stroke.width.toFloat())
+      "highlight" -> drawHighlight(canvas, points, stroke.width.toFloat())
       else -> Unit
     }
   }
 
-  private fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float, highlight: Boolean) {
+  private fun drawHighlight(canvas: Canvas, points: List<PenPoint>, width: Float) {
+    val first = points.first()
+    val bounds = RectF(first.x, first.y, first.x, first.y)
+    points.forEach { bounds.union(it.x, it.y) }
+    val padding = width / 2f + 1f / geometry().pixelsPerDocumentUnit
+    bounds.inset(-padding, -padding)
+    if (!bounds.intersect(RectF(canvas.clipBounds))) return
+
+    // Composite once per gesture, never once per pressure segment or retrace.
+    val save = canvas.saveLayerAlpha(bounds, HIGHLIGHT_ALPHA)
+    try {
+      drawFreehand(canvas, points, width)
+    } finally {
+      canvas.restoreToCount(save)
+    }
+  }
+
+  private fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float) {
     drawPaint.style = Paint.Style.STROKE
-    drawPaint.alpha = if (highlight) HIGHLIGHT_ALPHA else 255
+    drawPaint.alpha = 255
     if (points.size == 1) {
       drawPaint.style = Paint.Style.FILL
       canvas.drawCircle(points[0].x, points[0].y, width * points[0].pressure / 2f, drawPaint)

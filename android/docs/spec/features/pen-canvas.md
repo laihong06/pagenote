@@ -36,8 +36,14 @@ undo/redo, project access, or changes to the `annotations.json` contract.
 - `ACTION_CANCEL` discards the in-progress gesture without a callback.
 - Unsupported tool types are ignored. Platform stylus palm rejection is
   respected, and additional pointer contacts never become ink.
-- Drawing preserves round joins/caps. Pressure scales segment width. Highlights
-  use translucent paint. Eraser hit-testing uses the rendered stroke geometry
+- Drawing preserves round joins/caps. Pressure scales segment width. Each
+  highlighter gesture is one translucent coat (89/255 opacity): first render its
+  pressure-aware segments opaquely into an isolated, viewport-bounded layer,
+  then composite that layer once. Retracing, joins and self-intersections within
+  one gesture must not accumulate opacity. Separate gestures may overlap.
+  Live preview and loaded strokes use the same rendering path; single-point
+  highlights remain translucent. No stored stroke format changes are needed.
+  Eraser hit-testing uses the rendered stroke geometry
   with a configurable view-pixel radius.
 - `PenPageStore` remains the sole owner of page-scoped mutations and undo/redo;
   the caller applies completed-stroke and erase callbacks to that store.
@@ -70,12 +76,23 @@ undo/redo, project access, or changes to the `annotations.json` contract.
   which is Android's event route for these actions. Erasing recognizes both
   the stylus-secondary button and the platform secondary-button mapping used
   for BTN_STYLUS.
+- Pixel-based native canvas regressions cover retracing, pressure-varying
+  intersections, live/reloaded ink, separate strokes, ordinary opaque pen ink,
+  single dots and clipped/zoomed highlights on the Android 14 tablet AVD.
 - Synthetic events verify application logic only. They do not replace
   physical-device checks for pressure fidelity, palm rejection, latency, or
   hardware-specific button reporting.
 
 ## Verification
 
+- Highlighter regression (2026-10-25): the old renderer failed four of five
+  focused pixel tests, accumulating alpha 147/185 instead of 89. Per-gesture
+  composition passes all five checks and the nine existing native canvas tests
+  on `Pixel_Tablet_API34`. These pixel checks use a bitmap-backed Android Canvas;
+  no physical-device latency or GPU performance acceptance is claimed.
+- The 50 `feature-pen` JVM tests pass on a forced rerun. Debug APK and native
+  test APK build successfully offline. The app is installed with `adb install -r`
+  on that AVD, without clearing app data; no physical tablet is connected.
 - JVM tests cover coordinate normalization, aspect-ratio-preserving Y scale,
   pressure fallback/clamping, and geometry hit-testing.
 - Android compilation verifies the native `View`, `Canvas`, and `MotionEvent`
