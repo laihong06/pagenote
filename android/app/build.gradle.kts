@@ -62,6 +62,8 @@ dependencies {
   implementation(project(":feature-ocr"))
   implementation(project(":feature-audio"))
   implementation(project(":agent"))
+  // 批次 10：翻译服务商直连（agent 以 implementation 引入 okhttp，app 内自用需显式声明）。
+  implementation("com.squareup.okhttp3:okhttp:4.12.0")
   implementation("androidx.core:core-ktx:1.15.0")
   implementation("androidx.activity:activity-compose:1.9.3")
   implementation("androidx.datastore:datastore-preferences:1.2.1")

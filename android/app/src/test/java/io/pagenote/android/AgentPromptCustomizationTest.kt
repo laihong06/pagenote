@@ -22,8 +22,13 @@ class AgentPromptCustomizationTest {
 
   @Test
   fun editableCatalogMatchesDesktopModuleIdsAndOrder() {
+    // 批次 10：选区 AI 动作（语气/翻译/总结）的提示词模块并入 Agent 提示词设置，
+    // 追加在桌面模块之后，桌面模块的 id 与顺序保持不变。
     assertEquals(
-      listOf("system", "learning", "page-tutor", "output", "tag-edit", "learner"),
+      listOf(
+        "system", "learning", "page-tutor", "output", "tag-edit", "learner",
+        "ai-tone", "ai-translate", "ai-summary",
+      ),
       AgentPromptCatalog.modules.map { it.id },
     )
   }
@@ -160,6 +165,9 @@ class AgentPromptCustomizationTest {
       "output" to "output default",
       "tag-edit" to "tag edit default",
       "learner" to "learner default",
+      "ai-tone" to "ai tone default",
+      "ai-translate" to "ai translate default",
+      "ai-summary" to "ai summary default",
     )
   }
 }

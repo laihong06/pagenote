@@ -458,6 +458,12 @@ private fun ReaderHome(
   val promptSettingsStore = remember(context.applicationContext) {
     agentPromptSettingsStore(context.applicationContext)
   }
+  // 批次 10：翻译服务商设置（可选直连）与 AI 动作客户端（复用 agent 的 OpenAI 兼容链路）。
+  val translationProviderStore = remember(context.applicationContext) {
+    translationProviderSettingsStore(context.applicationContext)
+  }
+  val translationTransport = remember { OkHttpTranslationTransport() }
+  val aiActionChatClient = remember { OkHttpChatClient() }
   val recentProjects by produceState(
     initialValue = emptyList<RecentProjectEntry>(),
     key1 = recentProjectStore,
@@ -625,6 +631,13 @@ private fun ReaderHome(
     audioController.transcriptListVisible = true
   }
 
+  // 批次 10：系统截屏（MediaProjection 授权 + 前台服务抓帧）。
+  val screenCaptureLauncher = rememberScreenCaptureLauncher(
+    context = context,
+    onDenied = { noteStatus = context.getString(R.string.screen_capture_denied) },
+    onFailed = { noteStatus = context.getString(R.string.screen_capture_failed) },
+  )
+
   var isOpening by readerSession.isOpening
   var isImageImporting by remember { mutableStateOf(false) }
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
@@ -753,8 +766,28 @@ private fun ReaderHome(
   }
   var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
   var showHandoff by remember { mutableStateOf(false) }
+  // 批次 10：选区 AI 动作（语气/翻译/总结）与系统截屏（OCR/取色）。
+  var aiSelectionTask by remember { mutableStateOf<AiSelectionTask?>(null) }
+  var aiSelectionReviewId by remember { mutableStateOf<String?>(null) }
+  var screenshotFrame by remember { mutableStateOf<ScreenCaptureFrame?>(null) }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
+
+  // 系统截屏帧投递：服务抓到第一帧后交付，消费到本地状态并清空共享槽位。
+  LaunchedEffect(Unit) {
+    ScreenCaptureService.frames.collect { _ ->
+      val frame = ScreenCaptureService.consumeFrame() ?: return@collect
+      screenshotFrame = frame
+    }
+  }
+  DisposableEffect(Unit) {
+    onDispose {
+      screenshotFrame?.let { frame ->
+        if (!frame.bitmap.isRecycled) frame.bitmap.recycle()
+      }
+      screenshotFrame = null
+    }
+  }
 
   fun updateViewportTransform(transform: PdfViewportTransform) {
     val bounds = viewportBounds
@@ -1791,6 +1824,174 @@ private fun ReaderHome(
         noteStatus = context.getString(R.string.note_reload_failed, error.message ?: "")
       }
     }
+  }
+
+  // --- 选区 AI 动作（移植批次 10 / 差距清单 #22）---------------------------------
+  // 语气/翻译/总结走现有 agent 客户端链路（resolveEndpoint + OkHttpChatClient，
+  // 零新增 Key）；翻译动作在配置了直连服务商时改走服务商客户端（#23，可选）。
+  // 结果插回笔记遵守 applied 守卫：模型成功后先建 open review，插回且 revision
+  // 受检保存产生 changed write 后，才凭本次运行证据 transitionApplied。
+
+  fun aiSelectionReviewStore(activeProject: OpenedProject) =
+    ProjectReviewStore(context.contentResolver, activeProject.sourceDirectoryUri, activeProject.reviewsUri)
+
+  suspend fun runAiSelectionAction(
+    action: AiSelectionAction,
+    task: AiSelectionTask,
+  ): AiSelectionRunResult {
+    val activeProject = project ?: return AiSelectionRunResult.Failure(
+      context.getString(R.string.ai_action_no_project),
+    )
+    return try {
+      val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
+      val promptModules = withContext(Dispatchers.IO) {
+        promptSettingsStore.readModules(listOf("system", action.promptModule))
+      }
+      val messages = AiSelectionActions.buildMessages(action, task, promptModules)
+      val raw = when {
+        action == AiSelectionAction.TRANSLATE_ZH || action == AiSelectionAction.TRANSLATE_EN -> {
+          val direct = withContext(Dispatchers.IO) {
+            translationProviderStore.resolveClient(translationTransport)
+          }
+          if (direct != null) {
+            val target = AiSelectionAction.targetLanguage(action) ?: "en"
+            withContext(Dispatchers.IO) { direct.translate(task.quote, target).text }
+          } else {
+            aiActionChatClient.complete(endpoint, messages)
+          }
+        }
+        else -> aiActionChatClient.complete(endpoint, messages)
+      }
+      val result = AiSelectionActions.sanitizeResult(raw)
+        ?: return AiSelectionRunResult.Failure(context.getString(R.string.ai_action_empty_result))
+      val record = withContext(Dispatchers.IO) {
+        aiSelectionReviewStore(activeProject).create(
+          ReviewCreate(
+            side = "note",
+            kind = "selection",
+            page = task.page,
+            instruction = aiActionInstruction(action),
+            scope = "page",
+            quote = task.quote,
+            context = task.context,
+            revision = task.revision,
+            anchor = task.anchor,
+          ),
+        )
+      }
+      val reviewId = (record["id"] as? JsonPrimitive)?.content
+        ?: return AiSelectionRunResult.Failure(context.getString(R.string.review_save_failed, "missing id"))
+      AiSelectionRunResult.Success(result, reviewId)
+    } catch (missing: MissingModelConfigException) {
+      AiSelectionRunResult.MissingConfig
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      AiSelectionRunResult.Failure(error.message ?: error.javaClass.simpleName)
+    }
+  }
+
+  suspend fun insertAiSelectionResult(
+    action: AiSelectionAction,
+    task: AiSelectionTask,
+    result: String,
+    reviewId: String?,
+  ): Boolean {
+    val activeProject = project ?: return false
+    // applied 守卫第一步：笔记页仍处于捕获时的 revision。
+    try {
+      task.requireCurrentPage(noteDraft)
+    } catch (_: IllegalArgumentException) {
+      noteStatus = context.getString(R.string.ai_action_stale)
+      return false
+    }
+    val updated = AiSelectionActions.replacement(task, result)
+    // applied 守卫第二步：结果与原文一致时不产生 changed write，review 保持 open。
+    if (!AiSelectionActions.shouldMarkApplied(task.context, updated, saveSucceeded = true)) {
+      noteStatus = context.getString(R.string.ai_action_unchanged)
+      return false
+    }
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+    if (editor != null) {
+      editor.requestFocus()
+      editor.replaceMarkdownSourceRange(task.start, task.end, result)
+      editor.setMarkdownSourceSelection(task.start + result.length)
+    } else {
+      readerSession.setNoteDraft(updated)
+      noteEditRequest++
+    }
+    // revision 受检保存：expectedRevision == 捕获 revision（saveCurrentNote 读 noteDraft）。
+    val saved = saveCurrentNote()
+    if (!saved) {
+      noteStatus = noteStatus ?: context.getString(R.string.ai_action_save_failed)
+      return false
+    }
+    val id = reviewId
+    if (id != null) {
+      try {
+        withContext(Dispatchers.IO) {
+          aiSelectionReviewStore(activeProject).transitionApplied(
+            id,
+            listOf(ProjectReviewStore.ApplyExpectation(task.page, task.revision)),
+          )
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        // 状态流转失败不影响已保存的笔记内容；review 保持 open，可手动处置。
+        noteStatus = context.getString(R.string.review_save_failed, error.message ?: "")
+        return false
+      }
+    }
+    return true
+  }
+
+  // --- 系统截屏（移植批次 10 / 差距清单 #23）--------------------------------------
+  // MediaProjection 抓帧在 ScreenCaptureService 前台服务完成；OCR 复用 feature-ocr
+  // 离线引擎，取色复用纯策略 ColorPicking。悬浮截屏入口（#24）仅预留接口。
+
+  fun beginSystemCapture() {
+    if (screenCaptureBusy()) return
+    ScreenCaptureService.reset()
+    val launched = screenCaptureLauncher.launch()
+    if (!launched) {
+      noteStatus = context.getString(R.string.screen_capture_failed)
+    }
+  }
+
+  fun insertTextIntoNote(text: String) {
+    if (!noteWritable) {
+      noteStatus = context.getString(R.string.note_read_only)
+      return
+    }
+    if (text.isBlank()) return
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+    if (editor != null) {
+      val edit = NoteImportPayload.insertText(
+        markdown = noteDraft,
+        selectionStart = editor.markdownSelectionStart(),
+        selectionEnd = editor.markdownSelectionEnd(),
+        text = text,
+      )
+      editor.requestFocus()
+      editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+      editor.setMarkdownSourceSelection(edit.cursor)
+    } else {
+      val edit = NoteImportPayload.insertText(
+        markdown = noteDraft,
+        selectionStart = noteDraft.length,
+        selectionEnd = noteDraft.length,
+        text = text,
+      )
+      val updated = buildString(noteDraft.length + text.length) {
+        append(noteDraft, 0, edit.replaceStart)
+        append(edit.replacement)
+        append(noteDraft, edit.replaceEnd, noteDraft.length)
+      }
+      readerSession.setNoteDraft(updated)
+      noteEditRequest++
+    }
+    noteStatus = null
   }
 
   suspend fun changePage(nextPage: Int): Boolean {
@@ -5217,6 +5418,12 @@ private fun ReaderHome(
             context.getString(R.string.audio_transcript_list_empty),
         ) { audioController.transcriptListVisible = true },
         actionCommand(
+          "system_capture", R.string.reader_menu_system_capture,
+          canReadDocument && !readerInputLocked && !screenCaptureBusy(),
+          disabledReason = commandReason(requireProject = true) ?:
+            context.getString(R.string.screen_capture_busy),
+        ) { beginSystemCapture() },
+        actionCommand(
           "zoom_out", R.string.zoom_out,
           canUsePdf && !readerInputLocked &&
             viewportTransform.scale > PdfViewportTransform.MIN_SCALE,
@@ -5437,6 +5644,45 @@ private fun ReaderHome(
                 end = selection.end,
               )
               showReviews = true
+            } catch (_: IllegalArgumentException) {
+              noteStatus = context.getString(R.string.review_invalid_input)
+            }
+          }
+        },
+        actionCommand(
+          "ai_actions",
+          R.string.reader_menu_ai_actions,
+          enabled = activeProject != null && noteWritable && !menuBusy &&
+            selectionReviewReadiness(
+              start = noteSelection?.start,
+              end = noteSelection?.end,
+              markdown = noteDraft,
+            ) == SelectionReviewReadiness.AVAILABLE,
+          disabledReason = commandReason(requireProject = true, requireWritable = true) ?:
+            context.getString(
+              if (selectionReviewReadiness(
+                  start = noteSelection?.start,
+                  end = noteSelection?.end,
+                  markdown = noteDraft,
+                ) == SelectionReviewReadiness.TOO_LARGE
+              ) R.string.reader_menu_selection_too_large
+              else R.string.reader_menu_selection_required,
+            ),
+        ) {
+          val selection = noteSelection ?: return@actionCommand
+          val selectedMarkdown = noteDraft
+          val selectedPage = pageIndex + 1
+          aiSelectionReviewId = null
+          scope.launch {
+            if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+            try {
+              // revision 受检保存后重新捕获（noteDraft 已是保存后的文本）。
+              aiSelectionTask = AiSelectionTask.capture(
+                page = selectedPage,
+                context = noteDraft,
+                start = selection.start,
+                end = selection.end,
+              )
             } catch (_: IllegalArgumentException) {
               noteStatus = context.getString(R.string.review_invalid_input)
             }
@@ -6218,6 +6464,7 @@ private fun ReaderHome(
   if (showAgentModelSettings) {
     AgentModelSettingsDialog(
       store = modelSettingsStore,
+      translationStore = translationProviderStore,
       onDismiss = { showAgentModelSettings = false },
     )
   }
@@ -6447,6 +6694,44 @@ private fun ReaderHome(
         pdfSelectionReviewDraft = null
       },
       onChanged = { noteStatus = it },
+    )
+  }
+  // 批次 10：选区 AI 动作（语气/翻译/总结）——执行与插回都经由 ReaderHome 的回调。
+  aiSelectionTask?.let { task ->
+    AiSelectionActionDialog(
+      task = task,
+      run = { action, capturedTask ->
+        val outcome = runAiSelectionAction(action, capturedTask)
+        if (outcome is AiSelectionRunResult.Success) {
+          aiSelectionReviewId = outcome.reviewId
+        } else if (outcome == AiSelectionRunResult.MissingConfig) {
+          showAgentModelSettings = true
+        }
+        outcome
+      },
+      insert = { action, capturedTask, result, reviewId ->
+        insertAiSelectionResult(action, capturedTask, result, reviewId)
+      },
+      onDismiss = {
+        aiSelectionTask = null
+        aiSelectionReviewId = null
+      },
+    )
+  }
+  // 批次 10：系统截屏面板——OCR 复用 feature-ocr 离线引擎，取色为纯策略。
+  screenshotFrame?.let { frame ->
+    ScreenshotPanelDialog(
+      frame = frame,
+      runOcr = { bitmap ->
+        val engine = ensureOcrEngine()
+        engine.recognize(bitmap)
+      },
+      onInsertText = { text -> insertTextIntoNote(text) },
+      onDismiss = {
+        if (!frame.bitmap.isRecycled) frame.bitmap.recycle()
+        screenshotFrame = null
+        ScreenCaptureService.reset()
+      },
     )
   }
   if (showHandoff && project != null && (renderer != null || markdownSource != null)) {
