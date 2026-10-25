@@ -374,11 +374,15 @@ class PenPredictorTest {
       val predictor = PenPredictor(density, refresh)
       predictor.onDown()
       repeat(8) { index -> predictor.onMove(100f + index * 30f, 200f, 1f) }
-      predictor.onMove(100f + 8 * 30f + lastStep, 200f, 1f)
+      predictor.onMove(100f + 7 * 30f + lastStep, 200f, 1f)
       val prediction = predictor.predict()!!
-      return prediction.x - (100f + 8 * 30f + lastStep)
+      return prediction.x - (100f + 7 * 30f + lastStep)
     }
-    assertTrue(extrapolation(30f) > extrapolation(10f))
+    // The last sample's step is exactly lastStep (10 slows down from the
+    // previous 30px step, 30 keeps constant speed), so only the 10px case
+    // falls below 70% of its previous step and triggers DECELERATION_DAMP.
+    // The doubled bound fails if the damping ever becomes a no-op.
+    assertTrue(extrapolation(30f) > extrapolation(10f) * 2f)
   }
 
   @Test
@@ -628,11 +632,13 @@ class PenStrokeSmootherTest {
   @Test
   fun segmentWidthAveragesThePressuresOfItsTwoSamples() {
     val segments = PenStrokeSmoother.segments(
-      listOf(PenPoint(0f, 0f, 1f), PenPoint(50f, 0f, 0.5f), PenPoint(100f, 0f, 1f)),
+      listOf(PenPoint(0f, 0f, 1f), PenPoint(50f, 0f, 0.5f), PenPoint(100f, 0f, 0.2f)),
       10f,
     )
-    assertEquals(10f * (1f + 0.5f) / 2f, segments[0].width, 0.001f)
-    assertEquals(10f * (0.5f + 1f) / 2f, segments[1].width, 0.001f)
+    // Asymmetric endpoint pressures pin the (control, next) / (previous, last)
+    // pairing: the (p0, p1) reading would yield 10f * (1f + 0.5f) / 2f instead.
+    assertEquals(10f * (0.5f + 0.2f) / 2f, segments[0].width, 0.001f)
+    assertEquals(10f * (0.5f + 0.2f) / 2f, segments[1].width, 0.001f)
   }
 }
 ```
