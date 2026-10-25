@@ -2,6 +2,7 @@ package io.pagenote.android
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PdfAnnotationOverlayMapperTest {
@@ -71,5 +72,32 @@ class PdfAnnotationOverlayMapperTest {
 
     assertEquals(1, items.size)
     assertEquals("rect", items.single().type)
+  }
+
+  @Test
+  fun parsesTextStyleFieldsAndDegradesUnknownValues() {
+    val items = PdfAnnotationOverlayItem.fromPage(json.parseToJsonElement("""
+      [
+        {"type":"text","color":"#010203","width":4,"points":[[50,1300]],"text":"styled",
+         "font":"mono","fontSize":36.0,"align":"right"},
+        {"type":"text","color":"#010203","width":4,"points":[[50,1300]],"text":"degraded",
+         "font":"zapfino","fontSize":9999.0,"align":"justify"},
+        {"type":"rect","color":"#010203","width":4,"points":[[0,0],[10,10]],
+         "font":"serif","fontSize":36.0,"align":"center"}
+      ]
+    """))
+
+    assertEquals("mono", items[0].fontId)
+    assertEquals(36.0, items[0].fontSize!!, 0.0)
+    assertEquals("right", items[0].align)
+    // Unknown font ids, out-of-range sizes and unknown align keys degrade to
+    // the defaults (null) instead of dropping the item.
+    assertNull(items[1].fontId)
+    assertNull(items[1].fontSize)
+    assertNull(items[1].align)
+    // Style fields never apply to non-text items.
+    assertNull(items[2].fontId)
+    assertNull(items[2].fontSize)
+    assertNull(items[2].align)
   }
 }

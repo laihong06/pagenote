@@ -1,8 +1,8 @@
 # Canvas Schema Decision（annotations.json 类型集演进与桌面互通约束）
 
-- 状态：已接受（移植批次 0 建立；移植批次 2 增补 D5 形状目录决策并落地，分支 `codex/port-canvas-notes-features`）
-- 范围：`src/annotations.json` 的类型集演进策略、未知字段透传机制、图层 schema 草案、形状参数化子类型，以及 Android 与桌面端的互通硬约束。
-- 性质：决策文档。批次 0 只新增本文档与 `feature-pen` 透传单测；批次 2 按 D5 落地 `ShapeCatalog` 与形状对话框接线，不改任何 schema 契约文件。
+- 状态：已接受（移植批次 0 建立；移植批次 2 增补 D5 形状目录决策并落地；移植批次 4 增补 D6 文本样式 schema 决策并落地，分支 `codex/port-canvas-notes-features`）
+- 范围：`src/annotations.json` 的类型集演进策略、未知字段透传机制、图层 schema 草案、形状参数化子类型、文本工具样式 schema 扩展字段，以及 Android 与桌面端的互通硬约束。
+- 性质：决策文档。批次 0 只新增本文档与 `feature-pen` 透传单测；批次 2 按 D5 落地 `ShapeCatalog` 与形状对话框接线；批次 4 按 D6 落地 `TextFontCatalog`/`AnnotationTextStyle` 与 UpdateTextStyle 动作；均不改任何 schema 契约文件。
 
 ## 1. 基线事实（现状证据）
 
@@ -55,6 +55,8 @@
 | --- | --- | --- |
 | `pressures` | Android（`PenStroke.kt:33`，恒写） | 桌面忽略不解释；Android 读取时缺失/短数组按点补 1.0（`PenPageStore.kt:178-179`） |
 | `layoutAnchor` | 桌面 note 侧重投影锚（写入 `src/annotations.js:216-231`，rebase/复制粘贴时删除，`src/annotations.js:275,616`） | Android 不写入、不解释，但必须原样保留（走 `extraFields` 通道，`layoutAnchor` 不在 canonical 集合内） |
+| `shape` | Android（批次 2，目录形状 kind id，`PdfAnnotationVectorDraft`） | 桌面按基类型渲染并原样保留；Android 读取时未知 id 按基类型降级（D5） |
+| `font` / `fontSize` / `align` | Android（批次 4，`type:"text"` 项的文本样式，见 D6） | 桌面忽略不解释（字号仍按 `width` 派生渲染）；Android 读取时未知字体 id / 越界字号 / 未知对齐键降级为默认（D6） |
 
 约束：`CANONICAL_ANNOTATION_FIELDS` 是保留字表；未来把某个 extension 字段升格为 canonical 时，必须同版本升级该集合并保持"extension 不得覆盖 canonical"的过滤语义不变。
 
@@ -122,6 +124,17 @@ Android 约束：
 4. **基础四项不带 `shape`**：`line/arrow/rect/ellipse` 既有落盘格式不变（无 `shape` 键），与桌面渲染一一对应；只有目录扩展项写 `shape`。
 5. **虚线是描边样式不是几何**：`dashed-line`/`dashed-rect` 与实线 kind 共享同一轮廓（hit-test 一致），渲染端按 `ShapeStrokeStyle` 加 dash 效果。
 6. **降级渲染边界（本批次现状）**：Android overlay（`PdfAnnotationOverlay`）尚未消费 `shape` 字段，目录扩展项在预览与重载时按基类型渲染（矩形/直线/椭圆）；渲染接线由后续批次完成，落盘数据已按本决策定型。
+
+## 6.5 决策 D6：文本工具样式 schema 扩展字段（批次 4 落地）
+
+批次 4 在 `feature-annotations` 落地文本样式 schema（`TextFontCatalog.kt` + `AnnotationTextStyle.kt`），`type:"text"` 项的字体/字号/对齐/颜色按以下规则存储：
+
+1. **不新增 `type` 枚举（延续 D1）**：样式全部走 D2 透传通道的 item extension 字段；`color` 沿用 canonical 字段。字段名冻结为 `font`（字符串）、`fontSize`（数值，文档单位）、`align`（`left|center|right`）。
+2. **字号与桌面派生兼容**：桌面渲染字号恒为 `max(20, width*5)`（`src/annotations.js:178`）。`fontSize` 缺省时 Android 按同式派生；显式取值范围冻结为 `20..500`（与派生值域一致）。桌面忽略 `fontSize`，同一 item 在桌面仍按 `width` 派生渲染——这是既定互通容忍点，不为桌面改渲染。
+3. **字体目录单一注册中心**：`font` 值必须是 `TextFontCatalog` 已注册 id；目录条目映射 Android 系统字体族 + WebView CSS 栈（桌面不捆绑字体二进制，Android 同样不捆绑；`assets/fonts/` 预留为未来捆绑字体的位置）。id 只增不删；未知 id 读侧降级为默认（同 D5 §3）。
+4. **读侧容错、写侧严格**：读取时未知 `font`、越界 `fontSize`、未知 `align` 一律降级为默认，不拒绝 item（保证桌面写入的历史数据永不被 Android 判非法）；Android 主动写出前经 `AnnotationTextStyle.create`/`AnnotationTextStyleEditor.updateTextStyle` 校验，永不写非法值。
+5. **默认 schema（文本工具新建项）**：`font=default`（目录默认）、`fontSize=derivedFontSize(当前笔宽)`、`align=left`，随 `AnnotationTextDraft.toItem(style=...)` 显式写出；无样式参数的调用保持旧格式（不带扩展字段），既有调用方与测试不变。
+6. **UpdateTextStyle 撤销动作**：样式更新以 `AnnotationUpdateTextStyleAction`（app，注册 id `pdf.annotationTextStyle`）适配到批次 1 的统一 `PenAction` 栈，连续同 scope 样式编辑合并为一个撤销步（对齐 `PenPageStoreActions` UPDATE_STYLE 合并语义）；阅读器 UI 仍走既有 `PdfAnnotationEditHistory` 快照撤销，两条路径不混用。
 
 ## 7. 桌面互通硬约束清单
 

@@ -60,6 +60,7 @@ class DesktopCommandChecklistTest {
     "arrow",
     "shape",
     "ink_text",
+    "ink_rich_text",
     "ink_color",
     "ink_width",
     "annotate_mode",

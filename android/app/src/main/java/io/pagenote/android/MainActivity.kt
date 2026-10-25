@@ -133,6 +133,7 @@ import io.pagenote.core.reader.PdfPageText
 import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PdfTextSelectionMapper
+import io.pagenote.feature.annotations.AnnotationTextStyle
 import io.pagenote.feature.annotations.ReviewCreate
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
@@ -438,6 +439,10 @@ private fun ReaderHome(
   DisposableEffect(richHtmlRenderer) {
     onDispose { richHtmlRenderer.close() }
   }
+  val richHtmlEditorController = remember(context) { RichHtmlEditorController(context) }
+  DisposableEffect(richHtmlEditorController) {
+    onDispose { richHtmlEditorController.close() }
+  }
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
   val pagePrefetcher = remember { ReaderPagePrefetcher<PageTutorSourceText>() }
   val preparedOcrCache = remember(context) {
@@ -565,6 +570,12 @@ private fun ReaderHome(
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
   var annotateText by remember { mutableStateOf("") }
   var annotateIsRegion by remember { mutableStateOf(false) }
+  var showRichHtmlEditor by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
+    mutableStateOf(false)
+  }
+  var richHtmlEditorTarget by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
+    mutableStateOf<Pair<Int, JsonObject>?>(null)
+  }
   var annotationDrawTool by remember { mutableStateOf<PdfAnnotationDrawTool?>(null) }
   var annotationPreview by remember { mutableStateOf<Pair<Int, PdfAnnotationOverlayItem>?>(null) }
   var isAnnotationSaving by remember { mutableStateOf(false) }
@@ -1451,6 +1462,93 @@ private fun ReaderHome(
     selectedPenIndex = null
     erasePenStroke(index)
     penStatus = context.getString(R.string.pen_deleted)
+  }
+
+  /**
+   * Confirm path of the rich text editing window (port batch 4): the editor
+   * already sanitized the HTML on read-out; the offline renderer sanitizes it
+   * once more while measuring the content, then the item is created (or the
+   * selected one updated) as a `type: "html"` canvas annotation through the
+   * regular page persistence — undoable like every native annotation edit.
+   */
+  fun confirmRichHtmlAnnotation(html: String) {
+    val targetProject = project
+    if (targetProject == null || !penWritable || markdownSource != null) {
+      penStatus = context.getString(R.string.reader_menu_read_only)
+      return
+    }
+    val targetProjectId = targetProject.manifest.id
+    val targetSourceUri = targetProject.sourceDirectoryUri
+    val targetPage = pageIndex + 1
+    val editing = richHtmlEditorTarget
+    scope.launch {
+      var rendered: RenderedRichHtmlAnnotation? = null
+      try {
+        val safeRender = withContext(Dispatchers.IO) {
+          richHtmlRenderer.render(html, widthCssPx = 500, heightCssPx = null)
+        }
+        rendered = safeRender
+        if (
+          project?.manifest?.id != targetProjectId ||
+          project?.sourceDirectoryUri != targetSourceUri ||
+          pageIndex + 1 != targetPage || !penWritable
+        ) {
+          penStatus = context.getString(R.string.annotation_html_stale)
+          return@launch
+        }
+        val safeHtml = safeRender.sanitizedHtml
+        if (editing != null) {
+          val (index, expected) = editing
+          val before = annotationPageItems
+          val after = PdfAnnotationClipboard.updateHtmlContent(
+            before, index, expected, safeHtml, safeRender.contentHeightPx,
+          ) ?: run {
+            penStatus = context.getString(R.string.annotation_html_failed, "HTML annotation is invalid")
+            return@launch
+          }
+          if (after != before) {
+            persistNativeAnnotationPage(
+              targetPage = targetPage,
+              before = before,
+              after = after,
+              selectedAfter = index,
+              transformLatest = { latest ->
+                PdfAnnotationClipboard.updateHtmlContent(
+                  latest, index, expected, safeHtml, safeRender.contentHeightPx,
+                )
+              },
+            )
+          }
+        } else {
+          val height = maxOf(60, safeRender.contentHeightPx + 20).toDouble()
+          val item = kotlinx.serialization.json.buildJsonObject {
+            put("type", JsonPrimitive("html"))
+            put("color", JsonPrimitive(penStyle.color))
+            put("width", JsonPrimitive(penStyle.width.toDouble()))
+            put("points", kotlinx.serialization.json.buildJsonArray {
+              add(kotlinx.serialization.json.buildJsonArray { add(JsonPrimitive(80.0)); add(JsonPrimitive(90.0)) })
+              add(kotlinx.serialization.json.buildJsonArray { add(JsonPrimitive(580.0)); add(JsonPrimitive(90.0 + height)) })
+            })
+            put("html", JsonPrimitive(safeHtml))
+          }
+          val before = annotationPageItems
+          persistNativeAnnotationPage(
+            targetPage = targetPage,
+            before = before,
+            after = JsonArray(before + item),
+            selectedAfter = before.size,
+            appendItem = item,
+          )
+        }
+        showRichHtmlEditor = false
+        richHtmlEditorTarget = null
+      } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        penStatus = context.getString(R.string.annotation_html_failed, error.message ?: "")
+      } finally {
+        rendered?.bitmap?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
   }
 
   suspend fun saveCurrentNote(): Boolean {
@@ -4440,6 +4538,25 @@ private fun ReaderHome(
           annotateMode = true
         },
         actionCommand(
+          "ink_rich_text", R.string.reader_menu_rich_text, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) {
+          selectAnnotationDrawTool(null)
+          // Editing reuses the selected html annotation when one is selected;
+          // otherwise the editor creates a fresh type=html canvas object.
+          val selectedIndex = selectedAnnotationIndex
+          val selected = selectedIndex?.let { annotationPageItems.getOrNull(it) as? JsonObject }
+          val isSelectedHtml = selected != null && selected["type"]
+            ?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } == "html"
+          richHtmlEditorTarget = if (isSelectedHtml && selected != null && selectedIndex != null) {
+            selectedIndex to selected
+          } else {
+            null
+          }
+          showRichHtmlEditor = true
+        },
+        actionCommand(
           "ink_color", R.string.reader_menu_color, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
         ) { showPenColorPicker = true },
@@ -5342,8 +5459,11 @@ private fun ReaderHome(
                 point.first, point.second, penStyle.color, penStyle.width, annotateText,
               )
             } else {
+              // Text tool default font/size schema (port batch 4): explicit
+              // default font, width-derived size and left alignment.
               AnnotationTextDraft.toItem(
                 point.first, point.second, penStyle.color, penStyle.width, annotateText,
+                style = AnnotationTextStyle.forNewItem(penStyle.color, penStyle.width),
               )
             }
             penSaveMutex.withLock {
@@ -5376,6 +5496,21 @@ private fun ReaderHome(
         annotateDraft = null
         annotateText = ""
         annotateIsRegion = false
+      },
+    )
+  }
+  if (showRichHtmlEditor && project != null) {
+    RichHtmlAnnotationEditorDialog(
+      controller = richHtmlEditorController,
+      initialHtml = richHtmlEditorTarget
+        ?.second?.get("html")
+        ?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        ?: "",
+      editable = penWritable,
+      onConfirm = ::confirmRichHtmlAnnotation,
+      onDismiss = {
+        showRichHtmlEditor = false
+        richHtmlEditorTarget = null
       },
     )
   }
