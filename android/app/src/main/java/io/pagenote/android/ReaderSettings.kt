@@ -20,7 +20,24 @@ data class ReaderSettings(
   val ocrLanguage: String = "system",
   /** 公式识别模型 id（移植批次 6；目录见 [LatexModelCatalog]）。 */
   val latexOcrModel: String = LatexModelCatalog.DEFAULT_ID,
-)
+  /** 搜索索引范围（移植批次 7）：页文本 / 笔记 / OCR / 手写转写。 */
+  val searchIndexSource: Boolean = true,
+  val searchIndexNotes: Boolean = true,
+  val searchIndexOcr: Boolean = true,
+  val searchIndexTranscripts: Boolean = true,
+) {
+  /**
+   * 批次 7：设置 → 搜索索引范围（原始值；sanitize 由 [ReaderSettingsPolicy]
+   * 在加载路径统一处理，validate 据此拒绝全关草稿）。
+   */
+  fun searchIndexSettings(): io.pagenote.core.search.SearchIndexSettings =
+    io.pagenote.core.search.SearchIndexSettings(
+      indexSource = searchIndexSource,
+      indexNotes = searchIndexNotes,
+      indexOcr = searchIndexOcr,
+      indexTranscripts = searchIndexTranscripts,
+    )
+}
 
 object ReaderSettingsPolicy {
   val NOTE_FONT_SIZES = listOf(12, 15, 18, 20, 24, 28, 32)
@@ -41,7 +58,16 @@ object ReaderSettingsPolicy {
       noteBackground = settings.noteBackground.takeIf(NOTE_BACKGROUNDS::contains) ?: defaults.noteBackground,
       ocrLanguage = settings.ocrLanguage.takeIf(OcrLanguage.SETTING_KEYS::contains) ?: defaults.ocrLanguage,
       latexOcrModel = settings.latexOcrModel.takeIf(LatexModelCatalog::isValidId) ?: defaults.latexOcrModel,
-    )
+    ).let { scoped ->
+      // 批次 7：全关范围回落全开（空索引范围没有意义）。
+      val indexScope = io.pagenote.core.search.SearchIndexSettings.sanitize(scoped.searchIndexSettings())
+      scoped.copy(
+        searchIndexSource = indexScope.indexSource,
+        searchIndexNotes = indexScope.indexNotes,
+        searchIndexOcr = indexScope.indexOcr,
+        searchIndexTranscripts = indexScope.indexTranscripts,
+      )
+    }
   }
 
   fun validate(settings: ReaderSettings) {
@@ -54,6 +80,7 @@ object ReaderSettingsPolicy {
     require(NOTE_BACKGROUNDS.contains(settings.noteBackground)) { "bad note background" }
     require(OcrLanguage.SETTING_KEYS.contains(settings.ocrLanguage)) { "bad OCR language" }
     require(LatexModelCatalog.isValidId(settings.latexOcrModel)) { "bad LaTeX OCR model" }
+    io.pagenote.core.search.SearchIndexSettings.validate(settings.searchIndexSettings())
   }
 
   fun isTabletLandscape(widthDp: Int, heightDp: Int, orientationLandscape: Boolean): Boolean {

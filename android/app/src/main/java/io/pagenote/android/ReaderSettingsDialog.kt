@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
@@ -167,13 +168,18 @@ internal fun ReaderSettingsDialog(
   onConfigureAgent: () -> Unit,
   onConfigurePrompts: () -> Unit = {},
   onSave: suspend (ReaderSettings) -> Unit,
+  onRebuildIndex: (suspend () -> String?)? = null,
 ) {
   var draft by remember(settings) { mutableStateOf(settings) }
   var isSaving by remember { mutableStateOf(false) }
   var saveError by remember { mutableStateOf<String?>(null) }
+  var isRebuildingIndex by remember { mutableStateOf(false) }
+  var rebuildStatus by remember { mutableStateOf<String?>(null) }
   val scope = rememberCoroutineScope()
   val genericSaveError = stringResource(R.string.settings_save_failed)
   val inkOutsidePageLabel = stringResource(R.string.ink_outside_page_title)
+  val rebuildUnavailable = stringResource(R.string.search_index_rebuild_unavailable)
+  val rebuildGenericError = stringResource(R.string.settings_save_failed)
 
   AlertDialog(
     onDismissRequest = { if (!isSaving) onDismiss() },
@@ -375,6 +381,85 @@ internal fun ReaderSettingsDialog(
           )
         }
 
+        // 搜索索引范围 / 重建（移植批次 7）。
+        Text(
+          stringResource(R.string.search_index_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.search_index_summary),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        listOf(
+          R.string.search_kind_source to "search_index_source",
+          R.string.search_kind_note to "search_index_notes",
+          R.string.search_kind_ocr to "search_index_ocr",
+          R.string.search_kind_transcript to "search_index_transcripts",
+        ).forEach { (labelRes, tag) ->
+          val checked = when (tag) {
+            "search_index_source" -> draft.searchIndexSource
+            "search_index_notes" -> draft.searchIndexNotes
+            "search_index_ocr" -> draft.searchIndexOcr
+            else -> draft.searchIndexTranscripts
+          }
+          SearchIndexScopeCheck(
+            label = stringResource(labelRes),
+            checked = checked,
+            enabled = !isSaving,
+            testTag = tag,
+            onCheckedChange = { next ->
+              draft = when (tag) {
+                "search_index_source" -> draft.copy(searchIndexSource = next)
+                "search_index_notes" -> draft.copy(searchIndexNotes = next)
+                "search_index_ocr" -> draft.copy(searchIndexOcr = next)
+                else -> draft.copy(searchIndexTranscripts = next)
+              }
+            },
+          )
+        }
+        if (onRebuildIndex != null) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(
+              text = rebuildStatus ?: stringResource(R.string.search_index_rebuild_summary),
+              modifier = Modifier.weight(1f).padding(end = 12.dp),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+              modifier = Modifier.testTag("search_index_rebuild"),
+              enabled = !isSaving && !isRebuildingIndex,
+              onClick = {
+                scope.launch {
+                  isRebuildingIndex = true
+                  rebuildStatus = null
+                  try {
+                    rebuildStatus = onRebuildIndex() ?: rebuildUnavailable
+                  } catch (cancelled: CancellationException) {
+                    throw cancelled
+                  } catch (error: Exception) {
+                    rebuildStatus = error.message?.takeIf(String::isNotBlank) ?: rebuildGenericError
+                  } finally {
+                    isRebuildingIndex = false
+                  }
+                }
+              },
+            ) {
+              Text(
+                stringResource(
+                  if (isRebuildingIndex) R.string.search_index_rebuilding
+                  else R.string.search_index_rebuild,
+                ),
+              )
+            }
+          }
+        }
+
         TextButton(
           modifier = Modifier.fillMaxWidth().testTag(
             if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",
@@ -478,6 +563,26 @@ internal fun ReaderSettingsDialog(
       }
     },
   )
+}
+
+@Composable
+private fun SearchIndexScopeCheck(
+  label: String,
+  checked: Boolean,
+  enabled: Boolean,
+  testTag: String,
+  onCheckedChange: (Boolean) -> Unit,
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth()
+      .clickable(enabled = enabled) { onCheckedChange(!checked) }
+      .testTag(testTag),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(label, modifier = Modifier.weight(1f))
+    Checkbox(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+  }
 }
 
 @Composable

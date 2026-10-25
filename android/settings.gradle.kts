@@ -17,6 +17,7 @@ rootProject.name = "pagenote-android"
 include(":app")
 include(":core-project")
 include(":core-reader")
+include(":core-search")
 include(":feature-notes")
 include(":feature-annotations")
 include(":feature-pen")

@@ -35,6 +35,13 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
         noteBackground = preferences.stringOrDefault(NOTE_BACKGROUND_KEY, defaults.noteBackground),
         ocrLanguage = preferences.stringOrDefault(OCR_LANGUAGE_KEY, defaults.ocrLanguage),
         latexOcrModel = preferences.stringOrDefault(LATEX_OCR_MODEL_KEY, defaults.latexOcrModel),
+        searchIndexSource = preferences.booleanOrDefault(SEARCH_INDEX_SOURCE_KEY, defaults.searchIndexSource),
+        searchIndexNotes = preferences.booleanOrDefault(SEARCH_INDEX_NOTES_KEY, defaults.searchIndexNotes),
+        searchIndexOcr = preferences.booleanOrDefault(SEARCH_INDEX_OCR_KEY, defaults.searchIndexOcr),
+        searchIndexTranscripts = preferences.booleanOrDefault(
+          SEARCH_INDEX_TRANSCRIPTS_KEY,
+          defaults.searchIndexTranscripts,
+        ),
       ),
     )
   }
@@ -53,6 +60,10 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[NOTE_BACKGROUND_KEY] = settings.noteBackground
       preferences[OCR_LANGUAGE_KEY] = settings.ocrLanguage
       preferences[LATEX_OCR_MODEL_KEY] = settings.latexOcrModel
+      preferences[SEARCH_INDEX_SOURCE_KEY] = settings.searchIndexSource
+      preferences[SEARCH_INDEX_NOTES_KEY] = settings.searchIndexNotes
+      preferences[SEARCH_INDEX_OCR_KEY] = settings.searchIndexOcr
+      preferences[SEARCH_INDEX_TRANSCRIPTS_KEY] = settings.searchIndexTranscripts
     }
   }
 }
@@ -68,6 +79,10 @@ private val MARKDOWN_THEME_KEY = stringPreferencesKey("markdown_theme")
 private val NOTE_BACKGROUND_KEY = stringPreferencesKey("note_background")
 private val OCR_LANGUAGE_KEY = stringPreferencesKey("ocr_language")
 private val LATEX_OCR_MODEL_KEY = stringPreferencesKey("latex_ocr_model")
+private val SEARCH_INDEX_SOURCE_KEY = booleanPreferencesKey("search_index_source")
+private val SEARCH_INDEX_NOTES_KEY = booleanPreferencesKey("search_index_notes")
+private val SEARCH_INDEX_OCR_KEY = booleanPreferencesKey("search_index_ocr")
+private val SEARCH_INDEX_TRANSCRIPTS_KEY = booleanPreferencesKey("search_index_transcripts")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {

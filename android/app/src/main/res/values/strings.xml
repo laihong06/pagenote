@@ -547,4 +547,25 @@
   <string name="agent_task_bad_range">Bad page range: %1$s</string>
   <string name="agent_task_rate_limited">Rate limited; stopped. Incomplete pages: %1$s</string>
   <string name="agent_task_incomplete">Some pages incomplete: %1$s</string>
+  <!-- Full-text search index (port batch 7). -->
+  <string name="reader_menu_search">Search</string>
+  <string name="search_dialog_title">Search in project</string>
+  <string name="search_input_label">Search page text, notes, OCR and transcripts</string>
+  <string name="search_run">Search</string>
+  <string name="search_no_results">No matches. Index a page by viewing it, or rebuild the index from settings.</string>
+  <string name="search_failed_generic">Search failed.</string>
+  <string name="search_page_out_of_range">This result is outside the current document (stale index).</string>
+  <string name="search_result_page">Page %1$d</string>
+  <string name="search_kind_source">Page text</string>
+  <string name="search_kind_note">Note</string>
+  <string name="search_kind_ocr">OCR</string>
+  <string name="search_kind_transcript">Transcript</string>
+  <string name="search_index_title">Search index</string>
+  <string name="search_index_summary">Choose which content is indexed for full-text search.</string>
+  <string name="search_index_rebuild_summary">Rebuild re-reads note pages, Markdown source and PDF page text.</string>
+  <string name="search_index_rebuild">Rebuild index</string>
+  <string name="search_index_rebuilding">Rebuilding…</string>
+  <string name="search_index_rebuild_unavailable">Open a project to rebuild its search index.</string>
+  <string name="search_index_stats">Indexed %1$d entries.</string>
+  <string name="search_index_failed">Index rebuild failed: %1$s</string>
 </resources>

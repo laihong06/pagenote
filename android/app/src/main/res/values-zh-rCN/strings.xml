@@ -547,4 +547,25 @@
   <string name="agent_task_bad_range">页范围无效：%1$s</string>
   <string name="agent_task_rate_limited">触发限流，已停止。未完成页：%1$s</string>
   <string name="agent_task_incomplete">部分页未完成：%1$s</string>
+  <!-- 全文检索索引（移植批次 7）。 -->
+  <string name="reader_menu_search">搜索</string>
+  <string name="search_dialog_title">项目内搜索</string>
+  <string name="search_input_label">搜索页文本、笔记、OCR 与转写</string>
+  <string name="search_run">搜索</string>
+  <string name="search_no_results">无匹配结果。浏览过的页面会自动入索引，也可在设置中重建索引。</string>
+  <string name="search_failed_generic">搜索失败。</string>
+  <string name="search_page_out_of_range">该结果超出当前文档范围（索引已过期）。</string>
+  <string name="search_result_page">第 %1$d 页</string>
+  <string name="search_kind_source">页文本</string>
+  <string name="search_kind_note">笔记</string>
+  <string name="search_kind_ocr">OCR</string>
+  <string name="search_kind_transcript">转写</string>
+  <string name="search_index_title">搜索索引</string>
+  <string name="search_index_summary">选择参与全文检索的内容范围。</string>
+  <string name="search_index_rebuild_summary">重建会重新读取笔记页、Markdown 原文与 PDF 页文本。</string>
+  <string name="search_index_rebuild">重建索引</string>
+  <string name="search_index_rebuilding">正在重建…</string>
+  <string name="search_index_rebuild_unavailable">打开项目后才能重建搜索索引。</string>
+  <string name="search_index_stats">已索引 %1$d 条。</string>
+  <string name="search_index_failed">索引重建失败：%1$s</string>
 </resources>

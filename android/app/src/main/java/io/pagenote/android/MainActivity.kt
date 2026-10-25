@@ -133,6 +133,8 @@ import io.pagenote.core.reader.PdfPageText
 import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PdfTextSelectionMapper
+import io.pagenote.android.search.SearchIndexDatabase
+import io.pagenote.android.search.SearchIndexRepository
 import io.pagenote.feature.annotations.AnnotationTextStyle
 import io.pagenote.feature.annotations.CanvasMaterialCodec
 import io.pagenote.feature.annotations.ReviewCreate
@@ -172,6 +174,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
@@ -186,6 +189,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 private const val MAX_ANNOTATION_PAGE_IMAGE_PIXELS = 4_000_000L
+
+/** 搜索结果跳转后 rect 高亮的自动清除时长（移植批次 7）。 */
+private const val SEARCH_FOCUS_CLEAR_MS = 4_000L
+
+/** 可入索引的 OCR 状态（与区域 OCR 缓存口径一致：ok / partial）。 */
+internal val OCR_INDEXABLE_STATUSES = setOf("ok", "partial")
 
 private data class PdfAnnotationSelectionGesture(
   val sourceIndex: Int,
@@ -523,6 +532,36 @@ private fun ReaderHome(
     return OfflineOcrEngine.create(context, model).also {
       ocrEngine = it
       ocrEngineModelId = model.id
+    }
+  }
+
+  // --- 全文检索（移植批次 7）-------------------------------------------------
+  // Room FTS 索引（页文本+OCR+转写）+ 增量索引线程：页面变更钩子只做非阻塞
+  // 入队，由 ProjectSearchIndexer 的专用线程串行落库（revision 幂等）。
+  // 逻辑集中在 ReaderSearchController（控制 ReaderHome 方法体积）。
+  val search = remember {
+    ReaderSearchController(
+      context = context,
+      session = readerSession,
+      repository = SearchIndexRepository(SearchIndexDatabase.get(context).searchDocDao()),
+    )
+  }
+  DisposableEffect(search) {
+    search.indexer.start()
+    onDispose { search.indexer.close() }
+  }
+  LaunchedEffect(
+    settings.searchIndexSource,
+    settings.searchIndexNotes,
+    settings.searchIndexOcr,
+    settings.searchIndexTranscripts,
+  ) {
+    search.indexer.settings = settings.searchIndexSettings()
+  }
+  LaunchedEffect(pageIndex, search.focusRect) {
+    if (search.focusRect != null) {
+      delay(SEARCH_FOCUS_CLEAR_MS)
+      search.focusRect = null
     }
   }
   var isOpening by readerSession.isOpening
@@ -1625,6 +1664,8 @@ private fun ReaderHome(
             )
           }
         }
+        // 批次 7：保存成功的页面变更钩子 → 增量索引（非阻塞）。
+        search.indexSavedNotePage(activeProject.manifest.id, targetPage, draftToSave, result.pageRevision)
         true
       } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1669,6 +1710,8 @@ private fun ReaderHome(
         readerSession.setNoteDraft(freshPage)
         noteBaseRevision = PageNotes.revision(freshPage)
         readerSession.clearCurrentDraftRecovery()
+        // 批次 7：重载后按磁盘内容刷新当前页索引。
+        search.indexSavedNotePage(activeProject.manifest.id, pageIndex + 1, freshPage, PageNotes.revision(freshPage))
         noteStatus = context.getString(R.string.note_reloaded)
       } catch (error: Exception) {
         noteStatus = context.getString(R.string.note_reload_failed, error.message ?: "")
@@ -1718,6 +1761,10 @@ private fun ReaderHome(
         }
         ocrResult = result
         ocrResultPage = targetPage
+        // 批次 7：整页 OCR 结果入索引（无定位矩形）。
+        project?.manifest?.id?.let { documentId ->
+          search.indexOcrResult(documentId, targetPage + 1, result)
+        }
         showOcrResult = true
       } catch (timeout: TimeoutCancellationException) {
         ocrResult = OcrResult(
@@ -1769,6 +1816,8 @@ private fun ReaderHome(
             label = context.getString(R.string.page_tutor_region_label),
             reviewWarning = context.getString(R.string.ocr_review),
           )
+          // 批次 7：区域 OCR 结果连同选区矩形一起入索引（支持 rect 跳转）。
+          search.indexOcrResult(documentId, targetPage + 1, result, selection)
           readerOcrState = readerOcrState.showResult()
         }
       }
@@ -2079,6 +2128,10 @@ private fun ReaderHome(
       penStatus = context.getString(R.string.annotation_saving)
       try {
         commitInkConversion(pending, textItem, removeInk)
+        // 批次 7：确认后的转写文本入索引（带选区矩形，支持 rect 跳转）。
+        project?.manifest?.id?.let { documentId ->
+          search.indexTranscript(documentId, pending.pageIndex + 1, text, pending.region)
+        }
         penStatus = context.getString(R.string.ink_ocr_converted)
       } catch (cancelled: CancellationException) {
         throw cancelled
@@ -2185,6 +2238,10 @@ private fun ReaderHome(
           width = penStyle.width,
         ) ?: throw IllegalStateException("formula item geometry is invalid")
         commitInkConversion(pending, item, removeInk)
+        // 批次 7：公式识别 LaTeX 入索引（带选区矩形）。
+        project?.manifest?.id?.let { documentId ->
+          search.indexTranscript(documentId, pending.pageIndex + 1, latex, pending.region)
+        }
         penStatus = context.getString(R.string.formula_ocr_inserted)
         if (saveToLibrary) {
           val materialStore = ProjectMaterialStore(context.contentResolver, targetProject.sourceDirectoryUri)
@@ -2382,6 +2439,13 @@ private fun ReaderHome(
         notesMarkdown = edited.markdown
         readerSession.setNoteDraft(NotePage.pageAt(edited.markdown, preview.page))
         noteBaseRevision = edited.pageRevision
+        // 批次 7：AI 追加写入的页面入索引。
+        search.indexSavedNotePage(
+          activeProject.manifest.id,
+          preview.page,
+          NotePage.pageAt(edited.markdown, preview.page),
+          edited.pageRevision,
+        )
         noteStatus = recoveryCopyName?.let { name ->
           context.getString(R.string.page_tutor_saved_recovery_copy, name)
         } ?: context.getString(R.string.page_tutor_saved)
@@ -2534,6 +2598,13 @@ private fun ReaderHome(
             val freshPage = NotePage.pageAt(latest, targetPageIndex + 1)
             readerSession.setNoteDraft(freshPage)
             noteBaseRevision = PageNotes.revision(freshPage)
+            // 批次 7：代理整页写入后的重读钩子入索引。
+            search.indexSavedNotePage(
+              activeProject.manifest.id,
+              targetPageIndex + 1,
+              freshPage,
+              PageNotes.revision(freshPage),
+            )
             noteStatus = context.getString(R.string.note_reloaded)
           }
         }
@@ -2618,6 +2689,8 @@ private fun ReaderHome(
           val freshPage = NotePage.pageAt(latest, pageIndex + 1)
           readerSession.setNoteDraft(freshPage)
           noteBaseRevision = PageNotes.revision(freshPage)
+          // 批次 7：批量任务可能更新多页，整本重读入索引（revision 幂等）。
+          search.indexNotePages(activeProject.manifest.id, latest)
           noteStatus = context.getString(R.string.note_reloaded)
         }
       } catch (missing: MissingModelConfigException) {
@@ -2965,6 +3038,12 @@ private fun ReaderHome(
       notePassphraseUnlock?.let { it.fill('\u0000') }
       notePassphraseUnlock = if (loaded.noteSettings.hasPassphrase) verifiedPassphrase else null
       notesMarkdown = loaded.noteText
+      // 批次 7：打开项目后按设置增量索引笔记页与 Markdown 源页（PDF 页文本
+      // 在浏览/文本提取时机会式补齐，或经设置中的重建索引全量刷新）。
+      search.indexNotePages(loaded.project.manifest.id, loaded.noteText)
+      loaded.markdownSource?.let { source ->
+        search.indexSourcePages(loaded.project.manifest.id, source)
+      }
       penStore = loaded.penStore
       penPageStore = loaded.penPageStore
       penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, loaded.restoredPageIndex + 1)
@@ -3454,6 +3533,8 @@ private fun ReaderHome(
       readerSession.setNoteDraft(currentMarkdown)
       noteBaseRevision = PageNotes.revision(currentMarkdown)
       readerSession.refreshDraftRecoveryAfterSave(currentPage, currentMarkdown)
+      // 批次 7：导入覆盖多页，整本重读入索引（revision 幂等）。
+      search.indexNotePages(pending.context.projectId, result.markdown)
       noteStatus = result.recoveryCopyName?.let {
         context.getString(R.string.note_saved_recovery_copy, it)
       } ?: context.getString(R.string.reader_menu_import_success)
@@ -4091,6 +4172,16 @@ private fun ReaderHome(
     activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
     else -> 0
   }
+
+  // --- 搜索对话框与结果跳转（移植批次 7；逻辑在 ReaderSearchController）--------
+
+  /** 设置 → 重建索引：委托控制器按范围全量重读（无项目时返回 null 提示不可用）。 */
+  suspend fun rebuildSearchIndex(): String? {
+    val activeProject = project ?: return null
+    if (search.rebuilding) return null
+    return search.rebuild(activeProject, markdownSource, readerSession.renderer.value)
+  }
+
   val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting ||
     isImportingNotes || isExportingNotes || failedPenSave != null || isOcrRunning || isSelectablePageTextLoading ||
     readerInputLocked || isAgentRunning || isPageTutorRunning || isLoadingProjectAttachments ||
@@ -4740,6 +4831,12 @@ private fun ReaderHome(
                 readerSession.pageIndex.intValue != targetPage
               ) return@launchSessionTask
               selectablePageText = extracted
+              // 批次 7：提取到的 PDF 页文本机会式补索引。
+              if (extracted != null) {
+                project?.manifest?.id?.let { projectId ->
+                  search.indexSourcePageText(projectId, targetPage + 1, extracted.text)
+                }
+              }
               isSelectablePageTextLoading = false
               if (extracted == null) {
                 noteStatus = context.getString(R.string.pdf_text_selection_unavailable)
@@ -4921,6 +5018,11 @@ private fun ReaderHome(
           formulaOcrState = ReaderOcrState()
           readerOcrState = ReaderOcrState().enterSelection(pageIndex)
         },
+        actionCommand(
+          "search", R.string.reader_menu_search,
+          canReadDocument && !search.searching && !search.rebuilding && !readerInputLocked,
+          disabledReason = commandReason(requireProject = true),
+        ) { search.show = true },
         actionCommand(
           "zoom_out", R.string.zoom_out,
           canUsePdf && !readerInputLocked &&
@@ -5446,6 +5548,7 @@ private fun ReaderHome(
                 onPageSwipe = ::changePageFromSwipe,
                 selection = activeOcrSelectionOverlay(),
                 onSelectionChanged = ::routeOcrSelection,
+                focusRect = search.focusRect.takeIf { search.focusPage == pageIndex },
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -5583,6 +5686,7 @@ private fun ReaderHome(
                 onPageSwipe = ::changePageFromSwipe,
                 selection = activeOcrSelectionOverlay(),
                 onSelectionChanged = ::routeOcrSelection,
+                focusRect = search.focusRect.takeIf { search.focusPage == pageIndex },
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -5685,6 +5789,25 @@ private fun ReaderHome(
     }
   }
 
+  if (search.show && activeProject != null) {
+    SearchDialog(
+      query = search.query,
+      results = search.results,
+      isSearching = search.searching,
+      error = search.error,
+      onQueryChange = { search.query = it },
+      onSearch = {
+        val activeProject = project ?: return@SearchDialog
+        readerSession.launchSessionTask { search.search(activeProject.manifest.id) }
+      },
+      onJump = { hit ->
+        readerSession.launchSessionTask {
+          search.jump(hit, totalPages, viewportTransform.scale) { target -> changePage(target) }
+        }
+      },
+      onDismiss = { search.show = false },
+    )
+  }
   if (showPageJumpDialog && activeProject != null && totalPages > 0) {
     PageJumpDialog(
       input = pageJumpInput,
@@ -5839,6 +5962,7 @@ private fun ReaderHome(
         showAgentPromptSettings = true
       },
       onSave = settingsStore::save,
+      onRebuildIndex = { rebuildSearchIndex() },
     )
   }
   if (showNoteFontSizeDialog) {
@@ -7302,6 +7426,7 @@ internal fun PdfPageViewport(
   gesturesEnabled: Boolean = true,
   selection: NormalizedOcrRegion? = null,
   onSelectionChanged: (NormalizedOcrRegion?) -> Unit = {},
+  focusRect: NormalizedOcrRegion? = null,
   annotateTapEnabled: Boolean = false,
   onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
   annotationDrawTool: PdfAnnotationDrawTool? = null,
@@ -7565,6 +7690,7 @@ internal fun PdfPageViewport(
           },
         )
         Box(modifier = pageLayerModifier, contentAlignment = Alignment.Center) {
+          SearchFocusOverlay(focusRect)
           OcrSelectionOverlay(selection)
           PdfTextSelectionOverlay(pageText, textSelection)
         }

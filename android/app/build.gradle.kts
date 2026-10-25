@@ -55,6 +55,7 @@ android {
 dependencies {
   implementation(project(":core-project"))
   implementation(project(":core-reader"))
+  implementation(project(":core-search"))
   implementation(project(":feature-notes"))
   implementation(project(":feature-annotations"))
   implementation(project(":feature-pen"))
@@ -86,6 +87,9 @@ dependencies {
   implementation("io.noties:prism4j:2.0.0") {
     exclude(group = "org.jetbrains", module = "annotations-java5")
   }
+  implementation("androidx.room:room-runtime:2.6.1")
+  implementation("androidx.room:room-ktx:2.6.1")
+  kapt("androidx.room:room-compiler:2.6.1")
   kapt("io.noties:prism4j-bundler:2.0.0")
   testImplementation("junit:junit:4.13.2")
   debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.6")
