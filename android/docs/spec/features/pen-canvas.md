@@ -100,3 +100,39 @@ undo/redo, project access, or changes to the `annotations.json` contract.
 - Physical stylus acceptance is required for latency, pressure fidelity,
   secondary-button reporting, hardware eraser tool type, and device-specific
   palm rejection.
+
+## Rendering Pipeline
+
+- Committed strokes render once into a view-pixel raster (`PenStrokeCache`)
+  that is blitted each frame; the live overlay draws only the active gesture,
+  laser trail, shape preview, and selection. Rebuilds happen only when the
+  view size, page transform, or committed list changes, and skip strokes
+  outside the viewport. The blit is pixel-identical to direct rendering for
+  every supported stroke type, including one-coat-per-gesture highlighter.
+- Freehand ink with three or more points renders through midpoint quadratic
+  smoothing (`PenStrokeSmoother`): samples become control points, the chain
+  starts and ends on real samples, and per-segment width keeps the stored
+  pressure modulation. One-point dots and two-point lines are unchanged.
+  Stored `PenStroke.points` always keep raw samples.
+
+## Live Prediction
+
+- While a pen, ballpoint, or highlighter gesture is active and no shape
+  preview is showing, `PenPredictor` extrapolates a display-only tail from
+  the last nine input samples: turn angle buckets the extrapolation,
+  deceleration and pressure spikes damp it, and refresh rates above 90 Hz
+  lengthen it. The predicted point is mapped through the same
+  `toDocumentPoint` clamping as real input and is never written to storage;
+  the stored stroke always ends at the last real sample.
+- Prediction is display-only and best-effort: it must not change stroke
+  geometry, persistence, erasing, selection, or shape recognition.
+
+## Verification addendum
+
+- Ink pipeline (2026-10-25): the 61 `feature-pen` JVM tests (including the
+  7 `PenPredictorTest` and 4 `PenStrokeSmootherTest` cases) and all 21
+  `feature-pen` instrumentation tests pass on `Pixel_Tablet_API34` — the 14
+  existing native canvas checks, 5 new `PenStrokeCache` pixel-equivalence
+  checks, and 2 live-prediction tail checks. These pixel checks use
+  bitmap-backed software canvases and synthetic events; physical-device
+  latency and prediction quality still require real stylus testing.

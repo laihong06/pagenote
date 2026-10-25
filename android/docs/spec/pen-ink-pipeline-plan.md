@@ -1359,12 +1359,12 @@ Expected: `liveTailExtendsBeyondTheLastRealSample` FAILS (ink stops at the round
 
 - [ ] **Step 4: Wire the predictor into PenCanvasView**
 
-1. Add the field (density and refresh rate come from the display; both fall back safely):
+1. Add the field (density and refresh rate come from the display; the refresh-rate lookup is wrapped because `Context.getDisplay()` throws on non-visual contexts such as the instrumentation `targetContext`, and both paths fall back to 60 Hz):
 
 ```kotlin
   private val predictor = PenPredictor(
     densityPx = resources.displayMetrics.density,
-    refreshRateHz = context.display?.refreshRate ?: 60f,
+    refreshRateHz = runCatching { context.display?.refreshRate ?: 60f }.getOrDefault(60f),
   )
 ```
 
