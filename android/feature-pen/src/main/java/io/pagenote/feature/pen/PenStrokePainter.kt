@@ -94,6 +94,8 @@ object PenStrokePainter {
     }
   }
 
+  private val scratchPath = Path()
+
   fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float) {
     strokePaint.style = Paint.Style.STROKE
     strokePaint.alpha = 255
@@ -102,15 +104,19 @@ object PenStrokePainter {
       canvas.drawCircle(points[0].x, points[0].y, width * points[0].pressure / 2f, strokePaint)
       return
     }
-    for (index in 1 until points.size) {
-      val previous = points[index - 1]
-      val current = points[index]
+    if (points.size == 2) {
+      val previous = points[0]
+      val current = points[1]
       strokePaint.strokeWidth = width * (previous.pressure + current.pressure) / 2f
-      val path = Path().apply {
-        moveTo(previous.x, previous.y)
-        lineTo(current.x, current.y)
-      }
-      canvas.drawPath(path, strokePaint)
+      canvas.drawLine(previous.x, previous.y, current.x, current.y, strokePaint)
+      return
+    }
+    PenStrokeSmoother.segments(points, width).forEach { segment ->
+      strokePaint.strokeWidth = segment.width
+      scratchPath.rewind()
+      scratchPath.moveTo(segment.startX, segment.startY)
+      scratchPath.quadTo(segment.controlX, segment.controlY, segment.endX, segment.endY)
+      canvas.drawPath(scratchPath, strokePaint)
     }
   }
 
