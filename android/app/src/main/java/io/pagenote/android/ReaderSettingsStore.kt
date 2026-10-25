@@ -33,6 +33,8 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
         prepareAheadPages = preferences.intOrDefault(PREPARE_AHEAD_PAGES_KEY, defaults.prepareAheadPages),
         markdownTheme = preferences.stringOrDefault(MARKDOWN_THEME_KEY, defaults.markdownTheme),
         noteBackground = preferences.stringOrDefault(NOTE_BACKGROUND_KEY, defaults.noteBackground),
+        ocrLanguage = preferences.stringOrDefault(OCR_LANGUAGE_KEY, defaults.ocrLanguage),
+        latexOcrModel = preferences.stringOrDefault(LATEX_OCR_MODEL_KEY, defaults.latexOcrModel),
       ),
     )
   }
@@ -49,6 +51,8 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[PREPARE_AHEAD_PAGES_KEY] = settings.prepareAheadPages
       preferences[MARKDOWN_THEME_KEY] = settings.markdownTheme
       preferences[NOTE_BACKGROUND_KEY] = settings.noteBackground
+      preferences[OCR_LANGUAGE_KEY] = settings.ocrLanguage
+      preferences[LATEX_OCR_MODEL_KEY] = settings.latexOcrModel
     }
   }
 }
@@ -62,6 +66,8 @@ private val ALLOW_INK_OUTSIDE_PAGE_KEY = booleanPreferencesKey("allow_ink_outsid
 private val PREPARE_AHEAD_PAGES_KEY = intPreferencesKey("prepare_ahead_pages")
 private val MARKDOWN_THEME_KEY = stringPreferencesKey("markdown_theme")
 private val NOTE_BACKGROUND_KEY = stringPreferencesKey("note_background")
+private val OCR_LANGUAGE_KEY = stringPreferencesKey("ocr_language")
+private val LATEX_OCR_MODEL_KEY = stringPreferencesKey("latex_ocr_model")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {

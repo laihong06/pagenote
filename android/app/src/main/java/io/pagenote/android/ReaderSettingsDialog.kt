@@ -256,6 +256,44 @@ internal fun ReaderSettingsDialog(
         }
 
         Text(
+          stringResource(R.string.ocr_settings_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.ocr_language_summary),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        listOf(
+          "system" to R.string.language_system,
+          "zh" to R.string.ocr_language_chinese,
+          "en" to R.string.ocr_language_english,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.ocrLanguage == value,
+            enabled = !isSaving,
+            testTag = "ocr_language_$value",
+            onSelect = { draft = draft.copy(ocrLanguage = value) },
+          )
+        }
+        Text(
+          stringResource(R.string.latex_ocr_model_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        io.pagenote.feature.ocr.LatexModelCatalog.ENTRIES.forEach { entry ->
+          SettingsChoice(
+            label = "${entry.id} (${entry.license})",
+            selected = draft.latexOcrModel == entry.id,
+            enabled = !isSaving,
+            testTag = "latex_ocr_model_${entry.id}",
+            onSelect = { draft = draft.copy(latexOcrModel = entry.id) },
+          )
+        }
+
+        Text(
           stringResource(R.string.reader_split_ratio),
           modifier = Modifier.padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,

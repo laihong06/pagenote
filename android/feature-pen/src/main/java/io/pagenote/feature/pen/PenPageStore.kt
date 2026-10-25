@@ -126,6 +126,37 @@ class PenPageStore(
     return true
   }
 
+  /**
+   * External single-page replace (port batch 6): swaps the live page content for
+   * the pen/highlight subset of [rawItems] (same filtering as
+   * [loadAnnotationsMap]). Used after a full-page annotation write driven
+   * outside the pen model (e.g. handwriting-OCR conversion) so the pen canvas
+   * and the store stay in sync. The page's built-in undo/redo stacks are
+   * cleared: the external writer owns history for that edit, and stale pen-local
+   * snapshots could otherwise resurrect removed strokes.
+   */
+  fun reloadPage(side: PenSide, page: Int, rawItems: List<*>) {
+    require(page >= 1) { "bad page: $page" }
+    // Same freehand filter as the app-layer store loader: only pen/highlight
+    // items belong to the pen model; other types stay with the annotation page.
+    val strokes = rawItems
+      .mapNotNull { raw ->
+        val map = raw as? Map<*, *> ?: return@mapNotNull null
+        when (map["type"]) {
+          "pen", "highlight" -> parseAnnotationsItem(raw)
+          else -> null
+        }
+      }
+    PenValidation.validateItemCount(strokes.size, side, page)
+    strokes.forEach { PenValidation.validate(it, page) }
+    liveList(side, page).apply {
+      clear()
+      addAll(strokes)
+    }
+    undoStacks.remove(key(side, page))
+    redoStacks.remove(key(side, page))
+  }
+
   /** Serializes to the annotations.json shape with string page keys. */
   fun toAnnotationsMap(): Map<String, Map<String, List<Map<String, Any?>>>> {
     val out: MutableMap<String, Map<String, List<Map<String, Any?>>>> = linkedMapOf()

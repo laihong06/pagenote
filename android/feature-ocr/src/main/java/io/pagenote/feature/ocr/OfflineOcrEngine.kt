@@ -94,47 +94,49 @@ class OfflineOcrEngine private constructor(
   private suspend fun recognizeBitmap(bitmap: Bitmap): OcrResult = inference(bitmap)
 
   companion object {
-    private const val DETECTION_MODEL = "models/det/inference.onnx"
-    private const val RECOGNITION_MODEL = "models/rec/inference.onnx"
-    private const val RECOGNITION_CONFIG = "models/rec/inference.yml"
     private val openCvLock = Any()
     private var openCvInitialized = false
 
-    suspend fun create(context: Context): OfflineOcrEngine = withContext(Dispatchers.IO) {
-      val appContext = context.applicationContext
-      val isOpenCvReady = synchronized(openCvLock) {
-        if (!openCvInitialized) {
-          openCvInitialized = OpenCVUtils.init(appContext)
+    /**
+     * 装载 OCR 模型（移植批次 6 起模型由 [OcrModelCatalog] 解析：识别语言
+     * → 承载模型；缺省仍是随包 PP-OCR 轻量模型，既有调用点行为不变）。
+     */
+    suspend fun create(context: Context, model: OcrModelEntry = OcrModelCatalog.DEFAULT): OfflineOcrEngine =
+      withContext(Dispatchers.IO) {
+        val appContext = context.applicationContext
+        val isOpenCvReady = synchronized(openCvLock) {
+          if (!openCvInitialized) {
+            openCvInitialized = OpenCVUtils.init(appContext)
+          }
+          openCvInitialized
         }
-        openCvInitialized
-      }
-      if (!isOpenCvReady) {
-        throw OfflineOcrException("OpenCV could not be loaded; offline OCR is unavailable.")
-      }
+        if (!isOpenCvReady) {
+          throw OfflineOcrException("OpenCV could not be loaded; offline OCR is unavailable.")
+        }
 
-      try {
-        val pipeline = PaddleOCR.create(
-          context = appContext,
-          config = PaddleOCRConfig(recBatchSize = 1),
-          engineConfig = EngineConfig(numThreads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)),
-          detModelAssetPath = DETECTION_MODEL,
-          recModelAssetPath = RECOGNITION_MODEL,
-          recConfigAssetPath = RECOGNITION_CONFIG,
-        )
-        OfflineOcrEngine(
-          inference = { bitmap -> recognizeWithPipeline(pipeline, bitmap) },
-          releaseInference = pipeline::release,
-        )
-      } catch (error: OCRError.ModelNotFound) {
-        throw OfflineOcrException("A bundled OCR model is missing: ${error.message}", error)
-      } catch (error: OCRError.ConfigParseFailed) {
-        throw OfflineOcrException("The bundled OCR recognition dictionary is invalid: ${error.message}", error)
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (error: Throwable) {
-        throw OfflineOcrException("Offline OCR models could not be initialized: ${error.message}", error)
+        try {
+          val pipeline = PaddleOCR.create(
+            context = appContext,
+            config = PaddleOCRConfig(recBatchSize = 1),
+            engineConfig = EngineConfig(numThreads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)),
+            detModelAssetPath = model.detectionModelPath,
+            recModelAssetPath = model.recognitionModelPath,
+            recConfigAssetPath = model.recognitionConfigPath,
+          )
+          OfflineOcrEngine(
+            inference = { bitmap -> recognizeWithPipeline(pipeline, bitmap) },
+            releaseInference = pipeline::release,
+          )
+        } catch (error: OCRError.ModelNotFound) {
+          throw OfflineOcrException("A bundled OCR model is missing: ${error.message}", error)
+        } catch (error: OCRError.ConfigParseFailed) {
+          throw OfflineOcrException("The bundled OCR recognition dictionary is invalid: ${error.message}", error)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (error: Throwable) {
+          throw OfflineOcrException("Offline OCR models could not be initialized: ${error.message}", error)
+        }
       }
-    }
 
     private suspend fun recognizeWithPipeline(pipeline: PaddleOCR, bitmap: Bitmap): OcrResult {
       val output = pipeline.recognize(bitmap)

@@ -21,7 +21,7 @@
 | 格式：粗体/斜体/删除线/下划线 | `bold`、`italic`、`strikethrough`、`underline` | 已接线：Markdown 内联格式化 |
 | 插入：代码/公式/表格/链接/图片/粘贴 | `code`、`formula`、`table`、`link`、`image`、`paste_image`、`paste_markdown` | 已接线：Markdown 插入命令 |
 | 阅读：上一页/下一页/OCR/缩放/适合窗口 | `previous_page`、`next_page`、`ocr`、`region_ocr`、`zoom_out`、`zoom_in`、`fit_width`、`fit_page` | 已接线：页跳转、OCR 与视口命令 |
-| 手写批注：选择/笔/荧光笔/橡皮/形状/颜色/宽度/撤销/复制/粘贴/图片/删除 | `select_tool`、`pen`、`highlighter`、`eraser`、`line`、`arrow`、`shape`、`ink_text`、`ink_rich_text`、`ink_color`、`ink_width`、`annotate_mode`、`pen_undo`、`pen_redo`、`copy_ink`、`paste_ink`、`insert_ink_image`、`clear_page`、`delete_ink` | 已接线：笔迹与原生批注命令（`ink_rich_text` 为移植批次4新增的画布富文本编辑窗入口） |
+| 手写批注：选择/笔/荧光笔/橡皮/形状/颜色/宽度/撤销/复制/粘贴/图片/删除 | `select_tool`、`pen`、`highlighter`、`eraser`、`line`、`arrow`、`shape`、`ink_text`、`ink_rich_text`、`ink_ocr`、`formula_ocr`、`ink_color`、`ink_width`、`annotate_mode`、`pen_undo`、`pen_redo`、`copy_ink`、`paste_ink`、`insert_ink_image`、`clear_page`、`delete_ink` | 已接线：笔迹与原生批注命令（`ink_rich_text` 为移植批次4新增的画布富文本编辑窗入口；`ink_ocr`/`formula_ocr` 为批次6新增的手写转文字与公式识别入口） |
 | Word 编辑：本地打开/编辑 | `office_edit` | 未接线：`pendingCommand()` 占位，待 task 36 本地 Office 引擎 |
 | Word 编辑：选中文字 → AI 批注 | `selection_to_annotation` | 已接线：笔记选区审阅入口 |
 | Word 编辑：保存并返回 | `save_return` | 未接线：`pendingCommand()` 占位，待 task 36 保存事务 |

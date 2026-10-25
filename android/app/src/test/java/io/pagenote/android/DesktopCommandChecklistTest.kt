@@ -61,6 +61,8 @@ class DesktopCommandChecklistTest {
     "shape",
     "ink_text",
     "ink_rich_text",
+    "ink_ocr",
+    "formula_ocr",
     "ink_color",
     "ink_width",
     "annotate_mode",

@@ -134,13 +134,19 @@ import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PdfTextSelectionMapper
 import io.pagenote.feature.annotations.AnnotationTextStyle
+import io.pagenote.feature.annotations.CanvasMaterialCodec
 import io.pagenote.feature.annotations.ReviewCreate
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.PageNoteEditor
 import io.pagenote.feature.notes.NoteDiagnostic
 import io.pagenote.feature.notes.NoteRichContent
+import io.pagenote.feature.ocr.LatexModelCatalog
+import io.pagenote.feature.ocr.LatexOcrEngine
+import io.pagenote.feature.ocr.LatexOcrResult
 import io.pagenote.feature.ocr.OfflineOcrEngine
+import io.pagenote.feature.ocr.OfflineOcrException
+import io.pagenote.feature.ocr.OcrModelCatalog
 import io.pagenote.feature.ocr.OcrPolicy
 import io.pagenote.feature.ocr.OcrResult
 import io.pagenote.feature.ocr.OcrResultMapper
@@ -499,6 +505,26 @@ private fun ReaderHome(
   var isSelectablePageTextLoading by remember(renderer, pageIndex) { mutableStateOf(false) }
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
   var regionOcrContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
+  // 手写 OCR / 公式识别（移植批次 6）：复用区域 OCR 的选区状态机。
+  var inkOcrState by remember { mutableStateOf(ReaderOcrState()) }
+  var inkOcrPending by remember { mutableStateOf<PendingInkConversion?>(null) }
+  var formulaOcrState by remember { mutableStateOf(ReaderOcrState()) }
+  var formulaOcrPending by remember { mutableStateOf<PendingInkConversion?>(null) }
+  var latexOcrEngine by remember { mutableStateOf<LatexOcrEngine?>(null) }
+  var ocrEngineModelId by remember { mutableStateOf<String?>(null) }
+
+  /** 按设置解析文本 OCR 引擎（批次 6：识别语言 → 承载模型；模型切换时重建）。 */
+  suspend fun ensureOcrEngine(): OfflineOcrEngine {
+    val model = OcrModelCatalog.resolveForLanguage(settings.ocrLanguage)
+    if (ocrEngine != null && ocrEngineModelId == model.id) return ocrEngine!!
+    ocrEngine?.let { old ->
+      CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { old.close() }
+    }
+    return OfflineOcrEngine.create(context, model).also {
+      ocrEngine = it
+      ocrEngineModelId = model.id
+    }
+  }
   var isOpening by readerSession.isOpening
   var isImageImporting by remember { mutableStateOf(false) }
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
@@ -723,7 +749,7 @@ private fun ReaderHome(
     val rendered = withContext(Dispatchers.IO) { activeRenderer.renderWithMetadata(pageIndex) }
     val bitmap = rendered.bitmap
     try {
-      val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+      val engine = ensureOcrEngine()
       return RegionOcrProcessor(preparedOcrCache).recognize(
         srcDirectoryUri = sourceUri,
         documentId = documentId,
@@ -1683,7 +1709,7 @@ private fun ReaderHome(
       isOcrRunning = true
       try {
         val result = withTimeout(OcrPolicy.TIMEOUT_MS) {
-          val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+          val engine = ensureOcrEngine()
           withIoOwnedResource(
             render = { activeRenderer.render(targetPage) },
             dispose = { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() },
@@ -1747,7 +1773,7 @@ private fun ReaderHome(
         }
       }
       try {
-        val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+        val engine = ensureOcrEngine()
         val renderedPage = withContext(Dispatchers.IO) {
           activeRenderer.renderWithMetadata(targetPage).also { input = it.bitmap }
         }
@@ -1803,6 +1829,386 @@ private fun ReaderHome(
         ))
       } finally {
         input?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
+  // --- 手写 OCR 与公式识别（移植批次 6）-----------------------------------
+
+  /** 当前页宽高比（pageHeightPx/pageWidthPx）；pageBitmap 为渲染页位图。 */
+  fun currentPageAspect(): Double? {
+    val bitmap = pageBitmap
+    if (bitmap != null && !bitmap.isRecycled && bitmap.width > 0) {
+      return bitmap.height.toDouble() / bitmap.width
+    }
+    val bounds = viewportBounds
+    if (bounds != null && bounds.pageWidthPx > 0f && bounds.pageHeightPx > 0f) {
+      return (bounds.pageHeightPx / bounds.pageWidthPx).toDouble()
+    }
+    return null
+  }
+
+  /** 选区笔迹的删除指纹与条数（内存笔迹模型，含尚未落盘的笔画）。 */
+  fun inkSelectionFingerprints(
+    selection: NormalizedOcrRegion,
+    aspect: Double,
+  ): Pair<Set<String>, Int>? {
+    val indexes = InkOcrSelection.selectStrokeIndexes(penStrokes, selection, aspect)
+    if (indexes.isEmpty()) return null
+    val fingerprints = indexes.mapTo(mutableSetOf()) { index ->
+      canonicalItemKey(penStrokes[index].toAnnotationsItem())
+    }
+    return fingerprints to indexes.size
+  }
+
+  fun recognizeInkSelection(request: ReaderOcrState) {
+    if (isMarkdownReading) return
+    if (renderer == null) return
+    val targetPage = request.pageIndex ?: return
+    val selection = request.selection ?: return
+    if (!penWritable) {
+      penStatus = context.getString(R.string.pen_read_only)
+      inkOcrState = request.cancel()
+      return
+    }
+    val aspect = currentPageAspect() ?: run {
+      penStatus = context.getString(R.string.page_render_failed)
+      return
+    }
+    val selectionInk = inkSelectionFingerprints(selection, aspect)
+    if (selectionInk == null) {
+      penStatus = context.getString(R.string.ink_ocr_no_ink)
+      return
+    }
+    val (fingerprints, strokeCount) = selectionInk
+    scope.launch {
+      isOcrRunning = true
+      var bitmap: Bitmap? = null
+      try {
+        bitmap = withContext(Dispatchers.Default) {
+          InkBitmapComposer.render(penStrokes, selection, aspect)
+        }
+        if (bitmap == null) {
+          penStatus = context.getString(R.string.ink_ocr_no_ink)
+          inkOcrState = request.cancel()
+          return@launch
+        }
+        val engine = ensureOcrEngine()
+        val result = withTimeout(OcrPolicy.TIMEOUT_MS) {
+          withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+        }
+        if (project != null && pageIndex == targetPage && inkOcrState.mode == ReaderOcrMode.RECOGNIZING) {
+          inkOcrPending = PendingInkConversion(
+            pageIndex = targetPage,
+            region = selection,
+            aspect = aspect,
+            fingerprints = fingerprints,
+            strokeCount = strokeCount,
+            ocrResult = result,
+          )
+          inkOcrState = request.showResult()
+        }
+      } catch (timeout: TimeoutCancellationException) {
+        penStatus = context.getString(R.string.ink_ocr_failed, context.getString(R.string.ocr_timeout))
+        inkOcrState = request.cancel()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        penStatus = context.getString(
+          R.string.ink_ocr_failed,
+          error.message ?: context.getString(R.string.offline_ocr_failed),
+        )
+        inkOcrState = request.cancel()
+      } finally {
+        isOcrRunning = false
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
+  fun recognizeFormulaSelection(request: ReaderOcrState) {
+    if (isMarkdownReading) return
+    if (renderer == null) return
+    val targetPage = request.pageIndex ?: return
+    val selection = request.selection ?: return
+    val aspect = currentPageAspect() ?: run {
+      penStatus = context.getString(R.string.page_render_failed)
+      return
+    }
+    val selectionInk = inkSelectionFingerprints(selection, aspect)
+    if (selectionInk == null) {
+      penStatus = context.getString(R.string.ink_ocr_no_ink)
+      return
+    }
+    val (fingerprints, strokeCount) = selectionInk
+    val model = LatexModelCatalog.byId(settings.latexOcrModel) ?: LatexModelCatalog.DEFAULT
+    scope.launch {
+      isOcrRunning = true
+      var bitmap: Bitmap? = null
+      try {
+        bitmap = withContext(Dispatchers.Default) {
+          InkBitmapComposer.render(penStrokes, selection, aspect)
+        }
+        if (bitmap == null) {
+          penStatus = context.getString(R.string.ink_ocr_no_ink)
+          formulaOcrState = request.cancel()
+          return@launch
+        }
+        val result = try {
+          val engine = latexOcrEngine ?: LatexOcrEngine.create(context, model).also { latexOcrEngine = it }
+          withTimeout(OcrPolicy.TIMEOUT_MS) {
+            withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+          }
+        } catch (missing: OfflineOcrException) {
+          LatexOcrResult.failed(model.id, context.getString(R.string.formula_ocr_model_unavailable))
+        }
+        if (project != null && pageIndex == targetPage && formulaOcrState.mode == ReaderOcrMode.RECOGNIZING) {
+          formulaOcrPending = PendingInkConversion(
+            pageIndex = targetPage,
+            region = selection,
+            aspect = aspect,
+            fingerprints = fingerprints,
+            strokeCount = strokeCount,
+            latexResult = result,
+          )
+          formulaOcrState = request.showResult()
+        }
+      } catch (timeout: TimeoutCancellationException) {
+        formulaOcrPending = PendingInkConversion(
+          pageIndex = targetPage,
+          region = selection,
+          aspect = aspect,
+          fingerprints = fingerprints,
+          strokeCount = strokeCount,
+          latexResult = LatexOcrResult.failed(model.id, context.getString(R.string.ocr_timeout)),
+        )
+        formulaOcrState = request.showResult()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        formulaOcrPending = PendingInkConversion(
+          pageIndex = targetPage,
+          region = selection,
+          aspect = aspect,
+          fingerprints = fingerprints,
+          strokeCount = strokeCount,
+          latexResult = LatexOcrResult.failed(
+            model.id,
+            context.getString(R.string.formula_ocr_failed, error.message ?: ""),
+          ),
+        )
+        formulaOcrState = request.showResult()
+      } finally {
+        isOcrRunning = false
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
+  /**
+   * OcrConvert 落盘（手写文本与公式素材共用）：锁内读最新页 → 指纹删墨迹
+   * （可选）+ 追加产物 → 整页写回 → 记录快照历史 → 同步内存模型（批注
+   * 页 + 笔迹页）。失败回滚 UI 状态；成功返回删除条数供状态展示。
+   */
+  suspend fun commitInkConversion(
+    pending: PendingInkConversion,
+    appendItem: JsonObject,
+    removeInk: Boolean,
+  ): Int {
+    val targetProject = project ?: throw IllegalStateException("project is gone")
+    val projectId = targetProject.manifest.id
+    val targetPage = pending.pageIndex + 1
+    val store = ProjectAnnotationStore(
+      context.contentResolver,
+      targetProject.sourceDirectoryUri,
+      targetProject.annotationsUri,
+    )
+    var removedCount = 0
+    var after: JsonArray? = null
+    penSaveMutex.withLock {
+      if (readerSession.project.value?.manifest?.id != projectId) {
+        throw IllegalStateException(context.getString(R.string.annotation_project_changed))
+      }
+      val latest = withContext(Dispatchers.IO) { store.readPage("document", targetPage) }
+      val (next, removed) = if (removeInk) {
+        InkOcrConversion.convertPage(latest, pending.fingerprints, appendItem)
+      } else {
+        JsonArray(latest + appendItem) to 0
+      }
+      removedCount = removed
+      withContext(Dispatchers.IO) { store.writePage("document", targetPage, next) }
+      annotationEditHistory.record(projectId, targetPage, latest, next)
+      lastEditWasAnnotation[targetPage] = true
+      after = next
+    }
+    val committed = after!!
+    penPageStore.reloadPage(PenSide.DOCUMENT, targetPage, annotationPageToRawList(committed))
+    if (readerSession.project.value?.manifest?.id == projectId && pageIndex + 1 == targetPage) {
+      annotationPageItems = committed
+      annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(committed)
+      selectedPenIndex = null
+      selectedAnnotationIndex = committed.lastIndex
+      annotationOverlayReload++
+      penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    }
+    return removedCount
+  }
+
+  fun confirmInkOcrConvert(text: String, removeInk: Boolean) {
+    val pending = inkOcrPending
+    inkOcrPending = null
+    inkOcrState = ReaderOcrState()
+    if (pending == null) return
+    if (!penWritable) {
+      penStatus = context.getString(R.string.pen_read_only)
+      return
+    }
+    val textItem = InkOcrConversion.buildTextItem(
+      region = pending.region,
+      aspect = pending.aspect,
+      text = text,
+      color = penStyle.color,
+      width = penStyle.width,
+    )
+    if (textItem == null) {
+      penStatus = context.getString(R.string.ink_ocr_failed, "empty transcription")
+      return
+    }
+    scope.launch {
+      isAnnotationSaving = true
+      penStatus = context.getString(R.string.annotation_saving)
+      try {
+        commitInkConversion(pending, textItem, removeInk)
+        penStatus = context.getString(R.string.ink_ocr_converted)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
+      } finally {
+        isAnnotationSaving = false
+      }
+    }
+  }
+
+  fun insertFormulaToNote(latex: String) {
+    val editor = markdownEditor
+    if (editor == null || !editor.isEnabled || !noteWritable) {
+      penStatus = context.getString(R.string.formula_ocr_note_editor_missing)
+      return
+    }
+    val edit = MarkdownLatexBlockInsertion.createEdit(
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
+      latex = latex,
+    )
+    if (edit == null) {
+      penStatus = context.getString(R.string.formula_ocr_failed, "empty latex")
+      return
+    }
+    editor.requestFocus()
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.selectionStart, edit.selectionEnd)
+    formulaOcrPending = null
+    formulaOcrState = ReaderOcrState()
+  }
+
+  /** 渲染位图 → 项目附件（缓存临时 PNG → 既有附件导入通道）。 */
+  suspend fun writeFormulaAttachment(bitmap: Bitmap, targetProject: OpenedProject): Triple<String, Int, Int>? {
+    val width = bitmap.width
+    val height = bitmap.height
+    val temp = withContext(Dispatchers.IO) {
+      java.io.File.createTempFile("pagenote-formula-", ".png", context.cacheDir).also { file ->
+        file.outputStream().use { output ->
+          check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "formula bitmap encode failed" }
+        }
+      }
+    }
+    try {
+      val imported = withContext(Dispatchers.IO) {
+        ProjectAttachmentStore(
+          context.contentResolver,
+          context.cacheDir,
+          targetProject.sourceDirectoryUri,
+        ).import(android.net.Uri.fromFile(temp), fallbackDisplayName = "formula.png")
+      }
+      return Triple(imported.assetName, width, height)
+    } catch (error: Exception) {
+      if (error is CancellationException) throw error
+      return null
+    } finally {
+      withContext(NonCancellable + Dispatchers.IO) { temp.delete() }
+    }
+  }
+
+  fun insertFormulaToCanvas(latex: String, removeInk: Boolean, saveToLibrary: Boolean) {
+    val pending = formulaOcrPending
+    if (pending == null) {
+      formulaOcrState = ReaderOcrState()
+      return
+    }
+    if (!penWritable) {
+      penStatus = context.getString(R.string.pen_read_only)
+      return
+    }
+    val targetProject = project ?: return
+    val density = context.resources.displayMetrics.density
+    val latexColor = penStyle.color
+    scope.launch {
+      isAnnotationSaving = true
+      penStatus = context.getString(R.string.annotation_saving)
+      var bitmap: Bitmap? = null
+      try {
+        bitmap = withContext(Dispatchers.Default) {
+          FormulaMaterialRenderer().render(
+            latexLines = listOf(latex),
+            textSizePx = 22f * density,
+            textColor = android.graphics.Color.parseColor(latexColor),
+          )
+        } ?: throw IllegalStateException(context.getString(R.string.formula_ocr_preview_failed))
+        val attachment = writeFormulaAttachment(bitmap, targetProject)
+        bitmap.recycle()
+        bitmap = null
+        if (attachment == null) {
+          throw IllegalStateException(context.getString(R.string.reader_menu_pdf_image_import_failed))
+        }
+        val (assetName, pixelWidth, pixelHeight) = attachment
+        val rect = InkOcrSelection.documentRect(pending.region, pending.aspect)
+        val item = FormulaMaterialInsertion.createItem(
+          assetName = assetName,
+          pixelWidth = pixelWidth,
+          pixelHeight = pixelHeight,
+          anchorX = rect.left,
+          anchorY = rect.top,
+          latex = latex,
+          color = latexColor,
+          width = penStyle.width,
+        ) ?: throw IllegalStateException("formula item geometry is invalid")
+        commitInkConversion(pending, item, removeInk)
+        penStatus = context.getString(R.string.formula_ocr_inserted)
+        if (saveToLibrary) {
+          val materialStore = ProjectMaterialStore(context.contentResolver, targetProject.sourceDirectoryUri)
+          val entry = FormulaMaterialInsertion.materialEntry(item, System.currentTimeMillis(), "公式")
+          if (entry != null) {
+            try {
+              val updated = CanvasMaterialCodec.upsert(materialStore.read(), entry)
+              withContext(Dispatchers.IO) { materialStore.write(updated) }
+              penStatus = context.getString(R.string.formula_ocr_material_saved)
+            } catch (error: Exception) {
+              if (error is CancellationException) throw error
+              penStatus = context.getString(R.string.formula_ocr_material_save_failed, error.message ?: "")
+            }
+          }
+        }
+        formulaOcrPending = null
+        formulaOcrState = ReaderOcrState()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
+      } finally {
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
+        isAnnotationSaving = false
       }
     }
   }
@@ -2600,6 +3006,10 @@ private fun ReaderHome(
       regionOcrContext = null
       pageTutorRegionContext = null
       readerOcrState = ReaderOcrState()
+      inkOcrState = ReaderOcrState()
+      inkOcrPending = null
+      formulaOcrState = ReaderOcrState()
+      formulaOcrPending = null
       readerSession.viewportBookmark.value = loaded.checkpoint?.viewportBookmark ?: PdfViewportBookmark.DEFAULT
       penTool = loaded.checkpoint?.resolvedPenTool() ?: PenCanvasTool.PEN
       readerSession.rememberOpenedProject(target)
@@ -3442,6 +3852,14 @@ private fun ReaderHome(
       }
     }
   }
+  val latexEngineToClose = latexOcrEngine
+  DisposableEffect(latexEngineToClose) {
+    onDispose {
+      latexEngineToClose?.let { engine ->
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { engine.close() }
+      }
+    }
+  }
 
   LaunchedEffect(readerSession) {
     val checkpoint = readerSession.claimRestorationCheckpoint() ?: return@LaunchedEffect
@@ -3540,7 +3958,45 @@ private fun ReaderHome(
       },
     ).join()
   }
-  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode
+  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode ||
+    inkOcrState.inputLocked || formulaOcrState.inputLocked
+
+  /**
+   * 墨迹选区路由（批次 6）：区域 OCR、手写 OCR、公式识别三种模式共用
+   * PdfPageViewport 的单一选区通道，按当前活跃模式分发；任一模式处于
+   * SELECTING 时开启选区手势。互斥：进入一种模式时清掉其它两种。
+   */
+  fun enterInkOcrSelection() {
+    readerOcrState = ReaderOcrState()
+    formulaOcrState = ReaderOcrState()
+    inkOcrPending = null
+    inkOcrState = ReaderOcrState().enterSelection(pageIndex)
+  }
+
+  fun enterFormulaOcrSelection() {
+    readerOcrState = ReaderOcrState()
+    inkOcrState = ReaderOcrState()
+    formulaOcrPending = null
+    formulaOcrState = ReaderOcrState().enterSelection(pageIndex)
+  }
+
+  fun routeOcrSelection(region: NormalizedOcrRegion?) {
+    when {
+      readerOcrState.mode == ReaderOcrMode.SELECTING -> readerOcrState = readerOcrState.withSelection(region)
+      inkOcrState.mode == ReaderOcrMode.SELECTING -> inkOcrState = inkOcrState.withSelection(region)
+      formulaOcrState.mode == ReaderOcrMode.SELECTING -> formulaOcrState = formulaOcrState.withSelection(region)
+    }
+  }
+
+  fun activeOcrSelectionOverlay(): NormalizedOcrRegion? = when {
+    readerOcrState.mode != ReaderOcrMode.IDLE && readerOcrState.pageIndex == pageIndex -> readerOcrState.selection
+    inkOcrState.mode != ReaderOcrMode.IDLE && inkOcrState.pageIndex == pageIndex -> inkOcrState.selection
+    formulaOcrState.mode != ReaderOcrMode.IDLE && formulaOcrState.pageIndex == pageIndex -> formulaOcrState.selection
+    else -> null
+  }
+
+  val anyOcrSelecting = readerOcrState.mode == ReaderOcrMode.SELECTING ||
+    inkOcrState.mode == ReaderOcrMode.SELECTING || formulaOcrState.mode == ReaderOcrMode.SELECTING
   LaunchedEffect(
     activeProject?.manifest?.id,
     activeProject?.sourceDirectoryUri,
@@ -4461,6 +4917,8 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) {
           selectAnnotationDrawTool(null)
+          inkOcrState = ReaderOcrState()
+          formulaOcrState = ReaderOcrState()
           readerOcrState = ReaderOcrState().enterSelection(pageIndex)
         },
         actionCommand(
@@ -4556,6 +5014,14 @@ private fun ReaderHome(
           }
           showRichHtmlEditor = true
         },
+        actionCommand(
+          "ink_ocr", R.string.reader_menu_ink_ocr, canSelectPen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { enterInkOcrSelection() },
+        actionCommand(
+          "formula_ocr", R.string.reader_menu_formula_ocr, canSelectPen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { enterFormulaOcrSelection() },
         actionCommand(
           "ink_color", R.string.reader_menu_color, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
@@ -4855,6 +5321,40 @@ private fun ReaderHome(
           )
         }
       }
+      if (inkOcrState.mode != ReaderOcrMode.IDLE) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          InkSelectionActions(
+            state = inkOcrState,
+            hint = stringResource(R.string.ink_ocr_selection_hint),
+            recognizeLabel = stringResource(R.string.reader_menu_ink_ocr),
+            recognizeTag = "ink_ocr_recognize",
+            enabled = !isMarkdownReading && !isOcrRunning && !isRendering && penWritable,
+            onStateChange = { inkOcrState = it },
+            onRecognize = ::recognizeInkSelection,
+          )
+        }
+      }
+      if (formulaOcrState.mode != ReaderOcrMode.IDLE) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          InkSelectionActions(
+            state = formulaOcrState,
+            hint = stringResource(R.string.formula_ocr_selection_hint),
+            recognizeLabel = stringResource(R.string.reader_menu_formula_ocr),
+            recognizeTag = "formula_ocr_recognize",
+            enabled = !isMarkdownReading && !isOcrRunning && !isRendering,
+            onStateChange = { formulaOcrState = it },
+            onRecognize = ::recognizeFormulaSelection,
+          )
+        }
+      }
       penStatus?.let { status ->
         Row(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
@@ -4932,7 +5432,7 @@ private fun ReaderHome(
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
-                selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+                selectionEnabled = anyOcrSelecting,
                 textSelectionEnabled = pdfTextSelectionMode,
                 pageText = selectablePageText,
                 textSelection = pdfTextSelection,
@@ -4944,8 +5444,8 @@ private fun ReaderHome(
                   penTool != PenCanvasTool.SELECT && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onPageSwipe = ::changePageFromSwipe,
-                selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
-                onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+                selection = activeOcrSelectionOverlay(),
+                onSelectionChanged = ::routeOcrSelection,
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -5069,7 +5569,7 @@ private fun ReaderHome(
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
-                selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+                selectionEnabled = anyOcrSelecting,
                 textSelectionEnabled = pdfTextSelectionMode,
                 pageText = selectablePageText,
                 textSelection = pdfTextSelection,
@@ -5081,8 +5581,8 @@ private fun ReaderHome(
                   penTool != PenCanvasTool.SELECT && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onPageSwipe = ::changePageFromSwipe,
-                selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
-                onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+                selection = activeOcrSelectionOverlay(),
+                onSelectionChanged = ::routeOcrSelection,
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -5287,6 +5787,41 @@ private fun ReaderHome(
             readerOcrState = readerOcrState.dismissResult()
             regionOcrContext = null
           }
+        },
+      )
+    }
+  }
+  if (inkOcrState.mode == ReaderOcrMode.RESULT) {
+    val pending = inkOcrPending
+    val result = pending?.ocrResult
+    if (pending == null || result == null) {
+      inkOcrState = ReaderOcrState()
+    } else {
+      InkOcrTranscribeDialog(
+        page = pending.pageIndex + 1,
+        result = result,
+        onConfirm = ::confirmInkOcrConvert,
+        onDismiss = {
+          inkOcrPending = null
+          inkOcrState = ReaderOcrState()
+        },
+      )
+    }
+  }
+  if (formulaOcrState.mode == ReaderOcrMode.RESULT) {
+    val pending = formulaOcrPending
+    val result = pending?.latexResult
+    if (pending == null || result == null) {
+      formulaOcrState = ReaderOcrState()
+    } else {
+      FormulaOcrDialog(
+        result = result,
+        onInsertNote = ::insertFormulaToNote,
+        onInsertCanvas = ::insertFormulaToCanvas,
+        canInsertCanvas = penWritable,
+        onDismiss = {
+          formulaOcrPending = null
+          formulaOcrState = ReaderOcrState()
         },
       )
     }

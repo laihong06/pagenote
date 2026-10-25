@@ -1,5 +1,8 @@
 package io.pagenote.android
 
+import io.pagenote.feature.ocr.LatexModelCatalog
+import io.pagenote.feature.ocr.OcrLanguage
+import io.pagenote.feature.ocr.OcrModelCatalog
 import io.pagenote.feature.pen.NoteBackground
 import kotlin.math.roundToInt
 
@@ -13,6 +16,10 @@ data class ReaderSettings(
   val prepareAheadPages: Int = 3,
   val markdownTheme: String = "classic",
   val noteBackground: String = NoteBackground.PLAIN.key,
+  /** 手写 OCR 识别语言（移植批次 6；由 [OcrModelCatalog] 解析承载模型）。 */
+  val ocrLanguage: String = "system",
+  /** 公式识别模型 id（移植批次 6；目录见 [LatexModelCatalog]）。 */
+  val latexOcrModel: String = LatexModelCatalog.DEFAULT_ID,
 )
 
 object ReaderSettingsPolicy {
@@ -32,6 +39,8 @@ object ReaderSettingsPolicy {
       noteFontSize = settings.noteFontSize.takeIf(NOTE_FONT_SIZES::contains) ?: defaults.noteFontSize,
       prepareAheadPages = settings.prepareAheadPages.takeIf { it in 0..10 } ?: defaults.prepareAheadPages,
       noteBackground = settings.noteBackground.takeIf(NOTE_BACKGROUNDS::contains) ?: defaults.noteBackground,
+      ocrLanguage = settings.ocrLanguage.takeIf(OcrLanguage.SETTING_KEYS::contains) ?: defaults.ocrLanguage,
+      latexOcrModel = settings.latexOcrModel.takeIf(LatexModelCatalog::isValidId) ?: defaults.latexOcrModel,
     )
   }
 
@@ -43,6 +52,8 @@ object ReaderSettingsPolicy {
     require(NOTE_FONT_SIZES.contains(settings.noteFontSize)) { "bad note font size" }
     require(settings.prepareAheadPages in 0..10) { "bad preparation window" }
     require(NOTE_BACKGROUNDS.contains(settings.noteBackground)) { "bad note background" }
+    require(OcrLanguage.SETTING_KEYS.contains(settings.ocrLanguage)) { "bad OCR language" }
+    require(LatexModelCatalog.isValidId(settings.latexOcrModel)) { "bad LaTeX OCR model" }
   }
 
   fun isTabletLandscape(widthDp: Int, heightDp: Int, orientationLandscape: Boolean): Boolean {
