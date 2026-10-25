@@ -128,6 +128,140 @@ class PenCanvasGeometryTest {
     assertEquals(1.6f, geometry.strokeWidthPx(line), 0.01f)
   }
 
+  @Test
+  fun zeroRotationKeepsAxisProjectionsAndPairedMappingAligned() {
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        translationX = 30f,
+        translationY = -40f,
+        rotationDegrees = 0f,
+      ),
+    )
+    val point = PenPoint(500f, 750f, 1f)
+
+    val (viewX, viewY) = geometry.toViewPoint(point)
+    assertEquals(geometry.toViewX(point), viewX, 0.001f)
+    assertEquals(geometry.toViewY(point), viewY, 0.001f)
+    assertEquals(point.copy(pressure = 0.5f), geometry.toDocumentPoint(viewX, viewY, 0.5f))
+  }
+
+  @Test
+  fun quarterTurnRotatesCornersAroundThePageCenter() {
+    // pageOrigin = (-100, -200), page pixel size 800x1200, center (300, 400).
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        rotationDegrees = 90f,
+      ),
+    )
+
+    // Document (0,0) sits at px (-100,-200); a 90° clockwise turn moves it
+    // to the top-right corner of the rotated page.
+    val (x, y) = geometry.toViewPoint(PenPoint(0f, 0f, 1f))
+    assertEquals(900f, x, 0.01f)
+    assertEquals(0f, y, 0.01f)
+    assertEquals(PenPoint(0f, 0f, 1f), geometry.toDocumentPoint(x, y, 1f))
+
+    // The page center never moves.
+    val (centerX, centerY) = geometry.toViewPoint(PenPoint(500f, 750f, 1f))
+    assertEquals(300f, centerX, 0.01f)
+    assertEquals(400f, centerY, 0.01f)
+    assertEquals(0f, geometry.rotationDegrees % 90f, 0.001f)
+  }
+
+  @Test
+  fun halfTurnMirrorsPointsThroughThePageCenter() {
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        rotationDegrees = 180f,
+      ),
+    )
+
+    // Document (0,0) (px -100,-200) mirrors to px (700, 1000).
+    val (x, y) = geometry.toViewPoint(PenPoint(0f, 0f, 1f))
+    assertEquals(700f, x, 0.01f)
+    assertEquals(1000f, y, 0.01f)
+    assertEquals(PenPoint(0f, 0f, 1f), geometry.toDocumentPoint(x, y, 1f))
+  }
+
+  @Test
+  fun arbitraryAnglesRoundTripAndNegativeAnglesNormalize() {
+    listOf(37f, 200f, -90f, 450f).forEach { raw ->
+      val geometry = PenCanvasGeometry(
+        widthPx = 600f,
+        heightPx = 800f,
+        pageTransform = PenCanvasPageTransform(
+          pageWidthPx = 400f,
+          pageHeightPx = 600f,
+          scale = 2f,
+          translationX = 30f,
+          translationY = -40f,
+          rotationDegrees = raw,
+        ),
+      )
+      assertEquals(((raw % 360f) + 360f) % 360f, geometry.rotationDegrees, 0.001f)
+
+      val point = PenPoint(500f, 750f, 0.6f)
+      val (viewX, viewY) = geometry.toViewPoint(point)
+      assertEquals(point, geometry.toDocumentPoint(viewX, viewY, 0.6f))
+    }
+  }
+
+  @Test
+  fun rotationKeepsDocumentSpaceClamping() {
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        rotationDegrees = 90f,
+        allowOutsidePage = false,
+      ),
+    )
+
+    // Far-off canvas taps still clamp to the document page box (0..1000 x
+    // 0..1500), not to the rotated pixel box.
+    val topRight = geometry.toDocumentPoint(5000f, 5000f, 1f)!!
+    assertEquals(1000f, topRight.x, 0.01f)
+    assertEquals(0f, topRight.y, 0.01f)
+    val bottomRight = geometry.toDocumentPoint(-5000f, 2000f, 1f)!!
+    assertEquals(1000f, bottomRight.x, 0.01f)
+    assertEquals(1500f, bottomRight.y, 0.01f)
+  }
+
+  @Test
+  fun nonFiniteRotationInvalidatesTheGeometry() {
+    val geometry = PenCanvasGeometry(
+      widthPx = 600f,
+      heightPx = 800f,
+      pageTransform = PenCanvasPageTransform(
+        pageWidthPx = 400f,
+        pageHeightPx = 600f,
+        scale = 2f,
+        rotationDegrees = Float.NaN,
+      ),
+    )
+
+    org.junit.Assert.assertFalse(geometry.isValid)
+    org.junit.Assert.assertNull(geometry.toDocumentPoint(0f, 0f, 1f))
+  }
+
   private fun stroke(points: List<PenPoint>) = PenStroke(
     type = "pen",
     color = "#123456",

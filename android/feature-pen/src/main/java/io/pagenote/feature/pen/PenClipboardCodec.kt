@@ -19,6 +19,9 @@ object PenClipboardCodec {
   const val MARKER = "PAGE_NOTES_ANNOTATION:\n"
   const val MAX_PAYLOAD_CHARS = 1_000_000
 
+  /** Document-unit width of the annotations.json coordinate system. */
+  const val PAGE_WIDTH_UNITS = 1000f
+
   private val json = Json
   private val supportedTypes = setOf("pen", "highlight")
 
@@ -78,6 +81,44 @@ object PenClipboardCodec {
       PenValidation.validate(stroke, 1)
       stroke
     }.getOrNull()
+  }
+
+  /**
+   * Cross-page paste (port batch 1). Reuses the [decode] translation so the
+   * first point lands on [destination], then applies a second validation
+   * pass against the destination page bounds: x in 0..[PAGE_WIDTH_UNITS] and
+   * y in 0..[destinationPageHeightUnits] (the source page may be taller than
+   * the destination, so a translated stroke can fall off the target page).
+   *
+   * Strict mode (default) returns null when any translated point lies
+   * outside the destination page. With [clampToPage] the translated points
+   * are coerced into the page and the result is re-validated before being
+   * returned, mirroring in-app writing which clamps to the page by default.
+   */
+  fun decodeForPage(
+    text: String,
+    destination: PenPoint,
+    destinationPageHeightUnits: Float,
+    clampToPage: Boolean = false,
+  ): PenStroke? {
+    if (!destinationPageHeightUnits.isFinite() || destinationPageHeightUnits <= 0f) return null
+    val translated = decode(text, destination) ?: return null
+    val pageHeight = destinationPageHeightUnits
+    val insidePage = translated.points.all { point ->
+      point.x in 0f..PAGE_WIDTH_UNITS && point.y in 0f..pageHeight
+    }
+    if (insidePage) return translated
+    if (!clampToPage) return null
+    val clamped = translated.copy(
+      points = translated.points.map { point ->
+        point.copy(
+          x = point.x.coerceIn(0f, PAGE_WIDTH_UNITS),
+          y = point.y.coerceIn(0f, pageHeight),
+        )
+      },
+    )
+    PenValidation.validate(clamped, 1)
+    return clamped
   }
 
   private fun JsonObject.requiredString(key: String): String =

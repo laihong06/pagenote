@@ -165,6 +165,37 @@ object AnnotationStore {
     return true
   }
 
+  /**
+   * Rect eraser (port batch 1): removes every item of one side/page whose
+   * geometry intersects the axis-aligned rect (document units; corners may
+   * be given in any order). Reuses [writePage], so the surviving page keeps
+   * its validation, backup and dedup semantics. Returns the removed original
+   * indexes, oldest first; empty when nothing intersected or the page is absent.
+   */
+  fun eraseInRect(
+    srcDir: File,
+    side: String,
+    page: Int,
+    left: Double,
+    top: Double,
+    right: Double,
+    bottom: Double,
+  ): List<Int> {
+    AnnotationValidation.validateSide(side)
+    AnnotationValidation.validatePage(page)
+    listOf(left, top, right, bottom).forEach {
+      require(it.isFinite()) { "non-finite rect" }
+    }
+    val file = File(srcDir, "annotations.json")
+    val current = readPage(file, side, page)
+    if (current.isEmpty()) return emptyList()
+    val removed = AnnotationGeometry.itemsIntersectingRect(current, left, top, right, bottom)
+    if (removed.isEmpty()) return emptyList()
+    val kept = JsonArray(current.filterIndexed { index, _ -> index !in removed.toSet() })
+    writePage(srcDir, side, page, kept)
+    return removed
+  }
+
   private fun readSide(element: JsonElement?): Map<Int, JsonArray> {
     val side = (element as? JsonObject) ?: return emptyMap()
     val pages = mutableMapOf<Int, JsonArray>()
