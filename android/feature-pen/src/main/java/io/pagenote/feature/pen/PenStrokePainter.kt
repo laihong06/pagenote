@@ -120,6 +120,15 @@ object PenStrokePainter {
     }
   }
 
+  fun drawSegment(canvas: Canvas, from: PenPoint, to: PenPoint, color: String, width: Float) {
+    val parsed = runCatching { Color.parseColor(color) }.getOrDefault(Color.BLACK)
+    strokePaint.color = parsed
+    strokePaint.alpha = Color.alpha(parsed)
+    strokePaint.style = Paint.Style.STROKE
+    strokePaint.strokeWidth = width * (from.pressure + to.pressure) / 2f
+    canvas.drawLine(from.x, from.y, to.x, to.y, strokePaint)
+  }
+
   fun drawLaser(
     canvas: Canvas,
     points: List<PenPoint>,

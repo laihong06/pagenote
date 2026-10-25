@@ -31,6 +31,12 @@ class PenCanvasView @JvmOverloads constructor(
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
   private val strokeCache = PenStrokeCache()
+  private val predictor = PenPredictor(
+    densityPx = resources.displayMetrics.density,
+    // Context.display throws on non-visual contexts (API 30+), so the safe
+    // fallback must catch instead of relying on a null-safe call.
+    refreshRateHz = runCatching { context.display?.refreshRate ?: 60f }.getOrDefault(60f),
+  )
   private var activePointerId = INVALID_POINTER
   private var selectionPointerId = INVALID_POINTER
   private var annotationSelectionPointerId = INVALID_POINTER
@@ -148,6 +154,11 @@ class PenCanvasView @JvmOverloads constructor(
         }
       }
     }
+    predictedDocumentPoint()?.let { predicted ->
+      activePoints.lastOrNull()?.let { last ->
+        PenStrokePainter.drawSegment(canvas, last, predicted, activeColor, activeWidth.toFloat())
+      }
+    }
     canvas.restoreToCount(save)
   }
 
@@ -172,14 +183,18 @@ class PenCanvasView @JvmOverloads constructor(
           eraseAt(event.getX(index), event.getY(index))
         } else {
           for (history in 0 until event.historySize) {
-            addPoint(
-              event.getHistoricalX(index, history),
-              event.getHistoricalY(index, history),
-              event.getHistoricalPressure(index, history),
-            )
+            val hx = event.getHistoricalX(index, history)
+            val hy = event.getHistoricalY(index, history)
+            val hp = event.getHistoricalPressure(index, history)
+            predictor.onMove(hx, hy, hp)
+            addPoint(hx, hy, hp)
           }
-          addPoint(event.getX(index), event.getY(index), event.getPressure(index))
-          updateShapeRecognition(event.getX(index), event.getY(index))
+          val x = event.getX(index)
+          val y = event.getY(index)
+          val p = event.getPressure(index)
+          predictor.onMove(x, y, p)
+          addPoint(x, y, p)
+          updateShapeRecognition(x, y)
         }
         invalidate()
         return true
@@ -285,6 +300,7 @@ class PenCanvasView @JvmOverloads constructor(
     activePointerId = event.getPointerId(pointerIndex)
     activePointerToolType = event.getToolType(pointerIndex)
     requestUnbufferedDispatch(event)
+    predictor.onDown()
     val eraserInput = event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_ERASER ||
       (event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_STYLUS &&
         hasEraserButton(event.buttonState))
@@ -515,6 +531,7 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun resetGesture() {
+    predictor.onUp()
     cancelShapeDwell()
     activePointerId = INVALID_POINTER
     activePointerToolType = MotionEvent.TOOL_TYPE_UNKNOWN
@@ -524,6 +541,23 @@ class PenCanvasView @JvmOverloads constructor(
     shapePreview = null
     shapeDwellAnchor = null
     shapeRecognitionCancelled = false
+  }
+
+  private fun predictedDocumentPoint(): PenPoint? {
+    if (shapePreview != null) return null
+    val tool = gestureTool ?: return null
+    if (tool != PenCanvasTool.PEN && tool != PenCanvasTool.BALLPOINT &&
+      tool != PenCanvasTool.HIGHLIGHTER
+    ) {
+      return null
+    }
+    if (activePointerId == INVALID_POINTER || activePoints.isEmpty()) return null
+    val prediction = predictor.predict() ?: return null
+    return geometry().toDocumentPoint(
+      prediction.x,
+      prediction.y,
+      activePoints.last().pressure,
+    )
   }
 
   private fun hasEraserButton(buttonState: Int): Boolean = buttonState and ERASER_BUTTONS != 0
