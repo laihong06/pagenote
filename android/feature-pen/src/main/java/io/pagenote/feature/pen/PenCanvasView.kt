@@ -4,19 +4,12 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
 import android.util.AttributeSet
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.atan2
-import kotlin.math.cos
 import kotlin.math.hypot
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sin
 
 enum class PenCanvasTool(val persistedType: String?) {
   SELECT(null), PEN("pen"), BALLPOINT("pen"), HIGHLIGHTER("highlight"), LASER(null), ERASER(null);
@@ -29,11 +22,6 @@ class PenCanvasView @JvmOverloads constructor(
   context: Context,
   attrs: AttributeSet? = null,
 ) : View(context, attrs) {
-  private val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    style = Paint.Style.STROKE
-    strokeCap = Paint.Cap.ROUND
-    strokeJoin = Paint.Join.ROUND
-  }
   private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.rgb(0, 122, 204)
     style = Paint.Style.STROKE
@@ -128,21 +116,22 @@ class PenCanvasView @JvmOverloads constructor(
     val save = canvas.save()
     canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
     canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
-    internalStrokes.forEach { drawStroke(canvas, it) }
-    if (laserTrail.isNotEmpty()) drawLaser(canvas, laserTrail, laserColor, laserWidth)
+    internalStrokes.forEach { PenStrokePainter.drawStroke(canvas, it, geometry) }
+    if (laserTrail.isNotEmpty()) PenStrokePainter.drawLaser(canvas, laserTrail, laserColor, laserWidth, geometry)
     selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
         val preview = shapePreview
         if (tool == PenCanvasTool.LASER) {
-          drawLaser(canvas, activePoints, activeColor, activeWidth)
+          PenStrokePainter.drawLaser(canvas, activePoints, activeColor, activeWidth, geometry)
         } else if (preview != null) {
-          drawStroke(
+          PenStrokePainter.drawStroke(
             canvas,
             PenStroke(preview.type, activeColor, activeWidth, listOf(preview.first, preview.second)),
+            geometry,
           )
         } else {
-          drawStroke(
+          PenStrokePainter.drawStroke(
             canvas,
             PenStroke(
               type = tool.persistedType ?: "pen",
@@ -150,6 +139,7 @@ class PenCanvasView @JvmOverloads constructor(
               width = activeWidth,
               points = activePoints.toList(),
             ),
+            geometry,
           )
         }
       }
@@ -533,112 +523,8 @@ class PenCanvasView @JvmOverloads constructor(
 
   private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
 
-  private fun drawStroke(canvas: Canvas, stroke: PenStroke) {
-    val color = runCatching { Color.parseColor(stroke.color) }.getOrDefault(Color.BLACK)
-    val points = stroke.points
-    if (points.isEmpty()) return
-    drawPaint.color = color
-    drawPaint.alpha = Color.alpha(color)
-    drawPaint.style = Paint.Style.STROKE
-    drawPaint.strokeWidth = stroke.width.toFloat()
-
-    when (stroke.type) {
-      "rect" -> {
-        if (points.size >= 2) {
-          drawPaint.style = Paint.Style.STROKE
-          canvas.drawRect(
-            min(points.first().x, points.last().x),
-            min(points.first().y, points.last().y),
-            max(points.first().x, points.last().x),
-            max(points.first().y, points.last().y),
-            drawPaint,
-          )
-        }
-      }
-      "ellipse" -> {
-        if (points.size >= 2) {
-          canvas.drawOval(
-            min(points.first().x, points.last().x),
-            min(points.first().y, points.last().y),
-            max(points.first().x, points.last().x),
-            max(points.first().y, points.last().y),
-            drawPaint,
-          )
-        }
-      }
-      "line", "arrow" -> {
-        if (points.size >= 2) {
-          val first = points.first()
-          val last = points.last()
-          canvas.drawLine(first.x, first.y, last.x, last.y, drawPaint)
-          if (stroke.type == "arrow") drawArrowHead(canvas, first, last, drawPaint)
-        }
-      }
-      "pen" -> drawFreehand(canvas, points, stroke.width.toFloat())
-      "highlight" -> drawHighlight(canvas, points, stroke.width.toFloat())
-      else -> Unit
-    }
-  }
-
-  private fun drawHighlight(canvas: Canvas, points: List<PenPoint>, width: Float) {
-    val first = points.first()
-    val bounds = RectF(first.x, first.y, first.x, first.y)
-    points.forEach { bounds.union(it.x, it.y) }
-    val padding = width / 2f + 1f / geometry().pixelsPerDocumentUnit
-    bounds.inset(-padding, -padding)
-    if (!bounds.intersect(RectF(canvas.clipBounds))) return
-
-    // Composite once per gesture, never once per pressure segment or retrace.
-    val save = canvas.saveLayerAlpha(bounds, HIGHLIGHT_ALPHA)
-    try {
-      drawFreehand(canvas, points, width)
-    } finally {
-      canvas.restoreToCount(save)
-    }
-  }
-
-  private fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float) {
-    drawPaint.style = Paint.Style.STROKE
-    drawPaint.alpha = 255
-    if (points.size == 1) {
-      drawPaint.style = Paint.Style.FILL
-      canvas.drawCircle(points[0].x, points[0].y, width * points[0].pressure / 2f, drawPaint)
-      return
-    }
-    for (index in 1 until points.size) {
-      val previous = points[index - 1]
-      val current = points[index]
-      drawPaint.strokeWidth = width * (previous.pressure + current.pressure) / 2f
-      val path = Path().apply {
-        moveTo(previous.x, previous.y)
-        lineTo(current.x, current.y)
-      }
-      canvas.drawPath(path, drawPaint)
-    }
-  }
-
-  private fun drawLaser(canvas: Canvas, points: List<PenPoint>, color: String, width: Double) {
-    val stroke = PenStroke("pen", color, width, points)
-    drawStroke(canvas, stroke.copy(width = width * 2.5))
-    drawStroke(canvas, stroke.copy(color = "#ffffff", width = width * 0.55))
-  }
-
-  private fun drawArrowHead(canvas: Canvas, start: PenPoint, end: PenPoint, paint: Paint) {
-    val angle = atan2((end.y - start.y).toDouble(), (end.x - start.x).toDouble()).toFloat()
-    val headLength = (paint.strokeWidth * 4f).coerceIn(12f, 40f)
-    val spread = 0.55f
-    val path = Path().apply {
-      moveTo(end.x, end.y)
-      lineTo(end.x - headLength * cos(angle - spread), end.y - headLength * sin(angle - spread))
-      moveTo(end.x, end.y)
-      lineTo(end.x - headLength * cos(angle + spread), end.y - headLength * sin(angle + spread))
-    }
-    canvas.drawPath(path, paint)
-  }
-
   private companion object {
     const val INVALID_POINTER = -1
-    const val HIGHLIGHT_ALPHA = 89
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
     const val SELECTION_INSET = 8f
     const val SELECTION_MIN_SIZE = 24f
