@@ -50,7 +50,7 @@ class MainActivityLaunchTest {
     composeRule.onNodeWithTag("reader_menu_command_office_edit")
       .performScrollTo()
       .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_office_desktop_only))
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_office_source_required))
     composeRule.onNodeWithTag("reader_menu_command_attachments")
       .performScrollTo()
       .assertIsNotEnabled()
@@ -58,7 +58,7 @@ class MainActivityLaunchTest {
     composeRule.onNodeWithTag("reader_menu_command_save_return")
       .performScrollTo()
       .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_save_return_desktop_session))
+      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_office_source_required))
     composeRule.onNodeWithTag("reader_menu_command_about")
       .performScrollTo()
       .assertIsNotEnabled()
@@ -73,8 +73,8 @@ class MainActivityLaunchTest {
     val chineseResources = composeRule.activity.createConfigurationContext(chineseConfiguration).resources
     assertEquals("此命令尚未接入应用。", chineseResources.getString(R.string.reader_menu_unavailable_reason))
     assertEquals("附件浏览与管理尚未接入。", chineseResources.getString(R.string.reader_menu_attachments_unavailable))
-    assertEquals("复杂 Office 文档编辑请回桌面端处理。", chineseResources.getString(R.string.reader_menu_office_desktop_only))
-    assertEquals("此命令需要可返回的桌面 Office 编辑会话。", chineseResources.getString(R.string.reader_menu_save_return_desktop_session))
+    assertEquals("当前项目源不是 Office 文档。", chineseResources.getString(R.string.reader_menu_office_source_required))
+    assertEquals("本地 Office 引擎尚未接入，暂时无法在设备上转换或编辑 Office 文档。", chineseResources.getString(R.string.reader_menu_office_engine_unavailable))
   }
 
   @Test

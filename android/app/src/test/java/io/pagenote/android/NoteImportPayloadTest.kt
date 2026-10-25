@@ -32,16 +32,24 @@ class NoteImportPayloadTest {
   }
 
   @Test
-  fun mergesOnlyImportedPagesAndAllowsEmptyStringToClearOnePage() {
-    val current = PageNotes.join(listOf("第一页旧稿", "邻页保留", "第三页旧稿"))
-
-    val merged = NoteImportPayload.merge(
-      currentNotes = current,
-      currentPageCount = 3,
-      importedPages = mapOf(1 to "第一页新稿", 3 to ""),
+  fun unclampedParseKeepsPagesBeyondTheCurrentDocumentForMergeOrdering() {
+    val updates = NoteImportPayload.parseBackupUnclamped(
+      content = """{
+        "version": 1,
+        "document": "another project",
+        "pages": 69,
+        "notes": {
+          "1": "第一页",
+          "9": "远页",
+          "0": "zero",
+          "bad": "invalid",
+          "2": 7,
+          "5": null
+        }
+      }""",
     )
 
-    assertEquals(PageNotes.join(listOf("第一页新稿", "邻页保留", "")), merged)
+    assertEquals(mapOf(1 to "第一页", 9 to "远页"), updates)
   }
 
   @Test

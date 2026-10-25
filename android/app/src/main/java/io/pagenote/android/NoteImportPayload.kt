@@ -20,8 +20,14 @@ internal object NoteImportPayload {
   private val json = Json { ignoreUnknownKeys = true }
   private val pageKeyPattern = Regex("^[0-9]+$")
 
-  fun parseBackup(content: String, currentPageCount: Int): Map<Int, String> {
-    require(currentPageCount > 0)
+  fun parseBackup(content: String, currentPageCount: Int): Map<Int, String> =
+    parseBackupUnclamped(content).filterKeys { it in 1..currentPageCount }
+
+  /**
+   * 不按当前页数截断的备份解析：合并对话框需要看到完整备份
+   * （追加页序会把超出源页数的导入页接到笔记末尾）。
+   */
+  fun parseBackupUnclamped(content: String): Map<Int, String> {
     val root = try {
       json.parseToJsonElement(content) as? JsonObject ?: throw NoteImportFormatException()
     } catch (error: SerializationException) {
@@ -35,7 +41,7 @@ internal object NoteImportPayload {
       notes.forEach { (key, value) ->
         if (!pageKeyPattern.matches(key)) return@forEach
         val page = key.toIntOrNull() ?: return@forEach
-        if (page !in 1..currentPageCount) return@forEach
+        if (page < 1) return@forEach
         val markdown = (value as? JsonPrimitive)
           ?.takeIf(JsonPrimitive::isString)
           ?.content
@@ -43,21 +49,6 @@ internal object NoteImportPayload {
         put(page, markdown)
       }
     }
-  }
-
-  fun merge(
-    currentNotes: String,
-    currentPageCount: Int,
-    importedPages: Map<Int, String>,
-  ): String {
-    require(currentPageCount > 0)
-    val pages = PageNotes.split(currentNotes).toMutableList()
-    importedPages.toSortedMap().forEach { (page, markdown) ->
-      if (page !in 1..currentPageCount) return@forEach
-      while (pages.size < page) pages += ""
-      pages[page - 1] = markdown
-    }
-    return PageNotes.join(pages)
   }
 
   fun insertText(

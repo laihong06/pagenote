@@ -66,6 +66,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -132,6 +133,7 @@ import io.pagenote.agent.ModelEndpoint
 import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
+import io.pagenote.core.project.OfficeDocumentFormat
 import io.pagenote.core.reader.PdfPageText
 import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PdfTextSelection
@@ -183,6 +185,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
+import java.io.File
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.hypot
@@ -219,6 +222,7 @@ class MainActivity : ComponentActivity() {
   internal var pdfImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
   internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
+  internal var pdfMergeExportPickerForTesting: ((String, (Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDirectoryPickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDocumentPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
   internal var persistNewProjectDocumentGrantForTesting = false
@@ -386,6 +390,7 @@ private data class PendingNoteImportContext(
 private data class PendingNoteImportBackup(
   val context: PendingNoteImportContext,
   val pages: Map<Int, String>,
+  val preview: NoteMergePreview,
 )
 
 private data class NoteImportWriteResult(
@@ -680,6 +685,19 @@ private fun ReaderHome(
   var isImportingNotes by remember { mutableStateOf(false) }
   var pendingNoteImportContext by remember { mutableStateOf<PendingNoteImportContext?>(null) }
   var pendingNoteImportBackup by remember { mutableStateOf<PendingNoteImportBackup?>(null) }
+  // 笔记合并策略（移植差距清单 #15）：页序/冲突选择与对话框摘要。
+  var noteMergeOrdering by remember { mutableStateOf(NoteMergePageOrdering.PAGE_ALIGNED) }
+  var noteMergeConflict by remember { mutableStateOf(NoteMergeConflictResolution.OVERWRITE_WITH_IMPORTED) }
+  var showPdfMergeExportDialog by remember { mutableStateOf(false) }
+  var pdfMergeRangeInput by remember { mutableStateOf("") }
+  var pdfMergeIncludeNotes by remember { mutableStateOf(true) }
+  var isExportingMergedPdf by remember { mutableStateOf(false) }
+  // Office 本地引擎切片（task 36）：编辑会话与转换/写回占用状态。
+  var officeEditSession by remember { mutableStateOf<OfficeEditSession?>(null) }
+  var isOfficeConverting by remember { mutableStateOf(false) }
+  var isOfficeSaving by remember { mutableStateOf(false) }
+  // 合并导出 PDF：SAF 选择期间的临时产物，进程恢复不跨续（取消即丢弃）。
+  var pendingPdfMergeTempFile by remember { mutableStateOf<File?>(null) }
   var noteEditRequest by remember { mutableIntStateOf(0) }
   var showNoteExportDialog by remember { mutableStateOf(false) }
   var showPendingNoteExportRecoveryDialog by remember { mutableStateOf(false) }
@@ -3568,7 +3586,13 @@ private fun ReaderHome(
         val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
         store.withRevisionLock {
           val original = store.read()
-          val merged = NoteImportPayload.merge(original, pageCount, pending.pages)
+          // PDF 项目的笔记页数跟随源页数，追加页序仅对 Markdown 项目开放；
+          // 这里兜底强制对齐，避免产生源页之外不可达的笔记页。
+          val strategy = NoteMergeStrategy(
+            ordering = if (renderer != null) NoteMergePageOrdering.PAGE_ALIGNED else noteMergeOrdering,
+            conflict = noteMergeConflict,
+          )
+          val merged = NoteMergePlanner.merge(original, pending.pages, strategy).mergedMarkdown
           val changedPages = pending.pages.entries
             .filter { (page, markdown) -> NotePage.pageAt(original, page) != markdown }
             .map { it.key to it.value }
@@ -3591,9 +3615,32 @@ private fun ReaderHome(
       readerSession.refreshDraftRecoveryAfterSave(currentPage, currentMarkdown)
       // 批次 7：导入覆盖多页，整本重读入索引（revision 幂等）。
       search.indexNotePages(pending.context.projectId, result.markdown)
-      noteStatus = result.recoveryCopyName?.let {
-        context.getString(R.string.note_saved_recovery_copy, it)
-      } ?: context.getString(R.string.reader_menu_import_success)
+      // 资产去重后续：合并内容引用的资产若在项目 assets/ 缺失，明确报告，
+      // 不静默保留悬空引用（JSON 备份不携带资产字节）。
+      val missingAssets = withContext(Dispatchers.IO) {
+        runCatching {
+          val refs = ProjectAssetRefs.scan(result.markdown)
+          if (refs.isEmpty()) emptyList() else {
+            val srcDir = activeProject.sourceDirectoryUri
+            val assetsUri = DocumentsContract.buildDocumentUriUsingTree(
+              srcDir,
+              DocumentsContract.getDocumentId(srcDir) + "/assets",
+            )
+            ProjectAssetRefs.missing(refs) { name ->
+              runCatching { assetChildExists(assetsUri, srcDir, name) }.getOrDefault(false)
+            }
+          }
+        }.getOrDefault(emptyList())
+      }
+      noteStatus = when {
+        result.recoveryCopyName != null ->
+          context.getString(R.string.note_saved_recovery_copy, result.recoveryCopyName)
+        missingAssets.isNotEmpty() -> context.getString(
+          R.string.note_merge_missing_assets_status,
+          missingAssets.take(3).joinToString(", "),
+        )
+        else -> context.getString(R.string.note_merge_success)
+      }
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: NoteDocumentConflictException) {
@@ -3639,15 +3686,18 @@ private fun ReaderHome(
         Triple(displayName, mimeType, content)
       }
       if (NoteImportPayload.isJson(displayName, mimeType)) {
-        val currentPageCount = currentSourcePageCount()
+        // 合并对话框需要完整备份（追加页序可包含超出源页数的页）。
         val updates = withContext(Dispatchers.Default) {
-          NoteImportPayload.parseBackup(content, currentPageCount)
+          NoteImportPayload.parseBackupUnclamped(content)
         }
         if (!noteImportContextIsCurrent(pending)) {
           noteStatus = context.getString(R.string.reader_menu_import_stale)
           return
         }
-        pendingNoteImportBackup = PendingNoteImportBackup(pending, updates)
+        val summary = withContext(Dispatchers.Default) {
+          NoteMergePlanner.preview(notesMarkdown, updates)
+        }
+        pendingNoteImportBackup = PendingNoteImportBackup(pending, updates, summary)
         showNoteImportConfirmation = true
         return
       }
@@ -3904,6 +3954,48 @@ private fun ReaderHome(
     } finally {
       isPreparingNoteExport = false
     }
+  }
+
+  // --- 合并导出 PDF + convert note（移植差距清单 #15 的 Android 侧导出增强）------
+
+  val pdfMergePickerRef = remember { arrayOfNulls<(String) -> Unit>(1) }
+  val pdfMergeFinishRef = remember { arrayOfNulls<(Uri?) -> Unit>(1) }
+  val pdfMergeActions = remember(context, scope) {
+    ReaderPdfMergeController(context, scope, object : ReaderPdfMergeController.Host {
+      override fun currentProject(): OpenedProject? = project
+      override fun rendererPageCount(): Int? = renderer?.pageCount
+      override fun noteWritable(): Boolean = noteWritable
+      override fun hasUnsavedChanges(): Boolean = hasUnsavedChanges
+      override suspend fun saveDirtyNote(): Boolean = saveCurrentNote()
+      override fun notesMarkdown(): String = notesMarkdown
+      override fun includeNotes(): Boolean = pdfMergeIncludeNotes
+      override fun setStatus(status: String?) {
+        noteStatus = status
+      }
+      override fun setExporting(value: Boolean) {
+        isExportingMergedPdf = value
+      }
+      override fun pendingTempFile(): File? = pendingPdfMergeTempFile
+      override fun setPendingTempFile(file: File?) {
+        pendingPdfMergeTempFile = file
+      }
+      override fun launchPicker(suggestedName: String) {
+        val pickerForTesting = (activityResultOwner as? MainActivity)?.pdfMergeExportPickerForTesting
+        if (pickerForTesting != null) {
+          pickerForTesting(suggestedName) { uri -> pdfMergeFinishRef[0]?.invoke(uri) }
+        } else {
+          pdfMergePickerRef[0]?.invoke(suggestedName)
+        }
+      }
+    })
+  }
+
+  val pdfMergeExportPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.CreateDocument("application/pdf"),
+  ) { uri -> pdfMergeFinishRef[0]?.invoke(uri) }
+  androidx.compose.runtime.SideEffect {
+    pdfMergePickerRef[0] = { name -> pdfMergeExportPicker.launch(name) }
+    pdfMergeFinishRef[0] = { uri -> readerSession.launchSessionTask { pdfMergeActions.finish(uri) } }
   }
 
   fun chooseMarkdownImage() {
@@ -4241,7 +4333,8 @@ private fun ReaderHome(
   val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting ||
     isImportingNotes || isExportingNotes || failedPenSave != null || isOcrRunning || isSelectablePageTextLoading ||
     readerInputLocked || isAgentRunning || isPageTutorRunning || isLoadingProjectAttachments ||
-    isImportingProjectAttachment || isDeletingProjectAttachment
+    isImportingProjectAttachment || isDeletingProjectAttachment || isOfficeConverting || isOfficeSaving ||
+    isExportingMergedPdf
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
 
@@ -4445,17 +4538,33 @@ private fun ReaderHome(
     noteStatus = null
   }
 
-  fun pendingCommand(
-    id: String,
-    labelRes: Int,
-    reasonRes: Int = R.string.reader_menu_unavailable_reason,
-  ) = actionCommand(
-    id = id,
-    labelRes = labelRes,
-    enabled = false,
-    disabledReason = context.getString(reasonRes),
-    onSelect = {},
-  )
+  // --- Office 本地引擎切片（task 36）：office_edit / save_return 实命令接线 ------
+  // 桌面宿主运行时（COM/AppleScript）不移植；本地流程以 LibreOfficeKit 引擎边界
+  // （OfficePdfEngine，尚未接入）为准。引擎缺失/格式未放开时如实报告，不伪造成功。
+  val officeActions = remember(context, scope) {
+    ReaderOfficeController(context, scope, object : ReaderOfficeController.Host {
+      override fun currentProject(): OpenedProject? = project
+      override fun noteWritable(): Boolean = noteWritable
+      override fun setStatus(status: String?) {
+        noteStatus = status
+      }
+      override fun officeSession(): OfficeEditSession? = officeEditSession
+      override fun setOfficeSession(session: OfficeEditSession?) {
+        officeEditSession = session
+      }
+      override fun setOfficeConverting(value: Boolean) {
+        isOfficeConverting = value
+      }
+      override fun setOfficeSaving(value: Boolean) {
+        isOfficeSaving = value
+      }
+      override fun menuBusyNow(): Boolean = menuBusy
+    })
+  }
+
+  fun officeSourceFormat(): OfficeDocumentFormat? = officeActions.sourceFormat()
+
+  fun officeSessionForCurrentProject(): OfficeEditSession? = officeActions.sessionForCurrentProject()
 
   fun requestProjectAttachmentImageInsertion(entry: ProjectAttachmentEntry) {
     if (project == null) return
@@ -4798,7 +4907,9 @@ private fun ReaderHome(
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
     NoteHistoryMirror.directory(context.filesDir, it) != null
   } == true
-  val menuSections = listOf(
+  // 菜单构建体量大：包进局部函数让编译器生成独立方法，避免 ReaderHome
+  // 组合方法超出 JVM 64K 上限（MethodTooLargeException）。
+  fun buildMenuSections(): List<ReaderMenuSection> = listOf(
     menuSection(
       ReaderMenuGroup.FILE,
       R.string.reader_menu_group_file,
@@ -4841,6 +4952,15 @@ private fun ReaderHome(
           } else {
             showNoteExportDialog = true
           }
+        },
+        actionCommand(
+          "export_merged_pdf", R.string.reader_menu_export_merged_pdf,
+          // 合并导出：仅 PDF 项目（Markdown 源没有可拼接的 PDF 页）。
+          enabled = canUsePdf && !menuBusy,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) {
+          pdfMergeRangeInput = "1-${totalPages.coerceAtLeast(1)}"
+          showPdfMergeExportDialog = true
         },
         actionCommand(
           "note_history", R.string.note_history, hasNoteHistory,
@@ -5273,11 +5393,17 @@ private fun ReaderHome(
       ReaderMenuGroup.WORD_EDITING,
       R.string.reader_menu_group_word_editing,
       listOf(
-        pendingCommand(
+        actionCommand(
           "office_edit",
           R.string.reader_menu_office_edit,
-          R.string.reader_menu_office_desktop_only,
-        ),
+          // 本地引擎切片：仅在当前项目为 Office 源且引擎已接入时可进入。
+          enabled = officeSourceFormat() != null &&
+            LocalOfficePdfEngineRegistry.engine != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true) ?: when {
+            officeSourceFormat() == null -> context.getString(R.string.reader_menu_office_source_required)
+            else -> context.getString(R.string.reader_menu_office_engine_unavailable)
+          },
+        ) { officeActions.beginOfficeEditSession() },
         actionCommand(
           "selection_to_annotation",
           R.string.reader_menu_selection_to_annotation,
@@ -5316,11 +5442,20 @@ private fun ReaderHome(
             }
           }
         },
-        pendingCommand(
+        actionCommand(
           "save_return",
           R.string.reader_menu_save_return,
-          R.string.reader_menu_save_return_desktop_session,
-        ),
+          // 保存并返回：需要当前项目的本地 Office 编辑会话且有未保存修改。
+          enabled = officeSourceFormat() != null &&
+            LocalOfficePdfEngineRegistry.engine != null &&
+            officeSessionForCurrentProject()?.dirty == true && !menuBusy,
+          disabledReason = commandReason(requireProject = true) ?: when {
+            officeSourceFormat() == null -> context.getString(R.string.reader_menu_office_source_required)
+            officeSessionForCurrentProject()?.dirty != true ->
+              context.getString(R.string.reader_menu_save_return_no_session)
+            else -> context.getString(R.string.reader_menu_save_return_no_changes)
+          },
+        ) { officeActions.runOfficeSaveReturn() },
       ),
     ),
     menuSection(
@@ -5348,6 +5483,7 @@ private fun ReaderHome(
       ),
     ),
   )
+  val menuSections = buildMenuSections()
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
     AndroidView(
@@ -5911,37 +6047,13 @@ private fun ReaderHome(
     )
   }
   if (showHeadingLevelDialog) {
-    AlertDialog(
-      onDismissRequest = { showHeadingLevelDialog = false },
-      title = { Text(stringResource(R.string.reader_menu_heading)) },
-      text = {
-        Column {
-          listOf(
-            MarkdownParagraphPrefix.HEADING_1 to R.string.reader_menu_heading_level_1,
-            MarkdownParagraphPrefix.HEADING_2 to R.string.reader_menu_heading_level_2,
-            MarkdownParagraphPrefix.HEADING_3 to R.string.reader_menu_heading_level_3,
-          ).forEachIndexed { index, (prefix, labelRes) ->
-            TextButton(
-              modifier = Modifier.fillMaxWidth().testTag("reader_heading_level_${index + 1}"),
-              enabled = canFormatMarkdown,
-              onClick = {
-                showHeadingLevelDialog = false
-                applyMarkdownParagraphFormatting(prefix)
-              },
-            ) {
-              Text(stringResource(labelRes))
-            }
-          }
-        }
+    ReaderHeadingLevelDialog(
+      enabled = canFormatMarkdown,
+      onSelect = { prefix ->
+        showHeadingLevelDialog = false
+        applyMarkdownParagraphFormatting(prefix)
       },
-      confirmButton = {
-        TextButton(
-          modifier = Modifier.testTag("reader_heading_cancel"),
-          onClick = { showHeadingLevelDialog = false },
-        ) {
-          Text(stringResource(R.string.cancel))
-        }
-      },
+      onDismiss = { showHeadingLevelDialog = false },
     )
   }
   if (showOcrResult) {
@@ -6348,59 +6460,39 @@ private fun ReaderHome(
     )
   }
   if (showNoteImportConfirmation && pendingNoteImportBackup != null) {
-    AlertDialog(
-      onDismissRequest = {
+    val summary = pendingNoteImportBackup?.preview
+    NoteMergeStrategyDialog(
+      summary = summary,
+      ordering = noteMergeOrdering,
+      conflict = noteMergeConflict,
+      markdownProject = renderer == null && markdownSource != null,
+      onOrderingChange = { noteMergeOrdering = it },
+      onConflictChange = { noteMergeConflict = it },
+      onConfirm = { scope.launch { applyPendingNoteImport() } },
+      onDismiss = {
         showNoteImportConfirmation = false
         isImportingNotes = false
         pendingNoteImportContext = null
         pendingNoteImportBackup = null
       },
-      title = { Text(stringResource(R.string.reader_menu_import_title)) },
-      text = { Text(stringResource(R.string.reader_menu_import_confirm_message)) },
-      confirmButton = {
-        TextButton(onClick = { scope.launch { applyPendingNoteImport() } }) {
-          Text(stringResource(R.string.reader_menu_import_confirm))
-        }
-      },
-      dismissButton = {
-        TextButton(
-          onClick = {
-            showNoteImportConfirmation = false
-            isImportingNotes = false
-            pendingNoteImportContext = null
-            pendingNoteImportBackup = null
-          },
-        ) {
-          Text(stringResource(R.string.cancel))
-        }
-      },
     )
   }
   if (showNoteExportDialog && project != null) {
-    AlertDialog(
-      onDismissRequest = { showNoteExportDialog = false },
-      title = { Text(stringResource(R.string.reader_menu_export_title)) },
-      text = {
-        Column {
-          TextButton(
-            onClick = { scope.launch { prepareNoteExport(fullBackup = true) } },
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Text(stringResource(R.string.reader_menu_export_json))
-          }
-          TextButton(
-            onClick = { scope.launch { prepareNoteExport(fullBackup = false) } },
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Text(stringResource(R.string.reader_menu_export_current_page))
-          }
-        }
-      },
-      confirmButton = {
-        TextButton(onClick = { showNoteExportDialog = false }) {
-          Text(stringResource(R.string.cancel))
-        }
-      },
+    ReaderNoteExportDialog(
+      onExportJson = { scope.launch { prepareNoteExport(fullBackup = true) } },
+      onExportCurrentPage = { scope.launch { prepareNoteExport(fullBackup = false) } },
+      onDismiss = { showNoteExportDialog = false },
+    )
+  }
+  if (showPdfMergeExportDialog && renderer != null) {
+    PdfMergeExportDialog(
+      rangeInput = pdfMergeRangeInput,
+      includeNotes = pdfMergeIncludeNotes,
+      busy = isExportingMergedPdf,
+      onRangeChange = { pdfMergeRangeInput = it },
+      onIncludeNotesChange = { pdfMergeIncludeNotes = it },
+      onConfirm = { showPdfMergeExportDialog = false; pdfMergeActions.prepare(pdfMergeRangeInput) },
+      onDismiss = { showPdfMergeExportDialog = false },
     )
   }
   notePassphraseGate?.let { gate ->
@@ -6458,25 +6550,10 @@ private fun ReaderHome(
     )
   }
   if (showPendingNoteExportRecoveryDialog && isPendingNoteExportRecovered) {
-    AlertDialog(
-      onDismissRequest = { showPendingNoteExportRecoveryDialog = false },
-      title = { Text(stringResource(R.string.reader_menu_export_recovery_title)) },
-      text = { Text(stringResource(R.string.reader_menu_export_recovery_message)) },
-      confirmButton = {
-        TextButton(onClick = { scope.launch { resumePendingNoteExport() } }) {
-          Text(stringResource(R.string.reader_menu_export_recovery_retry))
-        }
-      },
-      dismissButton = {
-        Row {
-          TextButton(onClick = { scope.launch { discardPendingNoteExport() } }) {
-            Text(stringResource(R.string.reader_menu_export_recovery_discard))
-          }
-          TextButton(onClick = { showPendingNoteExportRecoveryDialog = false }) {
-            Text(stringResource(R.string.cancel))
-          }
-        }
-      },
+    ReaderPendingNoteExportRecoveryDialog(
+      onResume = { scope.launch { resumePendingNoteExport() } },
+      onDiscard = { scope.launch { discardPendingNoteExport() } },
+      onDismiss = { showPendingNoteExportRecoveryDialog = false },
     )
   }
   if (showNoteHistory && project != null) {
