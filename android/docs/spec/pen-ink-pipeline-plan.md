@@ -499,7 +499,7 @@ class PenPredictor(
     val v2 = hypot(v2x, v2y)
     if (v1 <= 0f || v2 <= 0f) return 0f
     val cos = ((v1x * v2x) + (v1y * v2y)) / (v1 * v2)
-    val angle = Math.toDegrees(acos(cos.coerceIn(-1.0, 1.0)).toDouble()).toFloat()
+    val angle = Math.toDegrees(acos(cos.coerceIn(-1.0f, 1.0f)).toDouble()).toFloat()
     return angle
   }
 
