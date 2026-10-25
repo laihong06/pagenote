@@ -1,8 +1,8 @@
 # Canvas Schema Decision（annotations.json 类型集演进与桌面互通约束）
 
-- 状态：已接受（移植批次 0，分支 `codex/port-canvas-notes-features`）
+- 状态：已接受（移植批次 0 建立；移植批次 2 增补 D5 形状目录决策并落地，分支 `codex/port-canvas-notes-features`）
 - 范围：`src/annotations.json` 的类型集演进策略、未知字段透传机制、图层 schema 草案、形状参数化子类型，以及 Android 与桌面端的互通硬约束。
-- 性质：决策文档。本批次只新增本文档与 `feature-pen` 透传单测，不改任何 schema 文件或运行时代码。
+- 性质：决策文档。批次 0 只新增本文档与 `feature-pen` 透传单测；批次 2 按 D5 落地 `ShapeCatalog` 与形状对话框接线，不改任何 schema 契约文件。
 
 ## 1. 基线事实（现状证据）
 
@@ -112,6 +112,19 @@ Android 约束：
 3. `pressures` 恒写对所有类型（`PenStroke.kt:33`）；桌面忽略该字段，属既定互通容忍点，不为矢量类型做特殊分支。
 4. 退化语义对齐桌面：`rect/ellipse` 两点重合退化为零尺寸/点，`line` 单点由 `points[1]` 缺省回退 `points[0]`（`src/annotations.js:103`）。
 
+## 6. 决策 D5：形状目录参数化子类型（ShapeCatalog 扩展字段）
+
+批次 2 落地 `feature-pen` 的纯 JVM 形状几何目录 `ShapeCatalog`（`android/feature-pen/src/main/java/io/pagenote/feature/pen/ShapeCatalog.kt`）：24 种 kind 的轮廓折线生成、包围盒与 stroke hit-test，全部单测覆盖。序列化与互通规则如下：
+
+1. **不新增 `type` 枚举（延续 D1）**：目录形状落盘时 `type` 仍取桌面 9 类型中的基类型——线族 `line`（直线/虚线/单双箭头/坐标轴/波浪/锯齿）、面族 `rect`（矩形族与全部多边形/星形/十字）、椭圆族 `ellipse`（椭圆/正圆）。kind id 写入 item extension 字段 **`shape`**（字符串，如 `"pentagon"`），走 D2 的透传通道；桌面端按基类型渲染并原样保留 `shape` 字段，不会 400 拒绝（`server.mjs` 只校验已知字段）。
+2. **两点参数化（延续 D4）**：kind 的几何由 `points[0]`/`points[1]` 完全参数化，恒写 2 点。线族保留拖拽方向（first→second），面族按对角两点 min/max 归一化为包围盒；`square`/`circle` 在包围盒内取中心内接（min 边）。退化语义按基类型族区分：线族拒绝两点重合、面族拒绝零面积（`PdfAnnotationVectorDraft.create`）。
+3. **kind id 只增不删**：`ShapeCatalog.byId` 是唯一注册中心，id 一旦发布不得改名或移除；未知 id 读侧按基类型降级渲染、不报错。
+4. **基础四项不带 `shape`**：`line/arrow/rect/ellipse` 既有落盘格式不变（无 `shape` 键），与桌面渲染一一对应；只有目录扩展项写 `shape`。
+5. **虚线是描边样式不是几何**：`dashed-line`/`dashed-rect` 与实线 kind 共享同一轮廓（hit-test 一致），渲染端按 `ShapeStrokeStyle` 加 dash 效果。
+6. **降级渲染边界（本批次现状）**：Android overlay（`PdfAnnotationOverlay`）尚未消费 `shape` 字段，目录扩展项在预览与重载时按基类型渲染（矩形/直线/椭圆）；渲染接线由后续批次完成，落盘数据已按本决策定型。
+
+## 7. 桌面互通硬约束清单
+
 ## 6. 桌面互通硬约束清单
 
 1. 坐标系 width-1000：x ∈ 0..1000，y 按纵横比可超 1000（`src/annotations.js:35-38`）；安全上限 `|coord| ≤ 1000000`。
@@ -121,7 +134,7 @@ Android 约束：
 5. `pressures` / `layoutAnchor` 按 §3 登记表处理。
 6. 桌面写前落 `annotation-history/` 备份；Android 落 SAF 恢复副本并报告副本名（`ProjectPenStore.kt:106-110`）。
 
-## 7. 本批次测试加固
+## 8. 本批次测试加固
 
 `PenStrokeTest` 原有 10 个用例只覆盖 `PenValidation` 校验，不覆盖 `PenStroke.kt:16-48` 的序列化与透传。本批次在同一测试类新增（不改动既有用例）：
 
@@ -132,13 +145,19 @@ Android 约束：
 
 既有相关覆盖（未改动）：`PenPageStoreTest.selectedStrokeStyleChangePreservesGeometryAndSupportsUndoRedo`（样式更新保留 `extraFields`，`PenPageStoreTest.kt:114-127`）、`AnnotationPageMergerTest`、`pen-extension-field-preservation-plan.md` 对应回归。
 
-## 8. 验证
+批次 2（D5 落地）新增：
+
+- `ShapeCatalogTest`（`feature-pen`）：目录规模 ≥21、id 唯一且基类型合法、轮廓确定性、线族方向保留、面族包围盒归一化、闭合形状闭合、虚线与实线共享轮廓、多边形顶点数、退化两点语义、stroke hit-test 命中/未命中与容差半径、内接 square/circle。
+- `PdfAnnotationVectorDraftTest` 扩展：目录扩展项序列化为基类型 + `shape` 扩展字段、基础四项不写 `shape`、对话框全部工具经 `create` 落盘两点恒为 2、未知/错配 kind 与按族退化拖拽的拒绝路径。
+
+## 9. 验证
 
 - 命令：`./gradlew :feature-pen:testDebugUnitTest`（`android/` 目录下执行），结果见提交说明。
 
-## 9. 未覆盖与后续批次
+## 10. 未覆盖与后续批次
 
 - `PenValidation.STROKE_TYPES` / `AnnotationValidation.TYPES` / 桌面 `server.mjs` 三方一致的共享契约回归（建议落 `android/shared-tests/`）。
-- `contracts/annotations.schema.json` root 放宽为 `additionalProperties: true` 并补 `layers` 定义（D3 配套）。
+- `contracts/annotations.schema.json` root 放宽为 `additionalProperties: true` 并补 `layers` 定义（D3 配套）；`shape` 扩展字段的契约样例（D5 配套）尚未入 schema。
 - `layers` / `layer` 字段实装与桌面端同步方案。
 - `AnnotationValidation` 的 highlight `rect` 简写来源核对与文档化（当前仅代码注释声明，`AnnotationStore.kt:41-45`）。
+- 批次 2 遗留：`PdfAnnotationOverlay` 对 `shape` 扩展字段的目标形状渲染（当前按基类型降级，D5 §6.6）；画布手势按目录形状实时预览；`shape` 字段在样式编辑/选择/剪贴板链路中的保留回归（当前仅写路径覆盖）。

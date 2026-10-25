@@ -618,6 +618,7 @@ private fun ReaderHome(
         it.second,
         color = penStyle.color,
         width = penStyle.width,
+        shapeKind = tool.shapeKind,
       )
     }
     val targetPage = pageIndex + 1
@@ -5647,6 +5648,64 @@ internal fun AnnotationTextInputDialog(
   )
 }
 
+/** 形状对话框展示顺序：线族 → 面族（含多边形/坐标轴）→ 椭圆族（移植批次 2，ShapeCatalog D5）。 */
+private val annotationShapeDialogTools: List<PdfAnnotationDrawTool> = listOf(
+  PdfAnnotationDrawTool.LINE,
+  PdfAnnotationDrawTool.DASHED_LINE,
+  PdfAnnotationDrawTool.ARROW,
+  PdfAnnotationDrawTool.DOUBLE_ARROW,
+  PdfAnnotationDrawTool.AXIS_QUADRANT_1,
+  PdfAnnotationDrawTool.AXIS_QUADRANTS,
+  PdfAnnotationDrawTool.WAVE,
+  PdfAnnotationDrawTool.ZIGZAG,
+  PdfAnnotationDrawTool.RECTANGLE,
+  PdfAnnotationDrawTool.SQUARE,
+  PdfAnnotationDrawTool.ROUNDED_RECTANGLE,
+  PdfAnnotationDrawTool.DASHED_RECTANGLE,
+  PdfAnnotationDrawTool.TRIANGLE,
+  PdfAnnotationDrawTool.RIGHT_TRIANGLE,
+  PdfAnnotationDrawTool.DIAMOND,
+  PdfAnnotationDrawTool.PENTAGON,
+  PdfAnnotationDrawTool.HEXAGON,
+  PdfAnnotationDrawTool.STAR_5,
+  PdfAnnotationDrawTool.STAR_4,
+  PdfAnnotationDrawTool.PARALLELOGRAM,
+  PdfAnnotationDrawTool.TRAPEZOID,
+  PdfAnnotationDrawTool.CROSS,
+  PdfAnnotationDrawTool.ELLIPSE,
+  PdfAnnotationDrawTool.CIRCLE,
+)
+
+@Composable
+private fun annotationShapeToolLabel(tool: PdfAnnotationDrawTool): String = stringResource(
+  when (tool) {
+    PdfAnnotationDrawTool.LINE -> R.string.annotation_shape_line
+    PdfAnnotationDrawTool.DASHED_LINE -> R.string.annotation_shape_dashed_line
+    PdfAnnotationDrawTool.ARROW -> R.string.annotation_shape_arrow
+    PdfAnnotationDrawTool.DOUBLE_ARROW -> R.string.annotation_shape_double_arrow
+    PdfAnnotationDrawTool.AXIS_QUADRANT_1 -> R.string.annotation_shape_axis_quadrant_1
+    PdfAnnotationDrawTool.AXIS_QUADRANTS -> R.string.annotation_shape_axis_quadrants
+    PdfAnnotationDrawTool.WAVE -> R.string.annotation_shape_wave
+    PdfAnnotationDrawTool.ZIGZAG -> R.string.annotation_shape_zigzag
+    PdfAnnotationDrawTool.RECTANGLE -> R.string.annotation_shape_rectangle
+    PdfAnnotationDrawTool.SQUARE -> R.string.annotation_shape_square
+    PdfAnnotationDrawTool.ROUNDED_RECTANGLE -> R.string.annotation_shape_rounded_rect
+    PdfAnnotationDrawTool.DASHED_RECTANGLE -> R.string.annotation_shape_dashed_rect
+    PdfAnnotationDrawTool.TRIANGLE -> R.string.annotation_shape_triangle
+    PdfAnnotationDrawTool.RIGHT_TRIANGLE -> R.string.annotation_shape_right_triangle
+    PdfAnnotationDrawTool.DIAMOND -> R.string.annotation_shape_diamond
+    PdfAnnotationDrawTool.PENTAGON -> R.string.annotation_shape_pentagon
+    PdfAnnotationDrawTool.HEXAGON -> R.string.annotation_shape_hexagon
+    PdfAnnotationDrawTool.STAR_5 -> R.string.annotation_shape_star_5
+    PdfAnnotationDrawTool.STAR_4 -> R.string.annotation_shape_star_4
+    PdfAnnotationDrawTool.PARALLELOGRAM -> R.string.annotation_shape_parallelogram
+    PdfAnnotationDrawTool.TRAPEZOID -> R.string.annotation_shape_trapezoid
+    PdfAnnotationDrawTool.CROSS -> R.string.annotation_shape_cross
+    PdfAnnotationDrawTool.ELLIPSE -> R.string.annotation_shape_ellipse
+    PdfAnnotationDrawTool.CIRCLE -> R.string.annotation_shape_circle
+  },
+)
+
 @Composable
 internal fun AnnotationShapePickerDialog(
   onSelect: (PdfAnnotationDrawTool) -> Unit,
@@ -5656,15 +5715,20 @@ internal fun AnnotationShapePickerDialog(
     onDismissRequest = onDismiss,
     title = { Text(stringResource(R.string.reader_menu_shape)) },
     text = {
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(
-          modifier = Modifier.testTag("annotation_shape_rectangle"),
-          onClick = { onSelect(PdfAnnotationDrawTool.RECTANGLE) },
-        ) { Text(stringResource(R.string.annotation_shape_rectangle)) }
-        TextButton(
-          modifier = Modifier.testTag("annotation_shape_ellipse"),
-          onClick = { onSelect(PdfAnnotationDrawTool.ELLIPSE) },
-        ) { Text(stringResource(R.string.annotation_shape_ellipse)) }
+      Column(
+        modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        annotationShapeDialogTools.chunked(3).forEach { rowTools ->
+          Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            rowTools.forEach { tool ->
+              TextButton(
+                modifier = Modifier.testTag("annotation_shape_${tool.name.lowercase()}"),
+                onClick = { onSelect(tool) },
+              ) { Text(annotationShapeToolLabel(tool)) }
+            }
+          }
+        }
       }
     },
     confirmButton = {},
