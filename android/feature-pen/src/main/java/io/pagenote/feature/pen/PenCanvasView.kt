@@ -30,6 +30,7 @@ class PenCanvasView @JvmOverloads constructor(
   private val activePoints = mutableListOf<PenPoint>()
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
+  private val strokeCache = PenStrokeCache()
   private var activePointerId = INVALID_POINTER
   private var selectionPointerId = INVALID_POINTER
   private var annotationSelectionPointerId = INVALID_POINTER
@@ -99,6 +100,7 @@ class PenCanvasView @JvmOverloads constructor(
     get() = internalStrokes
     set(value) {
       internalStrokes = value.toList()
+      strokeCache.setStrokes(internalStrokes)
       invalidate()
     }
 
@@ -113,11 +115,13 @@ class PenCanvasView @JvmOverloads constructor(
     if (width <= 0 || height <= 0) return
     val geometry = geometry()
     if (!geometry.isValid) return
+    strokeCache.drawInto(canvas, geometry, width, height)
     val save = canvas.save()
     canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
     canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
-    internalStrokes.forEach { PenStrokePainter.drawStroke(canvas, it, geometry) }
-    if (laserTrail.isNotEmpty()) PenStrokePainter.drawLaser(canvas, laserTrail, laserColor, laserWidth, geometry)
+    if (laserTrail.isNotEmpty()) {
+      PenStrokePainter.drawLaser(canvas, laserTrail, laserColor, laserWidth, geometry)
+    }
     selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
@@ -265,6 +269,7 @@ class PenCanvasView @JvmOverloads constructor(
   override fun onDetachedFromWindow() {
     cancelActiveGesture()
     cancelShapeDwell()
+    strokeCache.clear()
     super.onDetachedFromWindow()
   }
 
@@ -476,6 +481,7 @@ class PenCanvasView @JvmOverloads constructor(
     val index = geometry()
       .hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
     internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
+    strokeCache.setStrokes(internalStrokes)
     onStrokeErased?.invoke(index)
     invalidate()
   }
@@ -503,6 +509,7 @@ class PenCanvasView @JvmOverloads constructor(
     }.getOrDefault(false)
     if (!consumed) {
       internalStrokes = internalStrokes + stroke
+      strokeCache.appendStroke(stroke, geometry())
       onStrokeAdded?.invoke(stroke)
     }
   }
