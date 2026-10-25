@@ -15,6 +15,7 @@ class DesktopCommandChecklistTest {
     "import_notes",
     "export_notes",
     "note_history",
+    "note_settings",
     "pdf_text_selection",
     "page_tutor",
     "agent_task",

@@ -14,6 +14,7 @@
 | 导入笔记 | `import_notes` | 已接线：当前页/整份导入 |
 | 导出笔记 | `export_notes` | 已接线：当前页/整份导出 |
 | 历史版本 | `note_history` | 已接线：页级历史恢复 |
+| 项目笔记设置 | `note_settings` | 已接线：项目级纸张背景与笔记口令设置 |
 | AI 批注（讲解/任务/批注/审阅/交接） | `pdf_text_selection`、`page_tutor`、`agent_task`、`annotations`、`reviews`、`handoff` | 已接线：端侧 Agent 与 OpenAI 兼容接入 |
 | 编辑：撤销/重做/剪切/复制/全选 | `note_undo`、`note_redo`、`cut`、`copy`、`select_all` | 已接线：页级 Markdown 历史与剪贴板 |
 | 段落：字号/标题/列表/引用 | `font_size`、`heading`、`unordered_list`、`ordered_list`、`task_list`、`quote` | 已接线：Markdown 段落格式化 |

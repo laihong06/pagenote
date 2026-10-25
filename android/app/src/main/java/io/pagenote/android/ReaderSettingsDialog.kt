@@ -217,6 +217,27 @@ internal fun ReaderSettingsDialog(
         }
 
         Text(
+          stringResource(R.string.note_background_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        listOf(
+          "plain" to R.string.note_background_plain,
+          "four-line" to R.string.note_background_four_line,
+          "grid" to R.string.note_background_grid,
+          "dot" to R.string.note_background_dot,
+          "restricted-margin" to R.string.note_background_restricted_margin,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.noteBackground == value,
+            enabled = !isSaving,
+            testTag = "note_background_$value",
+            onSelect = { draft = draft.copy(noteBackground = value) },
+          )
+        }
+
+        Text(
           stringResource(R.string.reader_language),
           modifier = Modifier.padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,

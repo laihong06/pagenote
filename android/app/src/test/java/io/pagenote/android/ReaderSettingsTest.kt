@@ -12,6 +12,23 @@ class ReaderSettingsTest {
     ReaderSettingsPolicy.validate(ReaderSettings())
     assertEquals(3, ReaderSettings().prepareAheadPages)
     assertEquals("classic", ReaderSettings().markdownTheme)
+    assertEquals("plain", ReaderSettings().noteBackground)
+  }
+
+  @Test
+  fun noteBackgroundAcceptsEveryCatalogKindAndRejectsUnknownKeys() {
+    io.pagenote.feature.pen.NoteBackground.ALL.forEach { background ->
+      ReaderSettingsPolicy.validate(ReaderSettings(noteBackground = background.key))
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      ReaderSettingsPolicy.validate(ReaderSettings(noteBackground = "cornell"))
+    }
+  }
+
+  @Test
+  fun sanitizeFallsBackToPlainForUnknownNoteBackground() {
+    val sanitized = ReaderSettingsPolicy.sanitize(ReaderSettings(noteBackground = "cornell"))
+    assertEquals("plain", sanitized.noteBackground)
   }
 
   @Test

@@ -144,6 +144,7 @@ import io.pagenote.feature.ocr.OcrPolicy
 import io.pagenote.feature.ocr.OcrResult
 import io.pagenote.feature.ocr.OcrResultMapper
 import io.pagenote.feature.ocr.OcrResultPolicy
+import io.pagenote.feature.pen.NoteBackground
 import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenCanvasGeometry
 import io.pagenote.feature.pen.PenCanvasPageTransform
@@ -306,9 +307,21 @@ private data class ReaderProjectData(
   val checkpoint: ReaderSessionCheckpoint?,
   val draftRecovery: NoteDraftRecoveryRecord?,
   val missingAssets: List<String>,
+  val noteSettings: ProjectNoteSettings = ProjectNoteSettings.DEFAULT,
 )
 
 private class PersistedProjectPermissionMissingException : SecurityException()
+
+/**
+ * A password-protected project was picked but not unlocked yet (port batch 3).
+ * The reader stays on its previous state until the passphrase verifies;
+ * cancelling the dialog simply keeps the current project.
+ */
+private data class NotePassphraseGate(
+  val target: ProjectOpenTarget,
+  val projectName: String,
+  val hash: NotePassphraseHash,
+)
 
 private data class PendingMarkdownImageInsertion(
   val project: OpenedProject,
@@ -486,6 +499,13 @@ private fun ReaderHome(
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
   var pendingPdfImageInsertion by remember { mutableStateOf<PendingPdfImageInsertion?>(null) }
   var showSettings by remember { mutableStateOf(false) }
+  val notePassphraseHasher = remember { Pbkdf2NotePassphraseHasher() }
+  var projectNoteSettings by remember { mutableStateOf(ProjectNoteSettings.DEFAULT) }
+  var notePassphraseUnlock by remember { mutableStateOf<CharArray?>(null) }
+  var notePassphraseGate by remember { mutableStateOf<NotePassphraseGate?>(null) }
+  var notePassphraseGateError by remember { mutableStateOf<String?>(null) }
+  var isVerifyingNotePassphrase by remember { mutableStateOf(false) }
+  var showProjectNoteSettings by remember { mutableStateOf(false) }
   var splitLeftPercent by remember(settings.leftPercent) {
     mutableFloatStateOf(settings.leftPercent.toFloat())
   }
@@ -2275,10 +2295,28 @@ private fun ReaderHome(
     return false
   }
 
+  /**
+   * Reads `src/note-settings.json`, falling back to defaults when the file is
+   * missing or unreadable. A corrupt settings file must not block opening the
+   * project; note that a damaged passphrase hash therefore also disables the
+   * open-time gate (recorded limitation — whoever can rewrite project files
+   * can already delete the hash).
+   */
+  fun readProjectNoteSettings(opened: OpenedProject): ProjectNoteSettings = try {
+    ProjectNoteSettingsStore(
+      context.contentResolver,
+      opened.sourceDirectoryUri,
+      opened.noteSettingsUri,
+    ).read()
+  } catch (_: Exception) {
+    ProjectNoteSettings.DEFAULT
+  }
+
   suspend fun openProjectTree(
     target: ProjectOpenTarget,
     manageOpening: Boolean = true,
     requestedCheckpoint: ReaderSessionCheckpoint? = null,
+    verifiedPassphrase: CharArray? = null,
   ) {
     if (manageOpening) {
       isOpening = true
@@ -2308,11 +2346,21 @@ private fun ReaderHome(
           )
         }
       }
+      var passphraseGate: NotePassphraseGate? = null
       val loaded = withContext(Dispatchers.IO) {
         val opened = ProjectDocumentOpener(context.contentResolver).open(
           target.accessTreeUri,
           target.rootDocumentId,
         )
+        val noteSettings = readProjectNoteSettings(opened)
+        if (noteSettings.passphraseHash != null && verifiedPassphrase == null) {
+          passphraseGate = NotePassphraseGate(
+            target = target,
+            projectName = opened.manifest.name.ifBlank { opened.sourceName },
+            hash = noteSettings.passphraseHash,
+          )
+          return@withContext null
+        }
         val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
         val noteText = noteStore.read()
         val supportsNoteWrite = noteStore.supportsWrite()
@@ -2396,11 +2444,22 @@ private fun ReaderHome(
           checkpoint = restoredCheckpoint,
           draftRecovery = draftRecovery,
           missingAssets = missingAssets,
+          noteSettings = noteSettings,
         )
+      }
+      if (loaded == null) {
+        // Password-protected project picked but not unlocked: keep the current
+        // reader state and raise the verification gate instead of opening.
+        notePassphraseGate = passphraseGate
+        notePassphraseGateError = null
+        return
       }
       readerSession.replaceRenderer(loaded.renderer)
       markdownSource = loaded.markdownSource
       project = loaded.project
+      projectNoteSettings = loaded.noteSettings
+      notePassphraseUnlock?.let { it.fill('\u0000') }
+      notePassphraseUnlock = if (loaded.noteSettings.hasPassphrase) verifiedPassphrase else null
       notesMarkdown = loaded.noteText
       penStore = loaded.penStore
       penPageStore = loaded.penPageStore
@@ -3159,7 +3218,7 @@ private fun ReaderHome(
         return
       }
       val file = withContext(Dispatchers.Default) {
-        if (fullBackup) {
+        val plain = if (fullBackup) {
           NoteExportPayload.fullBackup(
             projectName = projectName,
             sourcePageCount = sourcePageCount,
@@ -3172,6 +3231,20 @@ private fun ReaderHome(
             projectName = projectName,
             page = currentPage,
             markdown = currentPageMarkdown,
+          )
+        }
+        val passphraseHash = projectNoteSettings.passphraseHash
+        if (passphraseHash == null) {
+          plain
+        } else {
+          val passphrase = notePassphraseUnlock
+            ?: throw IllegalStateException(
+              context.getString(R.string.note_passphrase_required_for_export),
+            )
+          NoteExportFile(
+            mimeType = NoteExportPayload.ENCRYPTED_MIME_TYPE,
+            fileName = NoteExportPayload.encryptedFileName(plain.fileName),
+            content = NoteExportCipher.encrypt(plain.content, passphrase),
           )
         }
       }
@@ -3773,6 +3846,7 @@ private fun ReaderHome(
     failedPenSave == null && !isOcrRunning && !readerInputLocked
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canExportNotes = activeProject != null && !menuBusy
+  val canManageNoteSettings = activeProject != null && noteWritable && !menuBusy
   val canUsePdf = canReadDocument && !isMarkdownReading
   val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting &&
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
@@ -4070,6 +4144,10 @@ private fun ReaderHome(
             busy = isSaving || isOpening,
           ) ?: context.getString(R.string.reader_menu_history_unavailable),
         ) { showNoteHistory = true },
+        actionCommand(
+          "note_settings", R.string.note_settings_menu, canManageNoteSettings,
+          disabledReason = commandReason(requireProject = true, requireWritable = true),
+        ) { showProjectNoteSettings = true },
       ),
     ),
     menuSection(
@@ -5441,6 +5519,60 @@ private fun ReaderHome(
           Text(stringResource(R.string.cancel))
         }
       },
+    )
+  }
+  notePassphraseGate?.let { gate ->
+    NotePassphraseVerifyDialog(
+      projectName = gate.projectName,
+      error = notePassphraseGateError,
+      isVerifying = isVerifyingNotePassphrase,
+      onVerify = { attempt ->
+        isVerifyingNotePassphrase = true
+        notePassphraseGateError = null
+        readerSession.launchSessionTask {
+          val ok = try {
+            withContext(Dispatchers.Default) { notePassphraseHasher.verify(attempt, gate.hash) }
+          } catch (error: Exception) {
+            false
+          }
+          isVerifyingNotePassphrase = false
+          if (ok) {
+            notePassphraseGate = null
+            notePassphraseGateError = null
+            // Ownership of `attempt` transfers to the session unlock state.
+            openProjectTree(gate.target, verifiedPassphrase = attempt)
+          } else {
+            attempt.fill('\u0000')
+            notePassphraseGateError = context.getString(R.string.note_passphrase_wrong)
+          }
+        }
+      },
+      onCancel = {
+        notePassphraseGate = null
+        notePassphraseGateError = null
+      },
+    )
+  }
+  if (showProjectNoteSettings && project != null) {
+    ProjectNoteSettingsDialog(
+      settings = projectNoteSettings,
+      defaultBackground = NoteBackground.fromKey(settings.noteBackground) ?: NoteBackground.PLAIN,
+      hasher = notePassphraseHasher,
+      onSave = { updated ->
+        val activeProject = project ?: return@ProjectNoteSettingsDialog
+        val store = ProjectNoteSettingsStore(
+          context.contentResolver,
+          activeProject.sourceDirectoryUri,
+          activeProject.noteSettingsUri,
+        )
+        withContext(Dispatchers.IO) { store.write(updated) }
+        projectNoteSettings = updated
+        if (!updated.hasPassphrase) {
+          notePassphraseUnlock?.let { it.fill('\u0000') }
+          notePassphraseUnlock = null
+        }
+      },
+      onDismiss = { showProjectNoteSettings = false },
     )
   }
   if (showPendingNoteExportRecoveryDialog && isPendingNoteExportRecovered) {

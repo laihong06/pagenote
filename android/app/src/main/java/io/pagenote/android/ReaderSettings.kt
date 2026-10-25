@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import io.pagenote.feature.pen.NoteBackground
 import kotlin.math.roundToInt
 
 data class ReaderSettings(
@@ -11,6 +12,7 @@ data class ReaderSettings(
   val allowInkOutsidePage: Boolean = false,
   val prepareAheadPages: Int = 3,
   val markdownTheme: String = "classic",
+  val noteBackground: String = NoteBackground.PLAIN.key,
 )
 
 object ReaderSettingsPolicy {
@@ -18,6 +20,7 @@ object ReaderSettingsPolicy {
   private val THEMES = setOf("system", "light", "dark", "paper")
   private val MARKDOWN_THEMES = setOf("classic", "paper")
   private val LANGUAGES = setOf("system", "zh-CN", "en-US")
+  private val NOTE_BACKGROUNDS = NoteBackground.ALL.map(NoteBackground::key).toSet()
 
   fun sanitize(settings: ReaderSettings): ReaderSettings {
     val defaults = ReaderSettings()
@@ -28,6 +31,7 @@ object ReaderSettingsPolicy {
       leftPercent = settings.leftPercent.takeIf { it in 20..80 } ?: defaults.leftPercent,
       noteFontSize = settings.noteFontSize.takeIf(NOTE_FONT_SIZES::contains) ?: defaults.noteFontSize,
       prepareAheadPages = settings.prepareAheadPages.takeIf { it in 0..10 } ?: defaults.prepareAheadPages,
+      noteBackground = settings.noteBackground.takeIf(NOTE_BACKGROUNDS::contains) ?: defaults.noteBackground,
     )
   }
 
@@ -38,6 +42,7 @@ object ReaderSettingsPolicy {
     require(settings.leftPercent in 20..80) { "bad split percent" }
     require(NOTE_FONT_SIZES.contains(settings.noteFontSize)) { "bad note font size" }
     require(settings.prepareAheadPages in 0..10) { "bad preparation window" }
+    require(NOTE_BACKGROUNDS.contains(settings.noteBackground)) { "bad note background" }
   }
 
   fun isTabletLandscape(widthDp: Int, heightDp: Int, orientationLandscape: Boolean): Boolean {

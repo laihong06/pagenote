@@ -63,4 +63,20 @@ internal object NoteExportPayload {
       content = markdown,
     )
   }
+
+  /**
+   * Destination name for a passphrase-encrypted export (port batch 3): the
+   * container is JSON regardless of the plaintext kind, so the original
+   * extension is replaced by `.encrypted.json`, e.g.
+   * `Project-逐页笔记.json` → `Project-逐页笔记.encrypted.json`.
+   */
+  fun encryptedFileName(fileName: String): String {
+    require(fileName.isNotBlank()) { "bad export file name" }
+    val base = fileName.substringBeforeLast('.', fileName)
+    require(base.isNotBlank()) { "bad export file name" }
+    return "$base$ENCRYPTED_EXTENSION"
+  }
+
+  const val ENCRYPTED_EXTENSION = ".encrypted.json"
+  const val ENCRYPTED_MIME_TYPE = "application/json"
 }
