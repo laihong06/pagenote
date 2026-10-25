@@ -1,6 +1,6 @@
 # Canvas Schema Decision（annotations.json 类型集演进与桌面互通约束）
 
-- 状态：已接受（移植批次 0 建立；移植批次 2 增补 D5 形状目录决策并落地；移植批次 4 增补 D6 文本样式 schema 决策并落地，分支 `codex/port-canvas-notes-features`）
+- 状态：已接受（移植批次 0 建立；移植批次 2 增补 D5 形状目录决策并落地；移植批次 4 增补 D6 文本样式 schema 决策并落地；移植批次 5 增补 D7 贴纸/素材/公式决策并落地，分支 `codex/port-canvas-notes-features`）
 - 范围：`src/annotations.json` 的类型集演进策略、未知字段透传机制、图层 schema 草案、形状参数化子类型、文本工具样式 schema 扩展字段，以及 Android 与桌面端的互通硬约束。
 - 性质：决策文档。批次 0 只新增本文档与 `feature-pen` 透传单测；批次 2 按 D5 落地 `ShapeCatalog` 与形状对话框接线；批次 4 按 D6 落地 `TextFontCatalog`/`AnnotationTextStyle` 与 UpdateTextStyle 动作；均不改任何 schema 契约文件。
 
@@ -57,6 +57,8 @@
 | `layoutAnchor` | 桌面 note 侧重投影锚（写入 `src/annotations.js:216-231`，rebase/复制粘贴时删除，`src/annotations.js:275,616`） | Android 不写入、不解释，但必须原样保留（走 `extraFields` 通道，`layoutAnchor` 不在 canonical 集合内） |
 | `shape` | Android（批次 2，目录形状 kind id，`PdfAnnotationVectorDraft`） | 桌面按基类型渲染并原样保留；Android 读取时未知 id 按基类型降级（D5） |
 | `font` / `fontSize` / `align` | Android（批次 4，`type:"text"` 项的文本样式，见 D6） | 桌面忽略不解释（字号仍按 `width` 派生渲染）；Android 读取时未知字体 id / 越界字号 / 未知对齐键降级为默认（D6） |
+| `sticker` / `angle` / `flipX` / `flipY` | Android（批次 5，`type:"image"` 项的贴纸身份与摆放姿态，见 D7） | 桌面忽略不解释（按未旋转 bbox 渲染 image）；Android 读取时越界角度/非布尔镜像降级为默认、非法来源视为普通图片（D7） |
+| `latex` / `latexColor` | Android（批次 5，`type:"image"` 项的公式源，见 D7） | 桌面忽略不解释（仍按附件位图渲染）；Android 读取时非法行丢弃、非法颜色降级为 canonical `color`（D7） |
 
 约束：`CANONICAL_ANNOTATION_FIELDS` 是保留字表；未来把某个 extension 字段升格为 canonical 时，必须同版本升级该集合并保持"extension 不得覆盖 canonical"的过滤语义不变。
 
@@ -136,6 +138,42 @@ Android 约束：
 5. **默认 schema（文本工具新建项）**：`font=default`（目录默认）、`fontSize=derivedFontSize(当前笔宽)`、`align=left`，随 `AnnotationTextDraft.toItem(style=...)` 显式写出；无样式参数的调用保持旧格式（不带扩展字段），既有调用方与测试不变。
 6. **UpdateTextStyle 撤销动作**：样式更新以 `AnnotationUpdateTextStyleAction`（app，注册 id `pdf.annotationTextStyle`）适配到批次 1 的统一 `PenAction` 栈，连续同 scope 样式编辑合并为一个撤销步（对齐 `PenPageStoreActions` UPDATE_STYLE 合并语义）；阅读器 UI 仍走既有 `PdfAnnotationEditHistory` 快照撤销，两条路径不混用。
 
+## 6.7 决策 D7：贴纸与素材系统数据层（批次 5 落地）
+
+批次 5 移植 touchnotes 的贴纸系统（`draw.sticker.StickerManager` / `paint.core.StickerManager`：
+zip 资产包导入、`stickers/` 库目录、`_sticker` 二进制容器、GifImage 动效贴纸、面板拖拽排序）与
+素材系统（`StickerInfo{materials, rect, scale}` 保存选区、`FormulaMaterial` 公式位图），全部落在
+数据层，UI 接线归画布重做批次。
+
+1. **贴纸对象不新增 `type` 枚举（延续 D1）**：贴纸落盘为 `type:"image"` 项——位图走项目附件通道
+   （`url: /attachments/<uuid36>.(png|jpe?g|gif|webp)`，复用 ProjectImageImporter 的 assets/ 落盘与
+   尺寸校验），几何走 D4 两点 bbox（最小边 10），身份与姿态走 D2 扩展字段：`sticker`（来源相对路径，
+   缺省=普通图片批注）、`angle`（度，规范域 (-180,180]，0 不写）、`flipX`/`flipY`（布尔，false 不写）。
+   拖拽/缩放数据层（`AnnotationImageTransform`）：平移与等比缩放改写 canonical `points`，旋转/镜像只改
+   扩展字段；桌面按未旋转 bbox 渲染并透传字段——与 D5 §6 同构的既定降级容忍点。
+2. **GIF 贴纸零新字段**：`url` 的 `.gif` 后缀即动效标记。帧元数据（画布尺寸/帧数/逐帧时延/
+   NETSCAPE 循环数）由纯字节解析器 `GifMetadataParser`（app）先行提供，像素解码归渲染层；时延
+   <20ms 按浏览器惯例回退 100ms。
+3. **贴纸资产包格式**：zip，条目为图片（png/jpg/jpeg/gif/webp），允许一层子目录作分组；上限
+   200 条目/单条 20MB/总量 200MB；拒绝路径穿越、绝对路径、深层级、重名（`StickerPackArchive`）。
+   SAF 导入（`ProjectStickerPackImporter`）落 `<project>/stickers/<pack>/[group/]<file>`，包名与
+   文件名安全化 + 唯一化（`name_1` 递增），失败全量清理（对齐 ProjectImageImporter 的残留上报语义）。
+4. **贴纸面板数据/拖拽排序**：排序持久化为 `stickers/order.json`（version 1，`{"folders":{path:
+   [names]}}`）；顺序表是**优先覆盖**——表中存在的名字按表排列，未列入的名字按名称不区分大小写
+   追加（新增贴纸零配置可见）；拖拽落点对齐 ItemTouchHelper `onMove` 的 from/to 语义。坏文件
+   容错为默认排序。
+5. **素材库是独立文件 `<project>/materials.json`**（version 1）：不进 annotations.json root（不触碰
+   D3 的 root 键名预留），桌面不读取不解释。素材 = 一组经桌面校验镜像（AnnotationValidation）的
+   item + 名称 + kind（selection/sticker/formula）；上限 100 条/条内 50 item/名称 80 码点；修改前
+   全量备份 `materials-history/` + 原子写（对齐 AnnotationStore 姿态），SAF 侧走恢复写入。
+6. **公式素材 = image 项 + `latex` 扩展**（对齐 touchnotes `Image.mLatexTexts`/`latexColor`）：
+   `latex`（字符串数组 1..8 行，每行 ≤2000 字符）+ `latexColor`（`#rrggbb`，缺省取 canonical
+   `color`）；位图附件是渲染产物，latex 字段保留可重渲染性。渲染数据层复用应用既有 JLatexMath
+   依赖（ru.noties:jlatexmath-android，与笔记 Markdown 公式同源）：JLatexMathDrawable 测行 →
+   `FormulaMaterialLayout`（复刻 touchnotes 布局常量 100/40/40/20）→ ARGB_8888 位图逐行绘制。
+7. **读侧容错、写侧严格（延续 D5 §3 / D6 §4）**：所有 D7 扩展字段读侧非法值降级默认、绝不拒绝
+   item；Android 主动写出经 `create`/`upsert` 校验，永不写非法值。
+
 ## 7. 桌面互通硬约束清单
 
 ## 6. 桌面互通硬约束清单
@@ -163,6 +201,16 @@ Android 约束：
 - `ShapeCatalogTest`（`feature-pen`）：目录规模 ≥21、id 唯一且基类型合法、轮廓确定性、线族方向保留、面族包围盒归一化、闭合形状闭合、虚线与实线共享轮廓、多边形顶点数、退化两点语义、stroke hit-test 命中/未命中与容差半径、内接 square/circle。
 - `PdfAnnotationVectorDraftTest` 扩展：目录扩展项序列化为基类型 + `shape` 扩展字段、基础四项不写 `shape`、对话框全部工具经 `create` 落盘两点恒为 2、未知/错配 kind 与按族退化拖拽的拒绝路径。
 
+批次 5（D7 落地）新增：
+
+- `StickerAnnotationTest`（feature-annotations，12 例）：canonical image 项 + 两点 bbox、默认姿态不写扩展字段、姿态字段与 bbox 归一化、角度规范域、写侧拒绝清单（坏资产名/颜色/宽度/退化 bbox/路径穿越/越界角度/坐标越界）、读侧往返与未知字段共存、读侧降级（越界角度/非布尔 flip/空来源）、非 image 与畸形 canonical 拒绝、GIF url 派生、摆放几何纵横比/中心对齐/退化拒绝、落盘项通过 AnnotationValidation 镜像。
+- `AnnotationImageTransformTest`（feature-annotations，11 例）：读姿态、平移、绕中心/绕角缩放与退化拒绝、旋转累加与规范域、镜像翻转、旋转命中测试（含容差）、applyToItem 重写姿态并保留未知字段、回正清除姿态字段、写读往返。
+- `CanvasMaterialTest`（feature-annotations，8 例）+ `FormulaAnnotationTest`（5 例）：素材编解码往返、newEntry uuid 与非法 item 拒绝、解码跳过非法条目、未知 version 拒绝、upsert 覆盖与 FIFO 上限、删除、store 备份/去重/缺失文件、公式行/色校验、latex 数组与颜色降级、merge 写入与清除、落盘项通过校验镜像。
+- `StickerPackArchiveTest`（app，10 例）：根级/一层分组解析、路径与扩展名拒绝、目录条目跳过、非图片/穿越/重名/空包/超限条目/超条目数拒绝、MIME 白名单。
+- `StickerPanelOrderTest`（app，7 例）：order.json 编解码往返、容错（坏 JSON/未知 version/非字符串项）、顺序合成（覆盖+新增追加+陈旧项不占位）、默认不区分大小写排序、applyMove 语义、拖拽→落盘→重读全链路。
+- `GifDocumentMetadataTest`（app，7 例）：头/尺寸/帧数、GCT 偏移、逐帧时延、零时延浏览器回退、NETSCAPE 循环数（无限/3 次/缺省）、动效标记、非 GIF/截断/未知块拒绝。
+- `FormulaMaterialLayoutTest`（app，5 例）：单行 padding、超高行归一、多行堆叠与水平居中、targetHeight 整体缩放（含 y 起点与行间距同步缩放）、非法输入拒绝。
+
 ## 9. 验证
 
 - 命令：`./gradlew :feature-pen:testDebugUnitTest`（`android/` 目录下执行），结果见提交说明。
@@ -174,3 +222,4 @@ Android 约束：
 - `layers` / `layer` 字段实装与桌面端同步方案。
 - `AnnotationValidation` 的 highlight `rect` 简写来源核对与文档化（当前仅代码注释声明，`AnnotationStore.kt:41-45`）。
 - 批次 2 遗留：`PdfAnnotationOverlay` 对 `shape` 扩展字段的目标形状渲染（当前按基类型降级，D5 §6.6）；画布手势按目录形状实时预览；`shape` 字段在样式编辑/选择/剪贴板链路中的保留回归（当前仅写路径覆盖）。
+- 批次 5 遗留（UI 归画布重做批次）：贴纸面板 UI 与拖拽接线；贴纸上画布的"库文件 → 附件导入 → image 项"组合调用；GIF 帧像素解码/播放（当前仅帧元数据）；`angle`/`flipX`/`flipY` 的 overlay 目标渲染；公式位图 → 附件 → image 项的落盘接线；`FormulaMaterialRenderer` 的 JVM 级测试（依赖 android.graphics 与 JLatexMath，仅编译验证）；SAF 导入器（ProjectStickerPackImporter/ProjectStickerLibrary/ProjectMaterialStore）的 provider级行为验证（JVM 只覆盖纯逻辑，对齐 AnnotationSafBoundaryTest 的边界测试姿态）；贴纸/素材契约 schema 样例（sticker、latex 等扩展字段尚未入 contracts/annotations.schema.json）。
