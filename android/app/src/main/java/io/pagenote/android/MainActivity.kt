@@ -1,9 +1,11 @@
 package io.pagenote.android
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -33,6 +35,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -144,6 +147,8 @@ import io.pagenote.feature.notes.PageNoteEditor
 import io.pagenote.feature.notes.NoteDiagnostic
 import io.pagenote.feature.notes.NoteRichContent
 import io.pagenote.feature.ocr.LatexModelCatalog
+import io.pagenote.feature.audio.AudioCapsuleGeometry
+import io.pagenote.feature.audio.AudioRecordingPolicy
 import io.pagenote.feature.ocr.LatexOcrEngine
 import io.pagenote.feature.ocr.LatexOcrResult
 import io.pagenote.feature.ocr.OfflineOcrEngine
@@ -362,6 +367,13 @@ private data class PendingPdfImageInsertion(
   val style: PenStyle,
 )
 
+/** 录音落点请求（移植批次 8）：页号（1 起）+ width-1000 锚点。 */
+private data class AudioRecordStart(
+  val page: Int,
+  val anchorX: Double,
+  val anchorY: Double,
+)
+
 private data class PendingNoteImportContext(
   val projectId: String,
   val sourceDirectoryUri: Uri,
@@ -564,6 +576,50 @@ private fun ReaderHome(
       search.focusRect = null
     }
   }
+
+  // --- 录音与离线转写（移植批次 8）---------------------------------------------
+  // 控制器/权限/对话框样板在 AudioWiring（ReaderHome 已逼近 64KB 方法上限）。
+  // 录音落点取当前视口中心映射到 width-1000 文档坐标；录音命令仅 PDF 阅读开放
+  // （胶囊渲染在 PDF 页面 overlay 上；Markdown 项目的录音入口本批次不开放）。
+  val latestSettingsForAudio by rememberUpdatedState(settings)
+  val audioController = rememberReaderAudioController(context, readerSession) { latestSettingsForAudio }
+  val launchAudioRecording = rememberAudioRecordLauncher(
+    context = context,
+    controller = audioController,
+    onDenied = { noteStatus = context.getString(R.string.audio_permission_denied) },
+    onStartFailed = { noteStatus = context.getString(R.string.audio_record_start_failed) },
+  )
+  DisposableEffect(audioController) {
+    onDispose { audioController.stopEverything() }
+  }
+  LaunchedEffect(project?.manifest?.id, project?.sourceDirectoryUri) {
+    val activeProject = project
+    if (activeProject != null) audioController.attachProject(activeProject) else audioController.stopEverything()
+  }
+
+  /** 录音起点：当前页（1 起）+ 视口中心 → width-1000 文档坐标锚点。 */
+  fun beginAudioRecording() {
+    if (project == null || audioController.recordingPhase != AudioRecordingPolicy.Phase.IDLE) return
+    val anchor = mapPdfTapToAnnotationPoint(
+      PdfSelectionPoint(viewportBounds.viewportWidthPx / 2f, viewportBounds.viewportHeightPx / 2f),
+      viewportBounds,
+      viewportTransform,
+    ) ?: (500.0 to 500.0)
+    launchAudioRecording(pageIndex + 1, anchor.first, anchor.second)
+  }
+
+  /** 画布胶囊点按（选中工具）：命中即播放并打开转写列表。 */
+  fun handleAudioCapsuleTap(tap: PdfSelectionPoint) {
+    val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform) ?: return
+    val hit = AudioCapsuleGeometry.hitTest(
+      audioController.index.forPage(pageIndex + 1),
+      point.first,
+      point.second,
+    ) ?: return
+    audioController.togglePlay(hit)
+    audioController.transcriptListVisible = true
+  }
+
   var isOpening by readerSession.isOpening
   var isImageImporting by remember { mutableStateOf(false) }
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
@@ -4564,6 +4620,11 @@ private fun ReaderHome(
   }
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
+  // 画布音频胶囊（移植批次 8）：选中工具下当前页有胶囊时才接管点按。
+  val audioCapsulesOnPage = audioController.index.forPage(pageIndex + 1)
+  val audioCapsuleTapEnabled = audioCapsulesOnPage.isNotEmpty() &&
+    penTool == PenCanvasTool.SELECT && annotationDrawTool == null && !annotateMode &&
+    !readerInputLocked && !isAnnotationSaving
   val hasValidInkClipboard = remember(clipboardRevision, project?.sourceDirectoryUri) {
     clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null || annotationClipboardHtml() != null
   }
@@ -5023,6 +5084,18 @@ private fun ReaderHome(
           canReadDocument && !search.searching && !search.rebuilding && !readerInputLocked,
           disabledReason = commandReason(requireProject = true),
         ) { search.show = true },
+        actionCommand(
+          "audio_record", R.string.reader_menu_audio_record,
+          canUsePdf && audioController.recordingPhase == AudioRecordingPolicy.Phase.IDLE &&
+            !readerInputLocked && !isAnnotationSaving,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { beginAudioRecording() },
+        actionCommand(
+          "audio_transcripts", R.string.reader_menu_audio_transcripts,
+          canReadDocument && !readerInputLocked && audioController.index.size > 0,
+          disabledReason = commandReason(requireProject = true) ?:
+            context.getString(R.string.audio_transcript_list_empty),
+        ) { audioController.transcriptListVisible = true },
         actionCommand(
           "zoom_out", R.string.zoom_out,
           canUsePdf && !readerInputLocked &&
@@ -5549,6 +5622,10 @@ private fun ReaderHome(
                 selection = activeOcrSelectionOverlay(),
                 onSelectionChanged = ::routeOcrSelection,
                 focusRect = search.focusRect.takeIf { search.focusPage == pageIndex },
+                audioCapsules = audioCapsulesOnPage,
+                activeAudioCapsuleId = audioController.playingCapsuleId,
+                audioCapsuleTapEnabled = audioCapsuleTapEnabled,
+                onAudioCapsuleTap = ::handleAudioCapsuleTap,
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -5687,6 +5764,10 @@ private fun ReaderHome(
                 selection = activeOcrSelectionOverlay(),
                 onSelectionChanged = ::routeOcrSelection,
                 focusRect = search.focusRect.takeIf { search.focusPage == pageIndex },
+                audioCapsules = audioCapsulesOnPage,
+                activeAudioCapsuleId = audioController.playingCapsuleId,
+                audioCapsuleTapEnabled = audioCapsuleTapEnabled,
+                onAudioCapsuleTap = ::handleAudioCapsuleTap,
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -5963,8 +6044,15 @@ private fun ReaderHome(
       },
       onSave = settingsStore::save,
       onRebuildIndex = { rebuildSearchIndex() },
+      quotaUsageMb = audioController.quotaUsageBytes / (1024L * 1024L),
     )
   }
+  // 音频胶囊转写列表 + 录音模态（移植批次 8；宿主在 AudioWiring）。
+  AudioSessionDialogs(
+    controller = audioController,
+    hasProject = activeProject != null,
+    onJumpToPage = { targetPage -> readerSession.launchSessionTask { changePage(targetPage) } },
+  )
   if (showNoteFontSizeDialog) {
     NoteFontSizeDialog(
       currentSize = settings.noteFontSize,
@@ -7427,6 +7515,10 @@ internal fun PdfPageViewport(
   selection: NormalizedOcrRegion? = null,
   onSelectionChanged: (NormalizedOcrRegion?) -> Unit = {},
   focusRect: NormalizedOcrRegion? = null,
+  audioCapsules: List<io.pagenote.feature.audio.AudioCapsule> = emptyList(),
+  activeAudioCapsuleId: String? = null,
+  audioCapsuleTapEnabled: Boolean = false,
+  onAudioCapsuleTap: (PdfSelectionPoint) -> Unit = {},
   annotateTapEnabled: Boolean = false,
   onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
   annotationDrawTool: PdfAnnotationDrawTool? = null,
@@ -7442,6 +7534,7 @@ internal fun PdfPageViewport(
   val latestOnTextSelectionChanged by rememberUpdatedState(onTextSelectionChanged)
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
+  val latestOnAudioCapsuleTap by rememberUpdatedState(onAudioCapsuleTap)
   val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
   val latestOnPageSwipe by rememberUpdatedState(onPageSwipe)
   val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
@@ -7481,7 +7574,7 @@ internal fun PdfPageViewport(
       Box(
         modifier = Modifier.fillMaxSize().pointerInput(
           page, bounds, pageText, textSelectionEnabled, selectionEnabled, gesturesEnabled,
-          annotateTapEnabled, annotationDrawTool, pageSwipesEnabled,
+          annotateTapEnabled, annotationDrawTool, pageSwipesEnabled, audioCapsuleTapEnabled,
         ) {
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -7534,6 +7627,16 @@ internal fun PdfPageViewport(
                   change.consume()
                   latestOnAnnotationDrag(start, end, finished)
                 }
+              } while (event.changes.any { it.id == down.id && it.pressed })
+            } else if (audioCapsuleTapEnabled && down.type != PointerType.Mouse) {
+              // 画布音频胶囊点按（移植批次 8）：选中工具下命中胶囊即回调并消费，
+              // 未命中（overlay 不拦截）事件继续走常规路径。
+              val tap = PdfSelectionPoint(down.position.x, down.position.y)
+              latestOnAudioCapsuleTap(tap)
+              down.consume()
+              do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { if (it.pressed) it.consume() }
               } while (event.changes.any { it.id == down.id && it.pressed })
             } else if (annotateTapEnabled && down.type != PointerType.Mouse) {
               val tap = PdfSelectionPoint(down.position.x, down.position.y)
@@ -7690,6 +7793,7 @@ internal fun PdfPageViewport(
           },
         )
         Box(modifier = pageLayerModifier, contentAlignment = Alignment.Center) {
+          AudioCapsuleOverlay(audioCapsules, activeAudioCapsuleId)
           SearchFocusOverlay(focusRect)
           OcrSelectionOverlay(selection)
           PdfTextSelectionOverlay(pageText, textSelection)

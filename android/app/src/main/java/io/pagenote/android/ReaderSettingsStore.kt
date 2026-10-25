@@ -42,6 +42,10 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
           SEARCH_INDEX_TRANSCRIPTS_KEY,
           defaults.searchIndexTranscripts,
         ),
+        asrModel = preferences.stringOrDefault(ASR_MODEL_KEY, defaults.asrModel),
+        asrLanguage = preferences.stringOrDefault(ASR_LANGUAGE_KEY, defaults.asrLanguage),
+        asrAutoTranscribe = preferences.booleanOrDefault(ASR_AUTO_TRANSCRIBE_KEY, defaults.asrAutoTranscribe),
+        audioQuotaMb = preferences.intOrDefault(AUDIO_QUOTA_MB_KEY, defaults.audioQuotaMb),
       ),
     )
   }
@@ -64,6 +68,10 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[SEARCH_INDEX_NOTES_KEY] = settings.searchIndexNotes
       preferences[SEARCH_INDEX_OCR_KEY] = settings.searchIndexOcr
       preferences[SEARCH_INDEX_TRANSCRIPTS_KEY] = settings.searchIndexTranscripts
+      preferences[ASR_MODEL_KEY] = settings.asrModel
+      preferences[ASR_LANGUAGE_KEY] = settings.asrLanguage
+      preferences[ASR_AUTO_TRANSCRIBE_KEY] = settings.asrAutoTranscribe
+      preferences[AUDIO_QUOTA_MB_KEY] = settings.audioQuotaMb
     }
   }
 }
@@ -83,6 +91,10 @@ private val SEARCH_INDEX_SOURCE_KEY = booleanPreferencesKey("search_index_source
 private val SEARCH_INDEX_NOTES_KEY = booleanPreferencesKey("search_index_notes")
 private val SEARCH_INDEX_OCR_KEY = booleanPreferencesKey("search_index_ocr")
 private val SEARCH_INDEX_TRANSCRIPTS_KEY = booleanPreferencesKey("search_index_transcripts")
+private val ASR_MODEL_KEY = stringPreferencesKey("asr_model")
+private val ASR_LANGUAGE_KEY = stringPreferencesKey("asr_language")
+private val ASR_AUTO_TRANSCRIBE_KEY = booleanPreferencesKey("asr_auto_transcribe")
+private val AUDIO_QUOTA_MB_KEY = intPreferencesKey("audio_quota_mb")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {

@@ -1,5 +1,8 @@
 package io.pagenote.android
 
+import io.pagenote.feature.audio.AsrLanguage
+import io.pagenote.feature.audio.AsrModelCatalog
+import io.pagenote.feature.audio.AudioQuotaPolicy
 import io.pagenote.feature.ocr.LatexModelCatalog
 import io.pagenote.feature.ocr.OcrLanguage
 import io.pagenote.feature.ocr.OcrModelCatalog
@@ -25,6 +28,14 @@ data class ReaderSettings(
   val searchIndexNotes: Boolean = true,
   val searchIndexOcr: Boolean = true,
   val searchIndexTranscripts: Boolean = true,
+  /** ASR 模型捆绑 id（移植批次 8；目录见 [AsrModelCatalog]）。 */
+  val asrModel: String = AsrModelCatalog.DEFAULT_ID,
+  /** ASR 识别语言（移植批次 8；[AsrLanguage] 值域，system 跟随 locale）。 */
+  val asrLanguage: String = AsrLanguage.SYSTEM,
+  /** 录音完成后自动排队离线转写（移植批次 8）。 */
+  val asrAutoTranscribe: Boolean = true,
+  /** 项目录音存储配额（MB，移植批次 8；值域见 [AudioQuotaPolicy]）。 */
+  val audioQuotaMb: Int = AudioQuotaPolicy.DEFAULT_MB,
 ) {
   /**
    * 批次 7：设置 → 搜索索引范围（原始值；sanitize 由 [ReaderSettingsPolicy]
@@ -67,6 +78,13 @@ object ReaderSettingsPolicy {
         searchIndexOcr = indexScope.indexOcr,
         searchIndexTranscripts = indexScope.indexTranscripts,
       )
+    }.let { scoped ->
+      // 批次 8：录音与转写设置（模型/语言/配额越界回落默认）。
+      scoped.copy(
+        asrModel = scoped.asrModel.takeIf(AsrModelCatalog::isValidId) ?: AsrModelCatalog.DEFAULT_ID,
+        asrLanguage = scoped.asrLanguage.takeIf(AsrLanguage::isValidSettingKey) ?: AsrLanguage.SYSTEM,
+        audioQuotaMb = AudioQuotaPolicy.sanitizeMb(scoped.audioQuotaMb),
+      )
     }
   }
 
@@ -80,6 +98,9 @@ object ReaderSettingsPolicy {
     require(NOTE_BACKGROUNDS.contains(settings.noteBackground)) { "bad note background" }
     require(OcrLanguage.SETTING_KEYS.contains(settings.ocrLanguage)) { "bad OCR language" }
     require(LatexModelCatalog.isValidId(settings.latexOcrModel)) { "bad LaTeX OCR model" }
+    require(AsrModelCatalog.isValidId(settings.asrModel)) { "bad ASR model" }
+    require(AsrLanguage.isValidSettingKey(settings.asrLanguage)) { "bad ASR language" }
+    AudioQuotaPolicy.validateMb(settings.audioQuotaMb)
     io.pagenote.core.search.SearchIndexSettings.validate(settings.searchIndexSettings())
   }
 

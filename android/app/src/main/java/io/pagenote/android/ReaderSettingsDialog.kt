@@ -169,6 +169,8 @@ internal fun ReaderSettingsDialog(
   onConfigurePrompts: () -> Unit = {},
   onSave: suspend (ReaderSettings) -> Unit,
   onRebuildIndex: (suspend () -> String?)? = null,
+  /** 项目录音已用字节（配额展示；null = 无项目打开）。 */
+  quotaUsageMb: Long = 0L,
 ) {
   var draft by remember(settings) { mutableStateOf(settings) }
   var isSaving by remember { mutableStateOf(false) }
@@ -459,6 +461,87 @@ internal fun ReaderSettingsDialog(
             }
           }
         }
+
+        // 录音与离线转写（移植批次 8）。
+        Text(
+          stringResource(R.string.audio_asr_settings_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.audio_asr_model_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        io.pagenote.feature.audio.AsrModelCatalog.ENTRIES.forEach { entry ->
+          SettingsChoice(
+            label = "${entry.displayName} (${entry.license})",
+            selected = draft.asrModel == entry.id,
+            enabled = !isSaving,
+            testTag = "asr_model_${entry.id}",
+            onSelect = { draft = draft.copy(asrModel = entry.id) },
+          )
+        }
+        Text(
+          stringResource(R.string.audio_asr_language_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        listOf(
+          "system" to R.string.language_system,
+          "zh" to R.string.ocr_language_chinese,
+          "en" to R.string.ocr_language_english,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.asrLanguage == value,
+            enabled = !isSaving,
+            testTag = "asr_language_$value",
+            onSelect = { draft = draft.copy(asrLanguage = value) },
+          )
+        }
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(stringResource(R.string.audio_asr_auto_transcribe_title))
+            Text(
+              stringResource(R.string.audio_asr_auto_transcribe_description),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Switch(
+            checked = draft.asrAutoTranscribe,
+            onCheckedChange = { draft = draft.copy(asrAutoTranscribe = it) },
+            enabled = !isSaving,
+            modifier = Modifier.testTag("asr_auto_transcribe_switch"),
+          )
+        }
+        Text(
+          stringResource(R.string.audio_quota_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+          stringResource(
+            R.string.audio_quota_summary,
+            draft.audioQuotaMb,
+            AudioQuotaUsageLabel.formatMb(quotaUsageMb),
+          ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+          value = draft.audioQuotaMb.toFloat(),
+          onValueChange = { draft = draft.copy(audioQuotaMb = (it.roundToInt() / 25) * 25) },
+          valueRange = io.pagenote.feature.audio.AudioQuotaPolicy.MIN_MB.toFloat()..
+            io.pagenote.feature.audio.AudioQuotaPolicy.MAX_MB.toFloat(),
+          enabled = !isSaving,
+          modifier = Modifier.fillMaxWidth().testTag("audio_quota_slider"),
+        )
 
         TextButton(
           modifier = Modifier.fillMaxWidth().testTag(
