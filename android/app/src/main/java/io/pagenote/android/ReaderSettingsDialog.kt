@@ -543,6 +543,43 @@ internal fun ReaderSettingsDialog(
           modifier = Modifier.fillMaxWidth().testTag("audio_quota_slider"),
         )
 
+        // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24，设置项 ⚙️）。
+        Text(
+          stringResource(R.string.night_filter_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.night_filter_description),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(stringResource(R.string.night_filter_enable))
+          Switch(
+            checked = draft.nightFilterEnabled,
+            onCheckedChange = { draft = draft.copy(nightFilterEnabled = it) },
+            enabled = !isSaving,
+            modifier = Modifier.testTag("night_filter_switch"),
+          )
+        }
+        Text(
+          stringResource(R.string.night_filter_strength_summary, draft.nightFilterStrength),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+          value = draft.nightFilterStrength.toFloat(),
+          onValueChange = { draft = draft.copy(nightFilterStrength = it.roundToInt()) },
+          valueRange = NightFilterPolicy.MIN_STRENGTH.toFloat()..NightFilterPolicy.MAX_STRENGTH.toFloat(),
+          enabled = !isSaving,
+          modifier = Modifier.fillMaxWidth().testTag("night_filter_strength_slider"),
+        )
+
         TextButton(
           modifier = Modifier.fillMaxWidth().testTag(
             if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",

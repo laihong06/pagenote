@@ -320,14 +320,25 @@ private fun ReaderSettingsHost(readerSession: ReaderSessionViewModel) {
     LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
   ) {
     MaterialTheme(colorScheme = readerColorScheme(themeMode)) {
-      Surface(modifier = Modifier.fillMaxSize()) {
-        ReaderHome(
-          settings = settings,
-          readerThemeMode = themeMode,
-          settingsStore = settingsStore,
-          modelSettingsStore = modelSettingsStore,
-          readerSession = readerSession,
-        )
+      // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24）：暖琥珀叠加层盖在整个
+      // 阅读内容上（不含悬浮窗服务窗口）；background 不消费触摸，事件照常
+      // 透传给下层内容。
+      Box(modifier = Modifier.fillMaxSize()) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+          ReaderHome(
+            settings = settings,
+            readerThemeMode = themeMode,
+            settingsStore = settingsStore,
+            modelSettingsStore = modelSettingsStore,
+            readerSession = readerSession,
+          )
+        }
+        if (settings.nightFilterEnabled) {
+          val overlayColor = remember(settings.nightFilterStrength) {
+            Color(NightFilterPolicy.overlayArgb(settings.nightFilterStrength))
+          }
+          Box(modifier = Modifier.fillMaxSize().background(overlayColor))
+        }
       }
     }
   }
@@ -651,6 +662,27 @@ private fun ReaderHome(
     onDenied = { noteStatus = context.getString(R.string.screen_capture_denied) },
     onFailed = { noteStatus = context.getString(R.string.screen_capture_failed) },
   )
+  // 批次 12：悬浮窗（差距清单 #24）——悬浮截屏入口接进截屏 launcher，
+  // 服务运行时悬浮球「截屏」经 hub 回到这里发起 Activity 级授权。
+  screenCaptureLauncher.floatingEntry = remember { FloatingWindowCaptureEntry() }
+  val floatingWindowLauncher = rememberFloatingWindowLauncher(context)
+  val floatingWindowPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.StartActivityForResult(),
+  ) {
+    // 用户从系统设置页返回：授予即启动，未授予维持原状。
+    if (!floatingWindowLauncher.isOverlayPermissionGranted()) {
+      noteStatus = context.getString(R.string.floating_window_permission_denied)
+    } else {
+      project?.let { activeProject ->
+        floatingWindowLauncher.launch(
+          currentPage = pageIndex + 1,
+          noteDraft = readerSession.noteDraft.value,
+          projectKey = "${activeProject.sourceDirectoryUri}:${activeProject.manifest.id}",
+          noteRevision = readerSession.noteBaseRevision.value,
+        )
+      }
+    }
+  }
 
   var isOpening by readerSession.isOpening
   var isImageImporting by remember { mutableStateOf(false) }
@@ -1847,6 +1879,46 @@ private fun ReaderHome(
         isSaving = false
       }
     }.await()
+  }
+
+  // 批次 12：悬浮窗服务请求（差距清单 #24）。保存请求绑定项目、页码和
+  // 打开时的笔记基线，主界面切项目/翻页/编辑后不再用旧草稿覆盖当前笔记。
+  LaunchedEffect(Unit) {
+    FloatingWindowHub.noteSaveRequests.collect {
+      val draft = FloatingWindowHub.noteDraft.value
+      val activeProject = readerSession.project.value
+      val currentPage = readerSession.pageIndex.intValue + 1
+      val currentProjectKey = activeProject?.let {
+        "${it.sourceDirectoryUri}:${it.manifest.id}"
+      }
+      if (draft == null || currentProjectKey == null || !FloatingNoteWindowPolicy.canSave(
+          draft = draft,
+          currentProjectKey = currentProjectKey,
+          currentPage = currentPage,
+          currentText = readerSession.noteDraft.value,
+          currentRevision = readerSession.noteBaseRevision.value,
+        )
+      ) {
+        noteStatus = context.getString(R.string.floating_note_page_changed)
+        return@collect
+      }
+      if (!readerSession.noteWritable.value) {
+        noteStatus = context.getString(R.string.note_read_only)
+        return@collect
+      }
+      val textToSave = draft.text
+      readerSession.setNoteDraft(textToSave)
+      if (saveCurrentNote()) {
+        FloatingWindowHub.markNoteSaved(textToSave, readerSession.noteBaseRevision.value)
+      }
+    }
+  }
+  LaunchedEffect(Unit) {
+    FloatingWindowHub.captureRequests.collect {
+      if (!screenCaptureLauncher.launchViaActivity()) {
+        noteStatus = context.getString(R.string.screen_capture_failed)
+      }
+    }
   }
 
   fun reloadCurrentNote() {
@@ -5837,6 +5909,31 @@ private fun ReaderHome(
         actionCommand("settings_action", R.string.settings_action, true) { showSettings = true },
         actionCommand("model_settings", R.string.agent_model_settings_action, true) {
           showAgentModelSettings = true
+        },
+        // 批次 12：悬浮窗（差距清单 #24）——未授权先引导系统设置页，已授权
+        // 启动/停止悬浮窗服务（悬浮球 + 悬浮笔记/剪贴板/常用语/计时器面板）。
+        actionCommand(
+          "floating_windows",
+          R.string.reader_menu_floating_windows,
+          enabled = activeProject != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          when {
+            floatingWindowLauncher.isActive() -> floatingWindowLauncher.stop()
+            floatingWindowLauncher.isOverlayPermissionGranted() -> {
+              project?.let { activeProject ->
+                floatingWindowLauncher.launch(
+                  currentPage = pageIndex + 1,
+                  noteDraft = noteDraft,
+                  projectKey = "${activeProject.sourceDirectoryUri}:${activeProject.manifest.id}",
+                  noteRevision = noteBaseRevision,
+                )
+              }
+            }
+            else -> floatingWindowPermissionLauncher.launch(
+              floatingWindowLauncher.permissionSettingsIntent(),
+            )
+          }
         },
       ),
     ),

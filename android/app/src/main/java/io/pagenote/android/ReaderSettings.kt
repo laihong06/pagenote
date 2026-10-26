@@ -36,6 +36,10 @@ data class ReaderSettings(
   val asrAutoTranscribe: Boolean = true,
   /** 项目录音存储配额（MB，移植批次 8；值域见 [AudioQuotaPolicy]）。 */
   val audioQuotaMb: Int = AudioQuotaPolicy.DEFAULT_MB,
+  /** 护眼/夜览滤镜开关（移植批次 12 / 差距清单 #24，设置项 ⚙️；映射见 [NightFilterPolicy]）。 */
+  val nightFilterEnabled: Boolean = false,
+  /** 护眼/夜览滤镜强度（0..100；颜色映射见 [NightFilterPolicy.overlayArgb]）。 */
+  val nightFilterStrength: Int = NightFilterPolicy.DEFAULT_STRENGTH,
 ) {
   /**
    * 批次 7：设置 → 搜索索引范围（原始值；sanitize 由 [ReaderSettingsPolicy]
@@ -85,6 +89,11 @@ object ReaderSettingsPolicy {
         asrLanguage = scoped.asrLanguage.takeIf(AsrLanguage::isValidSettingKey) ?: AsrLanguage.SYSTEM,
         audioQuotaMb = AudioQuotaPolicy.sanitizeMb(scoped.audioQuotaMb),
       )
+    }.let { scoped ->
+      // 批次 12：护眼/夜览滤镜强度越界回落默认（开关本身是布尔无需净化）。
+      scoped.copy(
+        nightFilterStrength = NightFilterPolicy.sanitizeStrength(scoped.nightFilterStrength),
+      )
     }
   }
 
@@ -101,6 +110,7 @@ object ReaderSettingsPolicy {
     require(AsrModelCatalog.isValidId(settings.asrModel)) { "bad ASR model" }
     require(AsrLanguage.isValidSettingKey(settings.asrLanguage)) { "bad ASR language" }
     AudioQuotaPolicy.validateMb(settings.audioQuotaMb)
+    NightFilterPolicy.validateStrength(settings.nightFilterStrength)
     io.pagenote.core.search.SearchIndexSettings.validate(settings.searchIndexSettings())
   }
 

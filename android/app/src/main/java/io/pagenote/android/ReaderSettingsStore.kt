@@ -46,6 +46,14 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
         asrLanguage = preferences.stringOrDefault(ASR_LANGUAGE_KEY, defaults.asrLanguage),
         asrAutoTranscribe = preferences.booleanOrDefault(ASR_AUTO_TRANSCRIBE_KEY, defaults.asrAutoTranscribe),
         audioQuotaMb = preferences.intOrDefault(AUDIO_QUOTA_MB_KEY, defaults.audioQuotaMb),
+        nightFilterEnabled = preferences.booleanOrDefault(
+          NIGHT_FILTER_ENABLED_KEY,
+          defaults.nightFilterEnabled,
+        ),
+        nightFilterStrength = preferences.intOrDefault(
+          NIGHT_FILTER_STRENGTH_KEY,
+          defaults.nightFilterStrength,
+        ),
       ),
     )
   }
@@ -72,6 +80,8 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[ASR_LANGUAGE_KEY] = settings.asrLanguage
       preferences[ASR_AUTO_TRANSCRIBE_KEY] = settings.asrAutoTranscribe
       preferences[AUDIO_QUOTA_MB_KEY] = settings.audioQuotaMb
+      preferences[NIGHT_FILTER_ENABLED_KEY] = settings.nightFilterEnabled
+      preferences[NIGHT_FILTER_STRENGTH_KEY] = settings.nightFilterStrength
     }
   }
 }
@@ -95,6 +105,8 @@ private val ASR_MODEL_KEY = stringPreferencesKey("asr_model")
 private val ASR_LANGUAGE_KEY = stringPreferencesKey("asr_language")
 private val ASR_AUTO_TRANSCRIBE_KEY = booleanPreferencesKey("asr_auto_transcribe")
 private val AUDIO_QUOTA_MB_KEY = intPreferencesKey("audio_quota_mb")
+private val NIGHT_FILTER_ENABLED_KEY = booleanPreferencesKey("night_filter_enabled")
+private val NIGHT_FILTER_STRENGTH_KEY = intPreferencesKey("night_filter_strength")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {
