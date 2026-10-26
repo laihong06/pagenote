@@ -4,31 +4,24 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.util.AttributeSet
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.atan2
-import kotlin.math.cos
 import kotlin.math.hypot
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sin
 
-enum class PenCanvasTool { SELECT, PEN, HIGHLIGHTER, ERASER }
+enum class PenCanvasTool(val persistedType: String?) {
+  SELECT(null), PEN("pen"), BALLPOINT("pen"), HIGHLIGHTER("highlight"), LASER(null), ERASER(null);
+
+  fun pointPressure(pressure: Float): Float = if (this == BALLPOINT || this == LASER) 1f else pressure
+}
 
 /** Native ink layer. Persistence and page-scoped history remain with the caller. */
 class PenCanvasView @JvmOverloads constructor(
   context: Context,
   attrs: AttributeSet? = null,
 ) : View(context, attrs) {
-  private val drawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    style = Paint.Style.STROKE
-    strokeCap = Paint.Cap.ROUND
-    strokeJoin = Paint.Join.ROUND
-  }
   private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.rgb(0, 122, 204)
     style = Paint.Style.STROKE
@@ -37,6 +30,13 @@ class PenCanvasView @JvmOverloads constructor(
   private val activePoints = mutableListOf<PenPoint>()
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
+  private val strokeCache = PenStrokeCache()
+  private val predictor = PenPredictor(
+    densityPx = resources.displayMetrics.density,
+    // Context.display throws on non-visual contexts (API 30+), so the safe
+    // fallback must catch instead of relying on a null-safe call.
+    refreshRateHz = runCatching { context.display?.refreshRate ?: 60f }.getOrDefault(60f),
+  )
   private var activePointerId = INVALID_POINTER
   private var selectionPointerId = INVALID_POINTER
   private var annotationSelectionPointerId = INVALID_POINTER
@@ -49,15 +49,21 @@ class PenCanvasView @JvmOverloads constructor(
   private var eraseModeLatched = false
   private var activeColor = "#dc3545"
   private var activeWidth = 3.0
+  private var laserTrail: List<PenPoint> = emptyList()
+  private var laserColor = "#dc3545"
+  private var laserWidth = 3.0
+  private val clearLaser = Runnable { laserTrail = emptyList(); invalidate() }
 
   var pageTransform: PenCanvasPageTransform? = null
     set(value) {
+      if (field != value) clearLaserTrail()
       field = value
       invalidate()
     }
 
   var selectedTool: PenCanvasTool = PenCanvasTool.PEN
     set(value) {
+      if (field != value) clearLaserTrail()
       if (field != value && value != PenCanvasTool.PEN && activePointerId != INVALID_POINTER) {
         clearShapeRecognition(cancelled = true)
       }
@@ -100,6 +106,7 @@ class PenCanvasView @JvmOverloads constructor(
     get() = internalStrokes
     set(value) {
       internalStrokes = value.toList()
+      strokeCache.setStrokes(internalStrokes)
       invalidate()
     }
 
@@ -114,30 +121,42 @@ class PenCanvasView @JvmOverloads constructor(
     if (width <= 0 || height <= 0) return
     val geometry = geometry()
     if (!geometry.isValid) return
+    strokeCache.drawInto(canvas, geometry, width, height)
     val save = canvas.save()
     canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
     canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
-    internalStrokes.forEach { drawStroke(canvas, it) }
+    if (laserTrail.isNotEmpty()) {
+      PenStrokePainter.drawLaser(canvas, laserTrail, laserColor, laserWidth, geometry)
+    }
     selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
         val preview = shapePreview
-        if (preview != null) {
-          drawStroke(
+        if (tool == PenCanvasTool.LASER) {
+          PenStrokePainter.drawLaser(canvas, activePoints, activeColor, activeWidth, geometry)
+        } else if (preview != null) {
+          PenStrokePainter.drawStroke(
             canvas,
             PenStroke(preview.type, activeColor, activeWidth, listOf(preview.first, preview.second)),
+            geometry,
           )
         } else {
-          drawStroke(
+          PenStrokePainter.drawStroke(
             canvas,
             PenStroke(
-              type = if (tool == PenCanvasTool.HIGHLIGHTER) "highlight" else "pen",
+              type = tool.persistedType ?: "pen",
               color = activeColor,
               width = activeWidth,
               points = activePoints.toList(),
             ),
+            geometry,
           )
         }
+      }
+    }
+    predictedDocumentPoint()?.let { predicted ->
+      activePoints.lastOrNull()?.let { last ->
+        PenStrokePainter.drawSegment(canvas, last, predicted, activeColor, activeWidth.toFloat())
       }
     }
     canvas.restoreToCount(save)
@@ -164,14 +183,18 @@ class PenCanvasView @JvmOverloads constructor(
           eraseAt(event.getX(index), event.getY(index))
         } else {
           for (history in 0 until event.historySize) {
-            addPoint(
-              event.getHistoricalX(index, history),
-              event.getHistoricalY(index, history),
-              event.getHistoricalPressure(index, history),
-            )
+            val hx = event.getHistoricalX(index, history)
+            val hy = event.getHistoricalY(index, history)
+            val hp = event.getHistoricalPressure(index, history)
+            predictor.onMove(hx, hy, hp)
+            addPoint(hx, hy, hp)
           }
-          addPoint(event.getX(index), event.getY(index), event.getPressure(index))
-          updateShapeRecognition(event.getX(index), event.getY(index))
+          val x = event.getX(index)
+          val y = event.getY(index)
+          val p = event.getPressure(index)
+          predictor.onMove(x, y, p)
+          addPoint(x, y, p)
+          updateShapeRecognition(x, y)
         }
         invalidate()
         return true
@@ -252,16 +275,32 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   fun cancelActiveGesture() {
+    clearLaserTrail()
     if (activePointerId == INVALID_POINTER) return
     resetGesture()
     invalidate()
   }
 
+  override fun onDetachedFromWindow() {
+    cancelActiveGesture()
+    cancelShapeDwell()
+    strokeCache.clear()
+    super.onDetachedFromWindow()
+  }
+
+  private fun clearLaserTrail() {
+    shapeHandler.removeCallbacks(clearLaser)
+    laserTrail = emptyList()
+    invalidate()
+  }
+
   private fun beginGesture(event: MotionEvent, pointerIndex: Int): Boolean {
     if (!isSupportedTool(event.getToolType(pointerIndex))) return false
+    clearLaserTrail()
     activePointerId = event.getPointerId(pointerIndex)
     activePointerToolType = event.getToolType(pointerIndex)
     requestUnbufferedDispatch(event)
+    predictor.onDown()
     val eraserInput = event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_ERASER ||
       (event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_STYLUS &&
         hasEraserButton(event.buttonState))
@@ -450,7 +489,7 @@ class PenCanvasView @JvmOverloads constructor(
 
   private fun addPoint(xPx: Float, yPx: Float, pressure: Float) {
     val point = geometry()
-      .toDocumentPoint(xPx, yPx, pressure) ?: return
+      .toDocumentPoint(xPx, yPx, (gestureTool ?: selectedTool).pointPressure(pressure)) ?: return
     if (activePoints.lastOrNull() != point) activePoints.add(point)
   }
 
@@ -458,6 +497,7 @@ class PenCanvasView @JvmOverloads constructor(
     val index = geometry()
       .hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
     internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
+    strokeCache.setStrokes(internalStrokes)
     onStrokeErased?.invoke(index)
     invalidate()
   }
@@ -465,8 +505,15 @@ class PenCanvasView @JvmOverloads constructor(
   private fun finishStroke() {
     if (activePoints.isEmpty()) return
     val tool = gestureTool ?: return
+    if (tool == PenCanvasTool.LASER) {
+      laserTrail = activePoints.toList()
+      laserColor = activeColor
+      laserWidth = activeWidth
+      shapeHandler.postDelayed(clearLaser, 750L)
+      return
+    }
     val stroke = PenStroke(
-      type = if (tool == PenCanvasTool.HIGHLIGHTER) "highlight" else "pen",
+      type = tool.persistedType ?: return,
       color = activeColor,
       width = activeWidth,
       points = activePoints.toList(),
@@ -478,11 +525,13 @@ class PenCanvasView @JvmOverloads constructor(
     }.getOrDefault(false)
     if (!consumed) {
       internalStrokes = internalStrokes + stroke
+      strokeCache.appendStroke(stroke, geometry())
       onStrokeAdded?.invoke(stroke)
     }
   }
 
   private fun resetGesture() {
+    predictor.onUp()
     cancelShapeDwell()
     activePointerId = INVALID_POINTER
     activePointerToolType = MotionEvent.TOOL_TYPE_UNKNOWN
@@ -494,93 +543,29 @@ class PenCanvasView @JvmOverloads constructor(
     shapeRecognitionCancelled = false
   }
 
+  private fun predictedDocumentPoint(): PenPoint? {
+    if (shapePreview != null) return null
+    val tool = gestureTool ?: return null
+    if (tool != PenCanvasTool.PEN && tool != PenCanvasTool.BALLPOINT &&
+      tool != PenCanvasTool.HIGHLIGHTER
+    ) {
+      return null
+    }
+    if (activePointerId == INVALID_POINTER || activePoints.isEmpty()) return null
+    val prediction = predictor.predict() ?: return null
+    return geometry().toDocumentPoint(
+      prediction.x,
+      prediction.y,
+      activePoints.last().pressure,
+    )
+  }
+
   private fun hasEraserButton(buttonState: Int): Boolean = buttonState and ERASER_BUTTONS != 0
 
   private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
 
-  private fun drawStroke(canvas: Canvas, stroke: PenStroke) {
-    val color = runCatching { Color.parseColor(stroke.color) }.getOrDefault(Color.BLACK)
-    val isHighlight = stroke.type == "highlight"
-    val points = stroke.points
-    if (points.isEmpty()) return
-    drawPaint.color = color
-    drawPaint.alpha = if (isHighlight) HIGHLIGHT_ALPHA else Color.alpha(color)
-    drawPaint.style = Paint.Style.STROKE
-    drawPaint.strokeWidth = stroke.width.toFloat()
-
-    when (stroke.type) {
-      "rect" -> {
-        if (points.size >= 2) {
-          drawPaint.style = Paint.Style.STROKE
-          canvas.drawRect(
-            min(points.first().x, points.last().x),
-            min(points.first().y, points.last().y),
-            max(points.first().x, points.last().x),
-            max(points.first().y, points.last().y),
-            drawPaint,
-          )
-        }
-      }
-      "ellipse" -> {
-        if (points.size >= 2) {
-          canvas.drawOval(
-            min(points.first().x, points.last().x),
-            min(points.first().y, points.last().y),
-            max(points.first().x, points.last().x),
-            max(points.first().y, points.last().y),
-            drawPaint,
-          )
-        }
-      }
-      "line", "arrow" -> {
-        if (points.size >= 2) {
-          val first = points.first()
-          val last = points.last()
-          canvas.drawLine(first.x, first.y, last.x, last.y, drawPaint)
-          if (stroke.type == "arrow") drawArrowHead(canvas, first, last, drawPaint)
-        }
-      }
-      "pen", "highlight" -> drawFreehand(canvas, points, stroke.width.toFloat(), isHighlight)
-      else -> Unit
-    }
-  }
-
-  private fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float, highlight: Boolean) {
-    drawPaint.style = Paint.Style.STROKE
-    drawPaint.alpha = if (highlight) HIGHLIGHT_ALPHA else 255
-    if (points.size == 1) {
-      drawPaint.style = Paint.Style.FILL
-      canvas.drawCircle(points[0].x, points[0].y, width * points[0].pressure / 2f, drawPaint)
-      return
-    }
-    for (index in 1 until points.size) {
-      val previous = points[index - 1]
-      val current = points[index]
-      drawPaint.strokeWidth = width * (previous.pressure + current.pressure) / 2f
-      val path = Path().apply {
-        moveTo(previous.x, previous.y)
-        lineTo(current.x, current.y)
-      }
-      canvas.drawPath(path, drawPaint)
-    }
-  }
-
-  private fun drawArrowHead(canvas: Canvas, start: PenPoint, end: PenPoint, paint: Paint) {
-    val angle = atan2((end.y - start.y).toDouble(), (end.x - start.x).toDouble()).toFloat()
-    val headLength = (paint.strokeWidth * 4f).coerceIn(12f, 40f)
-    val spread = 0.55f
-    val path = Path().apply {
-      moveTo(end.x, end.y)
-      lineTo(end.x - headLength * cos(angle - spread), end.y - headLength * sin(angle - spread))
-      moveTo(end.x, end.y)
-      lineTo(end.x - headLength * cos(angle + spread), end.y - headLength * sin(angle + spread))
-    }
-    canvas.drawPath(path, paint)
-  }
-
   private companion object {
     const val INVALID_POINTER = -1
-    const val HIGHLIGHT_ALPHA = 89
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
     const val SELECTION_INSET = 8f
     const val SELECTION_MIN_SIZE = 24f

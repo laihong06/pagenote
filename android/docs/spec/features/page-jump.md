@@ -1,5 +1,9 @@
 # Android Reader Page Jump
 
+> UI superseded by [Reader Pen Rail and Page Previews](reader-tools-and-page-previews.md)
+> on 2026-10-25: the counter opens a thumbnail drawer rather than this historical
+> numeric dialog. The save, conflict and target-page revision guarantees remain.
+
 ## Goal
 
 Let users jump directly to a one-based page from the persistent reader page status, matching the desktop page-number control while retaining Android-native touch behavior.

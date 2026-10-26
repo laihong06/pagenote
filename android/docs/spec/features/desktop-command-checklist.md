@@ -7,8 +7,9 @@
 | 桌面入口 | Android 命令 id | Android 行为 |
 | --- | --- | --- |
 | 打开项目 | `open_project` | 已接线：SAF 打开项目 |
+| Android 书架 | `bookshelf` | 已接线：保存笔记后返回绑定目录的书架 |
 | 打开文档 | `open_document` | 已接线：导入 PDF/Markdown 并新建项目 |
-| 新建项目 | `new_project` | 已接线：选择项目目录，可选导入 PDF/Markdown 原文 |
+| 新建项目 | `new_project` | 已接线：默认使用书架目录，可选导入 PDF/Markdown 原文 |
 | 最近文档 | `recent_documents` | 已接线：最近项目列表 |
 | 插入附件 | `attachments` | 已接线：项目附件管理 |
 | 导入笔记 | `import_notes` | 已接线：当前页/整份导入；JSON 备份走合并对话框（页序对齐/追加、冲突覆盖/保留/合并、资产引用去重摘要） |

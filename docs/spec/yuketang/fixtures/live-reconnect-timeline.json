@@ -1,0 +1,9 @@
+{
+  "op": "fetchtimeline",
+  "timeline": [
+    { "pres": "fixture-presentation-a", "si": 0 },
+    { "pres": "fixture-presentation-a", "si": 1 },
+    { "pres": "fixture-presentation-b", "si": 0 },
+    { "pres": "fixture-presentation-b", "si": 1 }
+  ]
+}

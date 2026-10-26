@@ -1,0 +1,39 @@
+<resources>
+    <string name="bookshelf_title">Bookshelf</string>
+    <string name="bookshelf_folder">Library folder</string>
+    <string name="bookshelf_bind">Choose library folder</string>
+    <string name="bookshelf_change">Change folder</string>
+    <string name="bookshelf_unbound">Choose a folder for your notebooks</string>
+    <string name="bookshelf_empty">No notebooks yet</string>
+    <string name="bookshelf_search">Search notebooks</string>
+    <string name="bookshelf_no_match">No matching notebooks</string>
+    <string name="bookshelf_refresh">Refresh</string>
+    <string name="bookshelf_scanning">Scanning library…</string>
+    <string name="bookshelf_count">%1$d notebooks</string>
+    <string name="bookshelf_updated">Recently updated</string>
+    <string name="bookshelf_name">Name</string>
+    <string name="bookshelf_sort">Sort</string>
+    <string name="bookshelf_grid">Cover grid</string>
+    <string name="bookshelf_list">List</string>
+    <string name="bookshelf_open_external">Open external project</string>
+    <string name="bookshelf_return">Back to bookshelf</string>
+    <string name="bookshelf_customize">Customize cover</string>
+    <string name="bookshelf_display_title">Display title</string>
+    <string name="bookshelf_default">Default cover</string>
+    <string name="bookshelf_paper">Notebook cover</string>
+    <string name="bookshelf_cover_label" translatable="false">Note</string>
+    <string name="bookshelf_pdf">PDF page</string>
+    <string name="bookshelf_image">Image</string>
+    <string name="bookshelf_choose_image">Choose cover image</string>
+    <string name="bookshelf_page">Cover page (starting at 1)</string>
+    <string name="bookshelf_reset">Reset appearance</string>
+    <string name="bookshelf_cover_failed">Cover unavailable</string>
+    <string name="bookshelf_unavailable">Cannot read library: %1$s</string>
+    <string name="bookshelf_warnings">Some items need attention: %1$s</string>
+    <string name="bookshelf_scan_limit">Scan limit reached; results may be incomplete.</string>
+    <string name="bookshelf_bad_page">Choose a page between 1 and %1$d.</string>
+    <string name="bookshelf_sage">Sage</string>
+    <string name="bookshelf_rose">Rose</string>
+    <string name="bookshelf_sky">Sky</string>
+    <string name="bookshelf_graphite">Graphite</string>
+</resources>

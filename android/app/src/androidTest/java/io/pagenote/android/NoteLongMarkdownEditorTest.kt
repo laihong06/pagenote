@@ -171,12 +171,12 @@ class NoteLongMarkdownEditorTest {
     composeRule.waitUntil(timeoutMillis = 10_000) { findEditor("Page 1 note") != null }
 
     composeRule.onNodeWithTag("reader_page_status").assertIsDisplayed().performClick()
-    composeRule.onNodeWithTag("page_jump_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("page_jump_input").performTextClearance()
-    composeRule.onNodeWithTag("page_jump_input").performTextInput("31")
+    composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
+    composeRule.onNodeWithTag("page_preview_search").performTextClearance()
+    composeRule.onNodeWithTag("page_preview_search").performTextInput("31")
 
     val startedAt = SystemClock.elapsedRealtime()
-    composeRule.onNodeWithTag("page_jump_confirm").performClick()
+    composeRule.onNodeWithTag("page_preview_item_30").performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       session.pageIndex.intValue == 30 && findEditor(longNote)?.let {
         it.isLaidOut && !it.isLayoutRequested
@@ -250,9 +250,9 @@ class NoteLongMarkdownEditorTest {
       assertEquals(69, session.renderer.value?.pageCount)
 
       composeRule.onNodeWithTag("reader_page_status").performClick()
-      composeRule.onNodeWithTag("page_jump_input").performTextClearance()
-      composeRule.onNodeWithTag("page_jump_input").performTextInput("31")
-      composeRule.onNodeWithTag("page_jump_confirm").performClick()
+      composeRule.onNodeWithTag("page_preview_search").performTextClearance()
+      composeRule.onNodeWithTag("page_preview_search").performTextInput("31")
+      composeRule.onNodeWithTag("page_preview_item_30").performClick()
       composeRule.waitUntil(timeoutMillis = 15_000) {
         session.pageIndex.intValue == 30 && findEditor(longNote) != null
       }

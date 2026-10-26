@@ -59,6 +59,7 @@ dependencies {
   implementation(project(":feature-notes"))
   implementation(project(":feature-annotations"))
   implementation(project(":feature-pen"))
+  implementation(project(":feature-yuketang"))
   implementation(project(":feature-ocr"))
   implementation(project(":feature-audio"))
   implementation(project(":agent"))

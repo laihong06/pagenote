@@ -322,5 +322,22 @@ class PdfAnnotationClipboardTest {
     assertNull(PdfAnnotationClipboard.updateHtmlContent(page, 0, expected, "<p>x</p>", 0))
   }
 
+  @Test fun insertionMovesUndoHistoryWithoutOverwritingAnotherPageOrProject() {
+    val history = PdfAnnotationEditHistory()
+    val empty = JsonArray(emptyList())
+    val a = json.parseToJsonElement("""[{"type":"rect","tag":"A"}]""") as JsonArray
+    val b = json.parseToJsonElement("""[{"type":"rect","tag":"B"}]""") as JsonArray
+    history.record("project-a", 1, empty, a)
+    history.record("project-a", 2, empty, b)
+    history.record("project-b", 1, empty, b)
+    history.remapPages("project-a", mapOf(1 to 2, 2 to 3))
+    assertFalse(history.canUndo("project-a", 1))
+    assertEquals(empty, history.undo("project-a", 2))
+    assertEquals(a, history.redo("project-a", 2))
+    assertEquals(empty, history.undo("project-a", 3))
+    assertEquals(b, history.redo("project-a", 3))
+    assertEquals(empty, history.undo("project-b", 1))
+  }
+
   private fun item(value: String) = json.parseToJsonElement(value) as JsonObject
 }

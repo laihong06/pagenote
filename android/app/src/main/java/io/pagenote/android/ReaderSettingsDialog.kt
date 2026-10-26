@@ -171,6 +171,8 @@ internal fun ReaderSettingsDialog(
   onRebuildIndex: (suspend () -> String?)? = null,
   /** 项目录音已用字节（配额展示；null = 无项目打开）。 */
   quotaUsageMb: Long = 0L,
+  libraryDirectory: String? = null,
+  onChangeLibrary: (() -> Unit)? = null,
 ) {
   var draft by remember(settings) { mutableStateOf(settings) }
   var isSaving by remember { mutableStateOf(false) }
@@ -191,6 +193,13 @@ internal fun ReaderSettingsDialog(
         modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
+        if (onChangeLibrary != null) {
+          Text(stringResource(R.string.bookshelf_folder), style = MaterialTheme.typography.titleSmall)
+          Text(libraryDirectory ?: stringResource(R.string.bookshelf_unbound), maxLines = 2)
+          TextButton(onClick = onChangeLibrary, enabled = !isSaving, modifier = Modifier.testTag("settings_library_folder")) {
+            Text(stringResource(if (libraryDirectory == null) R.string.bookshelf_bind else R.string.bookshelf_change))
+          }
+        }
         Text(stringResource(R.string.reader_theme), style = MaterialTheme.typography.titleSmall)
         listOf(
           "system" to R.string.theme_system,

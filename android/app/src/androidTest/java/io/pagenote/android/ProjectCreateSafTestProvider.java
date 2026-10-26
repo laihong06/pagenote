@@ -16,6 +16,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class ProjectCreateSafTestProvider extends ContentProvider {
   public static final String AUTHORITY = "io.pagenote.android.test.project-create";
@@ -27,6 +29,7 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
   private static final String EXTRA_URI = "uri";
   private static final String EXTRA_MIME_TYPE = "mime_type";
   private static volatile boolean corruptNextCopiedPdfForValidation;
+  private static volatile String failNextWriteSuffix;
   private static final String[] COLUMNS = {
       DocumentsContract.Document.COLUMN_DOCUMENT_ID,
       DocumentsContract.Document.COLUMN_DISPLAY_NAME,
@@ -58,6 +61,10 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
 
   public static void clearTestFailures(ContentResolver resolver) {
     resolver.call(treeUri(), METHOD_CLEAR_TEST_FAILURES, null, Bundle.EMPTY);
+  }
+
+  public static void failNextWrite(ContentResolver resolver, String suffix) {
+    resolver.call(treeUri(), "test:failNextWrite", suffix, Bundle.EMPTY);
   }
 
   @Override
@@ -98,12 +105,32 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
         }
         return Bundle.EMPTY;
       }
+      if ("android:findDocumentPath".equals(method)) {
+        Uri uri = extras == null ? null : extras.getParcelable(EXTRA_URI);
+        if (uri == null) throw new IllegalArgumentException("missing document URI");
+        String documentId = DocumentsContract.getDocumentId(uri);
+        fileForId(documentId);
+        List<String> path = new ArrayList<>();
+        String current = "";
+        for (String segment : documentId.split("/")) {
+          current = current.isEmpty() ? segment : current + "/" + segment;
+          path.add(current);
+        }
+        Bundle result = new Bundle();
+        result.putParcelable("result", new DocumentsContract.Path(ROOT_ID, path));
+        return result;
+      }
       if (METHOD_CORRUPT_NEXT_COPIED_PDF.equals(method)) {
         corruptNextCopiedPdfForValidation = true;
         return Bundle.EMPTY;
       }
       if (METHOD_CLEAR_TEST_FAILURES.equals(method)) {
         corruptNextCopiedPdfForValidation = false;
+        failNextWriteSuffix = null;
+        return Bundle.EMPTY;
+      }
+      if ("test:failNextWrite".equals(method)) {
+        failNextWriteSuffix = arg;
         return Bundle.EMPTY;
       }
     } catch (Exception error) {
@@ -157,6 +184,7 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
     String name = file.getName();
     if (name.endsWith(".pdf")) return "application/pdf";
     if (name.endsWith(".md")) return "text/markdown";
+    if (name.endsWith(".png")) return "image/png";
     if ("project.pagenote".equals(name)) return "application/vnd.pagenote.project";
     return "application/octet-stream";
   }
@@ -175,6 +203,10 @@ public final class ProjectCreateSafTestProvider extends ContentProvider {
     try {
       String documentId = DocumentsContract.getDocumentId(uri);
       File file = fileForId(documentId);
+      if (mode.contains("w") && failNextWriteSuffix != null && documentId.endsWith(failNextWriteSuffix)) {
+        failNextWriteSuffix = null;
+        throw new IOException("simulated Rain sidecar write failure");
+      }
       if (mode.contains("r") && documentId.endsWith("/src/document.pdf") &&
           corruptNextCopiedPdfForValidation) {
         corruptNextCopiedPdfForValidation = false;

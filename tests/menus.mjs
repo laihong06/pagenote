@@ -38,6 +38,56 @@ try {
   assert.ok(
     menus.find((m) => m.label === '文件').children.includes('导入笔记（右侧）'),
   );
+  assert.ok(
+    menus
+      .find((m) => m.label === '文件')
+      .children.includes('雨课堂导入与实时采集…'),
+  );
+  await app.evaluate(({ Menu }) => {
+    const file = Menu.getApplicationMenu().items.find(
+      (item) => item.label === '文件',
+    );
+    file.submenu.items
+      .find((item) => item.label === '雨课堂导入与实时采集…')
+      .click();
+  });
+  await w.locator('#rainClassroomDialog[open]').waitFor();
+  await w.waitForFunction(
+    () =>
+      document.getElementById('rainAccountStatus').textContent.trim() ===
+      '未登录',
+  );
+  assert.equal(
+    (await w.locator('#rainAccountStatus').textContent()).trim(),
+    '未登录',
+  );
+  assert.ok(await w.locator('#rainLogin').isVisible());
+  assert.ok(await w.locator('#rainLiveConsent').isVisible());
+  assert.ok(await w.locator('#rainLiveStart').isDisabled());
+  assert.ok(await w.locator('#rainLiveNew').isDisabled());
+  const rainImportDirectory = path.join(root, 'tests', 'rain-import-target');
+  const selectedRainImportDirectory = await app.evaluate(
+    async ({ BrowserWindow, dialog }, directory) => {
+      const targetWindow = BrowserWindow.getAllWindows()[0];
+      const original = dialog.showOpenDialog;
+      dialog.showOpenDialog = async (_parent, options) => {
+        if (!options.properties.includes('openDirectory'))
+          throw new Error('Rain import must choose a destination directory');
+        return { canceled: false, filePaths: [directory] };
+      };
+      try {
+        return await targetWindow.webContents.executeJavaScript(
+          'window.desktopSettings.chooseRainImportDirectory()',
+        );
+      } finally {
+        dialog.showOpenDialog = original;
+      }
+    },
+    rainImportDirectory,
+  );
+  assert.equal(selectedRainImportDirectory, rainImportDirectory);
+  await w.locator('#rainClose').click();
+  await w.locator('#rainClassroomDialog[open]').waitFor({ state: 'detached' });
   const editMenu = menus.find((m) => m.label === '编辑');
   assert.ok(editMenu.children.includes('选择编辑区域'));
   if (process.platform === 'darwin') {

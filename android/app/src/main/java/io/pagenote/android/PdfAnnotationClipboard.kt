@@ -350,6 +350,12 @@ internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
 
   private val pages = mutableMapOf<Pair<String, Int>, PageState>()
 
+  fun remapPages(projectId: String, mapping: Map<Int, Int>) {
+    val existing = pages.filterKeys { it.first == projectId }
+    pages.keys.removeAll(existing.keys)
+    existing.forEach { (key, state) -> mapping[key.second]?.let { pages[projectId to it] = state } }
+  }
+
   fun record(projectId: String, page: Int, before: JsonArray, after: JsonArray) {
     require(projectId.isNotBlank() && page >= 1)
     if (before == after) return
