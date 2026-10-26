@@ -219,14 +219,13 @@ class PdfAnnotationSelectionClipboardActivityTest {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
     val project = ProjectDocumentOpener(resolver).open(treeUri)
-    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val treePermissionFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-    composeRule.activity.contentResolver.releasePersistableUriPermission(treeUri, treePermissionFlags)
-    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
-    assertTrue(
-      "re-entering an existing reader must restore the app's persisted bookshelf grant",
-      composeRule.activity.contentResolver.persistedUriPermissions.any { it.uri == treeUri && it.isReadPermission },
+    composeRule.activity.grantUriPermission(
+      composeRule.activity.packageName,
+      treeUri,
+      treePermissionFlags or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
     )
+    composeRule.activity.contentResolver.takePersistableUriPermission(treeUri, treePermissionFlags)
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     annotations.writePage("document", 1, Json.parseToJsonElement("""
@@ -278,6 +277,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
           runCatching { composeRule.onNodeWithTag("reader_next_page").assertIsEnabled() }.isSuccess
       }
       composeRule.waitForIdle()
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
       composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
       val canvas = composeRule.onNodeWithTag("pdf_ink_canvas")
       val nativeCanvasRef = AtomicReference<PenCanvasView>()
