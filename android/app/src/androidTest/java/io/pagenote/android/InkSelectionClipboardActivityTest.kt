@@ -52,6 +52,7 @@ class InkSelectionClipboardActivityTest {
     installFixture(resolver)
     val project = ProjectDocumentOpener(resolver).open(treeUri)
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val original = PenStroke(
       type = "pen",
       color = "#185abd",
@@ -79,6 +80,7 @@ class InkSelectionClipboardActivityTest {
       composeRule.waitUntil(15_000) {
         composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty()
       }
+      showHandwritingCommands()
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().assertIsNotEnabled()
 
       selectInkTool()
@@ -126,7 +128,16 @@ class InkSelectionClipboardActivityTest {
   }
 
   private fun selectInkTool() {
+    showHandwritingCommands()
     composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+  }
+
+  private fun showHandwritingCommands() {
+    if (composeRule.onAllNodesWithTag("reader_menu_command_select_tool").fetchSemanticsNodes().isNotEmpty()) return
+    if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    }
+    composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
   }
 
   private fun findPenCanvas(view: View): PenCanvasView? {

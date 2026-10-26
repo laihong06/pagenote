@@ -486,6 +486,12 @@ private fun ReaderHome(
     systemClipboard?.addPrimaryClipChangedListener(listener)
     onDispose { systemClipboard?.removePrimaryClipChangedListener(listener) }
   }
+  val hasMarkdownClipboardContent = remember(clipboardRevision) {
+    val item = systemClipboard?.primaryClip
+      ?.takeIf { it.itemCount > 0 }
+      ?.getItemAt(0)
+    !item?.htmlText.isNullOrEmpty() || !item?.text.isNullOrEmpty()
+  }
   val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
   val rainClassroomClient = remember(context) { RainClassroomClient(context.applicationContext) }
   val promptSettingsStore = remember(context.applicationContext) {
@@ -4927,6 +4933,8 @@ private fun ReaderHome(
   val hasNoteSelection = noteSelection?.let { it.start != it.end } == true
   val markdownClipboardDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_text_editor_required) else null
+  val markdownPasteDisabledReason = markdownClipboardDisabledReason
+    ?: if (!hasMarkdownClipboardContent) context.getString(R.string.reader_menu_paste_markdown_empty) else null
   val markdownSelectionDisabledReason = markdownClipboardDisabledReason
     ?: if (!hasNoteSelection) context.getString(R.string.reader_menu_text_selection_required) else null
   val canInsertMarkdownImage = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
@@ -5735,7 +5743,7 @@ private fun ReaderHome(
         ) { pasteMarkdownImage() },
         actionCommand(
           "paste_markdown", R.string.reader_menu_paste_markdown,
-          canFormatMarkdown, markdownClipboardDisabledReason,
+          canFormatMarkdown && hasMarkdownClipboardContent, markdownPasteDisabledReason,
         ) { pasteMarkdownFromClipboard() },
       ),
     ),

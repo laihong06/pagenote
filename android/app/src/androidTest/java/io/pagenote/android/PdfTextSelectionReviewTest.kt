@@ -322,9 +322,7 @@ class PdfTextSelectionReviewTest {
     project: OpenedProject,
     notes: String,
   ): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
@@ -368,7 +366,7 @@ class PdfTextSelectionReviewTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, byteArrayOf())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

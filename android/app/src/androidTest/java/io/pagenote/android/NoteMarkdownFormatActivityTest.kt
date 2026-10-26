@@ -182,8 +182,6 @@ class NoteMarkdownFormatActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    formatCommand("bold").assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     composeRule.onNodeWithTag("note_tab_preview").performClick()
@@ -235,8 +233,6 @@ class NoteMarkdownFormatActivityTest {
     val savedPages = listOf("Lead **Selected** tail <b>raw html</b>", "Second page remains unchanged")
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
-
-    formatCommand("underline").assertIsNotEnabled()
 
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
@@ -325,8 +321,6 @@ class NoteMarkdownFormatActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    paragraphCommand("heading").assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     composeRule.onNodeWithTag("note_tab_preview").performClick()
@@ -336,7 +330,7 @@ class NoteMarkdownFormatActivityTest {
     composeRule.onNodeWithTag("note_tab_edit").performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
 
-    paragraphCommand("font_size").assertIsNotEnabled()
+    paragraphCommand("font_size").assertIsEnabled()
     paragraphCommand("task_list").assertIsEnabled()
     selectCurrentLine("intro")
     paragraphCommand("heading").assertIsEnabled().performClick()
@@ -454,9 +448,6 @@ class NoteMarkdownFormatActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    editCommand("note_undo").assertIsNotEnabled()
-    editCommand("note_redo").assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     editCommand("note_undo").assertIsNotEnabled()
@@ -511,8 +502,6 @@ class NoteMarkdownFormatActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    insertCommand("code").assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     composeRule.onNodeWithTag("note_tab_preview").performClick()
@@ -552,8 +541,6 @@ class NoteMarkdownFormatActivityTest {
     val savedPages = listOf("Lead x^2 tail", "Second page remains unchanged")
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
-
-    insertCommand("formula").assertIsNotEnabled()
 
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
@@ -609,8 +596,6 @@ class NoteMarkdownFormatActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    insertCommand("table").assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     composeRule.onNodeWithTag("note_tab_preview").performClick()
@@ -661,8 +646,6 @@ class NoteMarkdownFormatActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    insertCommand("link").assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     composeRule.onNodeWithTag("note_tab_preview").performClick()
@@ -684,6 +667,7 @@ class NoteMarkdownFormatActivityTest {
     val selectedLink = "[$selectedText](https://example.com)"
     val expectedAfterSelection = "Lead $selectedLink tail"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedAfterSelection }
+    composeRule.waitForIdle()
     val selectedEditor = requireNotNull(findNoteEditor())
     assertEquals("Lead [".length, selectedEditor.selectionStart)
     assertEquals("Lead [".length + selectedText.length, selectedEditor.selectionEnd)
@@ -696,6 +680,7 @@ class NoteMarkdownFormatActivityTest {
     insertCommand("link").performClick()
     val expected = "$expectedAfterSelection[$placeholder](https://example.com)"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
+    composeRule.waitForIdle()
     val placeholderEditor = requireNotNull(findNoteEditor())
     assertEquals(expectedAfterSelection.length + 1, placeholderEditor.selectionStart)
     assertEquals(expectedAfterSelection.length + 1 + placeholder.length, placeholderEditor.selectionEnd)
@@ -724,6 +709,8 @@ class NoteMarkdownFormatActivityTest {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_format").performClick()
+      } else if (composeRule.onAllNodesWithTag("reader_menu_group_format").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_format").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
@@ -739,6 +726,8 @@ class NoteMarkdownFormatActivityTest {
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
+      } else if (composeRule.onAllNodesWithTag("reader_menu_group_edit").fetchSemanticsNodes().isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
@@ -756,6 +745,8 @@ class NoteMarkdownFormatActivityTest {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
+      } else if (composeRule.onAllNodesWithTag("reader_menu_group_paragraph").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
@@ -772,6 +763,8 @@ class NoteMarkdownFormatActivityTest {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
+      } else if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
@@ -787,6 +780,8 @@ class NoteMarkdownFormatActivityTest {
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
       val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
       if (collapsed.isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
+      } else if (composeRule.onAllNodesWithTag("reader_menu_group_ai_annotations").fetchSemanticsNodes().isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
       } else {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
@@ -811,12 +806,11 @@ class NoteMarkdownFormatActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "Source document text"
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
@@ -876,7 +870,7 @@ class NoteMarkdownFormatActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

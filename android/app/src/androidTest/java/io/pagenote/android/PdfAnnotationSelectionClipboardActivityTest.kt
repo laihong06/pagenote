@@ -1,5 +1,6 @@
 package io.pagenote.android
 
+import android.content.Intent
 import android.content.ClipData
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -60,6 +61,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
     val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     val otherPageBefore = annotations.readPage("document", 2)
@@ -145,6 +147,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
     val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     annotations.writePage("document", 1, JsonArray(emptyList()))
@@ -216,6 +219,14 @@ class PdfAnnotationSelectionClipboardActivityTest {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
     val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val treePermissionFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    composeRule.activity.contentResolver.releasePersistableUriPermission(treeUri, treePermissionFlags)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    assertTrue(
+      "re-entering an existing reader must restore the app's persisted bookshelf grant",
+      composeRule.activity.contentResolver.persistedUriPermissions.any { it.uri == treeUri && it.isReadPermission },
+    )
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     annotations.writePage("document", 1, Json.parseToJsonElement("""
@@ -236,6 +247,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
     )
     val projectPenStore = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     projectPenStore.writePage(PenSide.DOCUMENT, 1, listOf(originalStroke))
+    val appAnnotations = ProjectAnnotationStore(
+      composeRule.activity.contentResolver,
+      project.sourceDirectoryUri,
+      project.annotationsUri,
+    )
+    composeRule.waitUntil(10_000) { appAnnotations.readPage("document", 1).size == 3 }
     val pageStore = PenPageStore().apply { addStroke(PenSide.DOCUMENT, 1, originalStroke) }
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnIdle {
@@ -255,9 +272,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
 
     try {
       composeRule.waitUntil(15_000) {
-        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
-          annotations.readPage("document", 1).size == 3
+        session.pageIndex.intValue == 0 &&
+          composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          appAnnotations.readPage("document", 1).size == 3 &&
+          runCatching { composeRule.onNodeWithTag("reader_next_page").assertIsEnabled() }.isSuccess
       }
+      composeRule.waitForIdle()
       composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
       val canvas = composeRule.onNodeWithTag("pdf_ink_canvas")
       val nativeCanvasRef = AtomicReference<PenCanvasView>()
@@ -266,6 +286,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       val nativeCanvas = nativeCanvasRef.get()
       composeRule.waitUntil(5_000) { nativeCanvas.selectedTool == PenCanvasTool.SELECT }
+      composeRule.waitForIdle()
       assertEquals("Select command must reach the native ink view before input", PenCanvasTool.SELECT, nativeCanvas.selectedTool)
       val geometry = PenCanvasGeometry(nativeCanvas.width.toFloat(), nativeCanvas.height.toFloat(), nativeCanvas.pageTransform)
       fun pageOffset(x: Float, y: Float): Offset {
@@ -289,14 +310,16 @@ class PdfAnnotationSelectionClipboardActivityTest {
         rectIndex,
         expectedHit,
       )
-      canvas.performTouchInput {
-        click(tapOffset)
+      val copyCommand = composeRule.onNodeWithTag("reader_menu_command_copy_ink")
+      val selectionDeadline = SystemClock.uptimeMillis() + 10_000
+      while (
+        SystemClock.uptimeMillis() < selectionDeadline &&
+        runCatching { copyCommand.assertIsEnabled() }.isFailure
+      ) {
+        canvas.performTouchInput { click(tapOffset) }
+        SystemClock.sleep(50)
       }
-      composeRule.waitUntil(10_000) {
-        runCatching {
-          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
-        }.isSuccess
-      }
+      copyCommand.assertIsEnabled()
 
       val latestPage = annotations.readPage("document", 1)
       val latestLine = JsonObject((latestPage[1] as JsonObject) + ("concurrent" to JsonPrimitive("preserve")))
@@ -478,6 +501,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
             "<img src=\"https://example.invalid/remote.png\">",
         ),
       )
+      composeRule.waitForIdle()
       composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsEnabled().performClick()
       waitForAnnotations(annotations) { it.size == 5 }
       val htmlItem = annotations.readPage("document", 1)[4] as JsonObject
@@ -492,6 +516,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       clipboard.setPrimaryClip(
         ClipData.newPlainText("desktop HTML annotation", PdfAnnotationClipboard.encode(desktopItem)),
       )
+      composeRule.waitForIdle()
       composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 6 }
       assertEquals("preserve", (annotations.readPage("document", 1)[5] as JsonObject)["custom"]?.jsonPrimitive?.content)

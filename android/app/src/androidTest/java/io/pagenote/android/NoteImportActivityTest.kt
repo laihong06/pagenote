@@ -72,7 +72,7 @@ class NoteImportActivityTest {
       composeRule.activity.getString(R.string.reader_menu_import_confirm),
     ).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      session.noteStatus.value == composeRule.activity.getString(R.string.reader_menu_import_success)
+      session.noteStatus.value == composeRule.activity.getString(R.string.note_merge_success)
     }
     val noteStore = ProjectNoteStore(testResolver, project.notesUri)
     val imported = noteStore.read()
@@ -132,7 +132,7 @@ class NoteImportActivityTest {
       session.noteStatus.value == composeRule.activity.getString(R.string.reader_menu_import_stale)
     }
     assertEquals(imported, noteStore.read())
-    assertTrue(session.project.value === project)
+    assertEquals(project.manifest.id, session.project.value?.manifest?.id)
   }
 
   private fun importCommand() = run {
@@ -174,9 +174,11 @@ class NoteImportActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
+    openFixtureProjectFromBookshelf(composeRule, existingProjectTestTreeUri(), project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "原文第一页\n\n${PageNotes.SEPARATOR}\n\n原文第二页\n\n${PageNotes.SEPARATOR}\n\n原文第三页"
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
@@ -198,7 +200,7 @@ class NoteImportActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

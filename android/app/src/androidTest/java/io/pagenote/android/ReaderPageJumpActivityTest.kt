@@ -180,7 +180,8 @@ class ReaderPageJumpActivityTest {
     try {
       composeRule.waitUntil(timeoutMillis = 15_000) {
         session.pageIndex.intValue == 0 &&
-          composeRule.onAllNodesWithTag("pdf_page_viewport").fetchSemanticsNodes().isNotEmpty()
+          composeRule.onAllNodesWithTag("pdf_page_viewport").fetchSemanticsNodes().isNotEmpty() &&
+          runCatching { composeRule.onNodeWithTag("reader_next_page").assertIsEnabled() }.isSuccess
       }
       composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
         val start = center.copy(y = center.y + height * 0.35f)

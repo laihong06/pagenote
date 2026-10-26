@@ -72,6 +72,8 @@ class ReaderSessionRestorationTest {
       sourceName = "session.pdf",
       sourceExtension = "pdf",
     )
+    installReaderRouteFixture(context.contentResolver)
+    openFixtureProjectFromBookshelf(composeRule, existingProjectTestTreeUri(), "Reader session route fixture")
     val dirtyDraft = "unsaved page-two draft"
     val bookmark = PdfViewportBookmark(scale = 2.25f, centerX = 0.34f, centerY = 0.72f)
 
@@ -215,5 +217,22 @@ class ReaderSessionRestorationTest {
         .toByteArray(Charsets.US_ASCII),
     )
     return output.toByteArray()
+  }
+
+  private fun installReaderRouteFixture(resolver: android.content.ContentResolver) {
+    val manifest = """
+      {"format":"pagenote-project","version":1,"id":"${"b".repeat(64)}","name":"Reader session route fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
+    """.trimIndent().toByteArray(Charsets.UTF_8)
+    resolver.call(
+      ExistingProjectSafTestProvider.AUTHORITY,
+      ExistingProjectSafTestProvider.METHOD_INSTALL,
+      null,
+      android.os.Bundle().apply {
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, "Route fixture".toByteArray(Charsets.UTF_8))
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray(Charsets.UTF_8))
+      },
+    )
   }
 }
