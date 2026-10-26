@@ -140,6 +140,16 @@ import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PdfTextSelectionMapper
 import io.pagenote.android.search.SearchIndexDatabase
 import io.pagenote.android.search.SearchIndexRepository
+import io.pagenote.android.flashcard.CardSourceLocator
+import io.pagenote.android.flashcard.FlashcardCapture
+import io.pagenote.android.flashcard.FlashcardCard
+import io.pagenote.android.flashcard.FlashcardController
+import io.pagenote.android.flashcard.FlashcardCreateDialog
+import io.pagenote.android.flashcard.FlashcardLibraryDialog
+import io.pagenote.android.flashcard.FlashcardRepository
+import io.pagenote.android.flashcard.FlashcardReviewDialog
+import io.pagenote.android.flashcard.ReviewScheduler
+import io.pagenote.android.flashcard.ReviewStats
 import io.pagenote.feature.annotations.AnnotationTextStyle
 import io.pagenote.feature.annotations.CanvasMaterialCodec
 import io.pagenote.feature.annotations.ReviewCreate
@@ -200,6 +210,10 @@ private const val MAX_ANNOTATION_PAGE_IMAGE_PIXELS = 4_000_000L
 
 /** 搜索结果跳转后 rect 高亮的自动清除时长（移植批次 7）。 */
 private const val SEARCH_FOCUS_CLEAR_MS = 4_000L
+
+/** 闪卡回跳选区应用的等待上限与轮询间隔（移植批次 11）：等页面切换/退出预览的重组完成。 */
+private const val FLASHCARD_FOCUS_TIMEOUT_MS = 2_000L
+private const val FLASHCARD_FOCUS_POLL_MS = 50L
 
 /** 可入索引的 OCR 状态（与区域 OCR 缓存口径一致：ok / partial）。 */
 internal val OCR_INDEXABLE_STATUSES = setOf("ok", "partial")
@@ -770,6 +784,36 @@ private fun ReaderHome(
   var aiSelectionTask by remember { mutableStateOf<AiSelectionTask?>(null) }
   var aiSelectionReviewId by remember { mutableStateOf<String?>(null) }
   var screenshotFrame by remember { mutableStateOf<ScreenCaptureFrame?>(null) }
+  // --- 闪卡（移植批次 11 / 差距清单 #20）---------------------------------------
+  // 卡片+标签实体复用批次 7 的 search-index.db（v2 迁移）；制卡入口挂在选区动作
+  // 旁（选区或光标段落），复习/卡片库对话框经 FlashcardController 状态驱动，
+  // 来源定位回跳复用笔记页切换 + 编辑器选区（anchor 失配时按原文重查）。
+  val flashcards = remember {
+    FlashcardController(
+      context = context,
+      repository = FlashcardRepository(SearchIndexDatabase.get(context).flashcardDao()),
+    )
+  }
+  // 闪卡回跳待应用的选区（页切换完成后由下方 LaunchedEffect 消费）。
+  var pendingCardSelection by remember { mutableStateOf<TextRange?>(null) }
+  LaunchedEffect(pendingCardSelection) {
+    val selection = pendingCardSelection ?: return@LaunchedEffect
+    noteEditRequest++
+    var applied = false
+    val deadline = SystemClock.uptimeMillis() + FLASHCARD_FOCUS_TIMEOUT_MS
+    while (SystemClock.uptimeMillis() < deadline) {
+      val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+      if (editor != null) {
+        editor.requestFocus()
+        editor.setMarkdownSourceSelection(selection.start, selection.end)
+        applied = true
+        break
+      }
+      delay(FLASHCARD_FOCUS_POLL_MS)
+    }
+    if (!applied) noteStatus = context.getString(R.string.flashcard_locate_failed)
+    pendingCardSelection = null
+  }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
 
@@ -2015,6 +2059,43 @@ private fun ReaderHome(
     readerSession.viewportBookmark.value = PdfViewportBookmark.DEFAULT
     pageIndex = nextPage
     return true
+  }
+
+  // --- 闪卡来源定位回跳（移植批次 11 / 差距清单 #20）-----------------------------
+  // 卡片 → 捕获页：页码经笔记页数校验并复用 changePage（自动保存当前页），
+  // 选区锚点经 CardSourceLocator 精确/重查定位，应用交由 pendingCardSelection。
+
+  suspend fun locateFlashcard(card: FlashcardCard): Boolean {
+    if (project == null) {
+      noteStatus = context.getString(R.string.flashcard_no_project)
+      return false
+    }
+    val notePageCount = PageNotes.split(notesMarkdown).size
+    val targetIndex = CardSourceLocator.pageIndex(card.page, notePageCount) ?: run {
+      noteStatus = context.getString(R.string.flashcard_page_out_of_range)
+      return false
+    }
+    flashcards.dismissLibrary()
+    if (targetIndex != pageIndex) {
+      val moved = changePage(targetIndex)
+      if (!moved) {
+        noteStatus = context.getString(R.string.flashcard_page_out_of_range)
+        return false
+      }
+    }
+    return when (val located = CardSourceLocator.locate(noteDraft, card.anchor())) {
+      is CardSourceLocator.LocateResult.Found -> {
+        if (located.moved) {
+          noteStatus = context.getString(R.string.flashcard_locate_moved)
+        }
+        pendingCardSelection = TextRange(located.start, located.end)
+        true
+      }
+      CardSourceLocator.LocateResult.Unavailable -> {
+        noteStatus = context.getString(R.string.flashcard_locate_missing)
+        false
+      }
+    }
   }
 
   fun recognizeCurrentPage() {
@@ -5689,6 +5770,51 @@ private fun ReaderHome(
           }
         },
         actionCommand(
+          "make_flashcard",
+          R.string.reader_menu_make_flashcard,
+          enabled = activeProject != null && noteWritable && !menuBusy &&
+            (noteSelection?.let { it.start != it.end } == true || markdownEditor != null),
+          disabledReason = commandReason(requireProject = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_selection_required),
+        ) {
+          val selection = noteSelection
+          val selectedPage = pageIndex + 1
+          scope.launch {
+            if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+            try {
+              // revision 受检保存后重新捕获（noteDraft 已是保存后的文本）。
+              val draft = if (selection != null && selection.start != selection.end) {
+                FlashcardCapture.fromSelection(selectedPage, noteDraft, selection.start, selection.end)
+              } else {
+                // 无选区：光标所在段落整体制卡。
+                val cursor = markdownEditor?.markdownSelectionStart() ?: -1
+                FlashcardCapture.fromParagraph(selectedPage, noteDraft, cursor)
+              }
+              flashcards.requestCreate(draft)
+            } catch (_: IllegalArgumentException) {
+              noteStatus = context.getString(R.string.flashcard_no_paragraph)
+            }
+          }
+        },
+        actionCommand(
+          "flashcard_review",
+          R.string.reader_menu_flashcard_review,
+          enabled = activeProject != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          val activeProject = project ?: return@actionCommand
+          scope.launch { flashcards.startReview(activeProject.manifest.id) }
+        },
+        actionCommand(
+          "flashcards",
+          R.string.reader_menu_flashcards,
+          enabled = activeProject != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          val activeProject = project ?: return@actionCommand
+          scope.launch { flashcards.openLibrary(activeProject.manifest.id) }
+        },
+        actionCommand(
           "save_return",
           R.string.reader_menu_save_return,
           // 保存并返回：需要当前项目的本地 Office 编辑会话且有未保存修改。
@@ -6269,6 +6395,45 @@ private fun ReaderHome(
         }
       },
       onDismiss = { search.show = false },
+    )
+  }
+  val flashcardCreateDraft = flashcards.createDraft
+  if (flashcards.showCreate && flashcardCreateDraft != null && activeProject != null) {
+    FlashcardCreateDialog(
+      draft = flashcardCreateDraft,
+      busy = flashcards.busy,
+      error = flashcards.createError,
+      onCreate = { back, tags -> flashcards.createCard(activeProject.manifest.id, back, tags) },
+      onDismiss = { flashcards.dismissCreate() },
+    )
+  }
+  if (flashcards.showReview && activeProject != null) {
+    FlashcardReviewDialog(
+      cards = flashcards.dueCards,
+      index = flashcards.reviewIndex,
+      revealed = flashcards.revealed,
+      reviewedInSession = flashcards.reviewedInSession,
+      busy = flashcards.busy,
+      error = flashcards.reviewError,
+      onReveal = { flashcards.reveal() },
+      onGrade = { outcome ->
+        scope.launch { flashcards.grade(activeProject.manifest.id, outcome) }
+      },
+      onDismiss = { flashcards.dismissReview() },
+    )
+  }
+  if (flashcards.showLibrary && activeProject != null) {
+    FlashcardLibraryDialog(
+      cards = flashcards.libraryCards,
+      stats = flashcards.stats,
+      achievements = flashcards.stats?.let(ReviewStats::achievements) ?: emptyList(),
+      busy = flashcards.busy,
+      error = flashcards.reviewError,
+      onLocate = { card -> scope.launch { locateFlashcard(card) } },
+      onDelete = { card ->
+        scope.launch { flashcards.deleteCard(activeProject.manifest.id, card) }
+      },
+      onDismiss = { flashcards.dismissLibrary() },
     )
   }
   if (showPageJumpDialog && activeProject != null && totalPages > 0) {
