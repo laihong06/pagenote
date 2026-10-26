@@ -1,6 +1,5 @@
 package io.pagenote.android
 
-import android.content.Intent
 import android.content.ClipData
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -48,6 +47,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
 import java.io.ByteArrayOutputStream
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
@@ -217,16 +217,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
   fun nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
-    installFixture(resolver)
+    installFixture(resolver, projectId = UUID.randomUUID().toString().replace("-", "").repeat(2))
     val project = ProjectDocumentOpener(resolver).open(treeUri)
-    val treePermissionFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-    composeRule.activity.grantUriPermission(
-      composeRule.activity.packageName,
-      treeUri,
-      treePermissionFlags or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
-    )
-    composeRule.activity.contentResolver.takePersistableUriPermission(treeUri, treePermissionFlags)
-    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     annotations.writePage("document", 1, Json.parseToJsonElement("""
       [
@@ -246,6 +238,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
     )
     val projectPenStore = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     projectPenStore.writePage(PenSide.DOCUMENT, 1, listOf(originalStroke))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val appAnnotations = ProjectAnnotationStore(
       composeRule.activity.contentResolver,
       project.sourceDirectoryUri,
@@ -255,8 +248,6 @@ class PdfAnnotationSelectionClipboardActivityTest {
     val pageStore = PenPageStore().apply { addStroke(PenSide.DOCUMENT, 1, originalStroke) }
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnIdle {
-      session.project.value = project
-      session.replaceRenderer(renderer)
       session.markdownSource.value = null
       session.pageIndex.intValue = 0
       session.notesMarkdown.value = "# Note"
@@ -288,6 +279,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.waitUntil(5_000) { nativeCanvas.selectedTool == PenCanvasTool.SELECT }
       composeRule.waitForIdle()
       assertEquals("Select command must reach the native ink view before input", PenCanvasTool.SELECT, nativeCanvas.selectedTool)
+      val pageItems = annotations.readPage("document", 1)
       val geometry = PenCanvasGeometry(nativeCanvas.width.toFloat(), nativeCanvas.height.toFloat(), nativeCanvas.pageTransform)
       fun pageOffset(x: Float, y: Float): Offset {
         val point = PenPoint(x, y, 1f)
@@ -297,7 +289,6 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val existingPoint = requireNotNull(
         geometry.toDocumentPoint(tapOffset.x, tapOffset.y, pressure = null, clampToPage = false),
       )
-      val pageItems = annotations.readPage("document", 1)
       val rectIndex = pageItems.indexOfFirst { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" }
       val expectedHit = PdfAnnotationClipboard.hitTest(
         pageItems,
@@ -653,9 +644,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
   private fun pointsNear(actual: List<Double>, expected: List<Double>): Boolean =
     actual.size == expected.size && actual.zip(expected).all { (a, e) -> kotlin.math.abs(a - e) <= 0.05 }
 
-  private fun installFixture(resolver: android.content.ContentResolver) {
+  private fun installFixture(
+    resolver: android.content.ContentResolver,
+    projectId: String = "d".repeat(64),
+  ) {
     val manifest = """
-      {"format":"pagenote-project","version":1,"id":"${"d".repeat(64)}","name":"Annotation clipboard fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
+      {"format":"pagenote-project","version":1,"id":"$projectId","name":"Annotation clipboard fixture","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}
     """.trimIndent().toByteArray(Charsets.UTF_8)
     resolver.call(
       ExistingProjectSafTestProvider.AUTHORITY,
