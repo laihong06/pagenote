@@ -718,13 +718,7 @@ export function createProjectStore({
     return updated;
   }
   async function create({ name: requestedName, parent: requestedParent }) {
-    const name = String(requestedName || '').trim();
-    if (
-      !name ||
-      ['.', '..'].includes(name) ||
-      /[<>:"/\\|?*\x00-\x1f]/.test(name)
-    )
-      throw Error('请输入有效的项目名称');
+    const name = projectName(requestedName);
     const parent = requestedParent
       ? path.resolve(requestedParent)
       : await defaultParent();

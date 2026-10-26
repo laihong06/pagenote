@@ -1,5 +1,7 @@
 package io.pagenote.android
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -96,8 +98,11 @@ class FloatingNoteWindowPolicyTest {
   @Test
   fun noteSaveRequestsAreEmitted() = runBlocking {
     FloatingWindowHub.setActive(true)
+    val request = async(start = CoroutineStart.UNDISPATCHED) {
+      FloatingWindowHub.noteSaveRequests.first()
+    }
     assertTrue(FloatingWindowHub.requestNoteSave())
-    assertEquals(Unit, FloatingWindowHub.noteSaveRequests.first())
+    assertEquals(Unit, request.await())
   }
 
   @Test
@@ -108,7 +113,10 @@ class FloatingNoteWindowPolicyTest {
     // 服务运行：入口可用，请求经 hub 受理并广播。
     FloatingWindowHub.setActive(true)
     assertTrue(FloatingWindowCaptureEntry().isAvailable())
+    val request = async(start = CoroutineStart.UNDISPATCHED) {
+      FloatingWindowHub.captureRequests.first()
+    }
     assertTrue(FloatingWindowCaptureEntry().requestLaunch())
-    assertEquals(Unit, FloatingWindowHub.captureRequests.first())
+    assertEquals(Unit, request.await())
   }
 }

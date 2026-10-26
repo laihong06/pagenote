@@ -93,6 +93,7 @@ async function importShelfDocument(file) {
   await window.pageNotes.finishEditing();
   const form = new FormData();
   form.append('file', file);
+  form.append('deferProject', 'true');
   const uploaded = await request('/api/documents', {
     method: 'POST',
     body: form,

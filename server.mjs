@@ -669,6 +669,8 @@ app.get('/api/documents', async (req, res, next) => {
 app.post('/api/documents', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) throw Error('请选择文件');
+    const projectId = req.body?.projectId;
+    const deferProject = req.body?.deferProject === 'true' && !projectId;
     const name = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     const ext = path.extname(name).toLowerCase();
     if (
@@ -688,7 +690,9 @@ app.post('/api/documents', upload.single('file'), async (req, res, next) => {
     }
     if (existing) {
       await fs.unlink(req.file.path);
-      return res.json(await projects.bindLeft(existing, req.body.projectId));
+      return res.json(
+        deferProject ? existing : await projects.bindLeft(existing, projectId),
+      );
     }
     await fs.mkdir(dir, { recursive: true });
     const original = path.join(dir, `original${ext}`);
@@ -714,7 +718,7 @@ app.post('/api/documents', upload.single('file'), async (req, res, next) => {
       url: `/files/${id}/${kind === 'pdf' ? 'view.pdf' : `original${ext}`}`,
     };
     await fs.writeFile(metaFile(id), JSON.stringify(meta, null, 2));
-    res.json(await projects.bindLeft(meta, req.body.projectId));
+    res.json(deferProject ? meta : await projects.bindLeft(meta, projectId));
   } catch (e) {
     if (req.file) await fs.unlink(req.file.path).catch(() => {});
     next(e);

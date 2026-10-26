@@ -1,6 +1,5 @@
 package io.pagenote.android
 
-import android.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -31,13 +30,16 @@ class NightFilterPolicyTest {
   @Test
   fun overlayAlphaGrowsLinearlyAndClamps() {
     // 强度 0 → 全透明（UI 层直接跳过绘制）。
-    assertEquals(0, Color.alpha(NightFilterPolicy.overlayArgb(0)))
+    assertEquals(0, alpha(NightFilterPolicy.overlayArgb(0)))
     // 强度 100 → 最大不透明度 0.35。
-    assertEquals(Math.round(NightFilterPolicy.MAX_ALPHA * 255), Color.alpha(NightFilterPolicy.overlayArgb(100)))
+    assertEquals(
+      Math.round(NightFilterPolicy.MAX_ALPHA * 255),
+      alpha(NightFilterPolicy.overlayArgb(100)),
+    )
     // 线性中点：45 ≈ 0.35*45% *255 ≈ 40。
     assertEquals(
       Math.round(NightFilterPolicy.MAX_ALPHA * 45 / 100 * 255).toInt(),
-      Color.alpha(NightFilterPolicy.overlayArgb(45)),
+      alpha(NightFilterPolicy.overlayArgb(45)),
     )
   }
 
@@ -47,8 +49,14 @@ class NightFilterPolicyTest {
     val rgb = argb and 0xFFFFFF
     assertEquals(NightFilterPolicy.BASE_RGB, rgb)
     // 红 > 绿 > 蓝：暖琥珀滤蓝光观感。
-    assertTrueOrdering(Color.red(rgb), Color.green(rgb), Color.blue(rgb))
+    assertTrueOrdering(
+      (rgb shr 16) and 0xFF,
+      (rgb shr 8) and 0xFF,
+      rgb and 0xFF,
+    )
   }
+
+  private fun alpha(argb: Int): Int = (argb ushr 24) and 0xFF
 
   private fun assertTrueOrdering(red: Int, green: Int, blue: Int) {
     assert(red > green && green > blue) { "expected warm amber ordering, got r=$red g=$green b=$blue" }

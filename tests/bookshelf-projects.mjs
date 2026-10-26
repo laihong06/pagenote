@@ -31,21 +31,39 @@ try {
   assert.equal((await api('/api/projects', { name: 'First' })).ok, false);
   const form = new FormData();
   form.append('file', new Blob(['# Imported notebook']), 'Imported.md');
+  form.append('deferProject', 'true');
   const uploaded = await (
     await fetch(base + '/api/documents', { method: 'POST', body: form })
   ).json();
+  assert.equal(
+    uploaded.projectRoot,
+    undefined,
+    'shelf upload waits for the destination project before adopting the source',
+  );
   const imported = await api('/api/bookshelf/projects/import', {
     documentId: uploaded.id,
     name: 'Imported',
   });
   assert.ok(imported.ok);
   assert.notEqual(imported.value.id, first.value.id);
-  assert.equal(
-    await fs.readFile(path.join(library, 'Imported/src/left.md'), 'utf8'),
-    '# Imported notebook',
+  const importedManifest = JSON.parse(
+    await fs.readFile(imported.value.projectFile, 'utf8'),
   );
   assert.equal(
-    await fs.readFile(path.join(library, 'First/src/left.md'), 'utf8'),
+    await fs.readFile(
+      path.join(imported.value.projectRoot, importedManifest.left),
+      'utf8',
+    ),
+    '# Imported notebook',
+  );
+  const firstManifest = JSON.parse(
+    await fs.readFile(first.value.projectFile, 'utf8'),
+  );
+  assert.equal(
+    await fs.readFile(
+      path.join(first.value.projectRoot, firstManifest.left),
+      'utf8',
+    ),
     '# First\n',
   );
   const failed = await api('/api/bookshelf/projects/import', {
@@ -56,7 +74,7 @@ try {
   await assert.rejects(fs.stat(path.join(library, 'Missing')));
   const listing = await (await fetch(base + '/api/bookshelf')).json();
   assert.equal(listing.books.length, 2);
-  const sourcePath = path.join(library, 'First/src/left.md');
+  const sourcePath = path.join(first.value.projectRoot, firstManifest.left);
   const outside = path.join(tmp, 'outside.md');
   await fs.writeFile(outside, 'Outside stays private');
   await fs.unlink(sourcePath);
@@ -68,7 +86,7 @@ try {
   );
   await fs.unlink(sourcePath);
   await fs.writeFile(sourcePath, '# First\n');
-  const notesPath = path.join(library, 'First/src/right.md');
+  const notesPath = path.join(first.value.projectRoot, firstManifest.right);
   await fs.unlink(notesPath);
   await fs.symlink(outside, notesPath);
   assert.equal(
