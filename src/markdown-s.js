@@ -1,4 +1,12 @@
 import './markdown-s.css';
+import { RenderScope } from './render-scope';
+
+const previewScopes = new WeakMap();
+export function disposeMarkdownS(target) {
+  previewScopes.get(target)?.abort();
+  previewScopes.delete(target);
+  target.querySelectorAll('.mds-frame').forEach((frame) => frame.remove());
+}
 
 export const markdownSEngines = Object.freeze({
   mds: 'HTML / CSS / JavaScript',
@@ -75,6 +83,11 @@ export async function markdownSDocument(engine, source) {
 }
 
 export function renderMarkdownS(target) {
+  let scope = previewScopes.get(target);
+  if (!scope) {
+    scope = new RenderScope();
+    previewScopes.set(target, scope);
+  }
   for (const code of [...target.querySelectorAll('pre > code')]) {
     const engine = [...code.classList]
       .find((c) => c.startsWith('language-'))
@@ -109,9 +122,11 @@ export function renderMarkdownS(target) {
     bar.append(title, run, stop);
     block.append(bar, status, details);
     let generation = 0,
-      frame;
+      frame,
+      task;
     stop.onclick = () => {
       generation++;
+      task?.cancel();
       frame?.remove();
       frame = null;
       run.disabled = false;
@@ -120,13 +135,20 @@ export function renderMarkdownS(target) {
     };
     run.onclick = async () => {
       const current = ++generation;
+      task = scope.begin(block, block.dataset.source);
+      const runningTask = task;
       frame?.remove();
       run.disabled = true;
       stop.disabled = false;
       status.textContent = '正在启动…';
       try {
         const html = await markdownSDocument(engine, block.dataset.source);
-        if (current !== generation || !block.isConnected) return;
+        if (
+          !runningTask.current() ||
+          current !== generation ||
+          !block.isConnected
+        )
+          return;
         frame = document.createElement('iframe');
         frame.className = 'mds-frame';
         frame.name = 'pagenote-mds-' + crypto.randomUUID();
@@ -141,7 +163,7 @@ export function renderMarkdownS(target) {
         details.before(frame);
         status.textContent = '预览已启动 · 停止可释放组件资源';
       } catch (e) {
-        if (current !== generation) return;
+        if (!runningTask.current() || current !== generation) return;
         status.textContent = '无法运行：' + e.message;
         run.disabled = false;
         stop.disabled = true;

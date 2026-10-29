@@ -2,7 +2,7 @@ import { Marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
-import { renderMarkdownS } from './markdown-s';
+import { renderMarkdownS, disposeMarkdownS } from './markdown-s';
 import { codeLanguage, highlightCode } from './code-highlight';
 import { normalizeMath } from './math-input';
 import 'highlight.js/styles/github.css';
@@ -235,6 +235,7 @@ export async function validateNote(markdown) {
   };
 }
 export function renderMarkdown(text, target, depth = 0) {
+  disposeMarkdownS(target);
   target.innerHTML = DOMPurify.sanitize(md.parse(normalizeMath(text)), {
     ADD_TAGS: ['annotation'],
     ADD_ATTR: ['target', 'encoding'],
