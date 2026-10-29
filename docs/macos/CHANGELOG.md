@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+共享桌面宿主增加最小化／隐藏时停止预览通知；Mac 原生窗口行为以本平台 CI／实测为准。
+
 共享预览接入删除清理与后台停止；本次项目重启实测在 Windows 完成，Mac 系统行为待验证。
 
 平台 CI 新增 Markdown S 真实 Electron 专项；Mac 结果以实际 CI 为准，不能沿用 Windows 通过结论。

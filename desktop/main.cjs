@@ -305,6 +305,16 @@ if (!app.requestSingleInstanceLock()) {
       win.webContents.setVisualZoomLevelLimits(1, 1);
       // Reader gestures own pane zoom; never magnify the toolbar/window.
       win.webContents.setZoomMode?.('manual');
+      const suspendPreviews = () => {
+        if (!win.isDestroyed())
+          win.webContents
+            .executeJavaScript(
+              'window.dispatchEvent(new Event("pagenote-render-suspend"))',
+            )
+            .catch(() => {});
+      };
+      win.on('minimize', suspendPreviews);
+      win.on('hide', suspendPreviews);
       nativeTheme.on('updated', () => {
         if (!win.isDestroyed())
           win.setBackgroundColor(

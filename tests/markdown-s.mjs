@@ -263,6 +263,28 @@ try {
   console.log(
     'PASS two-preview limit, replacement cleanup, CSP network and renamed-frame navigation isolation',
   );
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].minimize(),
+  );
+  assert.equal(
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isMinimized(),
+    ),
+    true,
+  );
+  await page.waitForFunction(() => !document.querySelector('#mds-test iframe'));
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    w.restore();
+    w.show();
+    w.focus();
+  });
+
+  await page.locator('#mds-test button').filter({ hasText: '运行' }).click();
+  await page.locator('#mds-test iframe').waitFor();
+  console.log(
+    'PASS real window minimize stops preview; restoring permits explicit restart',
+  );
   await page.evaluate(() => {
     window.removedPreview = document.querySelector(
       '#mds-test .markdown-s-block',

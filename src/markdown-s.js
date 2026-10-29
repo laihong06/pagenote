@@ -24,6 +24,9 @@ function trackPreview(block, stop) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) for (const stop of [...livePreviews.values()]) stop();
 });
+window.addEventListener('pagenote-render-suspend', () => {
+  for (const stop of [...livePreviews.values()]) stop();
+});
 export function disposeMarkdownS(target) {
   previewScopes.get(target)?.abort();
   previewScopes.delete(target);
