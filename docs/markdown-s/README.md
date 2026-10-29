@@ -9,6 +9,7 @@ Markdown S 是 PageNote 对 Markdown 的增强约定，不是新的 HTML 官方�
 1. [架构与格式规范](ARCHITECTURE.zh-CN.md)：文件如何保存、各模块负责什么、渲染和权限如何分开。
 2. [实施指导](IMPLEMENTATION.zh-CN.md)：技术能力表、具体代码入口、分阶段任务、跨平台与回退方案。
 3. [验收标准与记录模板](ACCEPTANCE.zh-CN.md)：测试步骤、预期结果、截图要求和放行规则。
+4. [开发验证记录](VALIDATION-2026-10-30.md)：本轮实际证据、覆盖范围及剩余验收项。
 
 相关制度：[PR 标准](../PR-STANDARD.zh-CN.md)、[平台维护](../PLATFORM-MAINTENANCE.zh-CN.md)、[发布政策](../RELEASE-POLICY.md)。本组文件不改变现有正式版本的发布批准，不要求等待全部未来引擎才能交付首期功能。
 

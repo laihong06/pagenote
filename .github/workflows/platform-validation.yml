@@ -44,6 +44,10 @@ jobs:
       - run: node scripts/ensure-electron.mjs
       - run: npm run test:platforms
       - run: node scripts/platform.mjs ${{ matrix.platform }} build
+      - name: Render scope and engine queue contracts
+        run: node tests/render-scope.mjs && node tests/render-queue.mjs
+      - name: Markdown S real Electron rendering and isolation
+        run: npm run test:markdown-s
       - name: Prepare isolated test workspace
         run: |
           node -e "require('node:fs').mkdirSync('tmp', { recursive: true })"

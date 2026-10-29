@@ -197,6 +197,72 @@ try {
     '<p>After edit</p>\n',
   );
   console.log('PASS Markdown S source editing, undo and redo');
+  await page.evaluate(() => {
+    const fence = '\x60\x60\x60';
+    PNTest.renderMarkdown(
+      Array.from(
+        { length: 3 },
+        () => fence + 'mds-html\n<p>Concurrent demo</p>\n' + fence,
+      ).join('\n\n'),
+      document.querySelector('#mds-test'),
+    );
+  });
+  const cards = page.locator('#mds-test .markdown-s-block');
+  for (let i = 0; i < 3; i++)
+    await cards
+      .nth(i)
+      .getByRole('button', { name: '运行', exact: true })
+      .click();
+  assert.equal(await page.locator('#mds-test iframe').count(), 2);
+  assert.ok((await cards.nth(2).innerText()).includes('最多同时运行两个'));
+  await cards.nth(0).getByRole('button', { name: '停止', exact: true }).click();
+  await cards.nth(2).getByRole('button', { name: '运行', exact: true }).click();
+  assert.equal(await page.locator('#mds-test iframe').count(), 2);
+  await page.evaluate(() =>
+    PNTest.renderMarkdown(
+      'Replacement note',
+      document.querySelector('#mds-test'),
+    ),
+  );
+  assert.equal(await page.locator('#mds-test iframe').count(), 0);
+  let forbiddenRequests = 0;
+  page.on('request', (r) => {
+    if (r.url().includes('/mds-forbidden')) forbiddenRequests++;
+  });
+  await page.evaluate(() => {
+    const source =
+      '<p id="safe">Sandbox</p><script>fetch(' +
+      JSON.stringify(location.origin + '/mds-forbidden') +
+      ').catch(()=>document.body.dataset.network="blocked");setTimeout(()=>{window.name="renamed";location.href=' +
+      JSON.stringify(location.origin + '/mds-forbidden') +
+      '},100);</script>';
+    PNTest.renderMarkdown(
+      '\x60\x60\x60mds-html\n' + source + '\n\x60\x60\x60',
+      document.querySelector('#mds-test'),
+    );
+  });
+  await page.locator('#mds-test button').filter({ hasText: '运行' }).click();
+  const isolated = page.frameLocator('#mds-test iframe');
+  await isolated.locator('#safe').waitFor();
+  await page.waitForFunction(() => document.querySelector('#mds-test iframe'));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(
+    await isolated.locator('body').getAttribute('data-network'),
+    'blocked',
+  );
+  assert.equal(
+    await isolated.locator('#safe').count(),
+    1,
+    'self navigation remains blocked after frame rename',
+  );
+  assert.equal(
+    forbiddenRequests,
+    0,
+    'component must not reach the host service',
+  );
+  console.log(
+    'PASS two-preview limit, replacement cleanup, CSP network and renamed-frame navigation isolation',
+  );
   console.log(
     'PASS Markdown S: explicit execution, source round trip, real sandbox interaction, parent isolation and stop',
   );

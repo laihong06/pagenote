@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+平台 CI 新增 Markdown S 真实 Electron 专项；Mac 结果以实际 CI 为准，不能沿用 Windows 通过结论。
+
 共享 Markdown S 预览增加每视图两个演示上限；本轮新增多引擎验证在 Windows 执行，不宣称 Mac 已通过。
 
 共享 Markdown S 内核新增 Mermaid 优先级、取消与超时队列；本轮真实交互在 Windows 验证，Mac 新内核运行待验证，尚未发布。
