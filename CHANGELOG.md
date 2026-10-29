@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Record completed integration PR #15, merged predecessor PRs, passing Windows/macOS/Android CI and actual platform branch routing; distinguish pending package and stable-baseline validation. / 记录整合合并、多平台检查通过与实际分支入口，明确安装包及未获批稳定线的剩余范围。
+
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
 
 - Repair platform CI YAML and add an independent metadata gate; record screenshot runtime and target package versions separately. / 修复平台 CI 配置解析，增加独立的平台元数据检查，并区分截图运行版本与目标打包版本；不发布制品。
