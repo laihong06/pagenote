@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
+
 - Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。
 
 - Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
