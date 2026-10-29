@@ -3,6 +3,7 @@
 ## Unreleased / 尚未发布
 
 - Add an experimental offline Markdown S preview for HTML/CSS/JS, SVG, Canvas, Three.js and simple data charts, explicit start/stop and source-preserving serialization; validate real Electron interaction and parent isolation. Remaining acceptance stays open; no public release. / 新增 Markdown S 离线交互预览原型、运行停止和源码保真，已通过真实 Electron 交互及父页面隔离测试；其余验收仍待完成，不公开发布。
+- Record completed integration PR #15, merged predecessor PRs, passing Windows/macOS/Android CI and actual platform branch routing; distinguish pending package and stable-baseline validation. / 记录整合合并、多平台检查通过与实际分支入口，明确安装包及未获批稳定线的剩余范围。
 
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
 
