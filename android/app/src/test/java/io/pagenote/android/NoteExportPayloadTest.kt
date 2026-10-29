@@ -51,4 +51,26 @@ class NoteExportPayloadTest {
     assertEquals(markdown, export.content)
     assertFalse(export.content.isEmpty())
   }
+
+  @Test
+  fun encryptedFileNameReplacesTheOriginalExtensionWithEncryptedJson() {
+    assertEquals(
+      "模式识别-逐页笔记.encrypted.json",
+      NoteExportPayload.encryptedFileName("模式识别-逐页笔记.json"),
+    )
+    assertEquals(
+      "模式识别-第12页.encrypted.json",
+      NoteExportPayload.encryptedFileName("模式识别-第12页.md"),
+    )
+    assertEquals(
+      "no-extension.encrypted.json",
+      NoteExportPayload.encryptedFileName("no-extension"),
+    )
+    org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+      NoteExportPayload.encryptedFileName("")
+    }
+    org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+      NoteExportPayload.encryptedFileName(".json")
+    }
+  }
 }

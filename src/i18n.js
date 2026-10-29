@@ -51,7 +51,7 @@ function isContent(element) {
   )
     return false;
   return !!element.closest(
-    '#preview,.markdown-page,.textLayer,#reviewQuote,#historyPreview,#docName,#library,.improvement-card p,.improvement-card blockquote,.review-card p,.review-card blockquote,script,style,textarea,input,svg',
+    '#preview,.markdown-page,.textLayer,#reviewQuote,#historyPreview,#docName,#library,#shelfRecent option:not(:first-child),.book-title,.book-cover,#shelfDirectory,#bookshelfDirectory,.improvement-card p,.improvement-card blockquote,.review-card p,.review-card blockquote,script,style,textarea,input,svg',
   );
 }
 function translateElement(root) {

@@ -7,6 +7,7 @@ import org.junit.Test
 
 class DesktopCommandChecklistTest {
   private val wiredCommands = setOf(
+    "bookshelf",
     "open_project",
     "open_document",
     "new_project",
@@ -14,7 +15,9 @@ class DesktopCommandChecklistTest {
     "attachments",
     "import_notes",
     "export_notes",
+    "export_merged_pdf",
     "note_history",
+    "note_settings",
     "pdf_text_selection",
     "page_tutor",
     "agent_task",
@@ -59,6 +62,9 @@ class DesktopCommandChecklistTest {
     "arrow",
     "shape",
     "ink_text",
+    "ink_rich_text",
+    "ink_ocr",
+    "formula_ocr",
     "ink_color",
     "ink_width",
     "annotate_mode",
@@ -77,16 +83,16 @@ class DesktopCommandChecklistTest {
     "privacy_license",
     "diagnostics",
   )
-  private val pendingCommands = setOf("office_edit", "save_return")
+  private val pendingCommands: Set<String> = emptySet()
 
   @Test
   fun checklistMatchesWiredMenuCommands() {
     val main = File("src/main/java/io/pagenote/android/MainActivity.kt").readText()
     val wired = Regex("\"([a-z_0-9]+)\",\\s*R\\.string").findAll(main).map { it.groupValues[1] }.toSet()
     assertTrue("missing checklist commands: ${wiredCommands - wired}", wired.containsAll(wiredCommands))
-    assertEquals(setOf("office_edit", "save_return"), pendingCommands.intersect(wired))
+    assertEquals(emptySet<String>(), pendingCommands.intersect(wired))
     val pendingCalls = Regex("pendingCommand\\(\\s*\"([a-z_0-9]+)\"").findAll(main).map { it.groupValues[1] }.toSet()
-    assertEquals(setOf("office_edit", "save_return"), pendingCalls)
+    assertEquals(emptySet<String>(), pendingCalls)
   }
 
   @Test

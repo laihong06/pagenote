@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "data": {
+    "onLessonClassrooms": [
+      null,
+      {
+        "lessonId": "9283",
+        "classroomId": "fixture-classroom-2",
+        "courseName": "Fixture course without status"
+      }
+    ]
+  }
+}

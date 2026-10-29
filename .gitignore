@@ -12,6 +12,7 @@ ai-connection.json
 ai-key.txt
 local.properties
 android/.gradle/
+android/.kotlin/
 android/build/
 android/*/build/
 android/local.properties
@@ -38,3 +39,6 @@ tests/*.log
 !.env.example
 tests/typora-*.txt
 android/.idea/
+dependency-copy*.log
+npm-install.log
+android-validation*.log

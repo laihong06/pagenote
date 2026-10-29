@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; media-src 'none'">
+  <title>pagenote-rich-edit:idle</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; background: transparent; }
+    #edit-host {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 100%;
+      padding: 8px;
+      color: #253247;
+      font: 22px/1.6 sans-serif;
+      overflow-y: auto;
+      word-wrap: break-word;
+      outline: none;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    #edit-host:empty::before { content: attr(data-placeholder); color: #9aa7bd; }
+    #edit-host h1 { font-size: 34px; }
+    #edit-host h2 { font-size: 28px; }
+    #edit-host h3 { font-size: 24px; }
+    #edit-host table { font-size: 20px; border-collapse: collapse; }
+    #edit-host img { max-width: 100%; height: auto; }
+    #edit-host pre { white-space: pre-wrap; }
+    #edit-host blockquote { margin: 0.4em 0; padding-left: 0.8em; border-left: 3px solid #c8d2e4; color: #4a5872; }
+  </style>
+  <script src="../mermaid/purify.min.js" defer></script>
+  <script src="editor.js" defer></script>
+</head>
+<body><div id="edit-host" class="ink-rich-content" contenteditable="false" data-placeholder="" aria-label="rich text editor"></div></body>
+</html>

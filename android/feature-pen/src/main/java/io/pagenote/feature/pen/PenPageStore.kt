@@ -49,6 +49,23 @@ class PenPageStore(
     return true
   }
 
+  /**
+   * Rect eraser (port batch 1): removes every stroke on the given side/page
+   * whose geometry intersects [rect] (document units; see [PenRectHit]).
+   * Returns the removed original indexes, oldest first; empty when nothing
+   * intersected (no undo snapshot is pushed then). Records one page-local
+   * undo snapshot covering the whole batch.
+   */
+  fun eraseInRect(side: PenSide, page: Int, rect: PenRect): List<Int> {
+    require(page >= 1) { "bad page: $page" }
+    val list = pages[side]?.get(page) ?: return emptyList()
+    val removed = list.indices.filter { PenRectHit.strokeIntersects(list[it], rect) }
+    if (removed.isEmpty()) return emptyList()
+    snapshot(side, page)
+    removed.asReversed().forEach { list.removeAt(it) }
+    return removed
+  }
+
   /** Changes the style of one selected item and records a page-local undo snapshot. */
   fun updateStyle(
     side: PenSide,
@@ -109,6 +126,37 @@ class PenPageStore(
     return true
   }
 
+  /**
+   * External single-page replace (port batch 6): swaps the live page content for
+   * the pen/highlight subset of [rawItems] (same filtering as
+   * [loadAnnotationsMap]). Used after a full-page annotation write driven
+   * outside the pen model (e.g. handwriting-OCR conversion) so the pen canvas
+   * and the store stay in sync. The page's built-in undo/redo stacks are
+   * cleared: the external writer owns history for that edit, and stale pen-local
+   * snapshots could otherwise resurrect removed strokes.
+   */
+  fun reloadPage(side: PenSide, page: Int, rawItems: List<*>) {
+    require(page >= 1) { "bad page: $page" }
+    // Same freehand filter as the app-layer store loader: only pen/highlight
+    // items belong to the pen model; other types stay with the annotation page.
+    val strokes = rawItems
+      .mapNotNull { raw ->
+        val map = raw as? Map<*, *> ?: return@mapNotNull null
+        when (map["type"]) {
+          "pen", "highlight" -> parseAnnotationsItem(raw)
+          else -> null
+        }
+      }
+    PenValidation.validateItemCount(strokes.size, side, page)
+    strokes.forEach { PenValidation.validate(it, page) }
+    liveList(side, page).apply {
+      clear()
+      addAll(strokes)
+    }
+    undoStacks.remove(key(side, page))
+    redoStacks.remove(key(side, page))
+  }
+
   /** Serializes to the annotations.json shape with string page keys. */
   fun toAnnotationsMap(): Map<String, Map<String, List<Map<String, Any?>>>> {
     val out: MutableMap<String, Map<String, List<Map<String, Any?>>>> = linkedMapOf()
@@ -158,6 +206,77 @@ class PenPageStore(
     stack.addLast(liveList(side, page).toList())
     while (stack.size > maxUndoDepth) stack.removeFirst()
     redoStacks[key(side, page)]?.clear()
+  }
+
+  // --- Action-adapter hooks (port batch 1) -------------------------------
+  // Mutations below validate exactly like their public counterparts but do
+  // NOT touch the built-in undo/redo stacks: undo for these edits is driven
+  // externally through PenActionStack + PenPageStoreActions. Pick ONE driver
+  // per (side, page) scope — never mix both.
+
+  /** Copy of the live page content, for capturing action before/after states. */
+  internal fun liveSnapshot(side: PenSide, page: Int): List<PenStroke> {
+    require(page >= 1) { "bad page: $page" }
+    return liveList(side, page).toList()
+  }
+
+  /** Validated append without pushing a built-in undo snapshot. */
+  internal fun appendStrokeWithoutSnapshot(side: PenSide, page: Int, stroke: PenStroke): Int {
+    require(page >= 1) { "bad page: $page" }
+    PenValidation.validate(stroke, page)
+    val list = liveList(side, page)
+    PenValidation.validateItemCount(list.size + 1, side, page)
+    list.add(stroke)
+    return list.lastIndex
+  }
+
+  /** Index-scoped erase without pushing a built-in undo snapshot. */
+  internal fun eraseAtWithoutSnapshot(side: PenSide, page: Int, index: Int): Boolean {
+    require(page >= 1) { "bad page: $page" }
+    val list = pages[side]?.get(page) ?: return false
+    if (index < 0 || index >= list.size) return false
+    list.removeAt(index)
+    return true
+  }
+
+  /** Style update without pushing a built-in undo snapshot. */
+  internal fun updateStyleWithoutSnapshot(
+    side: PenSide,
+    page: Int,
+    index: Int,
+    color: String?,
+    width: Double?,
+  ): Boolean {
+    require(page >= 1) { "bad page: $page" }
+    val list = pages[side]?.get(page) ?: return false
+    val current = list.getOrNull(index) ?: return false
+    val updated = current.copy(
+      color = color?.takeUnless { current.color.equals(it, ignoreCase = true) } ?: current.color,
+      width = width ?: current.width,
+    )
+    PenValidation.validate(updated, page)
+    if (updated.color == current.color && updated.width == current.width) return false
+    list[index] = updated
+    return true
+  }
+
+  /** Rect eraser without pushing a built-in undo snapshot. */
+  internal fun eraseInRectWithoutSnapshot(side: PenSide, page: Int, rect: PenRect): List<Int> {
+    require(page >= 1) { "bad page: $page" }
+    val list = pages[side]?.get(page) ?: return emptyList()
+    val removed = list.indices.filter { PenRectHit.strokeIntersects(list[it], rect) }
+    removed.asReversed().forEach { list.removeAt(it) }
+    return removed
+  }
+
+  /** Whole-page validated replace without pushing a built-in undo snapshot. */
+  internal fun replacePageWithoutSnapshot(side: PenSide, page: Int, strokes: List<PenStroke>) {
+    require(page >= 1) { "bad page: $page" }
+    PenValidation.validateItemCount(strokes.size, side, page)
+    strokes.forEach { PenValidation.validate(it, page) }
+    val list = liveList(side, page)
+    list.clear()
+    list.addAll(strokes)
   }
 
   private fun parseAnnotationsItem(raw: Any?): PenStroke {

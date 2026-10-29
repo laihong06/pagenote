@@ -50,6 +50,8 @@ class PdfTextAnnotationToolTest {
   fun textToolPlacesAndPersistsOnlyTextAnnotations() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val notes = PageNotes.join(listOf("First page note", "Second page note"))
+    val project = installProject(notes, createPdf())
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = null
@@ -60,7 +62,6 @@ class PdfTextAnnotationToolTest {
     }
     handwritingCommand("ink_text").assertIsNotEnabled()
 
-    val project = installProject(notes, createPdf())
     composeRule.runOnUiThread {
       session.project.value = project
       session.markdownSource.value = notes
@@ -156,9 +157,7 @@ class PdfTextAnnotationToolTest {
     renderer: PdfDocumentSession,
     notes: String,
   ): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project

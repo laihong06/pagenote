@@ -123,6 +123,28 @@ class ReaderSettingsStoreTest {
   }
 
   @Test
+  fun noteBackgroundDefaultsToPlainAndSurvivesOpeningAnotherStore() = runBlocking {
+    val file = File(temporaryFolder.root, "note-background.preferences_pb")
+    val firstScope = newScope()
+    try {
+      val firstStore = ReaderSettingsStore(newDataStore(file, firstScope))
+      assertEquals("plain", firstStore.settings.first().noteBackground)
+      firstStore.save(ReaderSettings(noteBackground = "four-line"))
+    } finally {
+      firstScope.cancel()
+    }
+
+    val secondScope = newScope()
+    try {
+      val secondStore = ReaderSettingsStore(newDataStore(file, secondScope))
+
+      assertEquals("four-line", secondStore.settings.first().noteBackground)
+    } finally {
+      secondScope.cancel()
+    }
+  }
+
+  @Test
   fun prepareAheadPagesSurvivesOpeningAnotherStore() = runBlocking {
     val file = File(temporaryFolder.root, "prepare-ahead.preferences_pb")
     val firstScope = newScope()

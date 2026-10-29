@@ -1,0 +1,18 @@
+{
+  "code": 0,
+  "data": {
+    "title": "Fixture presentation",
+    "slides": [
+      {
+        "id": "fixture-slide-1",
+        "index": 0,
+        "cover": "https://static.yuketang.cn/fixtures/slide-1.jpg"
+      },
+      {
+        "id": "fixture-slide-2",
+        "index": 1,
+        "cover": "https://static.yuketang.cn/fixtures/slide-2.jpg"
+      }
+    ]
+  }
+}

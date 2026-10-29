@@ -129,8 +129,17 @@ internal fun ReaderAdaptiveMenu(
   onExpandedChange: (Boolean) -> Unit,
   drawerOpen: Boolean,
   onDrawerOpenChange: (Boolean) -> Unit,
+  collapseToTrigger: Boolean = false,
+  preview: Boolean = false,
+  onPreviewHand: () -> Unit = {},
+  onPreviewTool: () -> Unit = {},
+  onPreviewEdit: () -> Unit = {},
   content: @Composable () -> Unit,
 ) {
+  if (preview) {
+    ReaderPreviewToolbar(groups, onPreviewHand, onPreviewTool, onPreviewEdit, content)
+    return
+  }
   val menuColorScheme = desktopReaderMenuColorScheme(MaterialTheme.colorScheme)
 
   if (layout == ReaderMenuLayout.COMPACT_DRAWER) {
@@ -175,7 +184,7 @@ internal fun ReaderAdaptiveMenu(
           onCollapse = { onExpandedChange(false) },
         )
       }
-    } else {
+    } else if (!collapseToTrigger) {
       MaterialTheme(colorScheme = menuColorScheme) {
         CollapsedMenuSidebar(
           groups = groups,

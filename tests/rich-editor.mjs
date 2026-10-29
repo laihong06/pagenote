@@ -34,6 +34,7 @@ try {
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
+  await w.waitForFunction(() => !!window.pageNotes.getSummary().document);
   await w.locator('#loading').waitFor({ state: 'hidden' });
   await w.evaluate(async () => {
     const s = await window.pageNotes.getState();
@@ -160,8 +161,10 @@ try {
   assert.ok(state.markdown.includes('\\mu = 18'));
   assert.ok(state.markdown.includes('```mermaid'));
   assert.ok(state.markdown.includes('表格内容'));
+  const documentId = state.document.id;
   await w.reload();
   await dismissWelcome(w);
+  await w.evaluate((id) => window.pageNotes.open(id), documentId);
   await w
     .locator('#preview .diagram-ready')
     .waitFor({ timeout: 10000 })

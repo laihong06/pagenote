@@ -5,6 +5,7 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -23,6 +24,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.UUID
@@ -84,11 +86,12 @@ class ProjectCreateOptionalPdfActivityTest {
     openNewProjectDialog()
     val projectName = "Blank worksheet ${UUID.randomUUID()}"
     setProjectName(projectName)
-    composeRule.onNodeWithTag("new_project_choose_dir").performClick()
     composeRule.onNodeWithTag("new_project_choose_document").performClick()
     composeRule.waitUntil(10_000) { pendingPdfPicker.get() != null }
     composeRule.runOnUiThread { pendingPdfPicker.getAndSet(null)?.invoke(null) }
-    composeRule.onNodeWithText("Choose folder ✓").assertExists()
+    composeRule.onNodeWithText(
+      composeRule.activity.getString(R.string.bookshelf_folder) + ": Project creation tests",
+    ).assertExists()
     assertProjectName(projectName)
 
     composeRule.onNodeWithTag("new_project_choose_document").performClick()
@@ -102,7 +105,9 @@ class ProjectCreateOptionalPdfActivityTest {
     composeRule.activityRule.scenario.recreate()
     composeRule.waitForIdle()
     assertTrue(hasPersistedReadGrant(composeRule.activity.contentResolver, sourceUri))
-    composeRule.onNodeWithText("Choose folder ✓").assertExists()
+    composeRule.onNodeWithText(
+      composeRule.activity.getString(R.string.bookshelf_folder) + ": Project creation tests",
+    ).assertExists()
     composeRule.onNodeWithText(sourceName).assertExists()
     assertProjectName(projectName)
 
@@ -363,7 +368,6 @@ class ProjectCreateOptionalPdfActivityTest {
     }
     openNewProjectDialog()
     setProjectName(currentProjectName)
-    composeRule.onNodeWithTag("new_project_choose_dir").performClick()
     composeRule.onNodeWithTag("new_project_confirm").performClick()
     composeRule.waitUntil(30_000) {
       composeRule.onAllNodesWithTag("reader_page_status").fetchSemanticsNodes().isNotEmpty()
@@ -424,7 +428,6 @@ class ProjectCreateOptionalPdfActivityTest {
       "Exam_ Notes",
     )
     composeRule.onNodeWithTag("reader_page_status").assertExists()
-    composeRule.onNodeWithTag("new_project_choose_dir").performClick()
     composeRule.onNodeWithTag("new_project_confirm").performClick()
     composeRule.waitUntil(30_000) {
       composeRule.onAllNodesWithTag("reader_page_status").fetchSemanticsNodes().isNotEmpty() &&
@@ -435,16 +438,37 @@ class ProjectCreateOptionalPdfActivityTest {
   }
 
   private fun openNewProjectDialog() {
-    clickMenuCommand("new_project")
+    if (composeRule.onAllNodesWithTag("bookshelf_new").fetchSemanticsNodes().isNotEmpty()) {
+      val treeUri = ProjectCreateSafTestProvider.treeUri()
+      val permissions = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+      composeRule.activity.grantUriPermission(
+        composeRule.activity.packageName,
+        treeUri,
+        permissions or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
+      )
+      composeRule.activity.contentResolver.takePersistableUriPermission(treeUri, permissions)
+      runBlocking { BookshelfStore(composeRule.activity).bind(treeUri.toString(), "Project creation tests") }
+      composeRule.waitUntil(10_000) {
+        runCatching { composeRule.onNodeWithTag("bookshelf_new").assertIsEnabled() }.isSuccess
+      }
+      composeRule.onNodeWithTag("bookshelf_new").performClick()
+    } else {
+      clickMenuCommand("new_project")
+    }
   }
 
   private fun clickMenuCommand(commandId: String) {
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("reader_menu_command_$commandId").fetchSemanticsNodes().isNotEmpty() ||
-        composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()
+        composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty() ||
+        composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes().isNotEmpty()
     }
     if (composeRule.onAllNodesWithTag("reader_menu_command_$commandId").fetchSemanticsNodes().isEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      if (composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+      } else {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
     }
     composeRule.onNodeWithTag("reader_menu_command_$commandId").performClick()
   }

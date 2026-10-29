@@ -1,0 +1,4 @@
+{
+  "op": "login-ticket",
+  "ticket": "https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=fixture-only"
+}

@@ -29,6 +29,7 @@ try {
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
+  await w.waitForFunction(() => !!window.pageNotes.getSummary().document);
   await w.locator('#loading').waitFor({ state: 'hidden' });
   await w.evaluate(async () => {
     const state = await window.pageNotes.getState();

@@ -1,0 +1,7 @@
+# Route reviews by source boundary. Layout/release decisions remain explicit.
+* @laihong06
+/android/ @laihong06 @obroccolio
+/apps/desktop/macos/ @laihong06 @obroccolio
+/desktop/mac* @laihong06 @obroccolio
+/docs/macos/ @laihong06 @obroccolio
+/.github/ @laihong06

@@ -37,6 +37,7 @@ try {
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
+  await w.waitForFunction(() => !!window.pageNotes.getSummary().document);
   await w.locator('#loading').waitFor({ state: 'hidden' });
   await w.evaluate(async () => {
     const s = await window.pageNotes.getState();
@@ -183,6 +184,7 @@ try {
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.md'));
+  await w.waitForFunction(() => !!window.pageNotes.getSummary().document);
   await w.locator('#loading').waitFor({ state: 'hidden' });
   await w.evaluate(async () => {
     const s = await window.pageNotes.getState();

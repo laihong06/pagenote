@@ -49,6 +49,8 @@ class PdfImageAnnotationActivityTest {
   @Test
   fun imageCommandRequiresWritablePdfAndCancellationWritesNothing() {
     val notes = PageNotes.join(listOf("First page", "Second page"))
+    val project = installProject(notes, createPdf())
+    openFixtureProjectFromBookshelf(composeRule, projectTreeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = null
@@ -59,7 +61,6 @@ class PdfImageAnnotationActivityTest {
     }
     handwritingCommand().assertIsNotEnabled()
 
-    val project = installProject(notes, createPdf())
     composeRule.runOnUiThread {
       session.project.value = project
       session.markdownSource.value = notes
@@ -201,6 +202,7 @@ class PdfImageAnnotationActivityTest {
     renderer: PdfDocumentSession,
     notes: String,
   ): ReaderSessionViewModel {
+    openFixtureProjectFromBookshelf(composeRule, existingProjectTestTreeUri(), project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project

@@ -103,12 +103,11 @@ class NoteSelectionReviewActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, savedNote: String): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "# Source document\n\nOriginal content."
       session.notesMarkdown.value = savedNote
       session.noteDraft.value = savedNote
@@ -173,7 +172,7 @@ class NoteSelectionReviewActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

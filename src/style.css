@@ -328,6 +328,78 @@ select:focus-visible {
 .prose > :first-child {
   margin-top: 0;
 }
+.rain-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(88vh, 820px);
+  overflow: auto;
+}
+.rain-login {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 116px;
+}
+#rainQr {
+  width: 144px;
+  height: 144px;
+  object-fit: contain;
+  border: 1px solid #e2e6ec;
+  border-radius: 4px;
+}
+.rain-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.rain-fields label {
+  display: grid;
+  gap: 5px;
+  color: #4b5563;
+  font-size: 13px;
+}
+.rain-fields select {
+  min-width: 0;
+  width: 100%;
+}
+.rain-current-field {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: #4b5563;
+  font-size: 13px;
+}
+.rain-current-field select,
+.rain-current-field input {
+  min-width: 0;
+  width: 100%;
+}
+.rain-warning {
+  color: #8a4b12;
+  line-height: 1.6;
+}
+.rain-unmatched {
+  margin: 6px 0;
+  color: #a12d28;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rain-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  line-height: 1.5;
+}
+.rain-consent input {
+  flex: none;
+  margin-top: 3px;
+}
+@media (max-width: 560px) {
+  .rain-fields {
+    grid-template-columns: 1fr;
+  }
+}
 .prose p {
   margin: 0.85em 0;
 }

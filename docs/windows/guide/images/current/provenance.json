@@ -1,0 +1,22 @@
+{
+  "platform": "windows",
+  "os": "10.0.26200",
+  "architecture": "x64",
+  "viewport": {
+    "width": 1426,
+    "height": 898,
+    "density": 1.5
+  },
+  "capturedAt": "2026-10-29T16:55:56.646Z",
+  "sourceCommit": "8daaf15e7f4fcee44f13864c98d260d89d2fba15",
+  "workingTree": "modified integration worktree",
+  "version": "1.1.0-beta.5-dev.2",
+  "sample": "synthetic, no account or network AI request",
+  "captures": [
+    "bookshelf",
+    "reading",
+    "editing",
+    "ink-tools",
+    "ai-workbench"
+  ]
+}

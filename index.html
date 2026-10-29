@@ -23,6 +23,9 @@
             >
               <h2>文档</h2>
               <div class="command-row">
+                <button id="rainClassroomButton">雨课堂导入与实时采集</button>
+              </div>
+              <div class="command-row">
                 <button id="openButton" class="primary">＋ 打开文档</button>
               </div>
               <select id="library" aria-label="最近文档">
@@ -371,6 +374,10 @@
     </dialog>
     <dialog id="settings">
       <h2>设置</h2>
+      <section class="shelf-directory-setting">
+        <strong>书架目录</strong><output id="bookshelfDirectory"></output
+        ><button id="bookshelfDirectoryChange">更改目录</button>
+      </section>
       <label class="setting-toggle"
         >Markdown 主题
         <select id="markdownThemeSetting">
@@ -481,6 +488,88 @@
       <div class="history-actions">
         <button id="inkTextCancel">取消</button
         ><button id="inkTextApply" class="primary">插入</button>
+      </div>
+    </dialog>
+    <dialog id="rainClassroomDialog" class="rain-dialog">
+      <div class="history-heading">
+        <div>
+          <h2>雨课堂</h2>
+          <p id="rainAccountStatus" role="status">正在检查登录状态…</p>
+        </div>
+        <button id="rainClose" aria-label="关闭雨课堂">✕</button>
+      </div>
+      <section class="rain-login">
+        <div>
+          <button id="rainLogin" class="primary">应用内扫码登录</button>
+          <button id="rainLogout" hidden>退出登录</button>
+          <p id="rainLoginStatus" role="status"></p>
+        </div>
+        <img id="rainQr" alt="雨课堂登录二维码" hidden />
+      </section>
+      <div class="rain-fields">
+        <label
+          >课程<select id="rainCourse" disabled>
+            <option value="">先登录雨课堂</option>
+          </select></label
+        >
+        <label
+          >课件 / 课堂<select id="rainLesson" disabled>
+            <option value="">选择课程</option>
+          </select></label
+        >
+      </div>
+      <label class="rain-current-field"
+        >正在进行的课堂<select id="rainCurrentLesson" disabled>
+          <option value="">刷新后查看当前课堂</option>
+        </select></label
+      >
+      <p
+        id="rainCurrentLessonNotice"
+        class="rain-unmatched"
+        role="status"
+        hidden
+      >
+        当前课堂标识无法与课程列表关联；请刷新课程，关联前不能开始采集。
+      </p>
+      <div class="history-actions">
+        <button id="rainLoadCourses" disabled>刷新课程</button>
+        <button id="rainImport" class="primary" disabled>
+          导入课件为新项目
+        </button>
+      </div>
+      <hr />
+      <p class="rain-warning">
+        实时连接课堂可能产生考勤或签到记录。请确认课程允许后再开始。
+      </p>
+      <label class="rain-consent"
+        ><input
+          id="rainLiveConsent"
+          type="checkbox"
+        />我已了解，允许连接当前课堂并可能产生考勤记录</label
+      >
+      <label class="rain-current-field"
+        >新项目名称<input
+          id="rainProjectName"
+          maxlength="100"
+          placeholder="使用课程与课堂名称"
+      /></label>
+      <label class="rain-current-field"
+        >项目保存目录<input id="rainProjectParent" readonly /><button
+          id="rainChooseParent"
+        >
+          更改目录
+        </button></label
+      >
+      <div class="history-actions">
+        <span id="rainLiveStatus" role="status">未连接课堂</span>
+        <button id="rainLiveNew" class="primary" disabled>
+          新建项目并采集
+        </button>
+        <button id="rainLiveStart" class="primary" disabled>
+          追加到当前 PDF
+        </button>
+        <button id="rainLiveStop" hidden>停止采集</button>
+        <button id="rainLiveRetry" hidden>重试失败页面</button>
       </div>
     </dialog>
     <script type="module" src="/src/main.js"></script>

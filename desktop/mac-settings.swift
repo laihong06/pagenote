@@ -14,6 +14,7 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     var sequence = 0
     var status: NSTextField?
     var editor: NSTextView?
+    var bookshelfPath: NSTextField?
     var module = "system"
     struct Draft { var text: String; var saved: String; var defaultText: String; var revision: String }
     var drafts: [String: Draft] = [:]
@@ -101,6 +102,12 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     }
     @objc func quitApp() { emit(["event": "quit"]) }
     @objc func showAgain() { window?.makeKeyAndOrderFront(nil) }
+    @objc func chooseBookshelfDirectory() {
+        request("choose-bookshelf-directory") { [weak self] reply in
+            guard let self = self else { return }
+            if let error = reply["error"] as? String { self.setStatus(error, error: true) }
+        }
+    }
 
     func receive(_ packet: [String: Any]) {
         if let reply = packet["replyTo"] as? String {
@@ -135,6 +142,8 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let initial = values.isEmpty
         let previousLanguage = english
         values = state
+        let directory = values["bookshelfRoot"] as? String ?? ""
+        bookshelfPath?.stringValue = directory.isEmpty ? tr("尚未绑定书架目录", "No library folder selected") : directory
         if initial || previousLanguage != english { installMenu() }
         switch values["theme"] as? String {
         case "light": NSApp.appearance = NSAppearance(named: .aqua)
@@ -253,6 +262,7 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         guard panes.contains(next) else { return }
         pane = next
         editor = nil
+        bookshelfPath = nil
         controls.removeAll()
         window.title = "pagenote — " + title(pane)
         toolbar.selectedItemIdentifier = .init(pane)
@@ -270,6 +280,16 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         switch pane {
         case "general":
             row(tr("语言", "Language"), tr("应用界面和菜单的显示语言。", "The language used for the interface and menus."), control: popup("language", choices: [("zh-CN", "简体中文"), ("en-US", "English")]), root: root)
+            let directory = values["bookshelfRoot"] as? String ?? ""
+            let change = NSButton(title: tr("更改目录…", "Change Folder…"), target: self, action: #selector(chooseBookshelfDirectory))
+            change.setAccessibilityIdentifier("bookshelfDirectoryButton")
+            controls["bookshelfDirectory"] = change
+            row(tr("书架目录", "Library Folder"), "", control: change, root: root)
+            let directoryLabel = label(directory.isEmpty ? tr("尚未绑定书架目录", "No library folder selected") : directory, secondary: true)
+            directoryLabel.lineBreakMode = .byTruncatingMiddle
+            directoryLabel.setAccessibilityIdentifier("bookshelfDirectoryPath")
+            bookshelfPath = directoryLabel
+            add(directoryLabel, to: root)
             add(label(tr("更改即时生效，文档与笔记内容保持原样。", "Changes take effect immediately. Document and note content is preserved."), secondary: true), to: root)
         case "appearance":
             row(tr("外观", "Appearance"), tr("跟随系统，或为 pagenote 单独选择。", "Follow your Mac or choose an appearance for pagenote."), control: popup("theme", choices: [("system", tr("跟随系统", "System")), ("light", tr("浅色", "Light")), ("dark", tr("深色", "Dark"))]), root: root)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
@@ -167,13 +168,22 @@ internal fun ReaderSettingsDialog(
   onConfigureAgent: () -> Unit,
   onConfigurePrompts: () -> Unit = {},
   onSave: suspend (ReaderSettings) -> Unit,
+  onRebuildIndex: (suspend () -> String?)? = null,
+  /** 项目录音已用字节（配额展示；null = 无项目打开）。 */
+  quotaUsageMb: Long = 0L,
+  libraryDirectory: String? = null,
+  onChangeLibrary: (() -> Unit)? = null,
 ) {
   var draft by remember(settings) { mutableStateOf(settings) }
   var isSaving by remember { mutableStateOf(false) }
   var saveError by remember { mutableStateOf<String?>(null) }
+  var isRebuildingIndex by remember { mutableStateOf(false) }
+  var rebuildStatus by remember { mutableStateOf<String?>(null) }
   val scope = rememberCoroutineScope()
   val genericSaveError = stringResource(R.string.settings_save_failed)
   val inkOutsidePageLabel = stringResource(R.string.ink_outside_page_title)
+  val rebuildUnavailable = stringResource(R.string.search_index_rebuild_unavailable)
+  val rebuildGenericError = stringResource(R.string.settings_save_failed)
 
   AlertDialog(
     onDismissRequest = { if (!isSaving) onDismiss() },
@@ -183,6 +193,13 @@ internal fun ReaderSettingsDialog(
         modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
+        if (onChangeLibrary != null) {
+          Text(stringResource(R.string.bookshelf_folder), style = MaterialTheme.typography.titleSmall)
+          Text(libraryDirectory ?: stringResource(R.string.bookshelf_unbound), maxLines = 2)
+          TextButton(onClick = onChangeLibrary, enabled = !isSaving, modifier = Modifier.testTag("settings_library_folder")) {
+            Text(stringResource(if (libraryDirectory == null) R.string.bookshelf_bind else R.string.bookshelf_change))
+          }
+        }
         Text(stringResource(R.string.reader_theme), style = MaterialTheme.typography.titleSmall)
         listOf(
           "system" to R.string.theme_system,
@@ -217,6 +234,27 @@ internal fun ReaderSettingsDialog(
         }
 
         Text(
+          stringResource(R.string.note_background_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        listOf(
+          "plain" to R.string.note_background_plain,
+          "four-line" to R.string.note_background_four_line,
+          "grid" to R.string.note_background_grid,
+          "dot" to R.string.note_background_dot,
+          "restricted-margin" to R.string.note_background_restricted_margin,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.noteBackground == value,
+            enabled = !isSaving,
+            testTag = "note_background_$value",
+            onSelect = { draft = draft.copy(noteBackground = value) },
+          )
+        }
+
+        Text(
           stringResource(R.string.reader_language),
           modifier = Modifier.padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
@@ -231,6 +269,44 @@ internal fun ReaderSettingsDialog(
             selected = draft.language == value,
             enabled = !isSaving,
             onSelect = { draft = draft.copy(language = value) },
+          )
+        }
+
+        Text(
+          stringResource(R.string.ocr_settings_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.ocr_language_summary),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        listOf(
+          "system" to R.string.language_system,
+          "zh" to R.string.ocr_language_chinese,
+          "en" to R.string.ocr_language_english,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.ocrLanguage == value,
+            enabled = !isSaving,
+            testTag = "ocr_language_$value",
+            onSelect = { draft = draft.copy(ocrLanguage = value) },
+          )
+        }
+        Text(
+          stringResource(R.string.latex_ocr_model_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        io.pagenote.feature.ocr.LatexModelCatalog.ENTRIES.forEach { entry ->
+          SettingsChoice(
+            label = "${entry.id} (${entry.license})",
+            selected = draft.latexOcrModel == entry.id,
+            enabled = !isSaving,
+            testTag = "latex_ocr_model_${entry.id}",
+            onSelect = { draft = draft.copy(latexOcrModel = entry.id) },
           )
         }
 
@@ -315,6 +391,203 @@ internal fun ReaderSettingsDialog(
               },
           )
         }
+
+        // 搜索索引范围 / 重建（移植批次 7）。
+        Text(
+          stringResource(R.string.search_index_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.search_index_summary),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        listOf(
+          R.string.search_kind_source to "search_index_source",
+          R.string.search_kind_note to "search_index_notes",
+          R.string.search_kind_ocr to "search_index_ocr",
+          R.string.search_kind_transcript to "search_index_transcripts",
+        ).forEach { (labelRes, tag) ->
+          val checked = when (tag) {
+            "search_index_source" -> draft.searchIndexSource
+            "search_index_notes" -> draft.searchIndexNotes
+            "search_index_ocr" -> draft.searchIndexOcr
+            else -> draft.searchIndexTranscripts
+          }
+          SearchIndexScopeCheck(
+            label = stringResource(labelRes),
+            checked = checked,
+            enabled = !isSaving,
+            testTag = tag,
+            onCheckedChange = { next ->
+              draft = when (tag) {
+                "search_index_source" -> draft.copy(searchIndexSource = next)
+                "search_index_notes" -> draft.copy(searchIndexNotes = next)
+                "search_index_ocr" -> draft.copy(searchIndexOcr = next)
+                else -> draft.copy(searchIndexTranscripts = next)
+              }
+            },
+          )
+        }
+        if (onRebuildIndex != null) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(
+              text = rebuildStatus ?: stringResource(R.string.search_index_rebuild_summary),
+              modifier = Modifier.weight(1f).padding(end = 12.dp),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+              modifier = Modifier.testTag("search_index_rebuild"),
+              enabled = !isSaving && !isRebuildingIndex,
+              onClick = {
+                scope.launch {
+                  isRebuildingIndex = true
+                  rebuildStatus = null
+                  try {
+                    rebuildStatus = onRebuildIndex() ?: rebuildUnavailable
+                  } catch (cancelled: CancellationException) {
+                    throw cancelled
+                  } catch (error: Exception) {
+                    rebuildStatus = error.message?.takeIf(String::isNotBlank) ?: rebuildGenericError
+                  } finally {
+                    isRebuildingIndex = false
+                  }
+                }
+              },
+            ) {
+              Text(
+                stringResource(
+                  if (isRebuildingIndex) R.string.search_index_rebuilding
+                  else R.string.search_index_rebuild,
+                ),
+              )
+            }
+          }
+        }
+
+        // 录音与离线转写（移植批次 8）。
+        Text(
+          stringResource(R.string.audio_asr_settings_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.audio_asr_model_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        io.pagenote.feature.audio.AsrModelCatalog.ENTRIES.forEach { entry ->
+          SettingsChoice(
+            label = "${entry.displayName} (${entry.license})",
+            selected = draft.asrModel == entry.id,
+            enabled = !isSaving,
+            testTag = "asr_model_${entry.id}",
+            onSelect = { draft = draft.copy(asrModel = entry.id) },
+          )
+        }
+        Text(
+          stringResource(R.string.audio_asr_language_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        listOf(
+          "system" to R.string.language_system,
+          "zh" to R.string.ocr_language_chinese,
+          "en" to R.string.ocr_language_english,
+        ).forEach { (value, label) ->
+          SettingsChoice(
+            label = stringResource(label),
+            selected = draft.asrLanguage == value,
+            enabled = !isSaving,
+            testTag = "asr_language_$value",
+            onSelect = { draft = draft.copy(asrLanguage = value) },
+          )
+        }
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(stringResource(R.string.audio_asr_auto_transcribe_title))
+            Text(
+              stringResource(R.string.audio_asr_auto_transcribe_description),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Switch(
+            checked = draft.asrAutoTranscribe,
+            onCheckedChange = { draft = draft.copy(asrAutoTranscribe = it) },
+            enabled = !isSaving,
+            modifier = Modifier.testTag("asr_auto_transcribe_switch"),
+          )
+        }
+        Text(
+          stringResource(R.string.audio_quota_title),
+          modifier = Modifier.padding(top = 4.dp),
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+          stringResource(
+            R.string.audio_quota_summary,
+            draft.audioQuotaMb,
+            AudioQuotaUsageLabel.formatMb(quotaUsageMb),
+          ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+          value = draft.audioQuotaMb.toFloat(),
+          onValueChange = { draft = draft.copy(audioQuotaMb = (it.roundToInt() / 25) * 25) },
+          valueRange = io.pagenote.feature.audio.AudioQuotaPolicy.MIN_MB.toFloat()..
+            io.pagenote.feature.audio.AudioQuotaPolicy.MAX_MB.toFloat(),
+          enabled = !isSaving,
+          modifier = Modifier.fillMaxWidth().testTag("audio_quota_slider"),
+        )
+
+        // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24，设置项 ⚙️）。
+        Text(
+          stringResource(R.string.night_filter_title),
+          modifier = Modifier.padding(top = 8.dp),
+          style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+          stringResource(R.string.night_filter_description),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(stringResource(R.string.night_filter_enable))
+          Switch(
+            checked = draft.nightFilterEnabled,
+            onCheckedChange = { draft = draft.copy(nightFilterEnabled = it) },
+            enabled = !isSaving,
+            modifier = Modifier.testTag("night_filter_switch"),
+          )
+        }
+        Text(
+          stringResource(R.string.night_filter_strength_summary, draft.nightFilterStrength),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Slider(
+          value = draft.nightFilterStrength.toFloat(),
+          onValueChange = { draft = draft.copy(nightFilterStrength = it.roundToInt()) },
+          valueRange = NightFilterPolicy.MIN_STRENGTH.toFloat()..NightFilterPolicy.MAX_STRENGTH.toFloat(),
+          enabled = !isSaving,
+          modifier = Modifier.fillMaxWidth().testTag("night_filter_strength_slider"),
+        )
 
         TextButton(
           modifier = Modifier.fillMaxWidth().testTag(
@@ -419,6 +692,26 @@ internal fun ReaderSettingsDialog(
       }
     },
   )
+}
+
+@Composable
+private fun SearchIndexScopeCheck(
+  label: String,
+  checked: Boolean,
+  enabled: Boolean,
+  testTag: String,
+  onCheckedChange: (Boolean) -> Unit,
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth()
+      .clickable(enabled = enabled) { onCheckedChange(!checked) }
+      .testTag(testTag),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(label, modifier = Modifier.weight(1f))
+    Checkbox(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+  }
 }
 
 @Composable

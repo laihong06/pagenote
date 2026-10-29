@@ -33,7 +33,11 @@ try {
   await w
     .locator('#fileInput')
     .setInputFiles(path.join(root, 'tests/fixtures/sample.pdf'));
+  await w.waitForFunction(() => !!window.pageNotes.getSummary().document);
   await w.locator('#loading').waitFor({ state: 'hidden' });
+  const documentId = await w.evaluate(
+    () => window.pageNotes.getSummary().document.id,
+  );
   await w.evaluate(async () => {
     const state = await window.pageNotes.getState();
     await fetch('/api/documents/' + state.document.id + '/notes/1', {
@@ -312,6 +316,7 @@ try {
   await checkAlignment();
   await w.reload();
   await dismissWelcome(w);
+  await w.evaluate((id) => window.pageNotes.open(id), documentId);
   await w.evaluate(() => window.pageNotes.menuAction('reviewRight'));
   await expect(
     w.locator('.ai-workbench[data-side=note] .improvement-card'),

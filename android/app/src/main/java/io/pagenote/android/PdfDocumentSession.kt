@@ -76,6 +76,28 @@ class PdfDocumentSession private constructor(
   fun render(pageIndex: Int): Bitmap = renderWithMetadata(pageIndex).bitmap
 
   @Synchronized
+  fun renderThumbnail(pageIndex: Int): Bitmap {
+    check(!closed) { "PDF session closed" }
+    require(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
+    val page = renderer.openPage(pageIndex)
+    try {
+      val scale = 360.0 / maxOf(page.width, page.height)
+      val bitmap = Bitmap.createBitmap(
+        (page.width * scale).toInt().coerceAtLeast(1),
+        (page.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888,
+      )
+      try {
+        bitmap.eraseColor(android.graphics.Color.WHITE)
+        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+        return bitmap
+      } catch (error: Exception) {
+        bitmap.recycle()
+        throw error
+      }
+    } finally { page.close() }
+  }
+
+  @Synchronized
   fun renderWithMetadata(pageIndex: Int): PdfRenderedPage {
     check(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
     val page = renderer.openPage(pageIndex)

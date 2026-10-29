@@ -19,6 +19,21 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class PdfDocumentSessionTest {
   @Test
+  fun thumbnailIsBoundedAndDoesNotCloseTheReaderSession() = runBlocking {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val source = File.createTempFile("pdf-thumbnail-test", ".pdf", context.cacheDir)
+    source.writeBytes(minimalPdf())
+    val session = PdfDocumentSession.open(context, Uri.fromFile(source), context.cacheDir)
+    try {
+      val thumbnail = session.renderThumbnail(0)
+      assertTrue(maxOf(thumbnail.width, thumbnail.height) <= 360)
+      assertEquals(android.graphics.Color.WHITE, thumbnail.getPixel(0, 0))
+      thumbnail.recycle()
+      session.render(0).recycle()
+    } finally { session.close(); source.delete() }
+  }
+
+  @Test
   fun closeIsIdempotentForAnOpenedPdfRenderer() = runBlocking {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val source = File(context.cacheDir, "pdf-close-once-test.pdf")

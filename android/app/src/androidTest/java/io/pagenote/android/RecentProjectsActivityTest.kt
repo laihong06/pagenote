@@ -37,6 +37,7 @@ class RecentProjectsActivityTest {
     )
     installFixture(resolver)
     val opened = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, opened.name)
     val originalNotes = ProjectNoteStore(resolver, opened.notesUri).read()
     val target = ProjectOpenTarget(treeUri, ExistingProjectSafTestProvider.ROOT_ID, false)
     val entry = RecentProjectEntry(
@@ -51,6 +52,7 @@ class RecentProjectsActivityTest {
       store.recentProjects.first().forEach { store.remove(it) }
     }
 
+    revealReaderMenuCommand(composeRule, "file", "recent_documents")
     composeRule.onNodeWithTag("reader_menu_command_recent_documents").performScrollTo().performClick()
     composeRule.onNodeWithTag("recent_projects_empty").assertIsDisplayed()
     composeRule.onNodeWithTag("recent_projects_open_picker").assertIsDisplayed()
@@ -84,6 +86,7 @@ class RecentProjectsActivityTest {
     assertEquals(dirtyPage, NotePage.pageAt(savedNotes, 1))
     assertEquals(opened.manifest.name, session.project.value?.manifest?.name)
 
+    revealReaderMenuCommand(composeRule, "file", "recent_documents")
     composeRule.onNodeWithTag("reader_menu_command_recent_documents").performScrollTo().performClick()
     composeRule.onNodeWithTag("recent_project_remove_0").performClick()
     composeRule.waitUntil(10_000) {

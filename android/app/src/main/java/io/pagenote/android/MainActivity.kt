@@ -1,9 +1,11 @@
 package io.pagenote.android
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -27,12 +29,14 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.ViewModelProvider
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -63,6 +67,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -113,6 +118,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -129,21 +135,44 @@ import io.pagenote.agent.ModelEndpoint
 import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
 import io.pagenote.core.project.NoteVersion
+import io.pagenote.core.project.OfficeDocumentFormat
 import io.pagenote.core.reader.PdfPageText
 import io.pagenote.core.reader.PageRegion
 import io.pagenote.core.reader.PdfTextSelection
 import io.pagenote.core.reader.PdfTextSelectionMapper
+import io.pagenote.android.search.SearchIndexDatabase
+import io.pagenote.android.search.SearchIndexRepository
+import io.pagenote.android.flashcard.CardSourceLocator
+import io.pagenote.android.flashcard.FlashcardCapture
+import io.pagenote.android.flashcard.FlashcardCard
+import io.pagenote.android.flashcard.FlashcardController
+import io.pagenote.android.flashcard.FlashcardCreateDialog
+import io.pagenote.android.flashcard.FlashcardLibraryDialog
+import io.pagenote.android.flashcard.FlashcardRepository
+import io.pagenote.android.flashcard.FlashcardReviewDialog
+import io.pagenote.android.flashcard.ReviewScheduler
+import io.pagenote.android.flashcard.ReviewStats
+import io.pagenote.feature.annotations.AnnotationTextStyle
+import io.pagenote.feature.annotations.CanvasMaterialCodec
 import io.pagenote.feature.annotations.ReviewCreate
 import io.pagenote.feature.notes.NotePage
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.PageNoteEditor
 import io.pagenote.feature.notes.NoteDiagnostic
 import io.pagenote.feature.notes.NoteRichContent
+import io.pagenote.feature.ocr.LatexModelCatalog
+import io.pagenote.feature.audio.AudioCapsuleGeometry
+import io.pagenote.feature.audio.AudioRecordingPolicy
+import io.pagenote.feature.ocr.LatexOcrEngine
+import io.pagenote.feature.ocr.LatexOcrResult
 import io.pagenote.feature.ocr.OfflineOcrEngine
+import io.pagenote.feature.ocr.OfflineOcrException
+import io.pagenote.feature.ocr.OcrModelCatalog
 import io.pagenote.feature.ocr.OcrPolicy
 import io.pagenote.feature.ocr.OcrResult
 import io.pagenote.feature.ocr.OcrResultMapper
 import io.pagenote.feature.ocr.OcrResultPolicy
+import io.pagenote.feature.pen.NoteBackground
 import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenCanvasGeometry
 import io.pagenote.feature.pen.PenCanvasPageTransform
@@ -155,6 +184,10 @@ import io.pagenote.feature.pen.PenRecognizedShape
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStyle
 import io.pagenote.feature.pen.PenStroke
+import io.pagenote.feature.yuketang.RainClassroomClient
+import io.pagenote.feature.yuketang.RainCourse
+import io.pagenote.feature.yuketang.RainLesson
+import io.pagenote.feature.yuketang.RainLessonOngoingException
 import io.pagenote.feature.pen.PenValidation
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -164,9 +197,12 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
+import java.io.File
+import java.io.IOException
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.hypot
@@ -178,6 +214,16 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 private const val MAX_ANNOTATION_PAGE_IMAGE_PIXELS = 4_000_000L
+
+/** 搜索结果跳转后 rect 高亮的自动清除时长（移植批次 7）。 */
+private const val SEARCH_FOCUS_CLEAR_MS = 4_000L
+
+/** 闪卡回跳选区应用的等待上限与轮询间隔（移植批次 11）：等页面切换/退出预览的重组完成。 */
+private const val FLASHCARD_FOCUS_TIMEOUT_MS = 2_000L
+private const val FLASHCARD_FOCUS_POLL_MS = 50L
+
+/** 可入索引的 OCR 状态（与区域 OCR 缓存口径一致：ok / partial）。 */
+internal val OCR_INDEXABLE_STATUSES = setOf("ok", "partial")
 
 private data class PdfAnnotationSelectionGesture(
   val sourceIndex: Int,
@@ -197,6 +243,7 @@ class MainActivity : ComponentActivity() {
   internal var pdfImagePickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var noteExportPickerForTesting: ((String, String, (Uri?) -> Unit) -> Unit)? = null
   internal var noteImportPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
+  internal var pdfMergeExportPickerForTesting: ((String, (Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDirectoryPickerForTesting: (((Uri?) -> Unit) -> Unit)? = null
   internal var newProjectDocumentPickerForTesting: ((Array<String>, (Uri?) -> Unit) -> Unit)? = null
   internal var persistNewProjectDocumentGrantForTesting = false
@@ -280,14 +327,25 @@ private fun ReaderSettingsHost(readerSession: ReaderSessionViewModel) {
     LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
   ) {
     MaterialTheme(colorScheme = readerColorScheme(themeMode)) {
-      Surface(modifier = Modifier.fillMaxSize()) {
-        ReaderHome(
-          settings = settings,
-          readerThemeMode = themeMode,
-          settingsStore = settingsStore,
-          modelSettingsStore = modelSettingsStore,
-          readerSession = readerSession,
-        )
+      // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24）：暖琥珀叠加层盖在整个
+      // 阅读内容上（不含悬浮窗服务窗口）；background 不消费触摸，事件照常
+      // 透传给下层内容。
+      Box(modifier = Modifier.fillMaxSize()) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+          ReaderHome(
+            settings = settings,
+            readerThemeMode = themeMode,
+            settingsStore = settingsStore,
+            modelSettingsStore = modelSettingsStore,
+            readerSession = readerSession,
+          )
+        }
+        if (settings.nightFilterEnabled) {
+          val overlayColor = remember(settings.nightFilterStrength) {
+            Color(NightFilterPolicy.overlayArgb(settings.nightFilterStrength))
+          }
+          Box(modifier = Modifier.fillMaxSize().background(overlayColor))
+        }
       }
     }
   }
@@ -306,9 +364,21 @@ private data class ReaderProjectData(
   val checkpoint: ReaderSessionCheckpoint?,
   val draftRecovery: NoteDraftRecoveryRecord?,
   val missingAssets: List<String>,
+  val noteSettings: ProjectNoteSettings = ProjectNoteSettings.DEFAULT,
 )
 
 private class PersistedProjectPermissionMissingException : SecurityException()
+
+/**
+ * A password-protected project was picked but not unlocked yet (port batch 3).
+ * The reader stays on its previous state until the passphrase verifies;
+ * cancelling the dialog simply keeps the current project.
+ */
+private data class NotePassphraseGate(
+  val target: ProjectOpenTarget,
+  val projectName: String,
+  val hash: NotePassphraseHash,
+)
 
 private data class PendingMarkdownImageInsertion(
   val project: OpenedProject,
@@ -333,6 +403,13 @@ private data class PendingPdfImageInsertion(
   val style: PenStyle,
 )
 
+/** 录音落点请求（移植批次 8）：页号（1 起）+ width-1000 锚点。 */
+private data class AudioRecordStart(
+  val page: Int,
+  val anchorX: Double,
+  val anchorY: Double,
+)
+
 private data class PendingNoteImportContext(
   val projectId: String,
   val sourceDirectoryUri: Uri,
@@ -345,6 +422,7 @@ private data class PendingNoteImportContext(
 private data class PendingNoteImportBackup(
   val context: PendingNoteImportContext,
   val pages: Map<Int, String>,
+  val preview: NoteMergePreview,
 )
 
 private data class NoteImportWriteResult(
@@ -389,6 +467,8 @@ private fun ReaderHome(
   readerSession: ReaderSessionViewModel,
 ) {
   val context = LocalContext.current
+  val isLayoutPreview = context.packageName.endsWith(".beta.preview")
+  var previewHandMode by rememberSaveable { mutableStateOf(true) }
   val materialColors = MaterialTheme.colorScheme
   val markdownPalette = remember(settings.markdownTheme, readerThemeMode, materialColors) {
     val isDark = android.graphics.Color.luminance(materialColors.background.toArgb()) < 0.5f
@@ -408,10 +488,23 @@ private fun ReaderHome(
     systemClipboard?.addPrimaryClipChangedListener(listener)
     onDispose { systemClipboard?.removePrimaryClipChangedListener(listener) }
   }
+  val hasMarkdownClipboardContent = remember(clipboardRevision) {
+    val item = systemClipboard?.primaryClip
+      ?.takeIf { it.itemCount > 0 }
+      ?.getItemAt(0)
+    !item?.htmlText.isNullOrEmpty() || !item?.text.isNullOrEmpty()
+  }
   val recentProjectStore = remember(context) { recentProjectsStore(context.applicationContext) }
+  val rainClassroomClient = remember(context) { RainClassroomClient(context.applicationContext) }
   val promptSettingsStore = remember(context.applicationContext) {
     agentPromptSettingsStore(context.applicationContext)
   }
+  // 批次 10：翻译服务商设置（可选直连）与 AI 动作客户端（复用 agent 的 OpenAI 兼容链路）。
+  val translationProviderStore = remember(context.applicationContext) {
+    translationProviderSettingsStore(context.applicationContext)
+  }
+  val translationTransport = remember { OkHttpTranslationTransport() }
+  val aiActionChatClient = remember { OkHttpChatClient() }
   val recentProjects by produceState(
     initialValue = emptyList<RecentProjectEntry>(),
     key1 = recentProjectStore,
@@ -421,9 +514,17 @@ private fun ReaderHome(
   val densityScale = LocalDensity.current.density
   val activityResultOwner = LocalActivityResultRegistryOwner.current
   val scope = rememberCoroutineScope()
+  var showBookshelf by rememberSaveable { mutableStateOf(true) }
+  val bookshelf = rememberBookshelfController(context, showBookshelf, activityResultOwner as? androidx.lifecycle.LifecycleOwner)
+  PersistBookReadingPosition(readerSession, bookshelf)
+  val libraryTree = bookshelf.tree
   val richHtmlRenderer = remember(context) { RichHtmlAnnotationRenderer(context) }
   DisposableEffect(richHtmlRenderer) {
     onDispose { richHtmlRenderer.close() }
+  }
+  val richHtmlEditorController = remember(context) { RichHtmlEditorController(context) }
+  DisposableEffect(richHtmlEditorController) {
+    onDispose { richHtmlEditorController.close() }
   }
   val pageTutor = remember { PageTutor(OkHttpChatClient()) }
   val pagePrefetcher = remember { ReaderPagePrefetcher<PageTutorSourceText>() }
@@ -481,15 +582,157 @@ private fun ReaderHome(
   var isSelectablePageTextLoading by remember(renderer, pageIndex) { mutableStateOf(false) }
   var regionOcrResult by remember { mutableStateOf<OcrResult?>(null) }
   var regionOcrContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
+  // 手写 OCR / 公式识别（移植批次 6）：复用区域 OCR 的选区状态机。
+  var inkOcrState by remember { mutableStateOf(ReaderOcrState()) }
+  var inkOcrPending by remember { mutableStateOf<PendingInkConversion?>(null) }
+  var formulaOcrState by remember { mutableStateOf(ReaderOcrState()) }
+  var formulaOcrPending by remember { mutableStateOf<PendingInkConversion?>(null) }
+  var latexOcrEngine by remember { mutableStateOf<LatexOcrEngine?>(null) }
+  var ocrEngineModelId by remember { mutableStateOf<String?>(null) }
+
+  /** 按设置解析文本 OCR 引擎（批次 6：识别语言 → 承载模型；模型切换时重建）。 */
+  suspend fun ensureOcrEngine(): OfflineOcrEngine {
+    val model = OcrModelCatalog.resolveForLanguage(settings.ocrLanguage)
+    if (ocrEngine != null && ocrEngineModelId == model.id) return ocrEngine!!
+    ocrEngine?.let { old ->
+      CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { old.close() }
+    }
+    return OfflineOcrEngine.create(context, model).also {
+      ocrEngine = it
+      ocrEngineModelId = model.id
+    }
+  }
+
+  // --- 全文检索（移植批次 7）-------------------------------------------------
+  // Room FTS 索引（页文本+OCR+转写）+ 增量索引线程：页面变更钩子只做非阻塞
+  // 入队，由 ProjectSearchIndexer 的专用线程串行落库（revision 幂等）。
+  // 逻辑集中在 ReaderSearchController（控制 ReaderHome 方法体积）。
+  val search = remember {
+    ReaderSearchController(
+      context = context,
+      session = readerSession,
+      repository = SearchIndexRepository(SearchIndexDatabase.get(context).searchDocDao()),
+    )
+  }
+  DisposableEffect(search) {
+    search.indexer.start()
+    onDispose { search.indexer.close() }
+  }
+  LaunchedEffect(
+    settings.searchIndexSource,
+    settings.searchIndexNotes,
+    settings.searchIndexOcr,
+    settings.searchIndexTranscripts,
+  ) {
+    search.indexer.settings = settings.searchIndexSettings()
+  }
+  LaunchedEffect(pageIndex, search.focusRect) {
+    if (search.focusRect != null) {
+      delay(SEARCH_FOCUS_CLEAR_MS)
+      search.focusRect = null
+    }
+  }
+
+  // --- 录音与离线转写（移植批次 8）---------------------------------------------
+  // 控制器/权限/对话框样板在 AudioWiring（ReaderHome 已逼近 64KB 方法上限）。
+  // 录音落点取当前视口中心映射到 width-1000 文档坐标；录音命令仅 PDF 阅读开放
+  // （胶囊渲染在 PDF 页面 overlay 上；Markdown 项目的录音入口本批次不开放）。
+  val latestSettingsForAudio by rememberUpdatedState(settings)
+  val audioController = rememberReaderAudioController(context, readerSession) { latestSettingsForAudio }
+  val launchAudioRecording = rememberAudioRecordLauncher(
+    context = context,
+    controller = audioController,
+    onDenied = { noteStatus = context.getString(R.string.audio_permission_denied) },
+    onStartFailed = { noteStatus = context.getString(R.string.audio_record_start_failed) },
+  )
+  DisposableEffect(audioController) {
+    onDispose { audioController.stopEverything() }
+  }
+  LaunchedEffect(project?.manifest?.id, project?.sourceDirectoryUri) {
+    val activeProject = project
+    if (activeProject != null) audioController.attachProject(activeProject) else audioController.stopEverything()
+  }
+
+  /** 录音起点：当前页（1 起）+ 视口中心 → width-1000 文档坐标锚点。 */
+  fun beginAudioRecording() {
+    if (project == null || audioController.recordingPhase != AudioRecordingPolicy.Phase.IDLE) return
+    val anchor = mapPdfTapToAnnotationPoint(
+      PdfSelectionPoint(viewportBounds.viewportWidthPx / 2f, viewportBounds.viewportHeightPx / 2f),
+      viewportBounds,
+      viewportTransform,
+    ) ?: (500.0 to 500.0)
+    launchAudioRecording(pageIndex + 1, anchor.first, anchor.second)
+  }
+
+  /** 画布胶囊点按（选中工具）：命中即播放并打开转写列表。 */
+  fun handleAudioCapsuleTap(tap: PdfSelectionPoint) {
+    val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform) ?: return
+    val hit = AudioCapsuleGeometry.hitTest(
+      audioController.index.forPage(pageIndex + 1),
+      point.first,
+      point.second,
+    ) ?: return
+    audioController.togglePlay(hit)
+    audioController.transcriptListVisible = true
+  }
+
+  // 批次 10：系统截屏（MediaProjection 授权 + 前台服务抓帧）。
+  val screenCaptureLauncher = rememberScreenCaptureLauncher(
+    context = context,
+    onDenied = { noteStatus = context.getString(R.string.screen_capture_denied) },
+    onFailed = { noteStatus = context.getString(R.string.screen_capture_failed) },
+  )
+  // 批次 12：悬浮窗（差距清单 #24）——悬浮截屏入口接进截屏 launcher，
+  // 服务运行时悬浮球「截屏」经 hub 回到这里发起 Activity 级授权。
+  screenCaptureLauncher.floatingEntry = remember { FloatingWindowCaptureEntry() }
+  val floatingWindowLauncher = rememberFloatingWindowLauncher(context)
+  val floatingWindowPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.StartActivityForResult(),
+  ) {
+    // 用户从系统设置页返回：授予即启动，未授予维持原状。
+    if (!floatingWindowLauncher.isOverlayPermissionGranted()) {
+      noteStatus = context.getString(R.string.floating_window_permission_denied)
+    } else {
+      project?.let { activeProject ->
+        floatingWindowLauncher.launch(
+          currentPage = pageIndex + 1,
+          noteDraft = readerSession.noteDraft.value,
+          projectKey = "${activeProject.sourceDirectoryUri}:${activeProject.manifest.id}",
+          noteRevision = readerSession.noteBaseRevision.value,
+        )
+      }
+    }
+  }
+
   var isOpening by readerSession.isOpening
   var isImageImporting by remember { mutableStateOf(false) }
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
   var pendingPdfImageInsertion by remember { mutableStateOf<PendingPdfImageInsertion?>(null) }
   var showSettings by remember { mutableStateOf(false) }
+  val notePassphraseHasher = remember { Pbkdf2NotePassphraseHasher() }
+  var projectNoteSettings by remember { mutableStateOf(ProjectNoteSettings.DEFAULT) }
+  var notePassphraseUnlock by remember { mutableStateOf<CharArray?>(null) }
+  var notePassphraseGate by remember { mutableStateOf<NotePassphraseGate?>(null) }
+  var notePassphraseGateError by remember { mutableStateOf<String?>(null) }
+  var isVerifyingNotePassphrase by remember { mutableStateOf(false) }
+  var showProjectNoteSettings by remember { mutableStateOf(false) }
   var splitLeftPercent by remember(settings.leftPercent) {
     mutableFloatStateOf(settings.leftPercent.toFloat())
   }
   var showRecentProjectsDialog by remember { mutableStateOf(false) }
+  var showRainClassroom by remember { mutableStateOf(false) }
+  var isRainImporting by remember { mutableStateOf(false) }
+  var isRainCapturing by remember { mutableStateOf(false) }
+  var isRainApplyingPage by remember { mutableStateOf(false) }
+  var rainPageEpoch by remember { mutableIntStateOf(0) }
+  val rainLive by produceState(rainClassroomClient.live.value, rainClassroomClient) {
+    rainClassroomClient.live.collect { value = it }
+  }
+  val rainCaptureLocked = isRainCapturing || rainLive.status !in setOf("stopped", "finished") || rainLive.pendingPages > 0
+  var rainWaitingProjectName by remember { mutableStateOf<String?>(null) }
+  LaunchedEffect(rainLive.status, rainLive.pendingPages) {
+    if (rainLive.status in setOf("stopped", "finished") && rainLive.pendingPages == 0) rainWaitingProjectName = null
+  }
   var helpTopic by remember { mutableStateOf<ReaderHelpTopic?>(null) }
   var helpDiagnostics by remember { mutableStateOf("") }
   var showProjectAttachments by remember { mutableStateOf(false) }
@@ -500,7 +743,7 @@ private fun ReaderHome(
   var isDeletingProjectAttachment by remember { mutableStateOf(false) }
   var pendingProjectAttachmentImport by remember { mutableStateOf<Pair<String, Uri>?>(null) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
-  var menuSidebarExpanded by rememberSaveable { mutableStateOf(true) }
+  var menuSidebarExpanded by rememberSaveable { mutableStateOf(false) }
   var showAgentModelSettings by remember { mutableStateOf(false) }
   var showAgentPromptSettings by remember { mutableStateOf(false) }
   var showPageTutor by remember { mutableStateOf(false) }
@@ -517,7 +760,6 @@ private fun ReaderHome(
   var showPageJumpDialog by remember { mutableStateOf(false) }
   var showHeadingLevelDialog by remember { mutableStateOf(false) }
   var showNoteFontSizeDialog by remember { mutableStateOf(false) }
-  var pageJumpInput by remember { mutableStateOf("") }
   var isPageJumpRunning by remember { mutableStateOf(false) }
   var agentInstruction by remember { mutableStateOf("") }
   var agentPageRange by remember { mutableStateOf("") }
@@ -534,6 +776,19 @@ private fun ReaderHome(
   var isImportingNotes by remember { mutableStateOf(false) }
   var pendingNoteImportContext by remember { mutableStateOf<PendingNoteImportContext?>(null) }
   var pendingNoteImportBackup by remember { mutableStateOf<PendingNoteImportBackup?>(null) }
+  // 笔记合并策略（移植差距清单 #15）：页序/冲突选择与对话框摘要。
+  var noteMergeOrdering by remember { mutableStateOf(NoteMergePageOrdering.PAGE_ALIGNED) }
+  var noteMergeConflict by remember { mutableStateOf(NoteMergeConflictResolution.OVERWRITE_WITH_IMPORTED) }
+  var showPdfMergeExportDialog by remember { mutableStateOf(false) }
+  var pdfMergeRangeInput by remember { mutableStateOf("") }
+  var pdfMergeIncludeNotes by remember { mutableStateOf(true) }
+  var isExportingMergedPdf by remember { mutableStateOf(false) }
+  // Office 本地引擎切片（task 36）：编辑会话与转换/写回占用状态。
+  var officeEditSession by remember { mutableStateOf<OfficeEditSession?>(null) }
+  var isOfficeConverting by remember { mutableStateOf(false) }
+  var isOfficeSaving by remember { mutableStateOf(false) }
+  // 合并导出 PDF：SAF 选择期间的临时产物，进程恢复不跨续（取消即丢弃）。
+  var pendingPdfMergeTempFile by remember { mutableStateOf<File?>(null) }
   var noteEditRequest by remember { mutableIntStateOf(0) }
   var showNoteExportDialog by remember { mutableStateOf(false) }
   var showPendingNoteExportRecoveryDialog by remember { mutableStateOf(false) }
@@ -545,6 +800,12 @@ private fun ReaderHome(
   var annotateDraft by remember { mutableStateOf<Pair<Double, Double>?>(null) }
   var annotateText by remember { mutableStateOf("") }
   var annotateIsRegion by remember { mutableStateOf(false) }
+  var showRichHtmlEditor by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
+    mutableStateOf(false)
+  }
+  var richHtmlEditorTarget by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
+    mutableStateOf<Pair<Int, JsonObject>?>(null)
+  }
   var annotationDrawTool by remember { mutableStateOf<PdfAnnotationDrawTool?>(null) }
   var annotationPreview by remember { mutableStateOf<Pair<Int, PdfAnnotationOverlayItem>?>(null) }
   var isAnnotationSaving by remember { mutableStateOf(false) }
@@ -569,22 +830,74 @@ private fun ReaderHome(
   val lastEditWasAnnotation = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     mutableMapOf<Int, Boolean>()
   }
+  val liveAnnotationHistory = rememberUpdatedState(annotationEditHistory)
+  val liveLastAnnotationEdits = rememberUpdatedState(lastEditWasAnnotation)
   var showReviews by remember { mutableStateOf(false) }
   var noteSelection by remember { mutableStateOf<TextRange?>(null) }
   var markdownEditor by remember { mutableStateOf<EditText?>(null) }
-  val markdownHistory = remember(project?.manifest?.id, pageIndex) {
+  val markdownHistory = remember(project?.manifest?.id, pageIndex, rainPageEpoch) {
     MarkdownEditHistory(noteDraft)
   }
-  var markdownHistoryRevision by remember(project?.manifest?.id, pageIndex) {
+  var markdownHistoryRevision by remember(project?.manifest?.id, pageIndex, rainPageEpoch) {
     mutableIntStateOf(0)
   }
-  var isApplyingMarkdownHistory by remember(project?.manifest?.id, pageIndex) {
+  var isApplyingMarkdownHistory by remember(project?.manifest?.id, pageIndex, rainPageEpoch) {
     mutableStateOf(false)
   }
   var selectionReviewDraft by remember { mutableStateOf<NoteSelectionReviewDraft?>(null) }
   var showHandoff by remember { mutableStateOf(false) }
+  // 批次 10：选区 AI 动作（语气/翻译/总结）与系统截屏（OCR/取色）。
+  var aiSelectionTask by remember { mutableStateOf<AiSelectionTask?>(null) }
+  var aiSelectionReviewId by remember { mutableStateOf<String?>(null) }
+  var screenshotFrame by remember { mutableStateOf<ScreenCaptureFrame?>(null) }
+  // --- 闪卡（移植批次 11 / 差距清单 #20）---------------------------------------
+  // 卡片+标签实体复用批次 7 的 search-index.db（v2 迁移）；制卡入口挂在选区动作
+  // 旁（选区或光标段落），复习/卡片库对话框经 FlashcardController 状态驱动，
+  // 来源定位回跳复用笔记页切换 + 编辑器选区（anchor 失配时按原文重查）。
+  val flashcards = remember {
+    FlashcardController(
+      context = context,
+      repository = FlashcardRepository(SearchIndexDatabase.get(context).flashcardDao()),
+    )
+  }
+  // 闪卡回跳待应用的选区（页切换完成后由下方 LaunchedEffect 消费）。
+  var pendingCardSelection by remember { mutableStateOf<TextRange?>(null) }
+  LaunchedEffect(pendingCardSelection) {
+    val selection = pendingCardSelection ?: return@LaunchedEffect
+    noteEditRequest++
+    var applied = false
+    val deadline = SystemClock.uptimeMillis() + FLASHCARD_FOCUS_TIMEOUT_MS
+    while (SystemClock.uptimeMillis() < deadline) {
+      val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+      if (editor != null) {
+        editor.requestFocus()
+        editor.setMarkdownSourceSelection(selection.start, selection.end)
+        applied = true
+        break
+      }
+      delay(FLASHCARD_FOCUS_POLL_MS)
+    }
+    if (!applied) noteStatus = context.getString(R.string.flashcard_locate_failed)
+    pendingCardSelection = null
+  }
   val savedPageText = NotePage.pageAt(notesMarkdown, pageIndex + 1)
   val hasUnsavedChanges = noteDraft != savedPageText
+
+  // 系统截屏帧投递：服务抓到第一帧后交付，消费到本地状态并清空共享槽位。
+  LaunchedEffect(Unit) {
+    ScreenCaptureService.frames.collect { _ ->
+      val frame = ScreenCaptureService.consumeFrame() ?: return@collect
+      screenshotFrame = frame
+    }
+  }
+  DisposableEffect(Unit) {
+    onDispose {
+      screenshotFrame?.let { frame ->
+        if (!frame.bitmap.isRecycled) frame.bitmap.recycle()
+      }
+      screenshotFrame = null
+    }
+  }
 
   fun updateViewportTransform(transform: PdfViewportTransform) {
     val bounds = viewportBounds
@@ -618,6 +931,7 @@ private fun ReaderHome(
         it.second,
         color = penStyle.color,
         width = penStyle.width,
+        shapeKind = tool.shapeKind,
       )
     }
     val targetPage = pageIndex + 1
@@ -691,7 +1005,7 @@ private fun ReaderHome(
     val rendered = withContext(Dispatchers.IO) { activeRenderer.renderWithMetadata(pageIndex) }
     val bitmap = rendered.bitmap
     try {
-      val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+      val engine = ensureOcrEngine()
       return RegionOcrProcessor(preparedOcrCache).recognize(
         srcDirectoryUri = sourceUri,
         documentId = documentId,
@@ -818,6 +1132,7 @@ private fun ReaderHome(
   }
 
   fun applyPenStroke(stroke: PenStroke) {
+    if (isRainApplyingPage) return
     val targetPage = pageIndex + 1
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
@@ -1432,6 +1747,93 @@ private fun ReaderHome(
     penStatus = context.getString(R.string.pen_deleted)
   }
 
+  /**
+   * Confirm path of the rich text editing window (port batch 4): the editor
+   * already sanitized the HTML on read-out; the offline renderer sanitizes it
+   * once more while measuring the content, then the item is created (or the
+   * selected one updated) as a `type: "html"` canvas annotation through the
+   * regular page persistence — undoable like every native annotation edit.
+   */
+  fun confirmRichHtmlAnnotation(html: String) {
+    val targetProject = project
+    if (targetProject == null || !penWritable || markdownSource != null) {
+      penStatus = context.getString(R.string.reader_menu_read_only)
+      return
+    }
+    val targetProjectId = targetProject.manifest.id
+    val targetSourceUri = targetProject.sourceDirectoryUri
+    val targetPage = pageIndex + 1
+    val editing = richHtmlEditorTarget
+    scope.launch {
+      var rendered: RenderedRichHtmlAnnotation? = null
+      try {
+        val safeRender = withContext(Dispatchers.IO) {
+          richHtmlRenderer.render(html, widthCssPx = 500, heightCssPx = null)
+        }
+        rendered = safeRender
+        if (
+          project?.manifest?.id != targetProjectId ||
+          project?.sourceDirectoryUri != targetSourceUri ||
+          pageIndex + 1 != targetPage || !penWritable
+        ) {
+          penStatus = context.getString(R.string.annotation_html_stale)
+          return@launch
+        }
+        val safeHtml = safeRender.sanitizedHtml
+        if (editing != null) {
+          val (index, expected) = editing
+          val before = annotationPageItems
+          val after = PdfAnnotationClipboard.updateHtmlContent(
+            before, index, expected, safeHtml, safeRender.contentHeightPx,
+          ) ?: run {
+            penStatus = context.getString(R.string.annotation_html_failed, "HTML annotation is invalid")
+            return@launch
+          }
+          if (after != before) {
+            persistNativeAnnotationPage(
+              targetPage = targetPage,
+              before = before,
+              after = after,
+              selectedAfter = index,
+              transformLatest = { latest ->
+                PdfAnnotationClipboard.updateHtmlContent(
+                  latest, index, expected, safeHtml, safeRender.contentHeightPx,
+                )
+              },
+            )
+          }
+        } else {
+          val height = maxOf(60, safeRender.contentHeightPx + 20).toDouble()
+          val item = kotlinx.serialization.json.buildJsonObject {
+            put("type", JsonPrimitive("html"))
+            put("color", JsonPrimitive(penStyle.color))
+            put("width", JsonPrimitive(penStyle.width.toDouble()))
+            put("points", kotlinx.serialization.json.buildJsonArray {
+              add(kotlinx.serialization.json.buildJsonArray { add(JsonPrimitive(80.0)); add(JsonPrimitive(90.0)) })
+              add(kotlinx.serialization.json.buildJsonArray { add(JsonPrimitive(580.0)); add(JsonPrimitive(90.0 + height)) })
+            })
+            put("html", JsonPrimitive(safeHtml))
+          }
+          val before = annotationPageItems
+          persistNativeAnnotationPage(
+            targetPage = targetPage,
+            before = before,
+            after = JsonArray(before + item),
+            selectedAfter = before.size,
+            appendItem = item,
+          )
+        }
+        showRichHtmlEditor = false
+        richHtmlEditorTarget = null
+      } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        penStatus = context.getString(R.string.annotation_html_failed, error.message ?: "")
+      } finally {
+        rendered?.bitmap?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
   suspend fun saveCurrentNote(): Boolean {
     val activeProject = readerSession.project.value ?: return false
     val targetPage = readerSession.pageIndex.intValue + 1
@@ -1480,6 +1882,8 @@ private fun ReaderHome(
             )
           }
         }
+        // 批次 7：保存成功的页面变更钩子 → 增量索引（非阻塞）。
+        search.indexSavedNotePage(activeProject.manifest.id, targetPage, draftToSave, result.pageRevision)
         true
       } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1512,6 +1916,46 @@ private fun ReaderHome(
     }.await()
   }
 
+  // 批次 12：悬浮窗服务请求（差距清单 #24）。保存请求绑定项目、页码和
+  // 打开时的笔记基线，主界面切项目/翻页/编辑后不再用旧草稿覆盖当前笔记。
+  LaunchedEffect(Unit) {
+    FloatingWindowHub.noteSaveRequests.collect {
+      val draft = FloatingWindowHub.noteDraft.value
+      val activeProject = readerSession.project.value
+      val currentPage = readerSession.pageIndex.intValue + 1
+      val currentProjectKey = activeProject?.let {
+        "${it.sourceDirectoryUri}:${it.manifest.id}"
+      }
+      if (draft == null || currentProjectKey == null || !FloatingNoteWindowPolicy.canSave(
+          draft = draft,
+          currentProjectKey = currentProjectKey,
+          currentPage = currentPage,
+          currentText = readerSession.noteDraft.value,
+          currentRevision = readerSession.noteBaseRevision.value,
+        )
+      ) {
+        noteStatus = context.getString(R.string.floating_note_page_changed)
+        return@collect
+      }
+      if (!readerSession.noteWritable.value) {
+        noteStatus = context.getString(R.string.note_read_only)
+        return@collect
+      }
+      val textToSave = draft.text
+      readerSession.setNoteDraft(textToSave)
+      if (saveCurrentNote()) {
+        FloatingWindowHub.markNoteSaved(textToSave, readerSession.noteBaseRevision.value)
+      }
+    }
+  }
+  LaunchedEffect(Unit) {
+    FloatingWindowHub.captureRequests.collect {
+      if (!screenCaptureLauncher.launchViaActivity()) {
+        noteStatus = context.getString(R.string.screen_capture_failed)
+      }
+    }
+  }
+
   fun reloadCurrentNote() {
     val activeProject = project ?: return
     readerSession.launchSessionTask {
@@ -1524,6 +1968,8 @@ private fun ReaderHome(
         readerSession.setNoteDraft(freshPage)
         noteBaseRevision = PageNotes.revision(freshPage)
         readerSession.clearCurrentDraftRecovery()
+        // 批次 7：重载后按磁盘内容刷新当前页索引。
+        search.indexSavedNotePage(activeProject.manifest.id, pageIndex + 1, freshPage, PageNotes.revision(freshPage))
         noteStatus = context.getString(R.string.note_reloaded)
       } catch (error: Exception) {
         noteStatus = context.getString(R.string.note_reload_failed, error.message ?: "")
@@ -1531,11 +1977,179 @@ private fun ReaderHome(
     }
   }
 
+  // --- 选区 AI 动作（移植批次 10 / 差距清单 #22）---------------------------------
+  // 语气/翻译/总结走现有 agent 客户端链路（resolveEndpoint + OkHttpChatClient，
+  // 零新增 Key）；翻译动作在配置了直连服务商时改走服务商客户端（#23，可选）。
+  // 结果插回笔记遵守 applied 守卫：模型成功后先建 open review，插回且 revision
+  // 受检保存产生 changed write 后，才凭本次运行证据 transitionApplied。
+
+  fun aiSelectionReviewStore(activeProject: OpenedProject) =
+    ProjectReviewStore(context.contentResolver, activeProject.sourceDirectoryUri, activeProject.reviewsUri)
+
+  suspend fun runAiSelectionAction(
+    action: AiSelectionAction,
+    task: AiSelectionTask,
+  ): AiSelectionRunResult {
+    val activeProject = project ?: return AiSelectionRunResult.Failure(
+      context.getString(R.string.ai_action_no_project),
+    )
+    return try {
+      val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
+      val promptModules = withContext(Dispatchers.IO) {
+        promptSettingsStore.readModules(listOf("system", action.promptModule))
+      }
+      val messages = AiSelectionActions.buildMessages(action, task, promptModules)
+      val raw = when {
+        action == AiSelectionAction.TRANSLATE_ZH || action == AiSelectionAction.TRANSLATE_EN -> {
+          val direct = withContext(Dispatchers.IO) {
+            translationProviderStore.resolveClient(translationTransport)
+          }
+          if (direct != null) {
+            val target = AiSelectionAction.targetLanguage(action) ?: "en"
+            withContext(Dispatchers.IO) { direct.translate(task.quote, target).text }
+          } else {
+            aiActionChatClient.complete(endpoint, messages)
+          }
+        }
+        else -> aiActionChatClient.complete(endpoint, messages)
+      }
+      val result = AiSelectionActions.sanitizeResult(raw)
+        ?: return AiSelectionRunResult.Failure(context.getString(R.string.ai_action_empty_result))
+      val record = withContext(Dispatchers.IO) {
+        aiSelectionReviewStore(activeProject).create(
+          ReviewCreate(
+            side = "note",
+            kind = "selection",
+            page = task.page,
+            instruction = aiActionInstruction(action),
+            scope = "page",
+            quote = task.quote,
+            context = task.context,
+            revision = task.revision,
+            anchor = task.anchor,
+          ),
+        )
+      }
+      val reviewId = (record["id"] as? JsonPrimitive)?.content
+        ?: return AiSelectionRunResult.Failure(context.getString(R.string.review_save_failed, "missing id"))
+      AiSelectionRunResult.Success(result, reviewId)
+    } catch (missing: MissingModelConfigException) {
+      AiSelectionRunResult.MissingConfig
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      AiSelectionRunResult.Failure(error.message ?: error.javaClass.simpleName)
+    }
+  }
+
+  suspend fun insertAiSelectionResult(
+    action: AiSelectionAction,
+    task: AiSelectionTask,
+    result: String,
+    reviewId: String?,
+  ): Boolean {
+    val activeProject = project ?: return false
+    // applied 守卫第一步：笔记页仍处于捕获时的 revision。
+    try {
+      task.requireCurrentPage(noteDraft)
+    } catch (_: IllegalArgumentException) {
+      noteStatus = context.getString(R.string.ai_action_stale)
+      return false
+    }
+    val updated = AiSelectionActions.replacement(task, result)
+    // applied 守卫第二步：结果与原文一致时不产生 changed write，review 保持 open。
+    if (!AiSelectionActions.shouldMarkApplied(task.context, updated, saveSucceeded = true)) {
+      noteStatus = context.getString(R.string.ai_action_unchanged)
+      return false
+    }
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+    if (editor != null) {
+      editor.requestFocus()
+      editor.replaceMarkdownSourceRange(task.start, task.end, result)
+      editor.setMarkdownSourceSelection(task.start + result.length)
+    } else {
+      readerSession.setNoteDraft(updated)
+      noteEditRequest++
+    }
+    // revision 受检保存：expectedRevision == 捕获 revision（saveCurrentNote 读 noteDraft）。
+    val saved = saveCurrentNote()
+    if (!saved) {
+      noteStatus = noteStatus ?: context.getString(R.string.ai_action_save_failed)
+      return false
+    }
+    val id = reviewId
+    if (id != null) {
+      try {
+        withContext(Dispatchers.IO) {
+          aiSelectionReviewStore(activeProject).transitionApplied(
+            id,
+            listOf(ProjectReviewStore.ApplyExpectation(task.page, task.revision)),
+          )
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        // 状态流转失败不影响已保存的笔记内容；review 保持 open，可手动处置。
+        noteStatus = context.getString(R.string.review_save_failed, error.message ?: "")
+        return false
+      }
+    }
+    return true
+  }
+
+  // --- 系统截屏（移植批次 10 / 差距清单 #23）--------------------------------------
+  // MediaProjection 抓帧在 ScreenCaptureService 前台服务完成；OCR 复用 feature-ocr
+  // 离线引擎，取色复用纯策略 ColorPicking。悬浮截屏入口（#24）仅预留接口。
+
+  fun beginSystemCapture() {
+    if (screenCaptureBusy()) return
+    ScreenCaptureService.reset()
+    val launched = screenCaptureLauncher.launch()
+    if (!launched) {
+      noteStatus = context.getString(R.string.screen_capture_failed)
+    }
+  }
+
+  fun insertTextIntoNote(text: String) {
+    if (!noteWritable) {
+      noteStatus = context.getString(R.string.note_read_only)
+      return
+    }
+    if (text.isBlank()) return
+    val editor = markdownEditor?.takeIf { it.isEnabled && it.markdownSourceText() == noteDraft }
+    if (editor != null) {
+      val edit = NoteImportPayload.insertText(
+        markdown = noteDraft,
+        selectionStart = editor.markdownSelectionStart(),
+        selectionEnd = editor.markdownSelectionEnd(),
+        text = text,
+      )
+      editor.requestFocus()
+      editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+      editor.setMarkdownSourceSelection(edit.cursor)
+    } else {
+      val edit = NoteImportPayload.insertText(
+        markdown = noteDraft,
+        selectionStart = noteDraft.length,
+        selectionEnd = noteDraft.length,
+        text = text,
+      )
+      val updated = buildString(noteDraft.length + text.length) {
+        append(noteDraft, 0, edit.replaceStart)
+        append(edit.replacement)
+        append(noteDraft, edit.replaceEnd, noteDraft.length)
+      }
+      readerSession.setNoteDraft(updated)
+      noteEditRequest++
+    }
+    noteStatus = null
+  }
+
   suspend fun changePage(nextPage: Int): Boolean {
     val pageCount = renderer?.pageCount
       ?: markdownSource?.let { MarkdownSourcePages.pageCount(it, notesMarkdown) }
       ?: 0
-    if (readerOcrState.inputLocked || pdfTextSelectionMode || isImageImporting || isExportingNotes ||
+    if (isRainApplyingPage || readerOcrState.inputLocked || pdfTextSelectionMode || isImageImporting || isExportingNotes ||
       nextPage !in 0 until pageCount
     ) {
       return false
@@ -1554,6 +2168,43 @@ private fun ReaderHome(
     return true
   }
 
+  // --- 闪卡来源定位回跳（移植批次 11 / 差距清单 #20）-----------------------------
+  // 卡片 → 捕获页：页码经笔记页数校验并复用 changePage（自动保存当前页），
+  // 选区锚点经 CardSourceLocator 精确/重查定位，应用交由 pendingCardSelection。
+
+  suspend fun locateFlashcard(card: FlashcardCard): Boolean {
+    if (project == null) {
+      noteStatus = context.getString(R.string.flashcard_no_project)
+      return false
+    }
+    val notePageCount = PageNotes.split(notesMarkdown).size
+    val targetIndex = CardSourceLocator.pageIndex(card.page, notePageCount) ?: run {
+      noteStatus = context.getString(R.string.flashcard_page_out_of_range)
+      return false
+    }
+    flashcards.dismissLibrary()
+    if (targetIndex != pageIndex) {
+      val moved = changePage(targetIndex)
+      if (!moved) {
+        noteStatus = context.getString(R.string.flashcard_page_out_of_range)
+        return false
+      }
+    }
+    return when (val located = CardSourceLocator.locate(noteDraft, card.anchor())) {
+      is CardSourceLocator.LocateResult.Found -> {
+        if (located.moved) {
+          noteStatus = context.getString(R.string.flashcard_locate_moved)
+        }
+        pendingCardSelection = TextRange(located.start, located.end)
+        true
+      }
+      CardSourceLocator.LocateResult.Unavailable -> {
+        noteStatus = context.getString(R.string.flashcard_locate_missing)
+        false
+      }
+    }
+  }
+
   fun recognizeCurrentPage() {
     if (readerOcrState.inputLocked || pdfTextSelectionMode) return
     if (isMarkdownReading) return
@@ -1564,7 +2215,7 @@ private fun ReaderHome(
       isOcrRunning = true
       try {
         val result = withTimeout(OcrPolicy.TIMEOUT_MS) {
-          val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+          val engine = ensureOcrEngine()
           withIoOwnedResource(
             render = { activeRenderer.render(targetPage) },
             dispose = { bitmap -> if (!bitmap.isRecycled) bitmap.recycle() },
@@ -1573,6 +2224,10 @@ private fun ReaderHome(
         }
         ocrResult = result
         ocrResultPage = targetPage
+        // 批次 7：整页 OCR 结果入索引（无定位矩形）。
+        project?.manifest?.id?.let { documentId ->
+          search.indexOcrResult(documentId, targetPage + 1, result)
+        }
         showOcrResult = true
       } catch (timeout: TimeoutCancellationException) {
         ocrResult = OcrResult(
@@ -1624,11 +2279,13 @@ private fun ReaderHome(
             label = context.getString(R.string.page_tutor_region_label),
             reviewWarning = context.getString(R.string.ocr_review),
           )
+          // 批次 7：区域 OCR 结果连同选区矩形一起入索引（支持 rect 跳转）。
+          search.indexOcrResult(documentId, targetPage + 1, result, selection)
           readerOcrState = readerOcrState.showResult()
         }
       }
       try {
-        val engine = ocrEngine ?: OfflineOcrEngine.create(context).also { ocrEngine = it }
+        val engine = ensureOcrEngine()
         val renderedPage = withContext(Dispatchers.IO) {
           activeRenderer.renderWithMetadata(targetPage).also { input = it.bitmap }
         }
@@ -1684,6 +2341,394 @@ private fun ReaderHome(
         ))
       } finally {
         input?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
+  // --- 手写 OCR 与公式识别（移植批次 6）-----------------------------------
+
+  /** 当前页宽高比（pageHeightPx/pageWidthPx）；pageBitmap 为渲染页位图。 */
+  fun currentPageAspect(): Double? {
+    val bitmap = pageBitmap
+    if (bitmap != null && !bitmap.isRecycled && bitmap.width > 0) {
+      return bitmap.height.toDouble() / bitmap.width
+    }
+    val bounds = viewportBounds
+    if (bounds != null && bounds.pageWidthPx > 0f && bounds.pageHeightPx > 0f) {
+      return (bounds.pageHeightPx / bounds.pageWidthPx).toDouble()
+    }
+    return null
+  }
+
+  /** 选区笔迹的删除指纹与条数（内存笔迹模型，含尚未落盘的笔画）。 */
+  fun inkSelectionFingerprints(
+    selection: NormalizedOcrRegion,
+    aspect: Double,
+  ): Pair<Set<String>, Int>? {
+    val indexes = InkOcrSelection.selectStrokeIndexes(penStrokes, selection, aspect)
+    if (indexes.isEmpty()) return null
+    val fingerprints = indexes.mapTo(mutableSetOf()) { index ->
+      canonicalItemKey(penStrokes[index].toAnnotationsItem())
+    }
+    return fingerprints to indexes.size
+  }
+
+  fun recognizeInkSelection(request: ReaderOcrState) {
+    if (isMarkdownReading) return
+    if (renderer == null) return
+    val targetPage = request.pageIndex ?: return
+    val selection = request.selection ?: return
+    if (!penWritable) {
+      penStatus = context.getString(R.string.pen_read_only)
+      inkOcrState = request.cancel()
+      return
+    }
+    val aspect = currentPageAspect() ?: run {
+      penStatus = context.getString(R.string.page_render_failed)
+      return
+    }
+    val selectionInk = inkSelectionFingerprints(selection, aspect)
+    if (selectionInk == null) {
+      penStatus = context.getString(R.string.ink_ocr_no_ink)
+      return
+    }
+    val (fingerprints, strokeCount) = selectionInk
+    scope.launch {
+      isOcrRunning = true
+      var bitmap: Bitmap? = null
+      try {
+        bitmap = withContext(Dispatchers.Default) {
+          InkBitmapComposer.render(penStrokes, selection, aspect)
+        }
+        if (bitmap == null) {
+          penStatus = context.getString(R.string.ink_ocr_no_ink)
+          inkOcrState = request.cancel()
+          return@launch
+        }
+        val engine = ensureOcrEngine()
+        val result = withTimeout(OcrPolicy.TIMEOUT_MS) {
+          withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+        }
+        if (project != null && pageIndex == targetPage && inkOcrState.mode == ReaderOcrMode.RECOGNIZING) {
+          inkOcrPending = PendingInkConversion(
+            pageIndex = targetPage,
+            region = selection,
+            aspect = aspect,
+            fingerprints = fingerprints,
+            strokeCount = strokeCount,
+            ocrResult = result,
+          )
+          inkOcrState = request.showResult()
+        }
+      } catch (timeout: TimeoutCancellationException) {
+        penStatus = context.getString(R.string.ink_ocr_failed, context.getString(R.string.ocr_timeout))
+        inkOcrState = request.cancel()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        penStatus = context.getString(
+          R.string.ink_ocr_failed,
+          error.message ?: context.getString(R.string.offline_ocr_failed),
+        )
+        inkOcrState = request.cancel()
+      } finally {
+        isOcrRunning = false
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
+  fun recognizeFormulaSelection(request: ReaderOcrState) {
+    if (isMarkdownReading) return
+    if (renderer == null) return
+    val targetPage = request.pageIndex ?: return
+    val selection = request.selection ?: return
+    val aspect = currentPageAspect() ?: run {
+      penStatus = context.getString(R.string.page_render_failed)
+      return
+    }
+    val selectionInk = inkSelectionFingerprints(selection, aspect)
+    if (selectionInk == null) {
+      penStatus = context.getString(R.string.ink_ocr_no_ink)
+      return
+    }
+    val (fingerprints, strokeCount) = selectionInk
+    val model = LatexModelCatalog.byId(settings.latexOcrModel) ?: LatexModelCatalog.DEFAULT
+    scope.launch {
+      isOcrRunning = true
+      var bitmap: Bitmap? = null
+      try {
+        bitmap = withContext(Dispatchers.Default) {
+          InkBitmapComposer.render(penStrokes, selection, aspect)
+        }
+        if (bitmap == null) {
+          penStatus = context.getString(R.string.ink_ocr_no_ink)
+          formulaOcrState = request.cancel()
+          return@launch
+        }
+        val result = try {
+          val engine = latexOcrEngine ?: LatexOcrEngine.create(context, model).also { latexOcrEngine = it }
+          withTimeout(OcrPolicy.TIMEOUT_MS) {
+            withContext(Dispatchers.Default) { engine.recognize(bitmap) }
+          }
+        } catch (missing: OfflineOcrException) {
+          LatexOcrResult.failed(model.id, context.getString(R.string.formula_ocr_model_unavailable))
+        }
+        if (project != null && pageIndex == targetPage && formulaOcrState.mode == ReaderOcrMode.RECOGNIZING) {
+          formulaOcrPending = PendingInkConversion(
+            pageIndex = targetPage,
+            region = selection,
+            aspect = aspect,
+            fingerprints = fingerprints,
+            strokeCount = strokeCount,
+            latexResult = result,
+          )
+          formulaOcrState = request.showResult()
+        }
+      } catch (timeout: TimeoutCancellationException) {
+        formulaOcrPending = PendingInkConversion(
+          pageIndex = targetPage,
+          region = selection,
+          aspect = aspect,
+          fingerprints = fingerprints,
+          strokeCount = strokeCount,
+          latexResult = LatexOcrResult.failed(model.id, context.getString(R.string.ocr_timeout)),
+        )
+        formulaOcrState = request.showResult()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        formulaOcrPending = PendingInkConversion(
+          pageIndex = targetPage,
+          region = selection,
+          aspect = aspect,
+          fingerprints = fingerprints,
+          strokeCount = strokeCount,
+          latexResult = LatexOcrResult.failed(
+            model.id,
+            context.getString(R.string.formula_ocr_failed, error.message ?: ""),
+          ),
+        )
+        formulaOcrState = request.showResult()
+      } finally {
+        isOcrRunning = false
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
+      }
+    }
+  }
+
+  /**
+   * OcrConvert 落盘（手写文本与公式素材共用）：锁内读最新页 → 指纹删墨迹
+   * （可选）+ 追加产物 → 整页写回 → 记录快照历史 → 同步内存模型（批注
+   * 页 + 笔迹页）。失败回滚 UI 状态；成功返回删除条数供状态展示。
+   */
+  suspend fun commitInkConversion(
+    pending: PendingInkConversion,
+    appendItem: JsonObject,
+    removeInk: Boolean,
+  ): Int {
+    val targetProject = project ?: throw IllegalStateException("project is gone")
+    val projectId = targetProject.manifest.id
+    val targetPage = pending.pageIndex + 1
+    val store = ProjectAnnotationStore(
+      context.contentResolver,
+      targetProject.sourceDirectoryUri,
+      targetProject.annotationsUri,
+    )
+    var removedCount = 0
+    var after: JsonArray? = null
+    penSaveMutex.withLock {
+      if (readerSession.project.value?.manifest?.id != projectId) {
+        throw IllegalStateException(context.getString(R.string.annotation_project_changed))
+      }
+      val latest = withContext(Dispatchers.IO) { store.readPage("document", targetPage) }
+      val (next, removed) = if (removeInk) {
+        InkOcrConversion.convertPage(latest, pending.fingerprints, appendItem)
+      } else {
+        JsonArray(latest + appendItem) to 0
+      }
+      removedCount = removed
+      withContext(Dispatchers.IO) { store.writePage("document", targetPage, next) }
+      annotationEditHistory.record(projectId, targetPage, latest, next)
+      lastEditWasAnnotation[targetPage] = true
+      after = next
+    }
+    val committed = after!!
+    penPageStore.reloadPage(PenSide.DOCUMENT, targetPage, annotationPageToRawList(committed))
+    if (readerSession.project.value?.manifest?.id == projectId && pageIndex + 1 == targetPage) {
+      annotationPageItems = committed
+      annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(committed)
+      selectedPenIndex = null
+      selectedAnnotationIndex = committed.lastIndex
+      annotationOverlayReload++
+      penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    }
+    return removedCount
+  }
+
+  fun confirmInkOcrConvert(text: String, removeInk: Boolean) {
+    val pending = inkOcrPending
+    inkOcrPending = null
+    inkOcrState = ReaderOcrState()
+    if (pending == null) return
+    if (!penWritable) {
+      penStatus = context.getString(R.string.pen_read_only)
+      return
+    }
+    val textItem = InkOcrConversion.buildTextItem(
+      region = pending.region,
+      aspect = pending.aspect,
+      text = text,
+      color = penStyle.color,
+      width = penStyle.width,
+    )
+    if (textItem == null) {
+      penStatus = context.getString(R.string.ink_ocr_failed, "empty transcription")
+      return
+    }
+    scope.launch {
+      isAnnotationSaving = true
+      penStatus = context.getString(R.string.annotation_saving)
+      try {
+        commitInkConversion(pending, textItem, removeInk)
+        // 批次 7：确认后的转写文本入索引（带选区矩形，支持 rect 跳转）。
+        project?.manifest?.id?.let { documentId ->
+          search.indexTranscript(documentId, pending.pageIndex + 1, text, pending.region)
+        }
+        penStatus = context.getString(R.string.ink_ocr_converted)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
+      } finally {
+        isAnnotationSaving = false
+      }
+    }
+  }
+
+  fun insertFormulaToNote(latex: String) {
+    val editor = markdownEditor
+    if (editor == null || !editor.isEnabled || !noteWritable) {
+      penStatus = context.getString(R.string.formula_ocr_note_editor_missing)
+      return
+    }
+    val edit = MarkdownLatexBlockInsertion.createEdit(
+      markdown = editor.markdownSourceText(),
+      selectionStart = editor.markdownSelectionStart(),
+      selectionEnd = editor.markdownSelectionEnd(),
+      latex = latex,
+    )
+    if (edit == null) {
+      penStatus = context.getString(R.string.formula_ocr_failed, "empty latex")
+      return
+    }
+    editor.requestFocus()
+    editor.replaceMarkdownSourceRange(edit.replaceStart, edit.replaceEnd, edit.replacement)
+    editor.setMarkdownSourceSelection(edit.selectionStart, edit.selectionEnd)
+    formulaOcrPending = null
+    formulaOcrState = ReaderOcrState()
+  }
+
+  /** 渲染位图 → 项目附件（缓存临时 PNG → 既有附件导入通道）。 */
+  suspend fun writeFormulaAttachment(bitmap: Bitmap, targetProject: OpenedProject): Triple<String, Int, Int>? {
+    val width = bitmap.width
+    val height = bitmap.height
+    val temp = withContext(Dispatchers.IO) {
+      java.io.File.createTempFile("pagenote-formula-", ".png", context.cacheDir).also { file ->
+        file.outputStream().use { output ->
+          check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "formula bitmap encode failed" }
+        }
+      }
+    }
+    try {
+      val imported = withContext(Dispatchers.IO) {
+        ProjectAttachmentStore(
+          context.contentResolver,
+          context.cacheDir,
+          targetProject.sourceDirectoryUri,
+        ).import(android.net.Uri.fromFile(temp), fallbackDisplayName = "formula.png")
+      }
+      return Triple(imported.assetName, width, height)
+    } catch (error: Exception) {
+      if (error is CancellationException) throw error
+      return null
+    } finally {
+      withContext(NonCancellable + Dispatchers.IO) { temp.delete() }
+    }
+  }
+
+  fun insertFormulaToCanvas(latex: String, removeInk: Boolean, saveToLibrary: Boolean) {
+    val pending = formulaOcrPending
+    if (pending == null) {
+      formulaOcrState = ReaderOcrState()
+      return
+    }
+    if (!penWritable) {
+      penStatus = context.getString(R.string.pen_read_only)
+      return
+    }
+    val targetProject = project ?: return
+    val density = context.resources.displayMetrics.density
+    val latexColor = penStyle.color
+    scope.launch {
+      isAnnotationSaving = true
+      penStatus = context.getString(R.string.annotation_saving)
+      var bitmap: Bitmap? = null
+      try {
+        bitmap = withContext(Dispatchers.Default) {
+          FormulaMaterialRenderer().render(
+            latexLines = listOf(latex),
+            textSizePx = 22f * density,
+            textColor = android.graphics.Color.parseColor(latexColor),
+          )
+        } ?: throw IllegalStateException(context.getString(R.string.formula_ocr_preview_failed))
+        val attachment = writeFormulaAttachment(bitmap, targetProject)
+        bitmap.recycle()
+        bitmap = null
+        if (attachment == null) {
+          throw IllegalStateException(context.getString(R.string.reader_menu_pdf_image_import_failed))
+        }
+        val (assetName, pixelWidth, pixelHeight) = attachment
+        val rect = InkOcrSelection.documentRect(pending.region, pending.aspect)
+        val item = FormulaMaterialInsertion.createItem(
+          assetName = assetName,
+          pixelWidth = pixelWidth,
+          pixelHeight = pixelHeight,
+          anchorX = rect.left,
+          anchorY = rect.top,
+          latex = latex,
+          color = latexColor,
+          width = penStyle.width,
+        ) ?: throw IllegalStateException("formula item geometry is invalid")
+        commitInkConversion(pending, item, removeInk)
+        // 批次 7：公式识别 LaTeX 入索引（带选区矩形）。
+        project?.manifest?.id?.let { documentId ->
+          search.indexTranscript(documentId, pending.pageIndex + 1, latex, pending.region)
+        }
+        penStatus = context.getString(R.string.formula_ocr_inserted)
+        if (saveToLibrary) {
+          val materialStore = ProjectMaterialStore(context.contentResolver, targetProject.sourceDirectoryUri)
+          val entry = FormulaMaterialInsertion.materialEntry(item, System.currentTimeMillis(), "公式")
+          if (entry != null) {
+            try {
+              val updated = CanvasMaterialCodec.upsert(materialStore.read(), entry)
+              withContext(Dispatchers.IO) { materialStore.write(updated) }
+              penStatus = context.getString(R.string.formula_ocr_material_saved)
+            } catch (error: Exception) {
+              if (error is CancellationException) throw error
+              penStatus = context.getString(R.string.formula_ocr_material_save_failed, error.message ?: "")
+            }
+          }
+        }
+        formulaOcrPending = null
+        formulaOcrState = ReaderOcrState()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
+      } finally {
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
+        isAnnotationSaving = false
       }
     }
   }
@@ -1857,6 +2902,13 @@ private fun ReaderHome(
         notesMarkdown = edited.markdown
         readerSession.setNoteDraft(NotePage.pageAt(edited.markdown, preview.page))
         noteBaseRevision = edited.pageRevision
+        // 批次 7：AI 追加写入的页面入索引。
+        search.indexSavedNotePage(
+          activeProject.manifest.id,
+          preview.page,
+          NotePage.pageAt(edited.markdown, preview.page),
+          edited.pageRevision,
+        )
         noteStatus = recoveryCopyName?.let { name ->
           context.getString(R.string.page_tutor_saved_recovery_copy, name)
         } ?: context.getString(R.string.page_tutor_saved)
@@ -2009,6 +3061,13 @@ private fun ReaderHome(
             val freshPage = NotePage.pageAt(latest, targetPageIndex + 1)
             readerSession.setNoteDraft(freshPage)
             noteBaseRevision = PageNotes.revision(freshPage)
+            // 批次 7：代理整页写入后的重读钩子入索引。
+            search.indexSavedNotePage(
+              activeProject.manifest.id,
+              targetPageIndex + 1,
+              freshPage,
+              PageNotes.revision(freshPage),
+            )
             noteStatus = context.getString(R.string.note_reloaded)
           }
         }
@@ -2093,6 +3152,8 @@ private fun ReaderHome(
           val freshPage = NotePage.pageAt(latest, pageIndex + 1)
           readerSession.setNoteDraft(freshPage)
           noteBaseRevision = PageNotes.revision(freshPage)
+          // 批次 7：批量任务可能更新多页，整本重读入索引（revision 幂等）。
+          search.indexNotePages(activeProject.manifest.id, latest)
           noteStatus = context.getString(R.string.note_reloaded)
         }
       } catch (missing: MissingModelConfigException) {
@@ -2120,6 +3181,10 @@ private fun ReaderHome(
   var isChoosingNewProjectDocument by rememberSaveable { mutableStateOf(false) }
   var opensStandaloneDocumentAfterPicker by rememberSaveable { mutableStateOf(false) }
   var newProjectError by remember { mutableStateOf<String?>(null) }
+
+  LaunchedEffect(showNewProject, libraryTree) {
+    if (showNewProject && libraryTree != null) newProjectDir = libraryTree
+  }
 
   fun handleNewProjectDirectoryResult(treeUri: Uri?) {
     isChoosingNewProjectDir = false
@@ -2274,18 +3339,42 @@ private fun ReaderHome(
     return false
   }
 
+  /**
+   * Reads `src/note-settings.json`, falling back to defaults when the file is
+   * missing or unreadable. A corrupt settings file must not block opening the
+   * project; note that a damaged passphrase hash therefore also disables the
+   * open-time gate (recorded limitation — whoever can rewrite project files
+   * can already delete the hash).
+   */
+  fun readProjectNoteSettings(opened: OpenedProject): ProjectNoteSettings = try {
+    ProjectNoteSettingsStore(
+      context.contentResolver,
+      opened.sourceDirectoryUri,
+      opened.noteSettingsUri,
+    ).read()
+  } catch (_: Exception) {
+    ProjectNoteSettings.DEFAULT
+  }
+
   suspend fun openProjectTree(
     target: ProjectOpenTarget,
     manageOpening: Boolean = true,
     requestedCheckpoint: ReaderSessionCheckpoint? = null,
+    verifiedPassphrase: CharArray? = null,
+    captureUpdate: Boolean = false,
   ) {
+    val live = rainClassroomClient.live.value
+    if (!captureUpdate && (isRainCapturing || live.status !in setOf("stopped", "finished") || live.pendingPages > 0)) {
+      errorMessage = context.getString(R.string.rain_capture_busy)
+      return
+    }
     if (manageOpening) {
       isOpening = true
       errorMessage = null
     }
     try {
       if (project != null) readerSession.flushDraftRecovery()
-      val checkpoint = requestedCheckpoint ?: readerSession.checkpointFor(target)
+      val checkpoint = requestedCheckpoint ?: readerSession.checkpointFor(target) ?: bookshelf.store.checkpoint(target)
       var writable = true
       if (checkpoint != null && !target.needsPersistablePermission) {
         val grants = context.contentResolver.persistedUriPermissions.filter { it.uri == target.accessTreeUri }
@@ -2307,11 +3396,21 @@ private fun ReaderHome(
           )
         }
       }
+      var passphraseGate: NotePassphraseGate? = null
       val loaded = withContext(Dispatchers.IO) {
         val opened = ProjectDocumentOpener(context.contentResolver).open(
           target.accessTreeUri,
           target.rootDocumentId,
         )
+        val noteSettings = readProjectNoteSettings(opened)
+        if (noteSettings.passphraseHash != null && verifiedPassphrase == null) {
+          passphraseGate = NotePassphraseGate(
+            target = target,
+            projectName = opened.manifest.name.ifBlank { opened.sourceName },
+            hash = noteSettings.passphraseHash,
+          )
+          return@withContext null
+        }
         val noteStore = ProjectNoteStore(context.contentResolver, opened.notesUri)
         val noteText = noteStore.read()
         val supportsNoteWrite = noteStore.supportsWrite()
@@ -2395,12 +3494,29 @@ private fun ReaderHome(
           checkpoint = restoredCheckpoint,
           draftRecovery = draftRecovery,
           missingAssets = missingAssets,
+          noteSettings = noteSettings,
         )
+      }
+      if (loaded == null) {
+        // Password-protected project picked but not unlocked: keep the current
+        // reader state and raise the verification gate instead of opening.
+        notePassphraseGate = passphraseGate
+        notePassphraseGateError = null
+        return
       }
       readerSession.replaceRenderer(loaded.renderer)
       markdownSource = loaded.markdownSource
       project = loaded.project
+      projectNoteSettings = loaded.noteSettings
+      notePassphraseUnlock?.let { it.fill('\u0000') }
+      notePassphraseUnlock = if (loaded.noteSettings.hasPassphrase) verifiedPassphrase else null
       notesMarkdown = loaded.noteText
+      // 批次 7：打开项目后按设置增量索引笔记页与 Markdown 源页（PDF 页文本
+      // 在浏览/文本提取时机会式补齐，或经设置中的重建索引全量刷新）。
+      search.indexNotePages(loaded.project.manifest.id, loaded.noteText)
+      loaded.markdownSource?.let { source ->
+        search.indexSourcePages(loaded.project.manifest.id, source)
+      }
       penStore = loaded.penStore
       penPageStore = loaded.penPageStore
       penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, loaded.restoredPageIndex + 1)
@@ -2442,9 +3558,15 @@ private fun ReaderHome(
       regionOcrContext = null
       pageTutorRegionContext = null
       readerOcrState = ReaderOcrState()
+      inkOcrState = ReaderOcrState()
+      inkOcrPending = null
+      formulaOcrState = ReaderOcrState()
+      formulaOcrPending = null
       readerSession.viewportBookmark.value = loaded.checkpoint?.viewportBookmark ?: PdfViewportBookmark.DEFAULT
       penTool = loaded.checkpoint?.resolvedPenTool() ?: PenCanvasTool.PEN
       readerSession.rememberOpenedProject(target)
+      showBookshelf = false
+      bookshelf.refresh()
       val hasPersistedReadGrant = runCatching {
         context.contentResolver.persistedUriPermissions.any {
           it.uri == target.accessTreeUri && it.isReadPermission
@@ -2489,7 +3611,7 @@ private fun ReaderHome(
   fun createNewProject() {
     if (isCreatingProject || isChoosingNewProjectDir || isChoosingNewProjectDocument) return
     val name = newProjectName.trim()
-    val dir = newProjectDir
+    val dir = libraryTree ?: newProjectDir
     val sourceUri = newProjectDocumentUri
     val sourceName = newProjectDocumentName
     if (name.isEmpty() || name.contains(Regex("[<>:\"/\\|?*]"))) {
@@ -2527,6 +3649,157 @@ private fun ReaderHome(
   ) { treeUri: Uri? ->
     if (treeUri != null) {
       readerSession.launchSessionTask { openProjectTree(ProjectOpenTarget.fromSelectedTree(treeUri)) }
+    }
+  }
+
+  var pendingRainProject by remember { mutableStateOf<RainProjectRequest?>(null) }
+  var rainProjectName by remember { mutableStateOf("") }
+  var rainProjectDirectory by remember { mutableStateOf<Uri?>(null) }
+  var rainProjectConsent by remember { mutableStateOf(false) }
+  var rainProjectError by remember { mutableStateOf<String?>(null) }
+  val rainProjectParentPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.OpenDocumentTree(),
+  ) { treeUri: Uri? ->
+    if (treeUri != null && pendingRainProject != null) {
+      try {
+        context.contentResolver.takePersistableUriPermission(
+          treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+        rainProjectDirectory = treeUri
+        rainProjectError = null
+      } catch (error: Exception) {
+        rainProjectError = error.message
+      }
+    }
+  }
+
+  suspend fun startRainCapture(course: RainCourse, lesson: RainLesson, newCapture: RainLiveProjectCapture? = null): Boolean {
+    val active = project
+    if (isRainCapturing || isRainImporting) return false
+    if (newCapture == null && (active == null || renderer == null || active.sourceExtension != "pdf" || !noteWritable)) {
+      errorMessage = "实时采集需要可写的 PDF 项目"
+      return false
+    }
+    isRainCapturing = true
+    errorMessage = null
+    var capturedProjectId = if (newCapture == null) active?.manifest?.id else null
+    try {
+      if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+      newCapture?.prepare()
+      withContext(Dispatchers.IO) {
+        rainClassroomClient.startLive(lesson) { slide ->
+          withContext(Dispatchers.Main.immediate) {
+            val current = project
+            if (capturedProjectId != null && current?.manifest?.id != capturedProjectId) throw IOException("当前项目已切换，停止实时采集")
+            if (isAgentRunning || isPageTutorRunning || isAnnotationSaving || isImageImporting || isImportingNotes || isExportingNotes || isOpening || isSaving || failedPenSave != null) {
+              throw IOException("当前页仍在处理，请完成后重试待采集页面")
+            }
+            isRainApplyingPage = true
+            try {
+              // The socket callback outlives the composition that started capture.
+              val dirty = readerSession.noteDraft.value != NotePage.pageAt(readerSession.notesMarkdown.value, readerSession.pageIndex.intValue + 1)
+              if (dirty && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+              penSaveMutex.withLock { }
+              if (failedPenSave != null) throw IOException("手写笔迹尚未保存，请先重试保存")
+              val checkpoint = if (capturedProjectId != null) readerSession.saveCheckpoint() else null
+              if (checkpoint != null && readerSession.findDraftRecoveries(checkpoint.toProjectOpenTarget(), checkpoint.projectId).isNotEmpty()) {
+                throw IOException("项目仍有待恢复的笔记草稿，请先处理后重试采集")
+              }
+              val written = if (newCapture != null) newCapture.accept(slide) else {
+                val destination = checkpoint?.toProjectOpenTarget() ?: throw IOException("无法保存阅读位置")
+                val opened = current ?: throw IOException("采集项目已关闭")
+                val write = RainProjectWriter(context).insert(opened, course, lesson, slide)
+                RainLiveProjectWrite(destination, opened, if (write.added) write.pageNumber else null, write.pageNumber, write.pageMap)
+              }
+              if (written.pageNumber != null) {
+                rainPageEpoch++
+                liveAnnotationHistory.value.remapPages(written.project.manifest.id, written.pageMap)
+                liveLastAnnotationEdits.value.clear()
+                annotationOverlayReload++
+                selectedAnnotationIndex = null
+              }
+              val focus = ReaderSessionCheckpoint(
+                written.target.accessTreeUri.toString(), written.target.rootDocumentId, written.project.manifest.id,
+                written.focusPage - 1, PdfViewportBookmark.DEFAULT, penTool.name,
+              )
+              openProjectTree(written.target, requestedCheckpoint = focus, captureUpdate = true)
+              if (errorMessage != null || project?.manifest?.id != written.project.manifest.id || pageIndex != focus.pageIndex) throw IOException("无法打开采集项目，请重试待写入页面")
+              capturedProjectId = written.project.manifest.id
+              rainWaitingProjectName = null
+              showRainClassroom = false
+              written.pageNumber?.let { noteStatus = context.getString(R.string.rain_live_page_added, it) }
+            } finally { isRainApplyingPage = false }
+          }
+        }
+      }
+      return true
+    } catch (cancelled: CancellationException) {
+      rainClassroomClient.stopLive()
+      throw cancelled
+    } catch (error: Exception) {
+      rainClassroomClient.stopLive()
+      rainWaitingProjectName = null
+      errorMessage = context.getString(R.string.rain_live_failed, error.message.orEmpty())
+      return false
+    } finally {
+      isRainCapturing = false
+    }
+  }
+
+  fun beginRainProject(course: RainCourse, lesson: RainLesson, mode: RainProjectMode, consent: Boolean = false) {
+    if (isRainImporting || rainCaptureLocked || isChoosingNewProjectDir || isOpening || isSaving || isPenSaving || failedPenSave != null || isCreatingProject) return
+    pendingRainProject = RainProjectRequest(course, lesson, mode)
+    rainProjectName = "${course.name} - ${lesson.name}".replace(Regex("[<>:\"/\\\\|?*]"), "_").take(100)
+    rainProjectDirectory = libraryTree
+    rainProjectConsent = consent
+    rainProjectError = null
+    showRainClassroom = false
+  }
+
+  fun confirmRainProject() {
+    val request = pendingRainProject ?: return
+    val directory = rainProjectDirectory ?: return
+    val name = rainProjectName.trim()
+    if (isRainImporting || isRainCapturing || (request.mode == RainProjectMode.LIVE && !rainProjectConsent)) return
+    if (name.isEmpty() || Regex("[<>:\"/\\\\|?*]").containsMatchIn(name)) {
+      rainProjectError = context.getString(R.string.new_project_bad_name)
+      return
+    }
+    scope.launch {
+      rainProjectError = null
+      errorMessage = null
+      if (request.mode == RainProjectMode.LIVE) {
+        rainWaitingProjectName = name
+        showRainClassroom = true
+        if (startRainCapture(request.course, request.lesson, RainLiveProjectCapture(context, directory, name, request.course, request.lesson))) {
+          pendingRainProject = null
+        } else {
+          showRainClassroom = false
+          rainProjectError = errorMessage
+        }
+      } else {
+        isRainImporting = true
+        try {
+          if (hasUnsavedChanges && !saveCurrentNote()) throw IOException("当前页笔记未能保存")
+          val target = withContext(Dispatchers.IO) {
+            RainProjectWriter(context).create(directory, name, request.course, request.lesson) { emit ->
+              rainClassroomClient.forEachPresentationPage(request.lesson, emit)
+            }
+          }
+          openProjectTree(target)
+          pendingRainProject = null
+          showRainClassroom = false
+          noteStatus = context.getString(R.string.rain_import_done)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: RainLessonOngoingException) {
+          pendingRainProject = request.copy(mode = RainProjectMode.LIVE)
+          rainProjectConsent = false
+          rainProjectError = context.getString(R.string.rain_lesson_ongoing)
+        } catch (error: Exception) {
+          rainProjectError = context.getString(R.string.rain_import_failed, error.message.orEmpty())
+        } finally { isRainImporting = false }
+      }
     }
   }
 
@@ -2865,7 +4138,13 @@ private fun ReaderHome(
         val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
         store.withRevisionLock {
           val original = store.read()
-          val merged = NoteImportPayload.merge(original, pageCount, pending.pages)
+          // PDF 项目的笔记页数跟随源页数，追加页序仅对 Markdown 项目开放；
+          // 这里兜底强制对齐，避免产生源页之外不可达的笔记页。
+          val strategy = NoteMergeStrategy(
+            ordering = if (renderer != null) NoteMergePageOrdering.PAGE_ALIGNED else noteMergeOrdering,
+            conflict = noteMergeConflict,
+          )
+          val merged = NoteMergePlanner.merge(original, pending.pages, strategy).mergedMarkdown
           val changedPages = pending.pages.entries
             .filter { (page, markdown) -> NotePage.pageAt(original, page) != markdown }
             .map { it.key to it.value }
@@ -2886,9 +4165,34 @@ private fun ReaderHome(
       readerSession.setNoteDraft(currentMarkdown)
       noteBaseRevision = PageNotes.revision(currentMarkdown)
       readerSession.refreshDraftRecoveryAfterSave(currentPage, currentMarkdown)
-      noteStatus = result.recoveryCopyName?.let {
-        context.getString(R.string.note_saved_recovery_copy, it)
-      } ?: context.getString(R.string.reader_menu_import_success)
+      // 批次 7：导入覆盖多页，整本重读入索引（revision 幂等）。
+      search.indexNotePages(pending.context.projectId, result.markdown)
+      // 资产去重后续：合并内容引用的资产若在项目 assets/ 缺失，明确报告，
+      // 不静默保留悬空引用（JSON 备份不携带资产字节）。
+      val missingAssets = withContext(Dispatchers.IO) {
+        runCatching {
+          val refs = ProjectAssetRefs.scan(result.markdown)
+          if (refs.isEmpty()) emptyList() else {
+            val srcDir = activeProject.sourceDirectoryUri
+            val assetsUri = DocumentsContract.buildDocumentUriUsingTree(
+              srcDir,
+              DocumentsContract.getDocumentId(srcDir) + "/assets",
+            )
+            ProjectAssetRefs.missing(refs) { name ->
+              runCatching { assetChildExists(assetsUri, srcDir, name) }.getOrDefault(false)
+            }
+          }
+        }.getOrDefault(emptyList())
+      }
+      noteStatus = when {
+        result.recoveryCopyName != null ->
+          context.getString(R.string.note_saved_recovery_copy, result.recoveryCopyName)
+        missingAssets.isNotEmpty() -> context.getString(
+          R.string.note_merge_missing_assets_status,
+          missingAssets.take(3).joinToString(", "),
+        )
+        else -> context.getString(R.string.note_merge_success)
+      }
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: NoteDocumentConflictException) {
@@ -2934,15 +4238,18 @@ private fun ReaderHome(
         Triple(displayName, mimeType, content)
       }
       if (NoteImportPayload.isJson(displayName, mimeType)) {
-        val currentPageCount = currentSourcePageCount()
+        // 合并对话框需要完整备份（追加页序可包含超出源页数的页）。
         val updates = withContext(Dispatchers.Default) {
-          NoteImportPayload.parseBackup(content, currentPageCount)
+          NoteImportPayload.parseBackupUnclamped(content)
         }
         if (!noteImportContextIsCurrent(pending)) {
           noteStatus = context.getString(R.string.reader_menu_import_stale)
           return
         }
-        pendingNoteImportBackup = PendingNoteImportBackup(pending, updates)
+        val summary = withContext(Dispatchers.Default) {
+          NoteMergePlanner.preview(notesMarkdown, updates)
+        }
+        pendingNoteImportBackup = PendingNoteImportBackup(pending, updates, summary)
         showNoteImportConfirmation = true
         return
       }
@@ -3158,7 +4465,7 @@ private fun ReaderHome(
         return
       }
       val file = withContext(Dispatchers.Default) {
-        if (fullBackup) {
+        val plain = if (fullBackup) {
           NoteExportPayload.fullBackup(
             projectName = projectName,
             sourcePageCount = sourcePageCount,
@@ -3173,6 +4480,20 @@ private fun ReaderHome(
             markdown = currentPageMarkdown,
           )
         }
+        val passphraseHash = projectNoteSettings.passphraseHash
+        if (passphraseHash == null) {
+          plain
+        } else {
+          val passphrase = notePassphraseUnlock
+            ?: throw IllegalStateException(
+              context.getString(R.string.note_passphrase_required_for_export),
+            )
+          NoteExportFile(
+            mimeType = NoteExportPayload.ENCRYPTED_MIME_TYPE,
+            fileName = NoteExportPayload.encryptedFileName(plain.fileName),
+            content = NoteExportCipher.encrypt(plain.content, passphrase),
+          )
+        }
       }
       launchNoteExport(file)
     } catch (cancelled: CancellationException) {
@@ -3185,6 +4506,48 @@ private fun ReaderHome(
     } finally {
       isPreparingNoteExport = false
     }
+  }
+
+  // --- 合并导出 PDF + convert note（移植差距清单 #15 的 Android 侧导出增强）------
+
+  val pdfMergePickerRef = remember { arrayOfNulls<(String) -> Unit>(1) }
+  val pdfMergeFinishRef = remember { arrayOfNulls<(Uri?) -> Unit>(1) }
+  val pdfMergeActions = remember(context, scope) {
+    ReaderPdfMergeController(context, scope, object : ReaderPdfMergeController.Host {
+      override fun currentProject(): OpenedProject? = project
+      override fun rendererPageCount(): Int? = renderer?.pageCount
+      override fun noteWritable(): Boolean = noteWritable
+      override fun hasUnsavedChanges(): Boolean = hasUnsavedChanges
+      override suspend fun saveDirtyNote(): Boolean = saveCurrentNote()
+      override fun notesMarkdown(): String = notesMarkdown
+      override fun includeNotes(): Boolean = pdfMergeIncludeNotes
+      override fun setStatus(status: String?) {
+        noteStatus = status
+      }
+      override fun setExporting(value: Boolean) {
+        isExportingMergedPdf = value
+      }
+      override fun pendingTempFile(): File? = pendingPdfMergeTempFile
+      override fun setPendingTempFile(file: File?) {
+        pendingPdfMergeTempFile = file
+      }
+      override fun launchPicker(suggestedName: String) {
+        val pickerForTesting = (activityResultOwner as? MainActivity)?.pdfMergeExportPickerForTesting
+        if (pickerForTesting != null) {
+          pickerForTesting(suggestedName) { uri -> pdfMergeFinishRef[0]?.invoke(uri) }
+        } else {
+          pdfMergePickerRef[0]?.invoke(suggestedName)
+        }
+      }
+    })
+  }
+
+  val pdfMergeExportPicker = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.CreateDocument("application/pdf"),
+  ) { uri -> pdfMergeFinishRef[0]?.invoke(uri) }
+  androidx.compose.runtime.SideEffect {
+    pdfMergePickerRef[0] = { name -> pdfMergeExportPicker.launch(name) }
+    pdfMergeFinishRef[0] = { uri -> readerSession.launchSessionTask { pdfMergeActions.finish(uri) } }
   }
 
   fun chooseMarkdownImage() {
@@ -3270,8 +4633,17 @@ private fun ReaderHome(
       }
     }
   }
+  val latexEngineToClose = latexOcrEngine
+  DisposableEffect(latexEngineToClose) {
+    onDispose {
+      latexEngineToClose?.let { engine ->
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { engine.close() }
+      }
+    }
+  }
 
-  LaunchedEffect(readerSession) {
+  LaunchedEffect(readerSession, showBookshelf) {
+    if (showBookshelf || project != null) return@LaunchedEffect
     val checkpoint = readerSession.claimRestorationCheckpoint() ?: return@LaunchedEffect
     openProjectTree(
       target = checkpoint.toProjectOpenTarget(),
@@ -3288,7 +4660,8 @@ private fun ReaderHome(
     penStrokes = penPageStore.getItems(PenSide.DOCUMENT, pageIndex + 1)
   }
 
-  LaunchedEffect(renderer, pageIndex) {
+  LaunchedEffect(renderer, pageIndex, showBookshelf) {
+    if (showBookshelf) return@LaunchedEffect
     val activeRenderer = renderer ?: return@LaunchedEffect
     isRendering = true
     try {
@@ -3322,10 +4695,11 @@ private fun ReaderHome(
     activeMarkdown,
     pageIndex,
     settings.prepareAheadPages,
+    showBookshelf,
   ) {
     val currentProject = activeProject
     val currentRenderer = activeRenderer
-    if (currentProject == null || currentRenderer == null || activeMarkdown != null) {
+    if (showBookshelf || currentProject == null || currentRenderer == null || activeMarkdown != null) {
       pagePrefetcher.cancel()
       return@LaunchedEffect
     }
@@ -3368,7 +4742,44 @@ private fun ReaderHome(
       },
     ).join()
   }
-  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode
+  /**
+   * 墨迹选区路由（批次 6）：区域 OCR、手写 OCR、公式识别三种模式共用
+   * PdfPageViewport 的单一选区通道，按当前活跃模式分发；任一模式处于
+   * SELECTING 时开启选区手势。互斥：进入一种模式时清掉其它两种。
+   */
+  fun enterInkOcrSelection() {
+    readerOcrState = ReaderOcrState()
+    formulaOcrState = ReaderOcrState()
+    inkOcrPending = null
+    inkOcrState = ReaderOcrState().enterSelection(pageIndex)
+  }
+
+  fun enterFormulaOcrSelection() {
+    readerOcrState = ReaderOcrState()
+    inkOcrState = ReaderOcrState()
+    formulaOcrPending = null
+    formulaOcrState = ReaderOcrState().enterSelection(pageIndex)
+  }
+
+  fun routeOcrSelection(region: NormalizedOcrRegion?) {
+    when {
+      readerOcrState.mode == ReaderOcrMode.SELECTING -> readerOcrState = readerOcrState.withSelection(region)
+      inkOcrState.mode == ReaderOcrMode.SELECTING -> inkOcrState = inkOcrState.withSelection(region)
+      formulaOcrState.mode == ReaderOcrMode.SELECTING -> formulaOcrState = formulaOcrState.withSelection(region)
+    }
+  }
+
+  fun activeOcrSelectionOverlay(): NormalizedOcrRegion? = when {
+    readerOcrState.mode != ReaderOcrMode.IDLE && readerOcrState.pageIndex == pageIndex -> readerOcrState.selection
+    inkOcrState.mode != ReaderOcrMode.IDLE && inkOcrState.pageIndex == pageIndex -> inkOcrState.selection
+    formulaOcrState.mode != ReaderOcrMode.IDLE && formulaOcrState.pageIndex == pageIndex -> formulaOcrState.selection
+    else -> null
+  }
+
+  val anyOcrSelecting = readerOcrState.mode == ReaderOcrMode.SELECTING ||
+    inkOcrState.mode == ReaderOcrMode.SELECTING || formulaOcrState.mode == ReaderOcrMode.SELECTING
+  val readerInputLocked = readerOcrState.inputLocked || pdfTextSelectionMode ||
+    inkOcrState.inputLocked || formulaOcrState.inputLocked || isRainApplyingPage
   LaunchedEffect(
     activeProject?.manifest?.id,
     activeProject?.sourceDirectoryUri,
@@ -3463,10 +4874,21 @@ private fun ReaderHome(
     activeMarkdown != null -> MarkdownSourcePages.pageCount(activeMarkdown, notesMarkdown)
     else -> 0
   }
+
+  // --- 搜索对话框与结果跳转（移植批次 7；逻辑在 ReaderSearchController）--------
+
+  /** 设置 → 重建索引：委托控制器按范围全量重读（无项目时返回 null 提示不可用）。 */
+  suspend fun rebuildSearchIndex(): String? {
+    val activeProject = project ?: return null
+    if (search.rebuilding) return null
+    return search.rebuild(activeProject, markdownSource, readerSession.renderer.value)
+  }
+
   val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting ||
     isImportingNotes || isExportingNotes || failedPenSave != null || isOcrRunning || isSelectablePageTextLoading ||
     readerInputLocked || isAgentRunning || isPageTutorRunning || isLoadingProjectAttachments ||
-    isImportingProjectAttachment || isDeletingProjectAttachment
+    isImportingProjectAttachment || isDeletingProjectAttachment || isOfficeConverting || isOfficeSaving ||
+    isExportingMergedPdf
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
 
@@ -3513,6 +4935,8 @@ private fun ReaderHome(
   val hasNoteSelection = noteSelection?.let { it.start != it.end } == true
   val markdownClipboardDisabledReason = commandReason(requireProject = true, requireWritable = true)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_text_editor_required) else null
+  val markdownPasteDisabledReason = markdownClipboardDisabledReason
+    ?: if (!hasMarkdownClipboardContent) context.getString(R.string.reader_menu_paste_markdown_empty) else null
   val markdownSelectionDisabledReason = markdownClipboardDisabledReason
     ?: if (!hasNoteSelection) context.getString(R.string.reader_menu_text_selection_required) else null
   val canInsertMarkdownImage = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
@@ -3670,17 +5094,33 @@ private fun ReaderHome(
     noteStatus = null
   }
 
-  fun pendingCommand(
-    id: String,
-    labelRes: Int,
-    reasonRes: Int = R.string.reader_menu_unavailable_reason,
-  ) = actionCommand(
-    id = id,
-    labelRes = labelRes,
-    enabled = false,
-    disabledReason = context.getString(reasonRes),
-    onSelect = {},
-  )
+  // --- Office 本地引擎切片（task 36）：office_edit / save_return 实命令接线 ------
+  // 桌面宿主运行时（COM/AppleScript）不移植；本地流程以 LibreOfficeKit 引擎边界
+  // （OfficePdfEngine，尚未接入）为准。引擎缺失/格式未放开时如实报告，不伪造成功。
+  val officeActions = remember(context, scope) {
+    ReaderOfficeController(context, scope, object : ReaderOfficeController.Host {
+      override fun currentProject(): OpenedProject? = project
+      override fun noteWritable(): Boolean = noteWritable
+      override fun setStatus(status: String?) {
+        noteStatus = status
+      }
+      override fun officeSession(): OfficeEditSession? = officeEditSession
+      override fun setOfficeSession(session: OfficeEditSession?) {
+        officeEditSession = session
+      }
+      override fun setOfficeConverting(value: Boolean) {
+        isOfficeConverting = value
+      }
+      override fun setOfficeSaving(value: Boolean) {
+        isOfficeSaving = value
+      }
+      override fun menuBusyNow(): Boolean = menuBusy
+    })
+  }
+
+  fun officeSourceFormat(): OfficeDocumentFormat? = officeActions.sourceFormat()
+
+  fun officeSessionForCurrentProject(): OfficeEditSession? = officeActions.sessionForCurrentProject()
 
   fun requestProjectAttachmentImageInsertion(entry: ProjectAttachmentEntry) {
     if (project == null) return
@@ -3767,11 +5207,32 @@ private fun ReaderHome(
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
   val canOpenProject = !isOpening && !isCreatingProject && !isSaving && !isPenSaving && !isImageImporting &&
+    !rainCaptureLocked && !isRainImporting &&
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
     !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
+  fun returnToBookshelf() {
+    if (!canOpenProject) {
+      errorMessage = context.getString(if (rainCaptureLocked) R.string.rain_capture_busy else R.string.reader_menu_busy)
+      return
+    }
+    readerSession.launchSessionTask {
+      if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
+      penSaveMutex.withLock { }
+      if (failedPenSave != null) return@launchSessionTask
+      try { readerSession.saveCheckpoint()?.let { bookshelf.store.saveCheckpoint(it) } }
+      catch (cancelled: CancellationException) { throw cancelled }
+      catch (failure: Exception) { errorMessage = failure.message; return@launchSessionTask }
+      readerSession.flushDraftRecovery()
+      errorMessage = null
+      showBookshelf = true
+      bookshelf.refresh()
+    }
+  }
+  BackHandler(enabled = !showBookshelf) { returnToBookshelf() }
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canExportNotes = activeProject != null && !menuBusy
+  val canManageNoteSettings = activeProject != null && noteWritable && !menuBusy
   val canUsePdf = canReadDocument && !isMarkdownReading
   val canChangePage = canReadDocument && !isRendering && !isSaving && !isPenSaving && !isImageImporting &&
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
@@ -3791,9 +5252,11 @@ private fun ReaderHome(
     noteWritable,
     menuBusy,
     markdownEditor,
+    showBookshelf,
   ) {
     val activity = shortcutActivity ?: return@DisposableEffect onDispose {}
     val handler: (KeyEvent) -> Boolean = handler@{ event ->
+      if (showBookshelf) return@handler false
       if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@handler false
       val action = ReaderShortcutPolicy.action(
         event.keyCode,
@@ -3844,6 +5307,11 @@ private fun ReaderHome(
   }
   val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
   val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
+  // 画布音频胶囊（移植批次 8）：选中工具下当前页有胶囊时才接管点按。
+  val audioCapsulesOnPage = audioController.index.forPage(pageIndex + 1)
+  val audioCapsuleTapEnabled = audioCapsulesOnPage.isNotEmpty() &&
+    penTool == PenCanvasTool.SELECT && annotationDrawTool == null && !annotateMode &&
+    !readerInputLocked && !isAnnotationSaving
   val hasValidInkClipboard = remember(clipboardRevision, project?.sourceDirectoryUri) {
     clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null || annotationClipboardHtml() != null
   }
@@ -4017,11 +5485,17 @@ private fun ReaderHome(
   val hasNoteHistory = noteWritable && activeProject?.manifest?.id?.let {
     NoteHistoryMirror.directory(context.filesDir, it) != null
   } == true
-  val menuSections = listOf(
+  // 菜单构建体量大：包进局部函数让编译器生成独立方法，避免 ReaderHome
+  // 组合方法超出 JVM 64K 上限（MethodTooLargeException）。
+  fun buildMenuSections(): List<ReaderMenuSection> = listOf(
     menuSection(
       ReaderMenuGroup.FILE,
       R.string.reader_menu_group_file,
       listOf(
+        actionCommand("bookshelf", R.string.bookshelf_return, canOpenProject) { returnToBookshelf() },
+        actionCommand(
+          "rain_classroom", R.string.rain_classroom_menu, true,
+        ) { showRainClassroom = true },
         actionCommand(
           "open_project", R.string.open_project, canOpenProject,
           disabledReason = commandReason(busy = !canOpenProject),
@@ -4062,6 +5536,15 @@ private fun ReaderHome(
           }
         },
         actionCommand(
+          "export_merged_pdf", R.string.reader_menu_export_merged_pdf,
+          // 合并导出：仅 PDF 项目（Markdown 源没有可拼接的 PDF 页）。
+          enabled = canUsePdf && !menuBusy,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) {
+          pdfMergeRangeInput = "1-${totalPages.coerceAtLeast(1)}"
+          showPdfMergeExportDialog = true
+        },
+        actionCommand(
           "note_history", R.string.note_history, hasNoteHistory,
           disabledReason = commandReason(
             requireProject = true,
@@ -4069,6 +5552,10 @@ private fun ReaderHome(
             busy = isSaving || isOpening,
           ) ?: context.getString(R.string.reader_menu_history_unavailable),
         ) { showNoteHistory = true },
+        actionCommand(
+          "note_settings", R.string.note_settings_menu, canManageNoteSettings,
+          disabledReason = commandReason(requireProject = true, requireWritable = true),
+        ) { showProjectNoteSettings = true },
       ),
     ),
     menuSection(
@@ -4107,6 +5594,12 @@ private fun ReaderHome(
                 readerSession.pageIndex.intValue != targetPage
               ) return@launchSessionTask
               selectablePageText = extracted
+              // 批次 7：提取到的 PDF 页文本机会式补索引。
+              if (extracted != null) {
+                project?.manifest?.id?.let { projectId ->
+                  search.indexSourcePageText(projectId, targetPage + 1, extracted.text)
+                }
+              }
               isSelectablePageTextLoading = false
               if (extracted == null) {
                 noteStatus = context.getString(R.string.pdf_text_selection_unavailable)
@@ -4252,7 +5745,7 @@ private fun ReaderHome(
         ) { pasteMarkdownImage() },
         actionCommand(
           "paste_markdown", R.string.reader_menu_paste_markdown,
-          canFormatMarkdown, markdownClipboardDisabledReason,
+          canFormatMarkdown && hasMarkdownClipboardContent, markdownPasteDisabledReason,
         ) { pasteMarkdownFromClipboard() },
       ),
     ),
@@ -4284,8 +5777,33 @@ private fun ReaderHome(
           disabledReason = commandReason(requireProject = true, requirePdf = true),
         ) {
           selectAnnotationDrawTool(null)
+          inkOcrState = ReaderOcrState()
+          formulaOcrState = ReaderOcrState()
           readerOcrState = ReaderOcrState().enterSelection(pageIndex)
         },
+        actionCommand(
+          "search", R.string.reader_menu_search,
+          canReadDocument && !search.searching && !search.rebuilding && !readerInputLocked,
+          disabledReason = commandReason(requireProject = true),
+        ) { search.show = true },
+        actionCommand(
+          "audio_record", R.string.reader_menu_audio_record,
+          canUsePdf && audioController.recordingPhase == AudioRecordingPolicy.Phase.IDLE &&
+            !readerInputLocked && !isAnnotationSaving,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { beginAudioRecording() },
+        actionCommand(
+          "audio_transcripts", R.string.reader_menu_audio_transcripts,
+          canReadDocument && !readerInputLocked && audioController.index.size > 0,
+          disabledReason = commandReason(requireProject = true) ?:
+            context.getString(R.string.audio_transcript_list_empty),
+        ) { audioController.transcriptListVisible = true },
+        actionCommand(
+          "system_capture", R.string.reader_menu_system_capture,
+          canReadDocument && !readerInputLocked && !screenCaptureBusy(),
+          disabledReason = commandReason(requireProject = true) ?:
+            context.getString(R.string.screen_capture_busy),
+        ) { beginSystemCapture() },
         actionCommand(
           "zoom_out", R.string.zoom_out,
           canUsePdf && !readerInputLocked &&
@@ -4360,6 +5878,33 @@ private fun ReaderHome(
           annotateIsRegion = false
           annotateMode = true
         },
+        actionCommand(
+          "ink_rich_text", R.string.reader_menu_rich_text, canUsePen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_pen_unavailable),
+        ) {
+          selectAnnotationDrawTool(null)
+          // Editing reuses the selected html annotation when one is selected;
+          // otherwise the editor creates a fresh type=html canvas object.
+          val selectedIndex = selectedAnnotationIndex
+          val selected = selectedIndex?.let { annotationPageItems.getOrNull(it) as? JsonObject }
+          val isSelectedHtml = selected != null && selected["type"]
+            ?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } == "html"
+          richHtmlEditorTarget = if (isSelectedHtml && selected != null && selectedIndex != null) {
+            selectedIndex to selected
+          } else {
+            null
+          }
+          showRichHtmlEditor = true
+        },
+        actionCommand(
+          "ink_ocr", R.string.reader_menu_ink_ocr, canSelectPen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { enterInkOcrSelection() },
+        actionCommand(
+          "formula_ocr", R.string.reader_menu_formula_ocr, canSelectPen,
+          disabledReason = commandReason(requireProject = true, requirePdf = true),
+        ) { enterFormulaOcrSelection() },
         actionCommand(
           "ink_color", R.string.reader_menu_color, canUsePen,
           disabledReason = commandReason(requireProject = true, requirePdf = true, requireWritable = true),
@@ -4436,11 +5981,17 @@ private fun ReaderHome(
       ReaderMenuGroup.WORD_EDITING,
       R.string.reader_menu_group_word_editing,
       listOf(
-        pendingCommand(
+        actionCommand(
           "office_edit",
           R.string.reader_menu_office_edit,
-          R.string.reader_menu_office_desktop_only,
-        ),
+          // 本地引擎切片：仅在当前项目为 Office 源且引擎已接入时可进入。
+          enabled = officeSourceFormat() != null &&
+            LocalOfficePdfEngineRegistry.engine != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true) ?: when {
+            officeSourceFormat() == null -> context.getString(R.string.reader_menu_office_source_required)
+            else -> context.getString(R.string.reader_menu_office_engine_unavailable)
+          },
+        ) { officeActions.beginOfficeEditSession() },
         actionCommand(
           "selection_to_annotation",
           R.string.reader_menu_selection_to_annotation,
@@ -4479,11 +6030,104 @@ private fun ReaderHome(
             }
           }
         },
-        pendingCommand(
+        actionCommand(
+          "ai_actions",
+          R.string.reader_menu_ai_actions,
+          enabled = activeProject != null && noteWritable && !menuBusy &&
+            selectionReviewReadiness(
+              start = noteSelection?.start,
+              end = noteSelection?.end,
+              markdown = noteDraft,
+            ) == SelectionReviewReadiness.AVAILABLE,
+          disabledReason = commandReason(requireProject = true, requireWritable = true) ?:
+            context.getString(
+              if (selectionReviewReadiness(
+                  start = noteSelection?.start,
+                  end = noteSelection?.end,
+                  markdown = noteDraft,
+                ) == SelectionReviewReadiness.TOO_LARGE
+              ) R.string.reader_menu_selection_too_large
+              else R.string.reader_menu_selection_required,
+            ),
+        ) {
+          val selection = noteSelection ?: return@actionCommand
+          val selectedMarkdown = noteDraft
+          val selectedPage = pageIndex + 1
+          aiSelectionReviewId = null
+          scope.launch {
+            if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+            try {
+              // revision 受检保存后重新捕获（noteDraft 已是保存后的文本）。
+              aiSelectionTask = AiSelectionTask.capture(
+                page = selectedPage,
+                context = noteDraft,
+                start = selection.start,
+                end = selection.end,
+              )
+            } catch (_: IllegalArgumentException) {
+              noteStatus = context.getString(R.string.review_invalid_input)
+            }
+          }
+        },
+        actionCommand(
+          "make_flashcard",
+          R.string.reader_menu_make_flashcard,
+          enabled = activeProject != null && noteWritable && !menuBusy &&
+            (noteSelection?.let { it.start != it.end } == true || markdownEditor != null),
+          disabledReason = commandReason(requireProject = true, requireWritable = true) ?:
+            context.getString(R.string.reader_menu_selection_required),
+        ) {
+          val selection = noteSelection
+          val selectedPage = pageIndex + 1
+          scope.launch {
+            if (hasUnsavedChanges && !saveCurrentNote()) return@launch
+            try {
+              // revision 受检保存后重新捕获（noteDraft 已是保存后的文本）。
+              val draft = if (selection != null && selection.start != selection.end) {
+                FlashcardCapture.fromSelection(selectedPage, noteDraft, selection.start, selection.end)
+              } else {
+                // 无选区：光标所在段落整体制卡。
+                val cursor = markdownEditor?.markdownSelectionStart() ?: -1
+                FlashcardCapture.fromParagraph(selectedPage, noteDraft, cursor)
+              }
+              flashcards.requestCreate(draft)
+            } catch (_: IllegalArgumentException) {
+              noteStatus = context.getString(R.string.flashcard_no_paragraph)
+            }
+          }
+        },
+        actionCommand(
+          "flashcard_review",
+          R.string.reader_menu_flashcard_review,
+          enabled = activeProject != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          val activeProject = project ?: return@actionCommand
+          scope.launch { flashcards.startReview(activeProject.manifest.id) }
+        },
+        actionCommand(
+          "flashcards",
+          R.string.reader_menu_flashcards,
+          enabled = activeProject != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          val activeProject = project ?: return@actionCommand
+          scope.launch { flashcards.openLibrary(activeProject.manifest.id) }
+        },
+        actionCommand(
           "save_return",
           R.string.reader_menu_save_return,
-          R.string.reader_menu_save_return_desktop_session,
-        ),
+          // 保存并返回：需要当前项目的本地 Office 编辑会话且有未保存修改。
+          enabled = officeSourceFormat() != null &&
+            LocalOfficePdfEngineRegistry.engine != null &&
+            officeSessionForCurrentProject()?.dirty == true && !menuBusy,
+          disabledReason = commandReason(requireProject = true) ?: when {
+            officeSourceFormat() == null -> context.getString(R.string.reader_menu_office_source_required)
+            officeSessionForCurrentProject()?.dirty != true ->
+              context.getString(R.string.reader_menu_save_return_no_session)
+            else -> context.getString(R.string.reader_menu_save_return_no_changes)
+          },
+        ) { officeActions.runOfficeSaveReturn() },
       ),
     ),
     menuSection(
@@ -4493,6 +6137,31 @@ private fun ReaderHome(
         actionCommand("settings_action", R.string.settings_action, true) { showSettings = true },
         actionCommand("model_settings", R.string.agent_model_settings_action, true) {
           showAgentModelSettings = true
+        },
+        // 批次 12：悬浮窗（差距清单 #24）——未授权先引导系统设置页，已授权
+        // 启动/停止悬浮窗服务（悬浮球 + 悬浮笔记/剪贴板/常用语/计时器面板）。
+        actionCommand(
+          "floating_windows",
+          R.string.reader_menu_floating_windows,
+          enabled = activeProject != null && !menuBusy,
+          disabledReason = commandReason(requireProject = true),
+        ) {
+          when {
+            floatingWindowLauncher.isActive() -> floatingWindowLauncher.stop()
+            floatingWindowLauncher.isOverlayPermissionGranted() -> {
+              project?.let { activeProject ->
+                floatingWindowLauncher.launch(
+                  currentPage = pageIndex + 1,
+                  noteDraft = noteDraft,
+                  projectKey = "${activeProject.sourceDirectoryUri}:${activeProject.manifest.id}",
+                  noteRevision = noteBaseRevision,
+                )
+              }
+            }
+            else -> floatingWindowPermissionLauncher.launch(
+              floatingWindowLauncher.permissionSettingsIntent(),
+            )
+          }
         },
       ),
     ),
@@ -4511,6 +6180,7 @@ private fun ReaderHome(
       ),
     ),
   )
+  val menuSections = buildMenuSections()
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
     AndroidView(
@@ -4528,6 +6198,25 @@ private fun ReaderHome(
     LaunchedEffect(menuLayout) {
       if (menuLayout != ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = false
     }
+    if (showBookshelf) {
+      BookshelfScreen(
+        preferences = bookshelf.preferences, books = bookshelf.books, scanning = bookshelf.scanning,
+        error = errorMessage ?: bookshelf.error, warnings = bookshelf.warnings, busy = !canOpenProject,
+        onBind = { errorMessage = null; bookshelf.chooseDirectory() },
+        onRefresh = { errorMessage = null; bookshelf.refresh() },
+        onPresentation = bookshelf::presentation,
+        onNew = { newProjectDir = libraryTree; showNewProject = true },
+        onImport = { chooseNewProjectDocument(openAfterSelection = true) },
+        onExternal = { projectPicker.launch(null) },
+        onRain = { showRainClassroom = true },
+        onSettings = { showSettings = true },
+        onOpen = { book -> readerSession.launchSessionTask {
+          if (hasUnsavedChanges && !saveCurrentNote()) return@launchSessionTask
+          openProjectTree(book.target)
+        } },
+        repository = bookshelf.repository,
+      )
+    } else {
     ReaderAdaptiveMenu(
       layout = menuLayout,
       groups = menuSections,
@@ -4535,6 +6224,18 @@ private fun ReaderHome(
       onExpandedChange = { menuSidebarExpanded = it },
       drawerOpen = menuDrawerOpen,
       onDrawerOpenChange = { menuDrawerOpen = it },
+      collapseToTrigger = activeRenderer != null,
+      preview = isLayoutPreview,
+      onPreviewHand = {
+        previewHandMode = true
+        pdfTextSelectionMode = false
+        readerOcrState = ReaderOcrState()
+        selectedPenIndex = null
+        selectedAnnotationIndex = null
+        selectAnnotationDrawTool(null)
+      },
+      onPreviewTool = { previewHandMode = false },
+      onPreviewEdit = { noteEditRequest++ },
     ) {
       Column(modifier = Modifier.fillMaxSize()) {
       Row(
@@ -4542,8 +6243,12 @@ private fun ReaderHome(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) {
-          ReaderMenuTrigger(onClick = { menuDrawerOpen = true })
+        if (!isLayoutPreview) ShelfIcon(Icons.Default.Home, stringResource(R.string.bookshelf_return), "reader_bookshelf", canOpenProject) { returnToBookshelf() }
+        if (!isLayoutPreview && (menuLayout == ReaderMenuLayout.COMPACT_DRAWER || (!menuSidebarExpanded && activeRenderer != null))) {
+          ReaderMenuTrigger(onClick = {
+            if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = true
+            else menuSidebarExpanded = true
+          })
         }
         Text(
           text = activeProject?.name ?: "pagenote",
@@ -4575,7 +6280,6 @@ private fun ReaderHome(
               modifier = Modifier.testTag("reader_page_status"),
               enabled = canChangePage && totalPages > 0,
               onClick = {
-                pageJumpInput = (pageIndex + 1).toString()
                 showPageJumpDialog = true
               },
             ) {
@@ -4659,6 +6363,40 @@ private fun ReaderHome(
           )
         }
       }
+      if (inkOcrState.mode != ReaderOcrMode.IDLE) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          InkSelectionActions(
+            state = inkOcrState,
+            hint = stringResource(R.string.ink_ocr_selection_hint),
+            recognizeLabel = stringResource(R.string.reader_menu_ink_ocr),
+            recognizeTag = "ink_ocr_recognize",
+            enabled = !isMarkdownReading && !isOcrRunning && !isRendering && penWritable,
+            onStateChange = { inkOcrState = it },
+            onRecognize = ::recognizeInkSelection,
+          )
+        }
+      }
+      if (formulaOcrState.mode != ReaderOcrMode.IDLE) {
+        Row(
+          modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          InkSelectionActions(
+            state = formulaOcrState,
+            hint = stringResource(R.string.formula_ocr_selection_hint),
+            recognizeLabel = stringResource(R.string.reader_menu_formula_ocr),
+            recognizeTag = "formula_ocr_recognize",
+            enabled = !isMarkdownReading && !isOcrRunning && !isRendering,
+            onStateChange = { formulaOcrState = it },
+            onRecognize = ::recognizeFormulaSelection,
+          )
+        }
+      }
       penStatus?.let { status ->
         Row(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
@@ -4685,8 +6423,28 @@ private fun ReaderHome(
     }
 
     if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
+      Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+      if (activeRenderer != null) {
+        ReaderPenRail(
+          tool = penTool,
+          drawTool = annotationDrawTool,
+          style = penStyle,
+          enabled = canUsePen,
+          selectionEnabled = canSelectPen,
+          onTool = { nextTool ->
+            selectedPenIndex = null
+            selectedAnnotationIndex = null
+            selectAnnotationDrawTool(null)
+            penTool = nextTool
+          },
+          onShape = ::selectAnnotationDrawTool,
+          onColor = { applyPenStyle(color = it) },
+          onWidth = { applyPenStyle(width = it) },
+          onCustomColor = { showPenColorPicker = true },
+        )
+      }
       BoxWithConstraints(
-        modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 8.dp, vertical = 4.dp),
       ) {
         if (maxWidth >= 840.dp) {
           val (pdfPaneWeight, notePaneWeight) = readerPaneWeights(
@@ -4725,7 +6483,7 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
+                inputEnabled = (!isLayoutPreview || !previewHandMode) && (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onShapeRecognized = ::applyRecognizedShape,
@@ -4736,7 +6494,7 @@ private fun ReaderHome(
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
-                selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+                selectionEnabled = anyOcrSelecting,
                 textSelectionEnabled = pdfTextSelectionMode,
                 pageText = selectablePageText,
                 textSelection = pdfTextSelection,
@@ -4748,8 +6506,13 @@ private fun ReaderHome(
                   penTool != PenCanvasTool.SELECT && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onPageSwipe = ::changePageFromSwipe,
-                selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
-                onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+                selection = activeOcrSelectionOverlay(),
+                onSelectionChanged = ::routeOcrSelection,
+                focusRect = search.focusRect.takeIf { search.focusPage == pageIndex },
+                audioCapsules = audioCapsulesOnPage,
+                activeAudioCapsuleId = audioController.playingCapsuleId,
+                audioCapsuleTapEnabled = audioCapsuleTapEnabled,
+                onAudioCapsuleTap = ::handleAudioCapsuleTap,
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -4792,7 +6555,7 @@ private fun ReaderHome(
               editRequest = noteEditRequest,
               markdown = noteDraft,
               dirty = hasUnsavedChanges,
-              writable = noteWritable,
+              writable = noteWritable && !isRainApplyingPage,
               saving = isSaving || isExportingNotes,
               status = noteStatus,
               onMarkdownChange = readerSession::setNoteDraft,
@@ -4862,7 +6625,7 @@ private fun ReaderHome(
                 loading = isRendering,
                 strokes = penStrokes,
                 tool = penTool,
-                inputEnabled = (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
+                inputEnabled = (!isLayoutPreview || !previewHandMode) && (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onStrokeAdded = ::applyPenStroke,
                 onShapeRecognized = ::applyRecognizedShape,
@@ -4873,7 +6636,7 @@ private fun ReaderHome(
                 transform = viewportTransform,
                 onTransformChanged = ::updateViewportTransform,
                 onBoundsChanged = { viewportBounds = it },
-                selectionEnabled = readerOcrState.mode == ReaderOcrMode.SELECTING,
+                selectionEnabled = anyOcrSelecting,
                 textSelectionEnabled = pdfTextSelectionMode,
                 pageText = selectablePageText,
                 textSelection = pdfTextSelection,
@@ -4885,8 +6648,13 @@ private fun ReaderHome(
                   penTool != PenCanvasTool.SELECT && !annotateMode &&
                   annotationDrawTool == null && !isAnnotationSaving,
                 onPageSwipe = ::changePageFromSwipe,
-                selection = if (readerOcrState.pageIndex == pageIndex) readerOcrState.selection else null,
-                onSelectionChanged = { readerOcrState = readerOcrState.withSelection(it) },
+                selection = activeOcrSelectionOverlay(),
+                onSelectionChanged = ::routeOcrSelection,
+                focusRect = search.focusRect.takeIf { search.focusPage == pageIndex },
+                audioCapsules = audioCapsulesOnPage,
+                activeAudioCapsuleId = audioController.playingCapsuleId,
+                audioCapsuleTapEnabled = audioCapsuleTapEnabled,
+                onAudioCapsuleTap = ::handleAudioCapsuleTap,
                 annotateTapEnabled = annotateMode,
                 onAnnotateTap = { tap ->
                   val point = mapPdfTapToAnnotationPoint(tap, viewportBounds, viewportTransform)
@@ -4913,7 +6681,7 @@ private fun ReaderHome(
               editRequest = noteEditRequest,
               markdown = noteDraft,
               dirty = hasUnsavedChanges,
-              writable = noteWritable,
+              writable = noteWritable && !isRainApplyingPage,
               saving = isSaving || isExportingNotes,
               status = noteStatus,
               onMarkdownChange = readerSession::setNoteDraft,
@@ -4954,6 +6722,7 @@ private fun ReaderHome(
           }
         }
       }
+      }
     } else {
       Box(
         modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -4988,15 +6757,75 @@ private fun ReaderHome(
   }
     }
   }
+  }
 
+  if (search.show && activeProject != null) {
+    SearchDialog(
+      query = search.query,
+      results = search.results,
+      isSearching = search.searching,
+      error = search.error,
+      onQueryChange = { search.query = it },
+      onSearch = {
+        val activeProject = project ?: return@SearchDialog
+        readerSession.launchSessionTask { search.search(activeProject.manifest.id) }
+      },
+      onJump = { hit ->
+        readerSession.launchSessionTask {
+          search.jump(hit, totalPages, viewportTransform.scale) { target -> changePage(target) }
+        }
+      },
+      onDismiss = { search.show = false },
+    )
+  }
+  val flashcardCreateDraft = flashcards.createDraft
+  if (flashcards.showCreate && flashcardCreateDraft != null && activeProject != null) {
+    FlashcardCreateDialog(
+      draft = flashcardCreateDraft,
+      busy = flashcards.busy,
+      error = flashcards.createError,
+      onCreate = { back, tags -> flashcards.createCard(activeProject.manifest.id, back, tags) },
+      onDismiss = { flashcards.dismissCreate() },
+    )
+  }
+  if (flashcards.showReview && activeProject != null) {
+    FlashcardReviewDialog(
+      cards = flashcards.dueCards,
+      index = flashcards.reviewIndex,
+      revealed = flashcards.revealed,
+      reviewedInSession = flashcards.reviewedInSession,
+      busy = flashcards.busy,
+      error = flashcards.reviewError,
+      onReveal = { flashcards.reveal() },
+      onGrade = { outcome ->
+        scope.launch { flashcards.grade(activeProject.manifest.id, outcome) }
+      },
+      onDismiss = { flashcards.dismissReview() },
+    )
+  }
+  if (flashcards.showLibrary && activeProject != null) {
+    FlashcardLibraryDialog(
+      cards = flashcards.libraryCards,
+      stats = flashcards.stats,
+      achievements = flashcards.stats?.let(ReviewStats::achievements) ?: emptyList(),
+      busy = flashcards.busy,
+      error = flashcards.reviewError,
+      onLocate = { card -> scope.launch { locateFlashcard(card) } },
+      onDelete = { card ->
+        scope.launch { flashcards.deleteCard(activeProject.manifest.id, card) }
+      },
+      onDismiss = { flashcards.dismissLibrary() },
+    )
+  }
   if (showPageJumpDialog && activeProject != null && totalPages > 0) {
-    PageJumpDialog(
-      input = pageJumpInput,
+    PagePreviewDrawer(
+      renderer = activeRenderer,
+      markdown = activeMarkdown,
       totalPages = totalPages,
+      currentPage = pageIndex,
       isRunning = isPageJumpRunning,
-      onInputChange = { pageJumpInput = it },
       onDismiss = { showPageJumpDialog = false },
-      onConfirm = { targetPage ->
+      onSelect = { targetPage ->
         if (!isPageJumpRunning) {
           isPageJumpRunning = true
           readerSession.launchSessionTask {
@@ -5011,37 +6840,13 @@ private fun ReaderHome(
     )
   }
   if (showHeadingLevelDialog) {
-    AlertDialog(
-      onDismissRequest = { showHeadingLevelDialog = false },
-      title = { Text(stringResource(R.string.reader_menu_heading)) },
-      text = {
-        Column {
-          listOf(
-            MarkdownParagraphPrefix.HEADING_1 to R.string.reader_menu_heading_level_1,
-            MarkdownParagraphPrefix.HEADING_2 to R.string.reader_menu_heading_level_2,
-            MarkdownParagraphPrefix.HEADING_3 to R.string.reader_menu_heading_level_3,
-          ).forEachIndexed { index, (prefix, labelRes) ->
-            TextButton(
-              modifier = Modifier.fillMaxWidth().testTag("reader_heading_level_${index + 1}"),
-              enabled = canFormatMarkdown,
-              onClick = {
-                showHeadingLevelDialog = false
-                applyMarkdownParagraphFormatting(prefix)
-              },
-            ) {
-              Text(stringResource(labelRes))
-            }
-          }
-        }
+    ReaderHeadingLevelDialog(
+      enabled = canFormatMarkdown,
+      onSelect = { prefix ->
+        showHeadingLevelDialog = false
+        applyMarkdownParagraphFormatting(prefix)
       },
-      confirmButton = {
-        TextButton(
-          modifier = Modifier.testTag("reader_heading_cancel"),
-          onClick = { showHeadingLevelDialog = false },
-        ) {
-          Text(stringResource(R.string.cancel))
-        }
-      },
+      onDismiss = { showHeadingLevelDialog = false },
     )
   }
   if (showOcrResult) {
@@ -5095,9 +6900,46 @@ private fun ReaderHome(
       )
     }
   }
+  if (inkOcrState.mode == ReaderOcrMode.RESULT) {
+    val pending = inkOcrPending
+    val result = pending?.ocrResult
+    if (pending == null || result == null) {
+      inkOcrState = ReaderOcrState()
+    } else {
+      InkOcrTranscribeDialog(
+        page = pending.pageIndex + 1,
+        result = result,
+        onConfirm = ::confirmInkOcrConvert,
+        onDismiss = {
+          inkOcrPending = null
+          inkOcrState = ReaderOcrState()
+        },
+      )
+    }
+  }
+  if (formulaOcrState.mode == ReaderOcrMode.RESULT) {
+    val pending = formulaOcrPending
+    val result = pending?.latexResult
+    if (pending == null || result == null) {
+      formulaOcrState = ReaderOcrState()
+    } else {
+      FormulaOcrDialog(
+        result = result,
+        onInsertNote = ::insertFormulaToNote,
+        onInsertCanvas = ::insertFormulaToCanvas,
+        canInsertCanvas = penWritable,
+        onDismiss = {
+          formulaOcrPending = null
+          formulaOcrState = ReaderOcrState()
+        },
+      )
+    }
+  }
   if (showSettings) {
     ReaderSettingsDialog(
       settings = settings,
+      libraryDirectory = bookshelf.preferences?.name?.takeIf { libraryTree != null },
+      onChangeLibrary = { errorMessage = null; bookshelf.chooseDirectory() },
       onDismiss = { showSettings = false },
       onConfigureAgent = {
         showSettings = false
@@ -5108,8 +6950,16 @@ private fun ReaderHome(
         showAgentPromptSettings = true
       },
       onSave = settingsStore::save,
+      onRebuildIndex = { rebuildSearchIndex() },
+      quotaUsageMb = audioController.quotaUsageBytes / (1024L * 1024L),
     )
   }
+  // 音频胶囊转写列表 + 录音模态（移植批次 8；宿主在 AudioWiring）。
+  AudioSessionDialogs(
+    controller = audioController,
+    hasProject = activeProject != null,
+    onJumpToPage = { targetPage -> readerSession.launchSessionTask { changePage(targetPage) } },
+  )
   if (showNoteFontSizeDialog) {
     NoteFontSizeDialog(
       currentSize = settings.noteFontSize,
@@ -5163,6 +7013,7 @@ private fun ReaderHome(
   if (showAgentModelSettings) {
     AgentModelSettingsDialog(
       store = modelSettingsStore,
+      translationStore = translationProviderStore,
       onDismiss = { showAgentModelSettings = false },
     )
   }
@@ -5204,6 +7055,42 @@ private fun ReaderHome(
       onDismiss = { showProjectAttachments = false },
     )
   }
+  if (showRainClassroom && pendingRainProject == null) {
+    RainClassroomDialog(
+      client = rainClassroomClient,
+      canCaptureLive = project?.sourceExtension == "pdf" && noteWritable && canReadDocument,
+      busy = isRainCapturing || isRainImporting || isOpening || isSaving || isPenSaving || failedPenSave != null,
+      waitingForFirstPage = rainWaitingProjectName,
+      onImport = { course, lesson -> beginRainProject(course, lesson, RainProjectMode.IMPORT) },
+      onStartLive = { course, lesson -> scope.launch { startRainCapture(course, lesson) } },
+      onCreateLiveProject = { course, lesson, consent -> beginRainProject(course, lesson, RainProjectMode.LIVE, consent) },
+      onRetryLive = {
+        scope.launch {
+          runCatching { withContext(Dispatchers.IO) { rainClassroomClient.retryLive() } }
+            .onFailure { errorMessage = context.getString(R.string.rain_live_failed, it.message.orEmpty()) }
+        }
+      },
+      onStopLive = { rainClassroomClient.stopLive() },
+      onDismiss = {
+        rainClassroomClient.cancelLogin()
+        showRainClassroom = false
+      },
+    )
+  }
+  pendingRainProject?.let { request ->
+    RainProjectDialog(
+      mode = request.mode, name = rainProjectName,
+      folder = if (rainProjectDirectory == libraryTree && libraryTree != null) bookshelf.preferences?.name
+        else rainProjectDirectory?.let { DocumentsContract.getTreeDocumentId(it) },
+      folderLocked = libraryTree != null,
+      consent = rainProjectConsent, busy = isRainImporting || isRainCapturing, error = rainProjectError,
+      onNameChange = { rainProjectName = it },
+      onChooseFolder = { rainProjectParentPicker.launch(rainProjectDirectory) },
+      onConsentChange = { rainProjectConsent = it },
+      onConfirm = ::confirmRainProject,
+      onDismiss = { pendingRainProject = null; showRainClassroom = true },
+    )
+  }
   helpTopic?.let { topic ->
     ReaderHelpDialog(
       topic = topic,
@@ -5219,6 +7106,7 @@ private fun ReaderHome(
       name = newProjectName,
       onNameChange = { newProjectName = it },
       hasDir = newProjectDir != null,
+      directoryLabel = bookshelf.preferences?.name?.takeIf { libraryTree != null },
       sourceDisplayName = newProjectDocumentName,
       error = newProjectError,
       creating = isCreatingProject,
@@ -5263,8 +7151,11 @@ private fun ReaderHome(
                 point.first, point.second, penStyle.color, penStyle.width, annotateText,
               )
             } else {
+              // Text tool default font/size schema (port batch 4): explicit
+              // default font, width-derived size and left alignment.
               AnnotationTextDraft.toItem(
                 point.first, point.second, penStyle.color, penStyle.width, annotateText,
+                style = AnnotationTextStyle.forNewItem(penStyle.color, penStyle.width),
               )
             }
             penSaveMutex.withLock {
@@ -5297,6 +7188,21 @@ private fun ReaderHome(
         annotateDraft = null
         annotateText = ""
         annotateIsRegion = false
+      },
+    )
+  }
+  if (showRichHtmlEditor && project != null) {
+    RichHtmlAnnotationEditorDialog(
+      controller = richHtmlEditorController,
+      initialHtml = richHtmlEditorTarget
+        ?.second?.get("html")
+        ?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        ?: "",
+      editable = penWritable,
+      onConfirm = ::confirmRichHtmlAnnotation,
+      onDismiss = {
+        showRichHtmlEditor = false
+        richHtmlEditorTarget = null
       },
     )
   }
@@ -5376,6 +7282,44 @@ private fun ReaderHome(
       onChanged = { noteStatus = it },
     )
   }
+  // 批次 10：选区 AI 动作（语气/翻译/总结）——执行与插回都经由 ReaderHome 的回调。
+  aiSelectionTask?.let { task ->
+    AiSelectionActionDialog(
+      task = task,
+      run = { action, capturedTask ->
+        val outcome = runAiSelectionAction(action, capturedTask)
+        if (outcome is AiSelectionRunResult.Success) {
+          aiSelectionReviewId = outcome.reviewId
+        } else if (outcome == AiSelectionRunResult.MissingConfig) {
+          showAgentModelSettings = true
+        }
+        outcome
+      },
+      insert = { action, capturedTask, result, reviewId ->
+        insertAiSelectionResult(action, capturedTask, result, reviewId)
+      },
+      onDismiss = {
+        aiSelectionTask = null
+        aiSelectionReviewId = null
+      },
+    )
+  }
+  // 批次 10：系统截屏面板——OCR 复用 feature-ocr 离线引擎，取色为纯策略。
+  screenshotFrame?.let { frame ->
+    ScreenshotPanelDialog(
+      frame = frame,
+      runOcr = { bitmap ->
+        val engine = ensureOcrEngine()
+        engine.recognize(bitmap)
+      },
+      onInsertText = { text -> insertTextIntoNote(text) },
+      onDismiss = {
+        if (!frame.bitmap.isRecycled) frame.bitmap.recycle()
+        screenshotFrame = null
+        ScreenCaptureService.reset()
+      },
+    )
+  }
   if (showHandoff && project != null && (renderer != null || markdownSource != null)) {
     HandoffDialog(
       page = pageIndex + 1,
@@ -5387,81 +7331,100 @@ private fun ReaderHome(
     )
   }
   if (showNoteImportConfirmation && pendingNoteImportBackup != null) {
-    AlertDialog(
-      onDismissRequest = {
+    val summary = pendingNoteImportBackup?.preview
+    NoteMergeStrategyDialog(
+      summary = summary,
+      ordering = noteMergeOrdering,
+      conflict = noteMergeConflict,
+      markdownProject = renderer == null && markdownSource != null,
+      onOrderingChange = { noteMergeOrdering = it },
+      onConflictChange = { noteMergeConflict = it },
+      onConfirm = { scope.launch { applyPendingNoteImport() } },
+      onDismiss = {
         showNoteImportConfirmation = false
         isImportingNotes = false
         pendingNoteImportContext = null
         pendingNoteImportBackup = null
       },
-      title = { Text(stringResource(R.string.reader_menu_import_title)) },
-      text = { Text(stringResource(R.string.reader_menu_import_confirm_message)) },
-      confirmButton = {
-        TextButton(onClick = { scope.launch { applyPendingNoteImport() } }) {
-          Text(stringResource(R.string.reader_menu_import_confirm))
-        }
-      },
-      dismissButton = {
-        TextButton(
-          onClick = {
-            showNoteImportConfirmation = false
-            isImportingNotes = false
-            pendingNoteImportContext = null
-            pendingNoteImportBackup = null
-          },
-        ) {
-          Text(stringResource(R.string.cancel))
-        }
-      },
     )
   }
   if (showNoteExportDialog && project != null) {
-    AlertDialog(
-      onDismissRequest = { showNoteExportDialog = false },
-      title = { Text(stringResource(R.string.reader_menu_export_title)) },
-      text = {
-        Column {
-          TextButton(
-            onClick = { scope.launch { prepareNoteExport(fullBackup = true) } },
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Text(stringResource(R.string.reader_menu_export_json))
+    ReaderNoteExportDialog(
+      onExportJson = { scope.launch { prepareNoteExport(fullBackup = true) } },
+      onExportCurrentPage = { scope.launch { prepareNoteExport(fullBackup = false) } },
+      onDismiss = { showNoteExportDialog = false },
+    )
+  }
+  if (showPdfMergeExportDialog && renderer != null) {
+    PdfMergeExportDialog(
+      rangeInput = pdfMergeRangeInput,
+      includeNotes = pdfMergeIncludeNotes,
+      busy = isExportingMergedPdf,
+      onRangeChange = { pdfMergeRangeInput = it },
+      onIncludeNotesChange = { pdfMergeIncludeNotes = it },
+      onConfirm = { showPdfMergeExportDialog = false; pdfMergeActions.prepare(pdfMergeRangeInput) },
+      onDismiss = { showPdfMergeExportDialog = false },
+    )
+  }
+  notePassphraseGate?.let { gate ->
+    NotePassphraseVerifyDialog(
+      projectName = gate.projectName,
+      error = notePassphraseGateError,
+      isVerifying = isVerifyingNotePassphrase,
+      onVerify = { attempt ->
+        isVerifyingNotePassphrase = true
+        notePassphraseGateError = null
+        readerSession.launchSessionTask {
+          val ok = try {
+            withContext(Dispatchers.Default) { notePassphraseHasher.verify(attempt, gate.hash) }
+          } catch (error: Exception) {
+            false
           }
-          TextButton(
-            onClick = { scope.launch { prepareNoteExport(fullBackup = false) } },
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Text(stringResource(R.string.reader_menu_export_current_page))
+          isVerifyingNotePassphrase = false
+          if (ok) {
+            notePassphraseGate = null
+            notePassphraseGateError = null
+            // Ownership of `attempt` transfers to the session unlock state.
+            openProjectTree(gate.target, verifiedPassphrase = attempt)
+          } else {
+            attempt.fill('\u0000')
+            notePassphraseGateError = context.getString(R.string.note_passphrase_wrong)
           }
         }
       },
-      confirmButton = {
-        TextButton(onClick = { showNoteExportDialog = false }) {
-          Text(stringResource(R.string.cancel))
-        }
+      onCancel = {
+        notePassphraseGate = null
+        notePassphraseGateError = null
       },
     )
   }
+  if (showProjectNoteSettings && project != null) {
+    ProjectNoteSettingsDialog(
+      settings = projectNoteSettings,
+      defaultBackground = NoteBackground.fromKey(settings.noteBackground) ?: NoteBackground.PLAIN,
+      hasher = notePassphraseHasher,
+      onSave = { updated ->
+        val activeProject = project ?: return@ProjectNoteSettingsDialog
+        val store = ProjectNoteSettingsStore(
+          context.contentResolver,
+          activeProject.sourceDirectoryUri,
+          activeProject.noteSettingsUri,
+        )
+        withContext(Dispatchers.IO) { store.write(updated) }
+        projectNoteSettings = updated
+        if (!updated.hasPassphrase) {
+          notePassphraseUnlock?.let { it.fill('\u0000') }
+          notePassphraseUnlock = null
+        }
+      },
+      onDismiss = { showProjectNoteSettings = false },
+    )
+  }
   if (showPendingNoteExportRecoveryDialog && isPendingNoteExportRecovered) {
-    AlertDialog(
-      onDismissRequest = { showPendingNoteExportRecoveryDialog = false },
-      title = { Text(stringResource(R.string.reader_menu_export_recovery_title)) },
-      text = { Text(stringResource(R.string.reader_menu_export_recovery_message)) },
-      confirmButton = {
-        TextButton(onClick = { scope.launch { resumePendingNoteExport() } }) {
-          Text(stringResource(R.string.reader_menu_export_recovery_retry))
-        }
-      },
-      dismissButton = {
-        Row {
-          TextButton(onClick = { scope.launch { discardPendingNoteExport() } }) {
-            Text(stringResource(R.string.reader_menu_export_recovery_discard))
-          }
-          TextButton(onClick = { showPendingNoteExportRecoveryDialog = false }) {
-            Text(stringResource(R.string.cancel))
-          }
-        }
-      },
+    ReaderPendingNoteExportRecoveryDialog(
+      onResume = { scope.launch { resumePendingNoteExport() } },
+      onDiscard = { scope.launch { discardPendingNoteExport() } },
+      onDismiss = { showPendingNoteExportRecoveryDialog = false },
     )
   }
   if (showNoteHistory && project != null) {
@@ -5494,6 +7457,7 @@ internal fun NewProjectDialog(
   onClearSource: () -> Unit,
   onConfirm: () -> Unit,
   onDismiss: () -> Unit,
+  directoryLabel: String? = null,
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -5507,7 +7471,10 @@ internal fun NewProjectDialog(
           label = { Text(stringResource(R.string.new_project_name)) },
           singleLine = true,
         )
-        TextButton(
+        if (directoryLabel != null) Text(
+          stringResource(R.string.bookshelf_folder) + ": " + directoryLabel,
+          maxLines = 2, overflow = TextOverflow.Ellipsis,
+        ) else TextButton(
           modifier = Modifier.testTag("new_project_choose_dir"),
           onClick = onChooseDir,
           enabled = !creating,
@@ -5647,6 +7614,64 @@ internal fun AnnotationTextInputDialog(
   )
 }
 
+/** 形状对话框展示顺序：线族 → 面族（含多边形/坐标轴）→ 椭圆族（移植批次 2，ShapeCatalog D5）。 */
+private val annotationShapeDialogTools: List<PdfAnnotationDrawTool> = listOf(
+  PdfAnnotationDrawTool.LINE,
+  PdfAnnotationDrawTool.DASHED_LINE,
+  PdfAnnotationDrawTool.ARROW,
+  PdfAnnotationDrawTool.DOUBLE_ARROW,
+  PdfAnnotationDrawTool.AXIS_QUADRANT_1,
+  PdfAnnotationDrawTool.AXIS_QUADRANTS,
+  PdfAnnotationDrawTool.WAVE,
+  PdfAnnotationDrawTool.ZIGZAG,
+  PdfAnnotationDrawTool.RECTANGLE,
+  PdfAnnotationDrawTool.SQUARE,
+  PdfAnnotationDrawTool.ROUNDED_RECTANGLE,
+  PdfAnnotationDrawTool.DASHED_RECTANGLE,
+  PdfAnnotationDrawTool.TRIANGLE,
+  PdfAnnotationDrawTool.RIGHT_TRIANGLE,
+  PdfAnnotationDrawTool.DIAMOND,
+  PdfAnnotationDrawTool.PENTAGON,
+  PdfAnnotationDrawTool.HEXAGON,
+  PdfAnnotationDrawTool.STAR_5,
+  PdfAnnotationDrawTool.STAR_4,
+  PdfAnnotationDrawTool.PARALLELOGRAM,
+  PdfAnnotationDrawTool.TRAPEZOID,
+  PdfAnnotationDrawTool.CROSS,
+  PdfAnnotationDrawTool.ELLIPSE,
+  PdfAnnotationDrawTool.CIRCLE,
+)
+
+@Composable
+private fun annotationShapeToolLabel(tool: PdfAnnotationDrawTool): String = stringResource(
+  when (tool) {
+    PdfAnnotationDrawTool.LINE -> R.string.annotation_shape_line
+    PdfAnnotationDrawTool.DASHED_LINE -> R.string.annotation_shape_dashed_line
+    PdfAnnotationDrawTool.ARROW -> R.string.annotation_shape_arrow
+    PdfAnnotationDrawTool.DOUBLE_ARROW -> R.string.annotation_shape_double_arrow
+    PdfAnnotationDrawTool.AXIS_QUADRANT_1 -> R.string.annotation_shape_axis_quadrant_1
+    PdfAnnotationDrawTool.AXIS_QUADRANTS -> R.string.annotation_shape_axis_quadrants
+    PdfAnnotationDrawTool.WAVE -> R.string.annotation_shape_wave
+    PdfAnnotationDrawTool.ZIGZAG -> R.string.annotation_shape_zigzag
+    PdfAnnotationDrawTool.RECTANGLE -> R.string.annotation_shape_rectangle
+    PdfAnnotationDrawTool.SQUARE -> R.string.annotation_shape_square
+    PdfAnnotationDrawTool.ROUNDED_RECTANGLE -> R.string.annotation_shape_rounded_rect
+    PdfAnnotationDrawTool.DASHED_RECTANGLE -> R.string.annotation_shape_dashed_rect
+    PdfAnnotationDrawTool.TRIANGLE -> R.string.annotation_shape_triangle
+    PdfAnnotationDrawTool.RIGHT_TRIANGLE -> R.string.annotation_shape_right_triangle
+    PdfAnnotationDrawTool.DIAMOND -> R.string.annotation_shape_diamond
+    PdfAnnotationDrawTool.PENTAGON -> R.string.annotation_shape_pentagon
+    PdfAnnotationDrawTool.HEXAGON -> R.string.annotation_shape_hexagon
+    PdfAnnotationDrawTool.STAR_5 -> R.string.annotation_shape_star_5
+    PdfAnnotationDrawTool.STAR_4 -> R.string.annotation_shape_star_4
+    PdfAnnotationDrawTool.PARALLELOGRAM -> R.string.annotation_shape_parallelogram
+    PdfAnnotationDrawTool.TRAPEZOID -> R.string.annotation_shape_trapezoid
+    PdfAnnotationDrawTool.CROSS -> R.string.annotation_shape_cross
+    PdfAnnotationDrawTool.ELLIPSE -> R.string.annotation_shape_ellipse
+    PdfAnnotationDrawTool.CIRCLE -> R.string.annotation_shape_circle
+  },
+)
+
 @Composable
 internal fun AnnotationShapePickerDialog(
   onSelect: (PdfAnnotationDrawTool) -> Unit,
@@ -5656,15 +7681,20 @@ internal fun AnnotationShapePickerDialog(
     onDismissRequest = onDismiss,
     title = { Text(stringResource(R.string.reader_menu_shape)) },
     text = {
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(
-          modifier = Modifier.testTag("annotation_shape_rectangle"),
-          onClick = { onSelect(PdfAnnotationDrawTool.RECTANGLE) },
-        ) { Text(stringResource(R.string.annotation_shape_rectangle)) }
-        TextButton(
-          modifier = Modifier.testTag("annotation_shape_ellipse"),
-          onClick = { onSelect(PdfAnnotationDrawTool.ELLIPSE) },
-        ) { Text(stringResource(R.string.annotation_shape_ellipse)) }
+      Column(
+        modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        annotationShapeDialogTools.chunked(3).forEach { rowTools ->
+          Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            rowTools.forEach { tool ->
+              TextButton(
+                modifier = Modifier.testTag("annotation_shape_${tool.name.lowercase()}"),
+                onClick = { onSelect(tool) },
+              ) { Text(annotationShapeToolLabel(tool)) }
+            }
+          }
+        }
       }
     },
     confirmButton = {},
@@ -6436,6 +8466,11 @@ internal fun PdfPageViewport(
   gesturesEnabled: Boolean = true,
   selection: NormalizedOcrRegion? = null,
   onSelectionChanged: (NormalizedOcrRegion?) -> Unit = {},
+  focusRect: NormalizedOcrRegion? = null,
+  audioCapsules: List<io.pagenote.feature.audio.AudioCapsule> = emptyList(),
+  activeAudioCapsuleId: String? = null,
+  audioCapsuleTapEnabled: Boolean = false,
+  onAudioCapsuleTap: (PdfSelectionPoint) -> Unit = {},
   annotateTapEnabled: Boolean = false,
   onAnnotateTap: (PdfSelectionPoint) -> Unit = {},
   annotationDrawTool: PdfAnnotationDrawTool? = null,
@@ -6451,11 +8486,13 @@ internal fun PdfPageViewport(
   val latestOnTextSelectionChanged by rememberUpdatedState(onTextSelectionChanged)
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
   val latestOnAnnotateTap by rememberUpdatedState(onAnnotateTap)
+  val latestOnAudioCapsuleTap by rememberUpdatedState(onAudioCapsuleTap)
   val latestOnAnnotationDrag by rememberUpdatedState(onAnnotationDrag)
   val latestOnPageSwipe by rememberUpdatedState(onPageSwipe)
   val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
   val latestOnAnnotationSelectionTouch by rememberUpdatedState(onAnnotationSelectionTouch)
   var inkCanvasView by remember { mutableStateOf<PenCanvasView?>(null) }
+  LaunchedEffect(page) { inkCanvasView?.cancelActiveGesture() }
 
   BoxWithConstraints(
     modifier = modifier.clipToBounds().testTag("pdf_page_viewport"),
@@ -6490,7 +8527,7 @@ internal fun PdfPageViewport(
       Box(
         modifier = Modifier.fillMaxSize().pointerInput(
           page, bounds, pageText, textSelectionEnabled, selectionEnabled, gesturesEnabled,
-          annotateTapEnabled, annotationDrawTool, pageSwipesEnabled,
+          annotateTapEnabled, annotationDrawTool, pageSwipesEnabled, audioCapsuleTapEnabled,
         ) {
           awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -6543,6 +8580,16 @@ internal fun PdfPageViewport(
                   change.consume()
                   latestOnAnnotationDrag(start, end, finished)
                 }
+              } while (event.changes.any { it.id == down.id && it.pressed })
+            } else if (audioCapsuleTapEnabled && down.type != PointerType.Mouse) {
+              // 画布音频胶囊点按（移植批次 8）：选中工具下命中胶囊即回调并消费，
+              // 未命中（overlay 不拦截）事件继续走常规路径。
+              val tap = PdfSelectionPoint(down.position.x, down.position.y)
+              latestOnAudioCapsuleTap(tap)
+              down.consume()
+              do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { if (it.pressed) it.consume() }
               } while (event.changes.any { it.id == down.id && it.pressed })
             } else if (annotateTapEnabled && down.type != PointerType.Mouse) {
               val tap = PdfSelectionPoint(down.position.x, down.position.y)
@@ -6699,6 +8746,8 @@ internal fun PdfPageViewport(
           },
         )
         Box(modifier = pageLayerModifier, contentAlignment = Alignment.Center) {
+          AudioCapsuleOverlay(audioCapsules, activeAudioCapsuleId)
+          SearchFocusOverlay(focusRect)
           OcrSelectionOverlay(selection)
           PdfTextSelectionOverlay(pageText, textSelection)
         }
@@ -6743,7 +8792,8 @@ internal fun NotePanel(
   val isDark = android.graphics.Color.luminance(MaterialTheme.colorScheme.background.toArgb()) < 0.5f
   val markdownStyle = markdownPalette ?: markdownClassicContentPalette(MaterialTheme.colorScheme, isDark)
   val contentColorInt = markdownStyle.text.toArgb()
-  var preview by remember { mutableStateOf(false) }
+  val isLayoutPreview = context.packageName.endsWith(".beta.preview")
+  var preview by remember { mutableStateOf(isLayoutPreview) }
   val mermaidCoordinator = remember(context, preview, markdownStyle.isDark) {
     if (preview) MermaidRenderCoordinator(context, markdownStyle.isDark) else null
   }
@@ -6791,7 +8841,11 @@ internal fun NotePanel(
         onHistory = onHistory,
       )
     }
-    TabRow(selectedTabIndex = if (preview) 1 else 0) {
+    if (isLayoutPreview) {
+      TextButton(onClick = { preview = !preview }, modifier = Modifier.testTag("preview_note_edit_toggle")) {
+        Text(stringResource(if (preview) R.string.note_edit else R.string.preview_done))
+      }
+    } else TabRow(selectedTabIndex = if (preview) 1 else 0) {
       Tab(
         selected = !preview,
         onClick = { preview = false },

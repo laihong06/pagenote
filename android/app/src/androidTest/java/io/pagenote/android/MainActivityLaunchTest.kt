@@ -24,45 +24,22 @@ class MainActivityLaunchTest {
   val composeRule = createAndroidComposeRule<MainActivity>()
 
   @Test
-  fun localizedReaderHome_remainsAvailableAfterSettingsLoad() {
+  fun bookshelfHome_remainsAvailableAfterSettingsLoad() {
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
+    composeRule.onNodeWithTag("bookshelf_home").assertIsDisplayed()
   }
 
   @Test
-  fun readerCommandsAreVisibleUnderDesktopMenuGroups() {
+  fun bookshelfHomeExposesProjectActionsAndReaderMenuResources() {
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_group_file").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("reader_menu_group_file").assertIsDisplayed()
-    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsEnabled()
-    composeRule.onNodeWithTag("reader_menu_group_ai_annotations").assertIsDisplayed()
-    composeRule.onNodeWithTag("reader_menu_group_reading").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("reader_menu_group_settings").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithTag("reader_menu_command_page_tutor")
-      .performScrollTo()
-      .assertIsDisplayed()
-      .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_project_required))
-    composeRule.onNodeWithTag("reader_menu_command_office_edit")
-      .performScrollTo()
-      .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_office_desktop_only))
-    composeRule.onNodeWithTag("reader_menu_command_attachments")
-      .performScrollTo()
-      .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_attachments_unavailable))
-    composeRule.onNodeWithTag("reader_menu_command_save_return")
-      .performScrollTo()
-      .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_save_return_desktop_session))
-    composeRule.onNodeWithTag("reader_menu_command_about")
-      .performScrollTo()
-      .assertIsNotEnabled()
-      .assertTextContains(composeRule.activity.getString(R.string.reader_menu_unavailable_reason))
+    composeRule.onNodeWithTag("bookshelf_home").assertIsDisplayed()
+    composeRule.onNodeWithTag("bookshelf_new").assertExists()
+    composeRule.onNodeWithTag("bookshelf_import").assertExists()
+    composeRule.onNodeWithTag("bookshelf_settings").assertExists()
     assertTrue(
       "a disabled menu item must not claim that the target Android 14 OS version is unsupported",
       !composeRule.activity.getString(R.string.reader_menu_unavailable_reason).contains("Android", ignoreCase = true),
@@ -72,17 +49,17 @@ class MainActivityLaunchTest {
     }
     val chineseResources = composeRule.activity.createConfigurationContext(chineseConfiguration).resources
     assertEquals("此命令尚未接入应用。", chineseResources.getString(R.string.reader_menu_unavailable_reason))
-    assertEquals("附件浏览与管理尚未接入。", chineseResources.getString(R.string.reader_menu_attachments_unavailable))
-    assertEquals("复杂 Office 文档编辑请回桌面端处理。", chineseResources.getString(R.string.reader_menu_office_desktop_only))
-    assertEquals("此命令需要可返回的桌面 Office 编辑会话。", chineseResources.getString(R.string.reader_menu_save_return_desktop_session))
+    assertEquals("请先打开项目，再管理项目附件。", chineseResources.getString(R.string.reader_menu_attachments_unavailable))
+    assertEquals("当前项目源不是 Office 文档。", chineseResources.getString(R.string.reader_menu_office_source_required))
+    assertEquals("本地 Office 引擎尚未接入，暂时无法在设备上转换或编辑 Office 文档。", chineseResources.getString(R.string.reader_menu_office_engine_unavailable))
   }
 
   @Test
   fun readerSettingsCanOpenOpenAiModelSettings() {
     composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_settings_action").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("bookshelf_settings").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("reader_menu_command_settings_action").performScrollTo().performClick()
+    composeRule.onNodeWithTag("bookshelf_settings").performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag("configure_agent_model").fetchSemanticsNodes().isNotEmpty()
     }

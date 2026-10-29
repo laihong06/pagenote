@@ -36,8 +36,14 @@ undo/redo, project access, or changes to the `annotations.json` contract.
 - `ACTION_CANCEL` discards the in-progress gesture without a callback.
 - Unsupported tool types are ignored. Platform stylus palm rejection is
   respected, and additional pointer contacts never become ink.
-- Drawing preserves round joins/caps. Pressure scales segment width. Highlights
-  use translucent paint. Eraser hit-testing uses the rendered stroke geometry
+- Drawing preserves round joins/caps. Pressure scales segment width. Each
+  highlighter gesture is one translucent coat (89/255 opacity): first render its
+  pressure-aware segments opaquely into an isolated, viewport-bounded layer,
+  then composite that layer once. Retracing, joins and self-intersections within
+  one gesture must not accumulate opacity. Separate gestures may overlap.
+  Live preview and loaded strokes use the same rendering path; single-point
+  highlights remain translucent. No stored stroke format changes are needed.
+  Eraser hit-testing uses the rendered stroke geometry
   with a configurable view-pixel radius.
 - `PenPageStore` remains the sole owner of page-scoped mutations and undo/redo;
   the caller applies completed-stroke and erase callbacks to that store.
@@ -70,12 +76,23 @@ undo/redo, project access, or changes to the `annotations.json` contract.
   which is Android's event route for these actions. Erasing recognizes both
   the stylus-secondary button and the platform secondary-button mapping used
   for BTN_STYLUS.
+- Pixel-based native canvas regressions cover retracing, pressure-varying
+  intersections, live/reloaded ink, separate strokes, ordinary opaque pen ink,
+  single dots and clipped/zoomed highlights on the Android 14 tablet AVD.
 - Synthetic events verify application logic only. They do not replace
   physical-device checks for pressure fidelity, palm rejection, latency, or
   hardware-specific button reporting.
 
 ## Verification
 
+- Highlighter regression (2026-10-25): the old renderer failed four of five
+  focused pixel tests, accumulating alpha 147/185 instead of 89. Per-gesture
+  composition passes all five checks and the nine existing native canvas tests
+  on `Pixel_Tablet_API34`. These pixel checks use a bitmap-backed Android Canvas;
+  no physical-device latency or GPU performance acceptance is claimed.
+- The 50 `feature-pen` JVM tests pass on a forced rerun. Debug APK and native
+  test APK build successfully offline. The app is installed with `adb install -r`
+  on that AVD, without clearing app data; no physical tablet is connected.
 - JVM tests cover coordinate normalization, aspect-ratio-preserving Y scale,
   pressure fallback/clamping, and geometry hit-testing.
 - Android compilation verifies the native `View`, `Canvas`, and `MotionEvent`
@@ -83,3 +100,39 @@ undo/redo, project access, or changes to the `annotations.json` contract.
 - Physical stylus acceptance is required for latency, pressure fidelity,
   secondary-button reporting, hardware eraser tool type, and device-specific
   palm rejection.
+
+## Rendering Pipeline
+
+- Committed strokes render once into a view-pixel raster (`PenStrokeCache`)
+  that is blitted each frame; the live overlay draws only the active gesture,
+  laser trail, shape preview, and selection. Rebuilds happen only when the
+  view size, page transform, or committed list changes, and skip strokes
+  outside the viewport. The blit is pixel-identical to direct rendering for
+  every supported stroke type, including one-coat-per-gesture highlighter.
+- Freehand ink with three or more points renders through midpoint quadratic
+  smoothing (`PenStrokeSmoother`): samples become control points, the chain
+  starts and ends on real samples, and per-segment width keeps the stored
+  pressure modulation. One-point dots and two-point lines are unchanged.
+  Stored `PenStroke.points` always keep raw samples.
+
+## Live Prediction
+
+- While a pen, ballpoint, or highlighter gesture is active and no shape
+  preview is showing, `PenPredictor` extrapolates a display-only tail from
+  the last nine input samples: turn angle buckets the extrapolation,
+  deceleration and pressure spikes damp it, and refresh rates above 90 Hz
+  lengthen it. The predicted point is mapped through the same
+  `toDocumentPoint` clamping as real input and is never written to storage;
+  the stored stroke always ends at the last real sample.
+- Prediction is display-only and best-effort: it must not change stroke
+  geometry, persistence, erasing, selection, or shape recognition.
+
+## Verification addendum
+
+- Ink pipeline (2026-10-25): the 61 `feature-pen` JVM tests (including the
+  7 `PenPredictorTest` and 4 `PenStrokeSmootherTest` cases) and all 21
+  `feature-pen` instrumentation tests pass on `Pixel_Tablet_API34` — the 14
+  existing native canvas checks, 5 new `PenStrokeCache` pixel-equivalence
+  checks, and 2 live-prediction tail checks. These pixel checks use
+  bitmap-backed software canvases and synthetic events; physical-device
+  latency and prediction quality still require real stylus testing.

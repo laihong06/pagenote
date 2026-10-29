@@ -32,6 +32,28 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
         ),
         prepareAheadPages = preferences.intOrDefault(PREPARE_AHEAD_PAGES_KEY, defaults.prepareAheadPages),
         markdownTheme = preferences.stringOrDefault(MARKDOWN_THEME_KEY, defaults.markdownTheme),
+        noteBackground = preferences.stringOrDefault(NOTE_BACKGROUND_KEY, defaults.noteBackground),
+        ocrLanguage = preferences.stringOrDefault(OCR_LANGUAGE_KEY, defaults.ocrLanguage),
+        latexOcrModel = preferences.stringOrDefault(LATEX_OCR_MODEL_KEY, defaults.latexOcrModel),
+        searchIndexSource = preferences.booleanOrDefault(SEARCH_INDEX_SOURCE_KEY, defaults.searchIndexSource),
+        searchIndexNotes = preferences.booleanOrDefault(SEARCH_INDEX_NOTES_KEY, defaults.searchIndexNotes),
+        searchIndexOcr = preferences.booleanOrDefault(SEARCH_INDEX_OCR_KEY, defaults.searchIndexOcr),
+        searchIndexTranscripts = preferences.booleanOrDefault(
+          SEARCH_INDEX_TRANSCRIPTS_KEY,
+          defaults.searchIndexTranscripts,
+        ),
+        asrModel = preferences.stringOrDefault(ASR_MODEL_KEY, defaults.asrModel),
+        asrLanguage = preferences.stringOrDefault(ASR_LANGUAGE_KEY, defaults.asrLanguage),
+        asrAutoTranscribe = preferences.booleanOrDefault(ASR_AUTO_TRANSCRIBE_KEY, defaults.asrAutoTranscribe),
+        audioQuotaMb = preferences.intOrDefault(AUDIO_QUOTA_MB_KEY, defaults.audioQuotaMb),
+        nightFilterEnabled = preferences.booleanOrDefault(
+          NIGHT_FILTER_ENABLED_KEY,
+          defaults.nightFilterEnabled,
+        ),
+        nightFilterStrength = preferences.intOrDefault(
+          NIGHT_FILTER_STRENGTH_KEY,
+          defaults.nightFilterStrength,
+        ),
       ),
     )
   }
@@ -47,6 +69,19 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[ALLOW_INK_OUTSIDE_PAGE_KEY] = settings.allowInkOutsidePage
       preferences[PREPARE_AHEAD_PAGES_KEY] = settings.prepareAheadPages
       preferences[MARKDOWN_THEME_KEY] = settings.markdownTheme
+      preferences[NOTE_BACKGROUND_KEY] = settings.noteBackground
+      preferences[OCR_LANGUAGE_KEY] = settings.ocrLanguage
+      preferences[LATEX_OCR_MODEL_KEY] = settings.latexOcrModel
+      preferences[SEARCH_INDEX_SOURCE_KEY] = settings.searchIndexSource
+      preferences[SEARCH_INDEX_NOTES_KEY] = settings.searchIndexNotes
+      preferences[SEARCH_INDEX_OCR_KEY] = settings.searchIndexOcr
+      preferences[SEARCH_INDEX_TRANSCRIPTS_KEY] = settings.searchIndexTranscripts
+      preferences[ASR_MODEL_KEY] = settings.asrModel
+      preferences[ASR_LANGUAGE_KEY] = settings.asrLanguage
+      preferences[ASR_AUTO_TRANSCRIBE_KEY] = settings.asrAutoTranscribe
+      preferences[AUDIO_QUOTA_MB_KEY] = settings.audioQuotaMb
+      preferences[NIGHT_FILTER_ENABLED_KEY] = settings.nightFilterEnabled
+      preferences[NIGHT_FILTER_STRENGTH_KEY] = settings.nightFilterStrength
     }
   }
 }
@@ -59,6 +94,19 @@ private val NOTE_FONT_SIZE_KEY = intPreferencesKey("note_font_size")
 private val ALLOW_INK_OUTSIDE_PAGE_KEY = booleanPreferencesKey("allow_ink_outside_page")
 private val PREPARE_AHEAD_PAGES_KEY = intPreferencesKey("prepare_ahead_pages")
 private val MARKDOWN_THEME_KEY = stringPreferencesKey("markdown_theme")
+private val NOTE_BACKGROUND_KEY = stringPreferencesKey("note_background")
+private val OCR_LANGUAGE_KEY = stringPreferencesKey("ocr_language")
+private val LATEX_OCR_MODEL_KEY = stringPreferencesKey("latex_ocr_model")
+private val SEARCH_INDEX_SOURCE_KEY = booleanPreferencesKey("search_index_source")
+private val SEARCH_INDEX_NOTES_KEY = booleanPreferencesKey("search_index_notes")
+private val SEARCH_INDEX_OCR_KEY = booleanPreferencesKey("search_index_ocr")
+private val SEARCH_INDEX_TRANSCRIPTS_KEY = booleanPreferencesKey("search_index_transcripts")
+private val ASR_MODEL_KEY = stringPreferencesKey("asr_model")
+private val ASR_LANGUAGE_KEY = stringPreferencesKey("asr_language")
+private val ASR_AUTO_TRANSCRIBE_KEY = booleanPreferencesKey("asr_auto_transcribe")
+private val AUDIO_QUOTA_MB_KEY = intPreferencesKey("audio_quota_mb")
+private val NIGHT_FILTER_ENABLED_KEY = booleanPreferencesKey("night_filter_enabled")
+private val NIGHT_FILTER_STRENGTH_KEY = intPreferencesKey("night_filter_strength")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {

@@ -1,0 +1,15 @@
+{
+  "platform": "android",
+  "developmentVersion": "1.0.0-beta.6-dev.1",
+  "versionCode": 6,
+  "betaBranch": "android/beta",
+  "mainBranch": null,
+  "published": {
+    "stable": null,
+    "beta": {
+      "version": "1.0.0-beta.5",
+      "tag": "android-v1.0.0-beta.5",
+      "url": "https://github.com/laihong06/pagenote/releases/tag/android-v1.0.0-beta.5"
+    }
+  }
+}
