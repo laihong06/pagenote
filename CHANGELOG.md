@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Record the founder-approved platform source boundaries, staged per-platform main/beta routing, independent versions/releases, shared-change tracking, and platform README/tutorial/screenshot coverage requirements; extend the PR template and contributor guidance. Existing root beta/main routing remains active until each migration is verified. Documentation only; no branch migration, binaries or public downloads changed. / 补齐多平台维护要求：源码分区、分阶段建立平台 main/beta、版本和发布独立、共享修改可追溯，以及各平台 README／配图教程／功能截图覆盖；同步 PR 模板和贡献指南。迁移验证前仍用现有提交入口，仅文档更新，不宣称分支或发布改造已完成。
+
 - Define a contributor-facing PR standard and template requiring plain-language module explanations, real application screenshots for UI changes, and explicit simplicity/layout review separate from tests and release approval. Documentation only; no binaries or download links changed. / 新增 PR 提交规范、模板与贡献入口：通俗说明各功能模块、入口和操作结果，界面改动提交真实截图并单独审查简洁性与布局；仅文档更新，不发布安装包或修改下载链接。
 
 - Desktop development advances to 1.1.0-beta.5: new projects link src/source.* and src/notes.md from project.pagenote; standalone imports and opened legacy standalone entries become portable projects while preserving managed history, page notes, assets and Tags. Existing manifests retain their linked filenames. Serialize source replacement with note persistence and reject aliasing note/source paths. Public Beta 4, Android beta.5 and the Windows frozen candidate remain unchanged. / 桌面开发版统一项目目录与 src 文件，补齐直接导入和旧独立文档转换；保留分页、附件、Tag、历史和旧项目链接，不更改已发布安装包及冻结候选。
