@@ -23,6 +23,10 @@
 
 ## 验证记录
 
+2026-10-30 更新：PR #15 已合入 beta（5a779a5）；#11、#13、#14 均已被 GitHub 标记为已合并。提交 9990f82 的 Actions [40920535128](https://github.com/laihong06/pagenote/actions/runs/40920535128) 四项全部通过：平台元数据、Windows、macOS、Android。下方“待执行／等待重跑”保留为过程记录，以本更新为当前结论。Android 云端单测、应用及测试源码编译、Debug APK 均通过；本机 TLS 失败不作为源码编译失败的结论。Windows 本地包生成遇下载超时，尚未完成该包实测；云端构建不替代安装包验证。
+
+已建立 windows/beta、macos/beta、android/beta，均来自验证后的共享 beta；windows/main 来自既有获批 main。macOS 与 Android 稳定线等待对应稳定基线获批，暂不创建冒充稳定版的分支。平台 beta 是后续入口；共享格式与跨平台更改仍提交共享 beta，按提交同步平台分支并记录。
+
 本文件的结果在执行后补充。已有贡献者历史测试保留在 CHANGELOG 与 PR 中，不冒充本轮重跑。
 
 - 平台版本隔离、打包入口、beta 身份与关联检查：通过；原有版本测试与公式测试通过，平台文档 101 个链接通过。
