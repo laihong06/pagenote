@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。
+
 - Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
 
 - Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。

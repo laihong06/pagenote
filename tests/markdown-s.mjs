@@ -10,7 +10,7 @@ const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'pagenote-mds-'));
 const bundle = await build({
   stdin: {
     contents:
-      "export {renderMarkdown} from './src/markdown.js'; export {htmlToMarkdown} from './src/editing.js'; export {createRichEditor} from './src/rich-editor.js';",
+      "export {renderMarkdown} from './src/markdown.js'; export {htmlToMarkdown} from './src/editing.js'; export {createRichEditor} from './src/rich-editor.js'; export {markdownSDocument,chartHTML} from './src/markdown-s.js';",
     resolveDir: root,
   },
   bundle: true,
@@ -39,6 +39,47 @@ try {
   await page.waitForFunction(() => !!window.pageNotes);
   await dismissWelcome(page);
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  const boundary = await page.evaluate(async () => {
+    const result = {};
+    result.exact = (
+      await PNTest.markdownSDocument('mds-html', 'a'.repeat(200 * 1024))
+    ).includes('aaaa');
+    for (const [key, engine, source] of [
+      ['tooLarge', 'mds-html', 'a'.repeat(200 * 1024 + 1)],
+      ['unicodeBytes', 'mds-html', '汉'.repeat(70000)],
+      ['unknown', 'mds-unknown', 'hello'],
+      [
+        'badChart',
+        'mds-chart',
+        JSON.stringify({ type: 'bar', labels: ['a'], values: [-1] }),
+      ],
+      [
+        'mismatch',
+        'mds-chart',
+        JSON.stringify({ type: 'bar', labels: ['a'], values: [1, 2] }),
+      ],
+    ]) {
+      try {
+        await PNTest.markdownSDocument(engine, source);
+        result[key] = false;
+      } catch {
+        result[key] = true;
+      }
+    }
+    result.escaped = PNTest.chartHTML(
+      JSON.stringify({
+        type: 'bar',
+        title: '<img src=x onerror=alert(1)>',
+        labels: ['<script>'],
+        values: [1],
+      }),
+    ).includes('&lt;img');
+    return result;
+  });
+  assert.ok(Object.values(boundary).every(Boolean), JSON.stringify(boundary));
+  console.log(
+    'PASS UTF-8 source boundary, unknown engine, invalid chart rejection and escaped labels',
+  );
   const source =
     '<button id="probe">Run</button><script>document.querySelector("#probe").onclick=()=>document.body.dataset.clicked="yes";try{parent.document.body.dataset.escaped="yes"}catch(e){document.body.dataset.blocked="yes"}</script>';
   const markdown = '# Before\n\n```mds-html\n' + source + '\n```\n\nAfter';
