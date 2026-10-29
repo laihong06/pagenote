@@ -1,5 +1,9 @@
 # pagenote Beta
 
+## Platform guides
+
+[Windows](docs/windows/README.md) · [macOS](docs/macos/README.md) · [Android](docs/android/README.md). Each guide links to illustrated tutorials, feature coverage and version notes. Published desktop downloads remain beta.4 and Android beta.5; integration sources are unreleased. Linux and HarmonyOS are planned, not supported builds. [Contributing](CONTRIBUTING.md) · [Integration evidence](docs/INTEGRATION-2026-10-30.md).
+
 **License: PolyForm Noncommercial 1.0.0 for newly licensed original material. Personal noncommercial use and modification are permitted; other commercial use requires separate authorization. [Scope and historical-license exceptions](LICENSING.md).**
 
 **[⬇ Windows beta installer](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe)** · [Beta portable ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [Beta source](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-source.zip) · [Release notes and checksums](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)

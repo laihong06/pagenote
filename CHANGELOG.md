@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Integrate PR #13 (including #11), PR #14 and the local isolated Android layout preview without dropping existing desktop/native features. Add independent platform version metadata and desktop package entries, system README/illustrated-guide/version-note navigation, Windows Gradle launcher, review ownership and multi-platform validation CI. Windows advances to 1.1.0-beta.5-dev.2, Mac retains 1.1.0-beta.5-dev.1, Android advances to 1.0.0-beta.6-dev.1; published downloads and stable main are unchanged. Validation is recorded separately in docs/INTEGRATION-2026-10-30.md. / 整合功能、治理规范与本地安卓布局预览，保留既有运行路径与功能；建立各系统独立版本、打包入口、README／配图教程／版本说明、Windows Gradle 入口及平台 CI。仅开发源码，不替换已发布制品，不晋级正式版；实测范围另记。
+
 - Clarify system-specific documentation: one platform README links to co-located illustrated guides, a platform changelog and per-version release notes/index. Requirements only; no screenshot or release evidence is fabricated. / 明确按系统组织文档：每个系统一个 README 入口，教程与截图集中存放，更新日志汇总各版本变化，详细版本说明单独归档并提供索引；仅完善要求，不虚构截图或发布记录。
 
 - Record the founder-approved platform source boundaries, staged per-platform main/beta routing, independent versions/releases, shared-change tracking, and platform README/tutorial/screenshot coverage requirements; extend the PR template and contributor guidance. Existing root beta/main routing remains active until each migration is verified. Documentation only; no branch migration, binaries or public downloads changed. / 补齐多平台维护要求：源码分区、分阶段建立平台 main/beta、版本和发布独立、共享修改可追溯，以及各平台 README／配图教程／功能截图覆盖；同步 PR 模板和贡献指南。迁移验证前仍用现有提交入口，仅文档更新，不宣称分支或发布改造已完成。

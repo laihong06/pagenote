@@ -11,9 +11,15 @@ const parent = path.join(temporary, 'library');
 await fs.mkdir(parent);
 const executablePath =
   process.env.DESKTOP_EXE ||
-  path.join(root, 'release/mac-arm64/pagenote.app/Contents/MacOS/pagenote');
+  path.join(
+    root,
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
+  );
 const app = await electron.launch({
   executablePath,
+  args: process.env.DESKTOP_EXE ? [] : [root],
   env: {
     ...process.env,
     PAGE_NOTES_USER_DATA: path.join(temporary, 'profile'),

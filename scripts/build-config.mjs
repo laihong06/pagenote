@@ -2,11 +2,28 @@
 // package.json's build section is shared and the platform-specific resources,
 // targets and artifact names are written here before packaging.
 import fs from 'node:fs/promises';
+import { loadPlatform } from './platform-config.mjs';
 const platform = process.argv[2];
 if (!['win', 'mac'].includes(platform))
   throw Error('用法: node scripts/build-config.mjs <win|mac>');
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
+const id = platform === 'win' ? 'windows' : 'macos';
+let platformConfig;
+try {
+  platformConfig = await loadPlatform(process.cwd(), id);
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
+if (platformConfig) pkg.version = platformConfig.developmentVersion;
 const build = pkg.build;
+if (platformConfig) {
+  build.extraMetadata = {
+    ...build.extraMetadata,
+    version: pkg.version,
+    main: `apps/desktop/${id}/main.cjs`,
+  };
+  build.files = [...build.files, 'apps/desktop/**', 'platforms/**'];
+}
 delete build.extraFiles;
 delete build.extraResources;
 delete build.win;

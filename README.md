@@ -1,5 +1,16 @@
 # pagenote Beta
 
+## 按系统查看
+
+| 系统 | 文档、教程与截图 | 公开测试版 | 状态 |
+| --- | --- | --- | --- |
+| Windows | [Windows 入口](docs/windows/README.md) | 1.1.0-beta.4 | 有稳定历史；本分支为新功能测试集成 |
+| macOS | [Mac 入口](docs/macos/README.md) | 1.1.0-beta.4 | Apple Silicon；实验性，Intel 不可用 |
+| Android | [Android 入口](docs/android/README.md) | 1.0.0-beta.5 | Android 14+／ARM64；整合源码尚未发布 |
+| Linux／鸿蒙 | 尚未建立实现与发布 | 无 | 规划中，不宣称支持 |
+
+各系统 README 链接功能说明、配图教程和逐版本更新记录。开发版本与公开下载分别维护，单个平台更新不自动发布其他平台。[提交规范](CONTRIBUTING.md) · [平台维护要求](docs/PLATFORM-MAINTENANCE.zh-CN.md) · [本轮整合与验证](docs/INTEGRATION-2026-10-30.md)。
+
 **许可：新增原创内容采用 PolyForm Noncommercial 1.0.0。允许个人非商业下载、使用和修改；超出许可范围的商业用途须另行授权。[适用范围与历史授权例外](LICENSING.md)。**
 
 **[⬇ Windows 测试版安装包](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64-setup.exe)** · [测试版免安装 ZIP](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-windows-x64.zip) · [测试版源码](https://github.com/laihong06/pagenote/releases/download/v1.1.0-beta.4/pagenote-1.1.0-beta.4-source.zip) · [发布说明与校验值](https://github.com/laihong06/pagenote/releases/tag/v1.1.0-beta.4)

@@ -37,7 +37,9 @@ const executablePath =
   process.env.DESKTOP_EXE ||
   path.join(
     root,
-    'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron',
+    process.platform === 'darwin'
+      ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
+      : 'node_modules/electron/dist/electron.exe',
   );
 const launch = () =>
   electron.launch({

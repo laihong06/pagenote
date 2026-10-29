@@ -1,9 +1,13 @@
+import groovy.json.JsonSlurper
+
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.android")
   id("org.jetbrains.kotlin.kapt")
   id("org.jetbrains.kotlin.plugin.compose")
 }
+
+val platformVersion = JsonSlurper().parse(rootProject.file("../platforms/android/version.json")) as Map<*, *>
 
 android {
   namespace = "io.pagenote.android"
@@ -14,8 +18,8 @@ android {
     minSdk = 34
     targetSdk = 35
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    versionCode = 6
-    versionName = "1.0.0"
+    versionCode = (platformVersion["versionCode"] as Number).toInt()
+    versionName = platformVersion["developmentVersion"] as String
   }
   buildTypes {
     getByName("debug") {
@@ -27,7 +31,6 @@ android {
     create("beta") {
       initWith(getByName("release"))
       applicationIdSuffix = ".beta"
-      versionNameSuffix = "-beta.6"
       signingConfig = signingConfigs.getByName("debug")
       isDebuggable = false
       matchingFallbacks += listOf("release")
@@ -35,7 +38,7 @@ android {
     create("preview") {
       initWith(getByName("debug"))
       applicationIdSuffix = ".beta.preview"
-      versionNameSuffix = "-beta.6-preview.1"
+      versionNameSuffix = "-preview.1"
       signingConfig = signingConfigs.getByName("debug")
       matchingFallbacks += listOf("debug")
       resValue("string", "app_name", "pagenote Layout Preview")

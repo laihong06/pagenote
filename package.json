@@ -1,6 +1,6 @@
 {
   "name": "pagenote",
-  "version": "1.1.0-beta.5-dev.1",
+  "version": "1.1.0-beta.5-dev.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -45,7 +45,10 @@
     "test:ui": "node tests/footer-stability.mjs && node tests/paper-theme.mjs && node tests/theme.mjs && node tests/hello.mjs",
     "test:native-settings": "node tests/native-settings.mjs && node tests/native-settings-app.mjs && node tests/native-settings-fallback.mjs && node tests/settings-quit-race.mjs",
     "test:project-layout": "node tests/project-layout.mjs",
-    "test:project-import": "node tests/project-import.mjs"
+    "test:project-import": "node tests/project-import.mjs",
+    "test:platforms": "node tests/platforms.mjs && node scripts/check-platforms.mjs",
+    "platform": "node scripts/platform.mjs",
+    "capture:guide": "node scripts/capture-platform-guide.mjs"
   },
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",
