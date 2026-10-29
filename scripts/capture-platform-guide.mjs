@@ -127,7 +127,8 @@ try {
         }).trim()
           ? 'modified integration worktree'
           : 'clean',
-        version: (await loadPlatform(root, id)).developmentVersion,
+        version: await app.evaluate(({ app }) => app.getVersion()),
+        targetPackageVersion: (await loadPlatform(root, id)).developmentVersion,
         sample: 'synthetic, no account or network AI request',
         captures,
       },

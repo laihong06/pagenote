@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Repair platform CI YAML and add an independent metadata gate; record screenshot runtime and target package versions separately. / 修复平台 CI 配置解析，增加独立的平台元数据检查，并区分截图运行版本与目标打包版本；不发布制品。
+
 - Verify the integrated Windows build, complete desktop regression, bookshelf and Rain Classroom suites; add five native guide screenshots and provenance. Fix permission-free Windows link-escape fixtures and clean-CI workspace/Android SDK setup while preserving all assertions. No public release. / 完成整合后的 Windows 构建与桌面全量、书架及雨课堂回归，补充五张真实运行截图和来源；修复 Windows 测试链接权限及干净 CI 工作区、SDK 安装配置，保留路径逃逸断言，不公开发布。
 
 - Integrate PR #13 (including #11), PR #14 and the local isolated Android layout preview without dropping existing desktop/native features. Add independent platform version metadata and desktop package entries, system README/illustrated-guide/version-note navigation, Windows Gradle launcher, review ownership and multi-platform validation CI. Windows advances to 1.1.0-beta.5-dev.2, Mac retains 1.1.0-beta.5-dev.1, Android advances to 1.0.0-beta.6-dev.1; published downloads and stable main are unchanged. Validation is recorded separately in docs/INTEGRATION-2026-10-30.md. / 整合功能、治理规范与本地安卓布局预览，保留既有运行路径与功能；建立各系统独立版本、打包入口、README／配图教程／版本说明、Windows Gradle 入口及平台 CI。仅开发源码，不替换已发布制品，不晋级正式版；实测范围另记。

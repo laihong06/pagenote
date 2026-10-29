@@ -1,7 +1,7 @@
 name: Platform integration validation
 on:
   pull_request:
-    branches: [beta, 'windows/beta', 'macos/beta', 'android/beta']
+    branches: [beta, 'windows/beta', 'macos/beta', 'android/beta', 'windows/main', 'macos/main']
   push:
     branches: [beta, 'windows/beta', 'macos/beta', 'android/beta']
   workflow_dispatch:
@@ -11,6 +11,16 @@ concurrency:
   group: platform-validation-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  contract:
+    name: Platform metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/check-platforms.mjs
+      - run: node tests/platforms.mjs
   desktop:
     strategy:
       fail-fast: false
@@ -35,7 +45,8 @@ jobs:
       - run: npm run test:platforms
       - run: node scripts/platform.mjs ${{ matrix.platform }} build
       - name: Prepare isolated test workspace
-        run: node -e "require('node:fs').mkdirSync('tmp', { recursive: true })"
+        run: |
+          node -e "require('node:fs').mkdirSync('tmp', { recursive: true })"
       - run: npm test
       - run: node tests/bookshelf-store.mjs && node tests/bookshelf-covers.mjs && node tests/bookshelf-projects.mjs && node tests/yuketang-save-race.mjs
       - run: npm run test:yuketang
