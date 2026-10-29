@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Clarify system-specific documentation: one platform README links to co-located illustrated guides, a platform changelog and per-version release notes/index. Requirements only; no screenshot or release evidence is fabricated. / 明确按系统组织文档：每个系统一个 README 入口，教程与截图集中存放，更新日志汇总各版本变化，详细版本说明单独归档并提供索引；仅完善要求，不虚构截图或发布记录。
+
 - Record the founder-approved platform source boundaries, staged per-platform main/beta routing, independent versions/releases, shared-change tracking, and platform README/tutorial/screenshot coverage requirements; extend the PR template and contributor guidance. Existing root beta/main routing remains active until each migration is verified. Documentation only; no branch migration, binaries or public downloads changed. / 补齐多平台维护要求：源码分区、分阶段建立平台 main/beta、版本和发布独立、共享修改可追溯，以及各平台 README／配图教程／功能截图覆盖；同步 PR 模板和贡献指南。迁移验证前仍用现有提交入口，仅文档更新，不宣称分支或发布改造已完成。
 
 - Define a contributor-facing PR standard and template requiring plain-language module explanations, real application screenshots for UI changes, and explicit simplicity/layout review separate from tests and release approval. Documentation only; no binaries or download links changed. / 新增 PR 提交规范、模板与贡献入口：通俗说明各功能模块、入口和操作结果，界面改动提交真实截图并单独审查简洁性与布局；仅文档更新，不发布安装包或修改下载链接。
