@@ -1,5 +1,9 @@
 # Project workflow
 
+## Markdown S implementation
+
+For Markdown S work, follow `docs/markdown-s/README.md`, `ARCHITECTURE.zh-CN.md`, `IMPLEMENTATION.zh-CN.md` and `ACCEPTANCE.zh-CN.md` in that directory. Preserve original Markdown, existing reading/editing/saving flows and unsupported-platform fallback. Declare the implementation milestone, affected platforms and acceptance case IDs in each PR; distinguish plans, unverified prototypes, verified functionality and published artifacts. Do not claim renderer safety, screenshot coverage or platform support without evidence. These feature-specific requirements do not override the founder-approved release policy or impose gates on unrelated future platforms.
+
 ## Pull request submission
 
 Follow `docs/PR-STANDARD.zh-CN.md` and `.github/pull_request_template.md` for new or updated PRs. Explain affected modules, entry points, user actions, results and limitations in plain language. UI changes require real application screenshots for each affected platform, including before/after views and relevant interaction states; identify the environment and runtime commit. Design references do not replace runtime evidence. Explain screenshot exemptions for changes without UI impact. Maintainer visual review is separate from CI, functional checks and release approval. If GitHub does not auto-populate the template, copy it manually; do not assume a beta-only template is active on the default branch.

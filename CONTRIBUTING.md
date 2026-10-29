@@ -1,5 +1,7 @@
 # 参与 PageNote / Contributing
 
+涉及 Markdown S 的渲染、编辑、保存、引擎或平台适配时，先阅读 [开发指导与架构](docs/markdown-s/README.md)，在 PR 中列出实施阶段、适用验收编号和实际证据。不能把未验收原型或规划引擎写成已支持功能。
+
 提交 PR 前请阅读 [PR 提交与界面审查标准](docs/PR-STANDARD.zh-CN.md)，并使用 [PR 模板](.github/pull_request_template.md)。
 
 多平台源码、各平台 main/beta、独立版本与发布、共享同步及 README／教程／截图覆盖要求见 [多平台维护要求](docs/PLATFORM-MAINTENANCE.zh-CN.md)。目录和分支迁移尚未完成前仍使用现有 `beta` 入口；已有 PR 直接补充材料，不必重复新建。功能变化同步更新对应平台文档，不需要更新时说明理由。

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
+
 - Repair platform CI YAML and add an independent metadata gate; record screenshot runtime and target package versions separately. / 修复平台 CI 配置解析，增加独立的平台元数据检查，并区分截图运行版本与目标打包版本；不发布制品。
 
 - Verify the integrated Windows build, complete desktop regression, bookshelf and Rain Classroom suites; add five native guide screenshots and provenance. Fix permission-free Windows link-escape fixtures and clean-CI workspace/Android SDK setup while preserving all assertions. No public release. / 完成整合后的 Windows 构建与桌面全量、书架及雨课堂回归，补充五张真实运行截图和来源；修复 Windows 测试链接权限及干净 CI 工作区、SDK 安装配置，保留路径逃逸断言，不公开发布。
