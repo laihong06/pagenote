@@ -44,6 +44,11 @@ const executablePath =
       ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
       : 'node_modules/electron/dist/electron.exe',
   );
+if (process.env.PAGENOTE_GUIDE_MARKDOWN)
+  await fs.copyFile(
+    path.resolve(process.env.PAGENOTE_GUIDE_MARKDOWN),
+    path.join(project, 'src/notes.md'),
+  );
 const app = await electron.launch({
   executablePath,
   args: process.env.DESKTOP_EXE ? [] : [root],
@@ -94,6 +99,22 @@ try {
   await page.locator('.katex').first().waitFor();
   await page.locator('.diagram-ready').first().waitFor();
   await snap('reading');
+  if (process.env.PAGENOTE_GUIDE_MARKDOWN) {
+    const blocks = page.locator('#preview .markdown-s-block');
+    for (const [index, name] of ['interactive', 'chart', 'three'].entries()) {
+      const block = blocks.nth(index);
+      await block.scrollIntoViewIfNeeded();
+      await block.getByRole('button', { name: '运行', exact: true }).click();
+      await block.locator('iframe').waitFor();
+      const inner = block.frameLocator('iframe');
+      await inner
+        .locator(index === 0 ? 'input' : index === 1 ? 'svg' : 'canvas')
+        .waitFor();
+      await block.scrollIntoViewIfNeeded();
+      await snap('markdown-s-' + name);
+      await block.getByRole('button', { name: '停止', exact: true }).click();
+    }
+  }
   await page.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
   await page.locator('.note-pane').click({ position: { x: 100, y: 100 } });
   await snap('editing');

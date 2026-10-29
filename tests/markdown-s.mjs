@@ -10,7 +10,7 @@ const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'pagenote-mds-'));
 const bundle = await build({
   stdin: {
     contents:
-      "export {renderMarkdown} from './src/markdown.js'; export {htmlToMarkdown} from './src/editing.js';",
+      "export {renderMarkdown} from './src/markdown.js'; export {htmlToMarkdown} from './src/editing.js'; export {createRichEditor} from './src/rich-editor.js';",
     resolveDir: root,
   },
   bundle: true,
@@ -166,6 +166,37 @@ try {
   console.log(
     'PASS SVG, Canvas pixel drawing, chart and offline Three scene; WebGL scene rendering',
   );
+  await page.evaluate(() => {
+    const root = document.querySelector('#mds-test');
+    window.mdsSaved = '';
+    window.mdsEditor = PNTest.createRichEditor({
+      root,
+      changed: (value) => (window.mdsSaved = value),
+      canEdit: () => true,
+      toast: () => {},
+    });
+    mdsEditor.load('\x60\x60\x60mds-html\n<p>Before edit</p>\n\x60\x60\x60');
+  });
+  await page.locator('#mds-test figcaption strong').dblclick();
+  await page
+    .getByRole('textbox', { name: 'Markdown S 源码' })
+    .fill('<p>After edit</p>');
+  assert.ok(await page.evaluate(() => mdsSaved.includes('<p>After edit</p>')));
+  await page.evaluate(() => mdsEditor.undo());
+  assert.equal(
+    await page
+      .locator('#mds-test .markdown-s-block')
+      .getAttribute('data-source'),
+    '<p>Before edit</p>\n',
+  );
+  await page.evaluate(() => mdsEditor.redo());
+  assert.equal(
+    await page
+      .locator('#mds-test .markdown-s-block')
+      .getAttribute('data-source'),
+    '<p>After edit</p>\n',
+  );
+  console.log('PASS Markdown S source editing, undo and redo');
   console.log(
     'PASS Markdown S: explicit execution, source round trip, real sandbox interaction, parent isolation and stop',
   );

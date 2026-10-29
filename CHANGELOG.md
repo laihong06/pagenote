@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add a reproducible Markdown S learning demo and real Windows tutorial screenshots; verify component source editing, undo and redo. / 新增可复现的学习演示笔记、真实 Windows 配图教程，并验证组件源码编辑和撤销重做；开发功能未发布。
+
 - Verify offline SVG, Canvas pixels, charts and Three.js WebGL drawing, restore local build dependencies and pass production build plus formula/code/editor regression; limit concurrent previews per view to two. / 验证多引擎实际绘制，补齐本地构建依赖并通过生产构建及公式／代码／编辑回归，每视图最多运行两个演示；仍未发布。
 
 - Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
