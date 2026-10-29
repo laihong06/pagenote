@@ -150,7 +150,9 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
         enhanced ? 'Markdown S 源码' : 'Mermaid 代码',
       );
       input.spellcheck = false;
-      input.placeholder = '输入 Mermaid 代码';
+      input.placeholder = enhanced
+        ? '输入 Markdown S 源码'
+        : '输入 Mermaid 代码';
       input.rows = 2;
       input.value = figure.dataset.source || '';
       const resize = () => {

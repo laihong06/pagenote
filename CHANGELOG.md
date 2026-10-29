@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Verify offline SVG, Canvas pixels, charts and Three.js WebGL drawing, restore local build dependencies and pass production build plus formula/code/editor regression; limit concurrent previews per view to two. / 验证多引擎实际绘制，补齐本地构建依赖并通过生产构建及公式／代码／编辑回归，每视图最多运行两个演示；仍未发布。
+
 - Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
 
 - Begin the confirmed render-kernel guidance: introduce task scopes with monotonic generations and cancellation, and invalidate Markdown S preparation when its view is replaced. Add ABA/disposal contract checks. / 按确认的内核指导开始统一任务代次和取消，视图替换时失效 Markdown S 旧任务，增加异步竞争与销毁检查；尚未完成整个内核迁移。

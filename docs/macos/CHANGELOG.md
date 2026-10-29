@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+共享 Markdown S 预览增加每视图两个演示上限；本轮新增多引擎验证在 Windows 执行，不宣称 Mac 已通过。
+
 共享 Markdown S 内核新增 Mermaid 优先级、取消与超时队列；本轮真实交互在 Windows 验证，Mac 新内核运行待验证，尚未发布。
 
 开发版本 1.1.0-beta.5-dev.1：整合书架、雨课堂及平台管理结构。保留原有阅读、编辑、手写、Office、OCR、MCP 与设置入口；平台版本独立读取。

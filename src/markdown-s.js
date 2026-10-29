@@ -86,6 +86,7 @@ export function renderMarkdownS(target) {
   let scope = previewScopes.get(target);
   if (!scope) {
     scope = new RenderScope();
+    scope.activePreviews = new Set();
     previewScopes.set(target, scope);
   }
   for (const code of [...target.querySelectorAll('pre > code')]) {
@@ -127,6 +128,7 @@ export function renderMarkdownS(target) {
     stop.onclick = () => {
       generation++;
       task?.cancel();
+      scope.activePreviews.delete(block);
       frame?.remove();
       frame = null;
       run.disabled = false;
@@ -134,6 +136,13 @@ export function renderMarkdownS(target) {
       status.textContent = '已停止；可以重新运行。';
     };
     run.onclick = async () => {
+      for (const active of scope.activePreviews)
+        if (!active.isConnected) scope.activePreviews.delete(active);
+      if (scope.activePreviews.size >= 2 && !scope.activePreviews.has(block)) {
+        status.textContent = '最多同时运行两个演示，请先停止一个。';
+        return;
+      }
+      scope.activePreviews.add(block);
       const current = ++generation;
       task = scope.begin(block, block.dataset.source);
       const runningTask = task;
@@ -165,6 +174,7 @@ export function renderMarkdownS(target) {
       } catch (e) {
         if (!runningTask.current() || current !== generation) return;
         status.textContent = '无法运行：' + e.message;
+        scope.activePreviews.delete(block);
         run.disabled = false;
         stop.disabled = true;
       }

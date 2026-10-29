@@ -109,6 +109,63 @@ try {
   console.log(
     'PASS real Mermaid queue: render, invalid input and subsequent recovery',
   );
+  const engines = [
+    [
+      'mds-svg',
+      '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="30" fill="orange"/></svg>',
+      'svg circle',
+    ],
+    [
+      'mds-canvas',
+      '<canvas width="100" height="100"></canvas><script>const c=document.querySelector("canvas");const x=c.getContext("2d");x.fillStyle="rgb(255,0,0)";x.fillRect(0,0,100,100);document.body.dataset.pixel=x.getImageData(1,1,1,1).data[0];</script>',
+      'canvas',
+    ],
+    [
+      'mds-chart',
+      JSON.stringify({
+        type: 'bar',
+        title: '路线长度',
+        labels: ['A', 'B'],
+        values: [120, 82],
+      }),
+      'svg rect',
+    ],
+    [
+      'mds-three',
+      '<script>const scene=new THREE.Scene();scene.add(new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshBasicMaterial({color:0xff8800})));const renderer=new THREE.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(200,200);document.body.append(renderer.domElement);const camera=new THREE.PerspectiveCamera(60,1,.1,100);camera.position.z=3;renderer.render(scene,camera);const pixels=new Uint8Array(4);renderer.getContext().readPixels(100,100,1,1,renderer.getContext().RGBA,renderer.getContext().UNSIGNED_BYTE,pixels);document.body.dataset.pixel=pixels[0];document.body.dataset.three=scene.children.length;</script><p>Three scene</p>',
+      'p',
+    ],
+  ];
+  for (const [engine, source, selector] of engines) {
+    await page.evaluate(
+      ({ engine, source }) =>
+        PNTest.renderMarkdown(
+          '\x60\x60\x60' + engine + '\n' + source + '\n\x60\x60\x60',
+          document.querySelector('#mds-test'),
+        ),
+      { engine, source },
+    );
+    await page.locator('#mds-test button').filter({ hasText: '运行' }).click();
+    const frame = page.frameLocator('#mds-test iframe');
+    await frame.locator(selector).first().waitFor();
+    if (engine === 'mds-canvas')
+      assert.equal(
+        await frame.locator('body').getAttribute('data-pixel'),
+        '255',
+      );
+    if (engine === 'mds-three') {
+      assert.equal(await frame.locator('body').getAttribute('data-three'), '1');
+      assert.equal(
+        await frame.locator('body').getAttribute('data-pixel'),
+        '255',
+      );
+    }
+    assert.equal(await frame.locator('#mds-runtime-error').count(), 0);
+    await page.locator('#mds-test button').filter({ hasText: '停止' }).click();
+  }
+  console.log(
+    'PASS SVG, Canvas pixel drawing, chart and offline Three scene; WebGL scene rendering',
+  );
   console.log(
     'PASS Markdown S: explicit execution, source round trip, real sandbox interaction, parent isolation and stop',
   );
