@@ -21,6 +21,8 @@
 
 本地依赖缺失曾导致构建失败，恢复 lockfile 对应 lucide 后构建通过。未使用外部依赖替代、跳过图标或关闭沙盒绕过失败。
 
+Android 补充：`:feature-notes:testDebugUnitTest` 已本地通过，新增 `MarkdownSCompatibilityTest` 覆盖六种增强围栏在解析及修改本页／其他页后源码不丢失。该证据属于 JVM 数据路径，不代表 Android UI／WebView 或端到端项目导入验收。首次离线缺少 JUnit／Hamcrest；从官方 Maven 获取原版本并核对 JAR 校验值后，使用 tmp 内临时本地仓库恢复解析，未修改工程依赖或测试断言，临时配置不提交。
+
 云端结果：提交 `302ddeb` 的 [Actions 40926253759](https://github.com/laihong06/pagenote/actions/runs/40926253759) 平台元数据、Windows、macOS、Android 四项全部通过；桌面包括 Markdown S 专项和完整回归，Android 为现有应用单测与编译，不代表 Android 已支持增强执行。后续提交必须查看自己的 CI，不能复用此结论。
 
 本地最新源码已生产构建，并通过 `npm run demo:markdown-s` 打开独立真实项目；命令行启动验证通过。完整 `npm test` 在本轮生产构建后通过。演示入口的临时项目保留在仓库 tmp 内，不覆盖用户笔记。

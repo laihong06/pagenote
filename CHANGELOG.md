@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Verify Android notes-module tests including six Markdown S fence-preservation paths after restoring official test dependencies; document JVM-only scope. / Android 笔记模块测试通过，包含六种增强围栏源码保真；明确仅 JVM 数据路径，未宣称移动端交互执行。
+
 - Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。
 
 - Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
