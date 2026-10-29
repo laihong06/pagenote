@@ -7,11 +7,15 @@ export class RenderScope {
   get signal() {
     return this.#controller.signal;
   }
+  get size() {
+    return this.#tasks.size;
+  }
   begin(key, source) {
     this.#tasks.get(key)?.controller.abort();
     const controller = new AbortController();
     const task = { generation: ++this.#generation, source, controller };
-    this.#tasks.set(key, task);
+    if (this.signal.aborted) controller.abort();
+    else this.#tasks.set(key, task);
     return {
       generation: task.generation,
       signal: controller.signal,
@@ -19,7 +23,13 @@ export class RenderScope {
         !this.signal.aborted &&
         !controller.signal.aborted &&
         this.#tasks.get(key) === task,
-      cancel: () => controller.abort(),
+      release: () => {
+        if (this.#tasks.get(key) === task) this.#tasks.delete(key);
+      },
+      cancel: () => {
+        controller.abort();
+        if (this.#tasks.get(key) === task) this.#tasks.delete(key);
+      },
     };
   }
   abort() {

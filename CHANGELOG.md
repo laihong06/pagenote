@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
+
 - Fix desktop preview suspension when minimize does not update document visibility: native minimize/hide events now suspend Markdown S previews; real window minimize/restore and explicit restart pass. / 修复最小化不触发网页可见性变化时预览不停的问题；宿主最小化／隐藏通知负责停止，真实窗口恢复后手动重跑通过。
 
 - Verify Markdown S source persistence through real project files and a full application restart; dispose removed previews and stop on document backgrounding. / 验证真实项目文件保存及完整应用重启后源码保留；清理被删除的运行组件并接入后台停止，后台系统行为仍待实测。

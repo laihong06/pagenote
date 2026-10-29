@@ -113,30 +113,34 @@ function scheduleDiagrams(target) {
     block.dataset.running = 'true';
     const current = () =>
       task.current() && block.isConnected && block.dataset.source === source;
-    diagramQueue.enqueue({
-      signal: task.signal,
-      priority,
-      run: async () => {
-        if (!current()) return null;
-        const mermaid = await getMermaid();
-        await document.fonts.ready;
-        if (!current()) return null;
-        return renderDiagram(mermaid, source);
-      },
-      publish: (result) => {
-        if (!result || !current()) return;
-        block.innerHTML = DOMPurify.sanitize(result.svg, {
-          USE_PROFILES: { svg: true, svgFilters: true },
-        });
-        block.classList.add('diagram-ready');
-        delete block.dataset.running;
-      },
-      fail: (error) => {
-        if (!current()) return;
-        diagramError(block, source, error);
-        delete block.dataset.running;
-      },
-    });
+    diagramQueue
+      .enqueue({
+        signal: task.signal,
+        priority,
+        run: async () => {
+          if (!current()) return null;
+          const mermaid = await getMermaid();
+          await document.fonts.ready;
+          if (!current()) return null;
+          return renderDiagram(mermaid, source);
+        },
+        publish: (result) => {
+          if (!result || !current()) return;
+          block.innerHTML = DOMPurify.sanitize(result.svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+          });
+          block.classList.add('diagram-ready');
+          delete block.dataset.running;
+          task.release();
+        },
+        fail: (error) => {
+          if (!current()) return;
+          diagramError(block, source, error);
+          delete block.dataset.running;
+          task.release();
+        },
+      })
+      .then(() => task.release());
   }
 }
 export function renderDiagrams(target) {

@@ -24,3 +24,22 @@ assert.equal(
 console.log(
   'PASS render scope: ABA generation, cancellation and disposed async completion',
 );
+
+const repeated = new RenderScope();
+for (let i = 0; i < 1000; i++) repeated.begin({ id: i }, 'source').cancel();
+assert.equal(repeated.size, 0, 'cancelled block references must be released');
+const old = repeated.begin('same', 'A');
+const newer = repeated.begin('same', 'B');
+old.cancel();
+assert.equal(
+  newer.current(),
+  true,
+  'old cancellation must not remove newer task',
+);
+newer.release();
+assert.equal(repeated.size, 0);
+const disposed = new RenderScope();
+disposed.abort();
+assert.equal(disposed.begin('invalid', 'A').signal.aborted, true);
+assert.equal(disposed.size, 0);
+console.log('PASS render scope resource release across 1000 cancellations');
