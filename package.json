@@ -6,7 +6,7 @@
   "scripts": {
     "test:bookshelf": "node tests/bookshelf-store.mjs && node tests/bookshelf-covers.mjs && node tests/bookshelf-projects.mjs && node tests/yuketang-save-race.mjs && node tests/bookshelf-ui.mjs",
     "dev": "node server.mjs --dev",
-    "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && node scripts/build-mac-settings.mjs && vite build && node scripts/build-mcp.mjs",
+    "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && node scripts/build-mac-settings.mjs && node scripts/build-markdown-s.mjs && vite build && node scripts/build-mcp.mjs",
     "start": "node server.mjs",
     "test": "npm run test:release",
     "desktop": "electron .",
@@ -48,7 +48,9 @@
     "test:project-import": "node tests/project-import.mjs",
     "test:platforms": "node tests/platforms.mjs && node scripts/check-platforms.mjs",
     "platform": "node scripts/platform.mjs",
-    "capture:guide": "node scripts/capture-platform-guide.mjs"
+    "capture:guide": "node scripts/capture-platform-guide.mjs",
+    "predev": "node scripts/build-markdown-s.mjs",
+    "test:markdown-s": "node tests/markdown-s.mjs"
   },
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",
@@ -73,6 +75,7 @@
     "marked-katex-extension": "^5.1.4",
     "mermaid": "^12.2.0",
     "prettier": "3.6.2",
+    "three": "0.186.1",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2",
     "vite": "^7.1.0",

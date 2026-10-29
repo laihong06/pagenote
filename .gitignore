@@ -41,4 +41,5 @@ tests/typora-*.txt
 android/.idea/
 dependency-copy*.log
 npm-install.log
+src/generated/markdown-s-three.js
 android-validation*.log

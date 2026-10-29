@@ -55,7 +55,7 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
     renderDiagrams(root);
     root
       .querySelectorAll(
-        '.katex-display,.math-block,.mermaid-diagram,.markdown-embed',
+        '.katex-display,.math-block,.mermaid-diagram,.markdown-embed,.markdown-s-block',
       )
       .forEach((n) => {
         n.contentEditable = 'false';
@@ -69,7 +69,12 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
       .forEach((n) => (n.disabled = !canEdit()));
     root.querySelectorAll('pre').forEach((pre) => {
       const code = pre.querySelector('code');
-      if (!code || pre.querySelector('.rich-code-tools')) return;
+      if (
+        !code ||
+        pre.closest('.markdown-s-block') ||
+        pre.querySelector('.rich-code-tools')
+      )
+        return;
       pre.classList.add('rich-code-block');
       pre.contentEditable = 'false';
       code.contentEditable = String(canEdit());
@@ -137,9 +142,13 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
       panel.className = 'rich-diagram-source rich-code-tools';
       panel.contentEditable = 'false';
       const label = document.createElement('div');
-      label.textContent = 'mermaid';
+      const enhanced = figure.classList.contains('markdown-s-block');
+      label.textContent = enhanced ? figure.dataset.engine : 'mermaid';
       const input = document.createElement('textarea');
-      input.setAttribute('aria-label', 'Mermaid 代码');
+      input.setAttribute(
+        'aria-label',
+        enhanced ? 'Markdown S 源码' : 'Mermaid 代码',
+      );
       input.spellcheck = false;
       input.placeholder = '输入 Mermaid 代码';
       input.rows = 2;
@@ -151,6 +160,12 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
       input.oninput = () => {
         resize();
         figure.dataset.source = input.value;
+        if (enhanced) {
+          figure.querySelector('figcaption button:last-child')?.click();
+          figure.querySelector('details pre').textContent = input.value;
+          emit();
+          return;
+        }
         figure.classList.remove('diagram-ready', 'diagram-error');
         delete figure.dataset.running;
         renderDiagrams(root);
@@ -404,10 +419,14 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
   };
   root.addEventListener('dblclick', (e) => {
     const node = e.target.closest(
-      '.mermaid-diagram,.katex-display,.math-block,.katex',
+      '.mermaid-diagram,.markdown-s-block,.katex-display,.math-block,.katex',
     );
     if (node) {
-      if (node.classList.contains('mermaid-diagram')) editDiagram(node);
+      if (
+        node.classList.contains('mermaid-diagram') ||
+        node.classList.contains('markdown-s-block')
+      )
+        editDiagram(node);
       else editSpecial(node, 'math');
     }
   });

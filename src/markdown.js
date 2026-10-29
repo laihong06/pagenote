@@ -2,6 +2,7 @@ import { Marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
+import { renderMarkdownS } from './markdown-s';
 import { codeLanguage, highlightCode } from './code-highlight';
 import { normalizeMath } from './math-input';
 import 'highlight.js/styles/github.css';
@@ -276,6 +277,7 @@ export function renderMarkdown(text, target, depth = 0) {
     frame.loading = 'lazy';
     node.replaceWith(frame);
   });
+  renderMarkdownS(target);
   if (depth >= 2) return;
   target.querySelectorAll('img').forEach((node) => {
     const url = node.getAttribute('src');

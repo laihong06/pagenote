@@ -18,6 +18,7 @@ const seen = new Set(),
     'marked',
     'marked-katex-extension',
     'mermaid',
+    'three',
     'turndown',
     'turndown-plugin-gfm',
   ];
