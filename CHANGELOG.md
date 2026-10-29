@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Verify 20 real preview start/stop cycles preserve surrounding prose and release iframe nodes, and runtime errors remain visible and restartable. / 验证二十次真实运行停止不改变正文、释放 iframe，运行错误可见且可重新启动；不据此宣称无内存泄漏。
+
 - Verify Android notes-module tests including six Markdown S fence-preservation paths after restoring official test dependencies; document JVM-only scope. / Android 笔记模块测试通过，包含六种增强围栏源码保真；明确仅 JVM 数据路径，未宣称移动端交互执行。
 
 - Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。

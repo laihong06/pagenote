@@ -344,6 +344,55 @@ try {
   console.log(
     'PASS removed component disposes live iframe and releases run state',
   );
+  await page.evaluate(() =>
+    PNTest.renderMarkdown(
+      'Keep this paragraph\n\n\x60\x60\x60mds-html\n<p id="cycle">Cycle test</p>\n\x60\x60\x60',
+      document.querySelector('#mds-test'),
+    ),
+  );
+  for (let i = 0; i < 20; i++) {
+    await page.locator('#mds-test button').filter({ hasText: '运行' }).click();
+    await page.frameLocator('#mds-test iframe').locator('#cycle').waitFor();
+    await page.locator('#mds-test button').filter({ hasText: '停止' }).click();
+    assert.equal(await page.locator('#mds-test iframe').count(), 0);
+  }
+  assert.ok(
+    (await page.locator('#mds-test').innerText()).includes(
+      'Keep this paragraph',
+    ),
+  );
+  const errorSource =
+    '<canvas></canvas><script>throw new Error("GPU unavailable fixture")</script>';
+  await page.evaluate(
+    (source) =>
+      PNTest.renderMarkdown(
+        '\x60\x60\x60mds-canvas\n' + source + '\n\x60\x60\x60',
+        document.querySelector('#mds-test'),
+      ),
+    errorSource,
+  );
+  await page.locator('#mds-test button').filter({ hasText: '运行' }).click();
+  await page
+    .frameLocator('#mds-test iframe')
+    .locator('#mds-runtime-error')
+    .waitFor();
+  assert.ok(
+    (
+      await page
+        .frameLocator('#mds-test iframe')
+        .locator('#mds-runtime-error')
+        .innerText()
+    ).includes('GPU unavailable fixture'),
+  );
+  await page.locator('#mds-test button').filter({ hasText: '停止' }).click();
+  await page.locator('#mds-test button').filter({ hasText: '运行' }).click();
+  await page
+    .frameLocator('#mds-test iframe')
+    .locator('#mds-runtime-error')
+    .waitFor();
+  console.log(
+    'PASS 20 start/stop cycles, unchanged prose, visible renderer error and restart',
+  );
   console.log(
     'PASS Markdown S: explicit execution, source round trip, real sandbox interaction, parent isolation and stop',
   );
