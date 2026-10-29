@@ -2,6 +2,8 @@ import { Marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
+import { RenderScope } from './render-scope';
+import { RenderQueue } from './render-queue';
 import { renderMarkdownS, disposeMarkdownS } from './markdown-s';
 import { codeLanguage, highlightCode } from './code-highlight';
 import { normalizeMath } from './math-input';
@@ -13,8 +15,8 @@ const md = new Marked(
 );
 let mermaidPromise,
   diagramSequence = 0,
-  diagramQueue = Promise.resolve();
-const renderTimers = new WeakMap();
+  diagramQueue = new RenderQueue();
+const diagramScopes = new WeakMap();
 function getMermaid() {
   if (!mermaidPromise)
     mermaidPromise = import('mermaid').then(({ default: mermaid }) => {
@@ -96,33 +98,46 @@ function scheduleDiagrams(target) {
     .filter((block) => block.dataset.source.trim() && !block.dataset.running)
     .map((block) => ({ block, source: block.dataset.source }));
   if (!blocks.length) return;
-  clearTimeout(renderTimers.get(target));
-  renderTimers.set(
-    target,
-    setTimeout(() => {
-      for (const { block, source } of blocks) {
-        const job = diagramQueue.then(async () => {
-          if (!block.isConnected) return;
-          block.dataset.running = 'true';
-          try {
-            const mermaid = await getMermaid();
-            await document.fonts.ready;
-            if (!block.isConnected) return;
-            const { svg } = await renderDiagram(mermaid, source);
-            if (!block.isConnected || block.dataset.source !== source) return;
-            block.innerHTML = DOMPurify.sanitize(svg, {
-              USE_PROFILES: { svg: true, svgFilters: true },
-            });
-            block.classList.add('diagram-ready');
-          } catch (error) {
-            if (block.isConnected && block.dataset.source === source)
-              diagramError(block, source, error);
-          }
+  let scope = diagramScopes.get(target);
+  if (!scope) {
+    scope = new RenderScope();
+    diagramScopes.set(target, scope);
+  }
+  const priority = target.isContentEditable
+    ? 40
+    : target.id === 'preview'
+      ? 30
+      : 0;
+  for (const { block, source } of blocks) {
+    const task = scope.begin(block, source);
+    block.dataset.running = 'true';
+    const current = () =>
+      task.current() && block.isConnected && block.dataset.source === source;
+    diagramQueue.enqueue({
+      signal: task.signal,
+      priority,
+      run: async () => {
+        if (!current()) return null;
+        const mermaid = await getMermaid();
+        await document.fonts.ready;
+        if (!current()) return null;
+        return renderDiagram(mermaid, source);
+      },
+      publish: (result) => {
+        if (!result || !current()) return;
+        block.innerHTML = DOMPurify.sanitize(result.svg, {
+          USE_PROFILES: { svg: true, svgFilters: true },
         });
-        diagramQueue = job.catch(() => {});
-      }
-    }, 160),
-  );
+        block.classList.add('diagram-ready');
+        delete block.dataset.running;
+      },
+      fail: (error) => {
+        if (!current()) return;
+        diagramError(block, source, error);
+        delete block.dataset.running;
+      },
+    });
+  }
 }
 export function renderDiagrams(target) {
   scheduleDiagrams(target);
@@ -236,6 +251,8 @@ export async function validateNote(markdown) {
 }
 export function renderMarkdown(text, target, depth = 0) {
   disposeMarkdownS(target);
+  diagramScopes.get(target)?.abort();
+  diagramScopes.delete(target);
   target.innerHTML = DOMPurify.sanitize(md.parse(normalizeMath(text)), {
     ADD_TAGS: ['annotation'],
     ADD_ATTR: ['target', 'encoding'],

@@ -85,6 +85,30 @@ try {
     .filter({ hasText: '停止' })
     .click({ force: true });
   assert.equal(await page.locator('#mds-test iframe').count(), 0);
+  await page.evaluate(() =>
+    PNTest.renderMarkdown(
+      '\x60\x60\x60mermaid\nflowchart LR\n A-->B\n\x60\x60\x60',
+      document.querySelector('#mds-test'),
+    ),
+  );
+  await page.locator('#mds-test .diagram-ready svg').waitFor();
+  await page.evaluate(() =>
+    PNTest.renderMarkdown(
+      '\x60\x60\x60mermaid\nnot a valid diagram !\n\x60\x60\x60',
+      document.querySelector('#mds-test'),
+    ),
+  );
+  await page.locator('#mds-test .diagram-error').waitFor();
+  await page.evaluate(() =>
+    PNTest.renderMarkdown(
+      '\x60\x60\x60mermaid\nflowchart LR\n C-->D\n\x60\x60\x60',
+      document.querySelector('#mds-test'),
+    ),
+  );
+  await page.locator('#mds-test .diagram-ready svg').waitFor();
+  console.log(
+    'PASS real Mermaid queue: render, invalid input and subsequent recovery',
+  );
   console.log(
     'PASS Markdown S: explicit execution, source round trip, real sandbox interaction, parent isolation and stop',
   );

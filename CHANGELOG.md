@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
+
 - Begin the confirmed render-kernel guidance: introduce task scopes with monotonic generations and cancellation, and invalidate Markdown S preparation when its view is replaced. Add ABA/disposal contract checks. / 按确认的内核指导开始统一任务代次和取消，视图替换时失效 Markdown S 旧任务，增加异步竞争与销毁检查；尚未完成整个内核迁移。
 
 - Add an experimental offline Markdown S preview for HTML/CSS/JS, SVG, Canvas, Three.js and simple data charts, explicit start/stop and source-preserving serialization; validate real Electron interaction and parent isolation. Remaining acceptance stays open; no public release. / 新增 Markdown S 离线交互预览原型、运行停止和源码保真，已通过真实 Electron 交互及父页面隔离测试；其余验收仍待完成，不公开发布。
