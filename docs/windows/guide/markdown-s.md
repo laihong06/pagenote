@@ -2,6 +2,8 @@
 
 适用于当前开发分支，尚未包含在公开 beta.4 下载中。示例源码见 [markdown-s.md](../../../../examples/markdown-s.md)。
 
+开发环境依赖安装完成后，在项目目录运行 `npm run demo:markdown-s`，将构建当前源码并打开独立演示项目。示例、配置与数据都位于本仓库 `tmp/markdown-s-demo-*/`，不会覆盖已有学习笔记；关闭后可以打开输出的 `project.pagenote` 继续查看。`node scripts/demo-markdown-s.mjs --verify` 可自动核验项目打开及运行／停止。
+
 1. 在当前开发构建中打开项目，把示例内容复制到右侧页面笔记。
 2. 点击增强卡片的“运行”；HTML 示例可拖动信息素滑块，图表展示合成数据，Three.js 展示旋转立方体。
 3. 点击“停止”释放该预览，展开“查看源码”阅读实现。同一视图最多同时运行两个演示。

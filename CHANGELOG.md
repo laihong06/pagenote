@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。
+
 - Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
 
 - Fix desktop preview suspension when minimize does not update document visibility: native minimize/hide events now suspend Markdown S previews; real window minimize/restore and explicit restart pass. / 修复最小化不触发网页可见性变化时预览不停的问题；宿主最小化／隐藏通知负责停止，真实窗口恢复后手动重跑通过。

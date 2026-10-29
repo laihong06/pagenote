@@ -50,7 +50,8 @@
     "platform": "node scripts/platform.mjs",
     "capture:guide": "node scripts/capture-platform-guide.mjs",
     "predev": "node scripts/build-markdown-s.mjs",
-    "test:markdown-s": "node tests/markdown-s.mjs"
+    "test:markdown-s": "node tests/markdown-s.mjs",
+    "demo:markdown-s": "npm run build && node scripts/demo-markdown-s.mjs"
   },
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",
