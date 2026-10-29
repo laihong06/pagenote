@@ -2,6 +2,28 @@ import './markdown-s.css';
 import { RenderScope } from './render-scope';
 
 const previewScopes = new WeakMap();
+const livePreviews = new Map();
+let removalObserver;
+function untrackPreview(block) {
+  livePreviews.delete(block);
+  if (!livePreviews.size) {
+    removalObserver?.disconnect();
+    removalObserver = null;
+  }
+}
+function trackPreview(block, stop) {
+  livePreviews.set(block, stop);
+  if (!removalObserver) {
+    removalObserver = new MutationObserver(() => {
+      for (const [node, dispose] of livePreviews)
+        if (!node.isConnected) dispose();
+    });
+    removalObserver.observe(document.body, { childList: true, subtree: true });
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) for (const stop of [...livePreviews.values()]) stop();
+});
 export function disposeMarkdownS(target) {
   previewScopes.get(target)?.abort();
   previewScopes.delete(target);
@@ -129,6 +151,7 @@ export function renderMarkdownS(target) {
       generation++;
       task?.cancel();
       scope.activePreviews.delete(block);
+      untrackPreview(block);
       frame?.remove();
       frame = null;
       run.disabled = false;
@@ -143,6 +166,7 @@ export function renderMarkdownS(target) {
         return;
       }
       scope.activePreviews.add(block);
+      trackPreview(block, () => stop.onclick());
       const current = ++generation;
       task = scope.begin(block, block.dataset.source);
       const runningTask = task;
@@ -175,6 +199,7 @@ export function renderMarkdownS(target) {
         if (!runningTask.current() || current !== generation) return;
         status.textContent = '无法运行：' + e.message;
         scope.activePreviews.delete(block);
+        untrackPreview(block);
         run.disabled = false;
         stop.disabled = true;
       }

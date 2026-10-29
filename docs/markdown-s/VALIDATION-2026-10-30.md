@@ -2,6 +2,8 @@
 
 范围：Windows 开发源码、真实 Electron 运行及注入当前源码的独立测试宿主；不是生产安装包或全部平台验收。指导文件已由发起人确认采用。PR #17 保持开发状态。
 
+补充实测：`PAGENOTE_GUIDE_MARKDOWN=examples/markdown-s.md` 与 `PAGENOTE_VERIFY_PERSISTENCE=1` 运行采集脚本，真实编辑组件、flush 后直接读取项目 `src/notes.md`，随后关闭并重新启动 Electron；源码标记及其他引擎保留、预览默认不执行均通过。专项还验证了删除运行中卡片后，脱离文档的节点内 iframe 被移除，运行状态释放。后台自动停止已接线，尚未以真实系统切后台覆盖验收。
+
 | 对应验收 | 本轮证据 | 状态与范围 |
 | --- | --- | --- |
 | F01 | 生产构建；formula-rendering、code-rendering、rich-editor 脚本 | 已通过受测公式／代码／富文本场景，不代表所有历史笔记 |

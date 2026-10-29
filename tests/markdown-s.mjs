@@ -263,6 +263,24 @@ try {
   console.log(
     'PASS two-preview limit, replacement cleanup, CSP network and renamed-frame navigation isolation',
   );
+  await page.evaluate(() => {
+    window.removedPreview = document.querySelector(
+      '#mds-test .markdown-s-block',
+    );
+    removedPreview.remove();
+  });
+  await page.waitForFunction(
+    () => !window.removedPreview.querySelector('iframe'),
+  );
+  assert.equal(
+    await page.evaluate(
+      () => removedPreview.querySelector('figcaption button').disabled,
+    ),
+    false,
+  );
+  console.log(
+    'PASS removed component disposes live iframe and releases run state',
+  );
   console.log(
     'PASS Markdown S: explicit execution, source round trip, real sandbox interaction, parent isolation and stop',
   );

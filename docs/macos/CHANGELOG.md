@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+共享预览接入删除清理与后台停止；本次项目重启实测在 Windows 完成，Mac 系统行为待验证。
+
 平台 CI 新增 Markdown S 真实 Electron 专项；Mac 结果以实际 CI 为准，不能沿用 Windows 通过结论。
 
 共享 Markdown S 预览增加每视图两个演示上限；本轮新增多引擎验证在 Windows 执行，不宣称 Mac 已通过。

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Verify Markdown S source persistence through real project files and a full application restart; dispose removed previews and stop on document backgrounding. / 验证真实项目文件保存及完整应用重启后源码保留；清理被删除的运行组件并接入后台停止，后台系统行为仍待实测。
+
 - Validate preview replacement cleanup, concurrency and network/navigation isolation; add renderer contracts and real Electron checks to platform CI, with scoped acceptance evidence. / 验证预览替换清理、并发限制及网络／导航隔离，接入平台 CI 并按验收项记录证据与未完成范围。
 
 - Add a reproducible Markdown S learning demo and real Windows tutorial screenshots; verify component source editing, undo and redo. / 新增可复现的学习演示笔记、真实 Windows 配图教程，并验证组件源码编辑和撤销重做；开发功能未发布。

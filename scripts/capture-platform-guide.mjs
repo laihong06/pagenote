@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { _electron as electron } from '@playwright/test';
 import { dismissWelcome } from '../tests/dismiss-welcome.mjs';
 import { loadPlatform } from './platform-config.mjs';
@@ -49,7 +50,7 @@ if (process.env.PAGENOTE_GUIDE_MARKDOWN)
     path.resolve(process.env.PAGENOTE_GUIDE_MARKDOWN),
     path.join(project, 'src/notes.md'),
   );
-const app = await electron.launch({
+const launchOptions = {
   executablePath,
   args: process.env.DESKTOP_EXE ? [] : [root],
   env: {
@@ -57,7 +58,8 @@ const app = await electron.launch({
     PAGE_NOTES_USER_DATA: path.join(temp, 'profile'),
     PAGE_NOTES_DATA: path.join(temp, 'data'),
   },
-});
+};
+let app = await electron.launch(launchOptions);
 const captures = [];
 try {
   const page = await app.firstWindow();
@@ -118,6 +120,22 @@ try {
   await page.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
   await page.locator('.note-pane').click({ position: { x: 100, y: 100 } });
   await snap('editing');
+  if (process.env.PAGENOTE_VERIFY_PERSISTENCE) {
+    await page
+      .locator('#preview .markdown-s-block figcaption strong')
+      .first()
+      .dblclick();
+    await page
+      .getByRole('textbox', { name: 'Markdown S 源码' })
+      .fill('<p>Persisted Markdown S marker</p>');
+    await page.evaluate(() => window.pageNotes.flush());
+    const saved = await fs.readFile(path.join(project, 'src/notes.md'), 'utf8');
+    assert.ok(
+      saved.includes('<p>Persisted Markdown S marker</p>'),
+      'component source reaches the real project file',
+    );
+    assert.ok(saved.includes('mds-three'), 'other engines survive editing');
+  }
   await page.locator('#noteEditButton').click();
   await page.locator('#aiSharedTools [data-ai-pointer=pen]').click();
   await snap('ink-tools');
@@ -158,6 +176,32 @@ try {
     ) + '\n',
   );
   console.log('Captured native ' + id + ': ' + captures.join(', '));
+  if (process.env.PAGENOTE_VERIFY_PERSISTENCE) {
+    await app.close();
+    app = await electron.launch(launchOptions);
+    const reopened = await app.firstWindow();
+    await reopened.waitForFunction(() => !!window.pageNotes);
+    await dismissWelcome(reopened);
+    if (await reopened.locator('#bookshelf').isVisible())
+      await reopened.locator('.book-title', { hasText: '学习示例' }).click();
+    await reopened.locator('#preview .markdown-s-block').first().waitFor();
+    assert.ok(
+      (
+        await reopened
+          .locator('#preview .markdown-s-block')
+          .first()
+          .getAttribute('data-source')
+      ).includes('Persisted Markdown S marker'),
+    );
+    assert.equal(
+      await reopened.locator('#preview .mds-frame').count(),
+      0,
+      'restart does not auto-execute saved components',
+    );
+    console.log(
+      'PASS real project file save, full application restart, source preservation and no auto-execution',
+    );
+  }
 } finally {
   await app.close();
   await fs.rm(temp, { recursive: true, force: true });
