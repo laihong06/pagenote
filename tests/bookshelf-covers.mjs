@@ -83,7 +83,7 @@ try {
   await fs.symlink(
     path.join(tmp, 'outside'),
     path.join(dir, 'src/assets'),
-    'dir',
+    process.platform === 'win32' ? 'junction' : 'dir',
   );
   await assert.rejects(store.saveCover(book.key, png), /符号链接/);
   assert.equal(

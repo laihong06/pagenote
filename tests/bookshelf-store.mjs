@@ -36,13 +36,31 @@ try {
   await fixture('First/src/not-a-book');
   const bad = await fixture('Broken');
   await fs.writeFile(path.join(bad.dir, 'project.pagenote'), '{}');
-  await fs.symlink(first.dir, path.join(root, 'Alias'), 'dir');
-  const unsafe = await fixture('Unsafe');
-  await fs.unlink(path.join(unsafe.dir, 'src/left.md'));
   await fs.symlink(
-    path.join(first.dir, 'src/left.md'),
-    path.join(unsafe.dir, 'src/left.md'),
+    first.dir,
+    path.join(root, 'Alias'),
+    process.platform === 'win32' ? 'junction' : 'dir',
   );
+  const unsafe = await fixture('Unsafe');
+  if (process.platform === 'win32') {
+    // Directory junctions exercise the same real-path escape without requiring
+    // Developer Mode or administrator file-symlink privileges on Windows.
+    await fs.rename(
+      path.join(unsafe.dir, 'src'),
+      path.join(unsafe.dir, 'original-src'),
+    );
+    await fs.symlink(
+      path.join(first.dir, 'src'),
+      path.join(unsafe.dir, 'src'),
+      'junction',
+    );
+  } else {
+    await fs.unlink(path.join(unsafe.dir, 'src/left.md'));
+    await fs.symlink(
+      path.join(first.dir, 'src/left.md'),
+      path.join(unsafe.dir, 'src/left.md'),
+    );
+  }
   const store = bookshelf.createBookshelfStore({
     data: path.join(tmp, 'data'),
   });

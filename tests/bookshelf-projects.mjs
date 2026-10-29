@@ -77,18 +77,41 @@ try {
   const sourcePath = path.join(first.value.projectRoot, firstManifest.left);
   const outside = path.join(tmp, 'outside.md');
   await fs.writeFile(outside, 'Outside stays private');
-  await fs.unlink(sourcePath);
-  await fs.symlink(outside, sourcePath);
+  const sourceDirectory = path.dirname(sourcePath);
+  const savedDirectory = sourceDirectory + '-original';
+  const externalDirectory = path.join(tmp, 'external-src');
+  if (process.platform === 'win32') {
+    await fs.cp(sourceDirectory, externalDirectory, { recursive: true });
+    await fs.rename(sourceDirectory, savedDirectory);
+    await fs.symlink(externalDirectory, sourceDirectory, 'junction');
+  } else {
+    await fs.unlink(sourcePath);
+    await fs.symlink(outside, sourcePath);
+  }
   assert.equal(
     (await api('/api/projects/open', { filePath: first.value.projectFile })).ok,
     false,
     'open revalidates links after shelf scan',
   );
-  await fs.unlink(sourcePath);
-  await fs.writeFile(sourcePath, '# First\n');
+  if (process.platform === 'win32') {
+    await fs.rename(sourceDirectory, sourceDirectory + '-linked');
+    await fs.rename(savedDirectory, sourceDirectory);
+  } else {
+    await fs.unlink(sourcePath);
+    await fs.writeFile(sourcePath, '# First\n');
+  }
   const notesPath = path.join(first.value.projectRoot, firstManifest.right);
-  await fs.unlink(notesPath);
-  await fs.symlink(outside, notesPath);
+  if (process.platform === 'win32') {
+    await fs.rename(sourceDirectory, savedDirectory);
+    await fs.writeFile(
+      path.join(externalDirectory, path.basename(notesPath)),
+      'Outside stays private',
+    );
+    await fs.symlink(externalDirectory, sourceDirectory, 'junction');
+  } else {
+    await fs.unlink(notesPath);
+    await fs.symlink(outside, notesPath);
+  }
   assert.equal(
     (
       await api(
@@ -100,6 +123,14 @@ try {
     false,
   );
   assert.equal(await fs.readFile(outside, 'utf8'), 'Outside stays private');
+  if (process.platform === 'win32')
+    assert.equal(
+      await fs.readFile(
+        path.join(externalDirectory, path.basename(notesPath)),
+        'utf8',
+      ),
+      'Outside stays private',
+    );
   console.log(
     'PASS bound-root new projects, independent import, collision and failure protection',
   );

@@ -115,3 +115,27 @@
 从 **设置与阅读工具** 进入。调整浅深色、纸页样式、缩放；项目内保留位置。完成操作后核对当前页、结果与保存反馈；退出面板返回阅读，需要撤回时使用模块提供的撤销／取消。测试开发；真实环境边界见验收记录。
 
 ![主题、缩放与阅读位置（历史 Windows 开发界面）](images/paired-reading.png)
+
+## 本轮 Windows 整合界面
+
+来自本机实际运行的合成学习示例；环境、版本和源码状态见[采集记录](images/current/provenance.json)。截图展示界面，不代表在线 AI、真实 Office 或全部硬件已经验收。
+
+### 书架入口
+
+![书架入口](images/current/bookshelf.png)
+
+### 双栏阅读、公式与图表
+
+![双栏阅读、公式与图表](images/current/reading.png)
+
+### 渲染笔记编辑
+
+![渲染笔记编辑](images/current/editing.png)
+
+### 按需展开的笔工具
+
+![按需展开的笔工具](images/current/ink-tools.png)
+
+### 独立 AI 批注工作台
+
+![独立 AI 批注工作台](images/current/ai-workbench.png)

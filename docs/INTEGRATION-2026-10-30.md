@@ -25,13 +25,20 @@
 
 本文件的结果在执行后补充。已有贡献者历史测试保留在 CHANGELOG 与 PR 中，不冒充本轮重跑。
 
-- 平台版本隔离、打包入口、beta 身份与关联检查：待执行。
-- 桌面构建、现有回归、书架与雨课堂：待执行。
+- 平台版本隔离、打包入口、beta 身份与关联检查：通过；原有版本测试与公式测试通过，平台文档 101 个链接通过。
+- Windows 桌面 npm run build、完整 npm test、书架五项与雨课堂九项专项全部通过；format:check 通过。Mac 首轮云端构建与多数回归通过，最后 trackpad 因干净环境缺 tmp 目录中断；已补工作区准备步骤，等待重跑。
 - Android JVM、测试编译与 Debug APK：待执行。
 - Android 模拟器核心交互：待执行。
-- Windows 新界面截图：待采集。
+- Windows 新界面截图：五张已采集并检查，见 docs/windows/guide/README.md；均为真实应用与合成材料，未执行在线 AI 请求。
 - Mac 真实运行：本机为 Windows；新增 macOS CI 和截图采集入口，不宣称本地 Mac 通过。
 
 ## 仍需逐项确认的范围
 
 真实 Office 编辑、真实雨课堂课堂、在线模型服务、物理手写笔、Mac 原生窗口和所有功能的美学确认，不能由编译或模拟器结果替代。未覆盖内容如实标注，按既有发布政策处理，不虚构全环境通过。
+
+### 首轮失败与修正
+
+- npm 在线依赖安装因连接中断失败；本机复用同版本已有依赖，并按锁文件完整性恢复新依赖。CI 使用干净 npm ci。
+- Android Java HTTPS 握手失败，使用仅本机 HTTPS 验证转发排查，不把临时代理或机器路径提交仓库。
+- Windows 书架测试中的符号链接需要额外权限；目录场景改用 junction，继续验证跨项目路径逃逸被拒绝，保留断言。
+- 首轮 CI 的 Android SDK 默认 tools 包已停用，显式安装 platform-tools、API 35 与对应 build-tools；Windows/Mac 首轮干净工作区缺 tmp 目录已修正。

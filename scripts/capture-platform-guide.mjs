@@ -22,7 +22,7 @@ await fs.writeFile(
   JSON.stringify({
     format: 'pagenote-project',
     version: 1,
-    id: 'public-guide-demo',
+    id: 'c'.repeat(64),
     name: '学习示例',
     left: 'src/source.md',
     right: 'src/notes.md',
@@ -63,6 +63,7 @@ try {
   );
   await page.evaluate(() => window.pageNotes.setLanguage('zh-CN'));
   const snap = async (name) => {
+    await page.locator('#toast').waitFor({ state: 'hidden' });
     await page.evaluate(async () => {
       await document.fonts.ready;
     });
@@ -93,13 +94,15 @@ try {
   await page.locator('.katex').first().waitFor();
   await page.locator('.diagram-ready').first().waitFor();
   await snap('reading');
-  await page.locator('#noteEditButton').click();
+  await page.evaluate(() => window.pageNotes.menuAction('chooseEditor'));
+  await page.locator('.note-pane').click({ position: { x: 100, y: 100 } });
   await snap('editing');
-  await page.locator('#noteReturn').click();
-  await page.locator('#documentInkButton').click();
+  await page.locator('#noteEditButton').click();
+  await page.locator('#aiSharedTools [data-ai-pointer=pen]').click();
   await snap('ink-tools');
-  await page.locator('#inkReturn').click();
-  await page.locator('#aiReviewButton').click();
+  await page.locator('#aiSharedTools [data-ai-pointer=mouse]').click();
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.pageNotes.menuAction('reviewRight'));
   await snap('ai-workbench');
   await fs.writeFile(
     path.join(out, 'provenance.json'),
