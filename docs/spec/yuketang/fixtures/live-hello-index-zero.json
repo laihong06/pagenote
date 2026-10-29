@@ -1,0 +1,8 @@
+{
+  "op": "hello",
+  "presentation": "fixture-presentation-1",
+  "slideindex": 0,
+  "timeline": [
+    { "pres": "fixture-presentation-1", "si": 0 }
+  ]
+}

@@ -129,6 +129,7 @@ internal fun ReaderAdaptiveMenu(
   onExpandedChange: (Boolean) -> Unit,
   drawerOpen: Boolean,
   onDrawerOpenChange: (Boolean) -> Unit,
+  collapseToTrigger: Boolean = false,
   content: @Composable () -> Unit,
 ) {
   val menuColorScheme = desktopReaderMenuColorScheme(MaterialTheme.colorScheme)
@@ -175,7 +176,7 @@ internal fun ReaderAdaptiveMenu(
           onCollapse = { onExpandedChange(false) },
         )
       }
-    } else {
+    } else if (!collapseToTrigger) {
       MaterialTheme(colorScheme = menuColorScheme) {
         CollapsedMenuSidebar(
           groups = groups,

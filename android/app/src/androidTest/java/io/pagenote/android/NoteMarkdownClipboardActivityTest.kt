@@ -38,12 +38,12 @@ class NoteMarkdownClipboardActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    listOf("cut", "copy", "select_all").forEach { command ->
-      editCommand(command).assertIsNotEnabled()
-    }
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
+    listOf("cut", "copy").forEach { command ->
+      editCommand(command).assertIsNotEnabled()
+    }
+    editCommand("select_all").assertIsEnabled()
     val editor = requireNotNull(findNoteEditor())
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
       editor.requestFocus()
@@ -98,7 +98,6 @@ class NoteMarkdownClipboardActivityTest {
     val savedPages = listOf("Lead replace me tail", "Second page remains unchanged")
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
-    pasteMarkdownCommand().assertIsNotEnabled()
 
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
@@ -106,13 +105,9 @@ class NoteMarkdownClipboardActivityTest {
     val editor = requireNotNull(findNoteEditor())
 
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
-      clipboard.clearPrimaryClip()
+      clipboard.setPrimaryClip(ClipData.newPlainText("Markdown", ""))
     }
-    pasteMarkdownCommand().assertIsEnabled().performClick()
-    assertEquals(
-      composeRule.activity.getString(R.string.reader_menu_paste_markdown_empty),
-      session.noteStatus.value,
-    )
+    pasteMarkdownCommand().assertIsNotEnabled()
     assertEquals(savedPages.first(), session.noteDraft.value)
 
     val selectedText = "replace me"
@@ -163,8 +158,6 @@ class NoteMarkdownClipboardActivityTest {
     val selectedText = "replace me"
     val selectedStart = savedPages.first().indexOf(selectedText)
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
-      editor.requestFocus()
-      editor.setSelection(selectedStart, selectedStart + selectedText.length)
       clipboard.setPrimaryClip(
         ClipData.newHtmlText(
           "Rich Markdown",
@@ -173,10 +166,25 @@ class NoteMarkdownClipboardActivityTest {
         ),
       )
     }
+    composeRule.waitForIdle()
+    InstrumentationRegistry.getInstrumentation().runOnMainSync {
+      editor.requestFocus()
+      editor.setSelection(selectedStart, selectedStart + selectedText.length)
+    }
+    composeRule.waitForIdle()
 
-    pasteMarkdownCommand().performClick()
+    pasteMarkdownCommand().assertIsEnabled().performClick()
     val expectedDraft = "Lead **converted** [link](https://example.com) tail"
-    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
+    try {
+      composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
+    } catch (error: Throwable) {
+      val currentClip = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+      throw AssertionError(
+        "HTML paste timed out: draft=${session.noteDraft.value}, status=${session.noteStatus.value}, " +
+          "html=${currentClip?.htmlText}, plain=${currentClip?.text}",
+        error,
+      )
+    }
     val updatedEditor = requireNotNull(findNoteEditor())
     assertEquals(expectedDraft.indexOf(" tail"), updatedEditor.selectionStart)
     assertEquals(updatedEditor.selectionStart, updatedEditor.selectionEnd)
@@ -198,10 +206,9 @@ class NoteMarkdownClipboardActivityTest {
   private fun editCommand(id: String) = run {
     val commandTag = "reader_menu_command_$id"
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
+      if (composeRule.onAllNodesWithTag("reader_menu_group_edit").fetchSemanticsNodes().isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
-      } else {
+      } else if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
     }
@@ -214,10 +221,9 @@ class NoteMarkdownClipboardActivityTest {
   private fun pasteMarkdownCommand() = run {
     val commandTag = "reader_menu_command_paste_markdown"
     if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
+      if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else {
+      } else if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
     }
@@ -228,12 +234,11 @@ class NoteMarkdownClipboardActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "Source document text"
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
@@ -254,7 +259,7 @@ class NoteMarkdownClipboardActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

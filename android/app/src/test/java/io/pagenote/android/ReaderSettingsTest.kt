@@ -12,6 +12,51 @@ class ReaderSettingsTest {
     ReaderSettingsPolicy.validate(ReaderSettings())
     assertEquals(3, ReaderSettings().prepareAheadPages)
     assertEquals("classic", ReaderSettings().markdownTheme)
+    assertEquals("plain", ReaderSettings().noteBackground)
+    // 批次 6 OCR 设置缺省值。
+    assertEquals("system", ReaderSettings().ocrLanguage)
+    assertEquals(io.pagenote.feature.ocr.LatexModelCatalog.DEFAULT_ID, ReaderSettings().latexOcrModel)
+  }
+
+  @Test
+  fun ocrLanguageAcceptsKnownKeysAndRejectsOthers() {
+    setOf("system", "zh", "en").forEach { key ->
+      ReaderSettingsPolicy.validate(ReaderSettings(ocrLanguage = key))
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      ReaderSettingsPolicy.validate(ReaderSettings(ocrLanguage = "klingon"))
+    }
+    assertEquals("system", ReaderSettingsPolicy.sanitize(ReaderSettings(ocrLanguage = "klingon")).ocrLanguage)
+  }
+
+  @Test
+  fun latexOcrModelMustComeFromTheCatalog() {
+    ReaderSettingsPolicy.validate(
+      ReaderSettings(latexOcrModel = io.pagenote.feature.ocr.LatexModelCatalog.DEFAULT_ID),
+    )
+    assertThrows(IllegalArgumentException::class.java) {
+      ReaderSettingsPolicy.validate(ReaderSettings(latexOcrModel = "mathpix"))
+    }
+    assertEquals(
+      io.pagenote.feature.ocr.LatexModelCatalog.DEFAULT_ID,
+      ReaderSettingsPolicy.sanitize(ReaderSettings(latexOcrModel = "mathpix")).latexOcrModel,
+    )
+  }
+
+  @Test
+  fun noteBackgroundAcceptsEveryCatalogKindAndRejectsUnknownKeys() {
+    io.pagenote.feature.pen.NoteBackground.ALL.forEach { background ->
+      ReaderSettingsPolicy.validate(ReaderSettings(noteBackground = background.key))
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      ReaderSettingsPolicy.validate(ReaderSettings(noteBackground = "cornell"))
+    }
+  }
+
+  @Test
+  fun sanitizeFallsBackToPlainForUnknownNoteBackground() {
+    val sanitized = ReaderSettingsPolicy.sanitize(ReaderSettings(noteBackground = "cornell"))
+    assertEquals("plain", sanitized.noteBackground)
   }
 
   @Test

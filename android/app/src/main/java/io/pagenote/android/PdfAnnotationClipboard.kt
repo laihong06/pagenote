@@ -132,13 +132,22 @@ internal object PdfAnnotationClipboard {
     if (!isSupported(item) || !isValidItem(item)) return null
     val points = item.pagePoints() ?: return null
     if (item.type() == "text") {
-      val fontSize = maxOf(20.0, item.width() * 5.0)
+      // Effective size honors the explicit fontSize extension field, then the
+      // desktop width derivation (AnnotationTextStyle.effectiveFontSize parity).
+      val fontSize = item.textFontSize()
+      val align = item.textAlign()
       val lines = item["text"]?.jsonPrimitive?.content.orEmpty().split('\n')
       val textWidth = (lines.maxOfOrNull(String::length) ?: 0) * fontSize * 0.62
+      val anchorX = points[0].first
+      val left = when (align) {
+        "center" -> anchorX - textWidth / 2.0
+        "right" -> anchorX - textWidth
+        else -> anchorX
+      }
       return PdfAnnotationBounds(
-        left = points[0].first,
+        left = left,
         top = points[0].second - fontSize,
-        right = points[0].first + textWidth,
+        right = left + textWidth,
         bottom = points[0].second + (lines.size - 1) * fontSize * 1.4 + fontSize * 0.4,
       )
     }
@@ -181,6 +190,47 @@ internal object PdfAnnotationClipboard {
     })
   }
 
+  /**
+   * Updates the HTML content of one selected rich text annotation (port batch
+   * 4, the confirm path of the rich text editing window) and re-fits its
+   * bounding box to the measured content height, preserving every other field.
+   * The width between the two points is kept; only the second point's y moves
+   * to `first.y + height`. Returns null on stale/invalid targets; returns
+   * [page] itself when content and height are unchanged.
+   */
+  fun updateHtmlContent(
+    page: JsonArray,
+    index: Int,
+    expected: JsonObject,
+    html: String,
+    contentHeightPx: Int,
+  ): JsonArray? {
+    val current = page.getOrNull(index) as? JsonObject ?: return null
+    if (current != expected || current.type() != "html") return null
+    if (html.isBlank() || html.length > 100_000) return null
+    if (contentHeightPx < 1) return null
+    val points = current.pagePoints() ?: return null
+    if (points.size != 2) return null
+    val height = maxOf(60.0, contentHeightPx + 20.0)
+    val existingHtml = current["html"]?.jsonPrimitive?.content
+    val existingHeight = points[1].second - points[0].second
+    if (existingHtml == html && existingHeight == height) return page
+
+    val updated = JsonObject(
+      current + mapOf(
+        "html" to JsonPrimitive(html),
+        "points" to buildJsonArray {
+          add(buildJsonArray { add(JsonPrimitive(points[0].first)); add(JsonPrimitive(points[0].second)) })
+          add(buildJsonArray { add(JsonPrimitive(points[1].first)); add(JsonPrimitive(points[0].second + height)) })
+        },
+      ),
+    )
+    if (!isValidItem(updated)) return null
+    return JsonArray(page.mapIndexed { itemIndex, item ->
+      if (itemIndex == index) updated else item
+    })
+  }
+
   private fun arrowHeadPoints(item: JsonObject): List<Pair<Double, Double>> {
     val points = item.pagePoints() ?: return emptyList()
     val start = points.firstOrNull() ?: return emptyList()
@@ -209,6 +259,19 @@ internal object PdfAnnotationClipboard {
   private fun JsonObject.width(): Double = this["width"]?.let {
     runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull()
   } ?: 0.0
+
+  /** Effective text size: validated explicit `fontSize`, else the desktop derivation. */
+  private fun JsonObject.textFontSize(): Double {
+    val explicit = this["fontSize"]?.let {
+      runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull()
+    }?.takeIf { it.isFinite() && it >= 20.0 && it <= 500.0 }
+    return explicit ?: maxOf(20.0, width() * 5.0)
+  }
+
+  /** Alignment extension field; anything unknown degrades to the desktop left anchor. */
+  private fun JsonObject.textAlign(): String? = this["align"]?.let {
+    runCatching { it.jsonPrimitive.content }.getOrNull()
+  }?.takeIf { it == "left" || it == "center" || it == "right" }
 
   private fun JsonObject.pagePoints(): List<Pair<Double, Double>>? = runCatching {
     this["points"]?.jsonArray?.map { point ->
@@ -286,6 +349,12 @@ internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
   )
 
   private val pages = mutableMapOf<Pair<String, Int>, PageState>()
+
+  fun remapPages(projectId: String, mapping: Map<Int, Int>) {
+    val existing = pages.filterKeys { it.first == projectId }
+    pages.keys.removeAll(existing.keys)
+    existing.forEach { (key, state) -> mapping[key.second]?.let { pages[projectId to it] = state } }
+  }
 
   fun record(projectId: String, page: Int, before: JsonArray, after: JsonArray) {
     require(projectId.isNotBlank() && page >= 1)

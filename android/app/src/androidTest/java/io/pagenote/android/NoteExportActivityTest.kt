@@ -286,9 +286,11 @@ class NoteExportActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
+    openFixtureProjectFromBookshelf(composeRule, existingProjectTestTreeUri(), project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "原文第一页\n\n${PageNotes.SEPARATOR}\n\n原文第二页"
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
@@ -309,7 +311,7 @@ class NoteExportActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

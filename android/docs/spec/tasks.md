@@ -314,6 +314,7 @@
   - 按 `office-editor-plan.md` 分为引擎可复现构建/嵌入、项目源与 PDF 预览、编辑与 Save & Return、可靠文字选区四个切片；先验证上游 LibreOfficeKit Android 原生引擎，不先放开无法渲染的扩展名。
   - [x] 第一切片固定待验证的 Collabora Gerrit `online` 提交 `a27b66cad6275afe672d73bd1bdfa7627a97c9f3`，并记录 Linux builder、NDK 与 16 KB 对齐的本机约束；该哈希不是构建或集成验收通过的声明。详见 `features/office-engine-next-slice.md`。
   - [x] 先落纯 core-project 保存就绪策略：按完整源字节 SHA-256 revision 守卫，区分外部冲突、只读目标、缺少恢复副本和可保存状态。`OfficeSavePolicyTest` 6/6 通过；未接 SAF/editor，也未开放 Office 文件入口。SPEC：`features/office-save-policy.md`。
+  - [x] 本地引擎切片（移植差距清单 #15）：`OfficePdfEngine` 边界 + `OfficePdfConversion`（`Ready/UnsupportedFormat/EngineUnavailable/Failed`）+ `OfficePreviewCacheKey`（源 SHA-256+格式+引擎修订+导出设置，任一变化即失效）+ `OfficePdfConversionService`（原子预览缓存/失败不留伪预览/源只读）+ `OfficeWriteBack`（Save & Return 写回事务：恢复副本→revision 复核→写回，失败还原）。`office_edit`/`save_return` 已从 `pendingCommand()` 占位接线为实命令并显示准确本地原因（桌面宿主 COM/AppleScript 不移植）；LibreOfficeKit 引擎本体未集成，引擎注册点为空时扩展名门控保持关闭、opener 拒绝行为不变，task 36 保持 open。JVM 测试全绿、Debug APK 与 AndroidTest 源码编译通过；SAF 薄层与 AVD 端到端未覆盖。SPEC：`features/office-pdf-conversion.md`。
   - 通过一个 API 34 平板 AVD 闭环覆盖导入、编辑、保存、重开；不建立跨 API 测试矩阵。
   - _Requirement: Office 源格式、布局与适配_
 
@@ -401,3 +402,10 @@
   - SPEC：`features/reader-interaction-enhancements.md`；计划：`reader-interaction-acceptance-plan.md`。
 
 - 实施顺序和测试/提交流程见 `reader-interaction-enhancements-plan.md`。
+
+- [x] 51. 窄笔盒与右侧页面预览
+  - 左侧象形笔工具带宽度固定为 44dp，按 Android 参考密度约 7 毫米；PDF 阅读时菜单默认折叠到顶部入口。
+  - 钢笔压感、圆珠笔恒定粗细、荧光笔、临时激光笔、橡皮擦及现有颜色/宽度/形状工具。
+  - 点击页码打开右侧真实 PDF / Markdown 预览，点选复用保存后跳页和冲突保护，栏外或 Back 关闭。
+  - SPEC 与进度：`features/reader-tools-and-page-previews.md`。仅 API 34 平板定向验收，不扩展设备矩阵。
+  - 最终 API 34 平板定向测试 7/7，相关 JVM 67 项通过，Debug APK 与 AndroidTest APK 已构建；没有卸载或清空登录数据。真机物理宽度与新增笔型硬件行为未在本轮复测。

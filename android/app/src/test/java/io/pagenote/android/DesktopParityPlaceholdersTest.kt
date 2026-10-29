@@ -6,10 +6,13 @@ import org.junit.Test
 
 class DesktopParityPlaceholdersTest {
   @Test
-  fun pendingPlaceholdersAreOfficeEditAndSaveReturnOnly() {
+  fun noPendingPlaceholdersRemainInMenuSections() {
+    // task 36 本地引擎切片接线后，office_edit / save_return 已是实命令
+    // （OfficePdfEngine 边界 + OfficeWriteBack），`pendingCommand()` 占位已清除。
     val main = File("src/main/java/io/pagenote/android/MainActivity.kt").readText()
     val pendingCalls =
       Regex("pendingCommand\\(\\s*\"([a-z_0-9]+)\"").findAll(main).map { it.groupValues[1] }.toSet()
-    assertEquals(setOf("office_edit", "save_return"), pendingCalls)
+    assertEquals(emptySet<String>(), pendingCalls)
+    assertEquals(false, main.contains("fun pendingCommand("))
   }
 }

@@ -18,6 +18,7 @@ data class OpenedProject(
   val handoffsUri: Uri?,
   val sourceName: String,
   val sourceExtension: String,
+  val noteSettingsUri: Uri? = null,
 ) {
   val name: String get() = manifest.name
 }
@@ -44,6 +45,7 @@ class ProjectDocumentOpener(private val resolver: ContentResolver) {
     val annotationsUri = findDocument(treeUri, projectRootId, listOf("src", "annotations.json"))
     val reviewsUri = findDocument(treeUri, projectRootId, listOf("src", "ai-reviews.json"))
     val handoffsUri = findDocument(treeUri, projectRootId, listOf("src", "ai-handoffs.json"))
+    val noteSettingsUri = findDocument(treeUri, projectRootId, listOf("src", "note-settings.json"))
     val notesUri = findDocument(treeUri, projectRootId, notesSegments)
       ?: throw IllegalArgumentException("找不到笔记：${manifest.right}")
     val sourceName = manifest.leftName ?: sourceSegments.last()

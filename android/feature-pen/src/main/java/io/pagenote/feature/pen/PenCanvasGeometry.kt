@@ -13,6 +13,12 @@ data class PenCanvasPageTransform(
   val translationX: Float = 0f,
   val translationY: Float = 0f,
   val allowOutsidePage: Boolean = false,
+  /**
+   * Page rotation in degrees, clockwise on screen, applied around the page
+   * center (port batch 1). Any finite angle is accepted and normalized to
+   * [0, 360); NaN/∞ makes the geometry invalid.
+   */
+  val rotationDegrees: Float = 0f,
 )
 
 class PenCanvasGeometry(
@@ -25,9 +31,13 @@ class PenCanvasGeometry(
   val pageHeightPx: Float = transform.pageHeightPx
   val scale: Float = transform.scale
   val allowOutsidePage: Boolean = transform.allowOutsidePage
+
+  /** Page rotation normalized to [0, 360); see [PenCanvasPageTransform.rotationDegrees]. */
+  val rotationDegrees: Float = ((transform.rotationDegrees % 360f) + 360f) % 360f
+
   val isValid: Boolean = listOf(
     widthPx, heightPx, pageWidthPx, pageHeightPx, scale,
-    transform.translationX, transform.translationY,
+    transform.translationX, transform.translationY, transform.rotationDegrees,
   ).all(Float::isFinite) && widthPx > 0f && heightPx > 0f &&
     pageWidthPx > 0f && pageHeightPx > 0f && scale > 0f
 
@@ -53,14 +63,42 @@ class PenCanvasGeometry(
     val pressureValue = pressure?.takeIf { it.isFinite() && it > 0f }
       ?.coerceIn(0f, 1f)
       ?: PenValidation.DEFAULT_PRESSURE
-    val x = (xPx - pageOriginX) / pixelsPerDocumentUnit
-    val y = (yPx - pageOriginY) / pixelsPerDocumentUnit
+    // Undo the page rotation around the page center before mapping through
+    // the unrotated origin/scale. Clamping stays in document space, so it is
+    // independent of rotation.
+    val (unrotatedX, unrotatedY) = rotateAroundPageCenter(xPx, yPx, -rotationDegrees)
+    val x = (unrotatedX - pageOriginX) / pixelsPerDocumentUnit
+    val y = (unrotatedY - pageOriginY) / pixelsPerDocumentUnit
     val pageMaxY = pageHeightPx * 1000f / pageWidthPx
     return PenPoint(
       x = if (clampToPage) x.coerceIn(0f, 1000f) else x,
       y = if (clampToPage) y.coerceIn(0f, pageMaxY) else y,
       pressure = pressureValue,
     )
+  }
+
+  /**
+   * Document → view pixel pair, applying the page rotation around the page
+   * center. Inverse of [toDocumentPoint]; at rotation 0 the components match
+   * [toViewX]/[toViewY].
+   */
+  fun toViewPoint(point: PenPoint): Pair<Float, Float> {
+    val x = pageOriginX + point.x * pixelsPerDocumentUnit
+    val y = pageOriginY + point.y * pixelsPerDocumentUnit
+    return rotateAroundPageCenter(x, y, rotationDegrees)
+  }
+
+  private fun rotateAroundPageCenter(xPx: Float, yPx: Float, degrees: Float): Pair<Float, Float> {
+    if (degrees == 0f) return xPx to yPx
+    val centerX = pageOriginX + pageWidthPx * scale / 2f
+    val centerY = pageOriginY + pageHeightPx * scale / 2f
+    val radians = kotlin.math.PI * degrees.toDouble() / 180.0
+    val cos = kotlin.math.cos(radians).toFloat()
+    val sin = kotlin.math.sin(radians).toFloat()
+    val dx = xPx - centerX
+    val dy = yPx - centerY
+    // Screen y grows downward, so positive degrees rotate clockwise on screen.
+    return (centerX + dx * cos - dy * sin) to (centerY + dx * sin + dy * cos)
   }
 
   fun documentUnitsForPixels(pixels: Float): Float =

@@ -66,12 +66,9 @@ try {
     JSON.stringify({ 1: '旧笔记应完整保留' }),
   );
   await fs.writeFile(path.join(dir, 'history.keep'), 'old history');
-  await window.evaluate(
-    (id) => localStorage.setItem('last-document', id),
-    legacyId,
-  );
-  await window.reload();
-  await dismissWelcome(window);
+  // The app now opens to the bookshelf instead of restoring last-document
+  // automatically. Exercise the supported open path for this legacy entry.
+  await window.evaluate((id) => window.pageNotes.open(id), legacyId);
   await waitState(
     (state) =>
       state.document?.id === legacyId &&
@@ -107,5 +104,9 @@ try {
   await window.screenshot({ path: path.join(profile, 'failure.png') });
   throw error;
 } finally {
-  await app.close();
+  try {
+    await app.close();
+  } finally {
+    await fs.rm(profile, { recursive: true, force: true });
+  }
 }

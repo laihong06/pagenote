@@ -94,8 +94,21 @@ class NoteLongMarkdownEditorTest {
     assertEquals(edited, editor.markdownSourceText())
 
     composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == edited
+    try {
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == edited
+      }
+    } catch (error: Throwable) {
+      val persistedPage = runCatching {
+        NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1)
+      }.getOrNull()
+      throw AssertionError(
+        "long note save timed out: status=${session.noteStatus.value}, saving=${session.isSaving.value}, " +
+          "draftLength=${session.noteDraft.value.length}, persistedLength=${persistedPage?.length}, " +
+          "baseRevision=${session.noteBaseRevision.value}, persistedRevision=${persistedPage?.let(PageNotes::revision)}, " +
+          "projectId=${session.project.value?.manifest?.id}, notesUri=${project.notesUri}",
+        error,
+      )
     }
     val saved = ProjectNoteStore(testResolver, project.notesUri).read()
     assertEquals(edited, NotePage.pageAt(saved, 1))
@@ -171,16 +184,26 @@ class NoteLongMarkdownEditorTest {
     composeRule.waitUntil(timeoutMillis = 10_000) { findEditor("Page 1 note") != null }
 
     composeRule.onNodeWithTag("reader_page_status").assertIsDisplayed().performClick()
-    composeRule.onNodeWithTag("page_jump_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("page_jump_input").performTextClearance()
-    composeRule.onNodeWithTag("page_jump_input").performTextInput("31")
+    composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
+    composeRule.onNodeWithTag("page_preview_search").performTextClearance()
+    composeRule.onNodeWithTag("page_preview_search").performTextInput("31")
 
     val startedAt = SystemClock.elapsedRealtime()
-    composeRule.onNodeWithTag("page_jump_confirm").performClick()
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      session.pageIndex.intValue == 30 && findEditor(longNote)?.let {
-        it.isLaidOut && !it.isLayoutRequested
-      } == true
+    composeRule.onNodeWithTag("page_preview_item_30").performClick()
+    try {
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        session.pageIndex.intValue == 30 && session.noteDraft.value.length == longNote.length
+      }
+    } catch (error: Throwable) {
+      val editor = findEditor()
+      throw AssertionError(
+        "long page jump timed out: page=${session.pageIndex.intValue}, " +
+          "draftLength=${session.noteDraft.value.length}, editorLength=${editor?.text?.length}, " +
+          "editorLaidOut=${editor?.isLaidOut}, editorLayoutRequested=${editor?.isLayoutRequested}, " +
+          "targetNoteLength=${NotePage.pageAt(session.notesMarkdown.value, 31).length}, " +
+          "status=${session.noteStatus.value}",
+        error,
+      )
     }
     composeRule.waitForIdle()
     val jumpElapsedMs = SystemClock.elapsedRealtime() - startedAt
@@ -208,6 +231,7 @@ class NoteLongMarkdownEditorTest {
     val pages = (1..69).map { page -> if (page == 31) longNote else "Page $page note" }
     val notes = PageNotes.join(pages)
     val project = installProject(notes, pageCount = 69)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     val appContext = InstrumentationRegistry.getInstrumentation().targetContext
     val store = recentProjectsStore(appContext)
@@ -237,6 +261,7 @@ class NoteLongMarkdownEditorTest {
         store.recentProjects.first().forEach { store.remove(it) }
         store.record(entry)
       }
+      revealReaderMenuCommand(composeRule, "file", "recent_documents")
       composeRule.onNodeWithTag("reader_menu_command_recent_documents")
         .performScrollTo().performClick()
       composeRule.waitUntil(timeoutMillis = 10_000) {
@@ -250,9 +275,9 @@ class NoteLongMarkdownEditorTest {
       assertEquals(69, session.renderer.value?.pageCount)
 
       composeRule.onNodeWithTag("reader_page_status").performClick()
-      composeRule.onNodeWithTag("page_jump_input").performTextClearance()
-      composeRule.onNodeWithTag("page_jump_input").performTextInput("31")
-      composeRule.onNodeWithTag("page_jump_confirm").performClick()
+      composeRule.onNodeWithTag("page_preview_search").performTextClearance()
+      composeRule.onNodeWithTag("page_preview_search").performTextInput("31")
+      composeRule.onNodeWithTag("page_preview_item_30").performClick()
       composeRule.waitUntil(timeoutMillis = 15_000) {
         session.pageIndex.intValue == 30 && findEditor(longNote) != null
       }
@@ -329,16 +354,16 @@ class NoteLongMarkdownEditorTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isNotEmpty()
-    }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "Source document text"
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
       session.noteBaseRevision.value = PageNotes.revision(NotePage.pageAt(notes, 1))
+      session.pageIndex.intValue = 0
       session.noteWritable.value = true
       session.noteStatus.value = null
     }

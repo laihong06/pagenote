@@ -55,11 +55,16 @@ android {
 dependencies {
   implementation(project(":core-project"))
   implementation(project(":core-reader"))
+  implementation(project(":core-search"))
   implementation(project(":feature-notes"))
   implementation(project(":feature-annotations"))
   implementation(project(":feature-pen"))
+  implementation(project(":feature-yuketang"))
   implementation(project(":feature-ocr"))
+  implementation(project(":feature-audio"))
   implementation(project(":agent"))
+  // 批次 10：翻译服务商直连（agent 以 implementation 引入 okhttp，app 内自用需显式声明）。
+  implementation("com.squareup.okhttp3:okhttp:4.12.0")
   implementation("androidx.core:core-ktx:1.15.0")
   implementation("androidx.activity:activity-compose:1.9.3")
   implementation("androidx.datastore:datastore-preferences:1.2.1")
@@ -86,6 +91,9 @@ dependencies {
   implementation("io.noties:prism4j:2.0.0") {
     exclude(group = "org.jetbrains", module = "annotations-java5")
   }
+  implementation("androidx.room:room-runtime:2.6.1")
+  implementation("androidx.room:room-ktx:2.6.1")
+  kapt("androidx.room:room-compiler:2.6.1")
   kapt("io.noties:prism4j-bundler:2.0.0")
   testImplementation("junit:junit:4.13.2")
   debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.6")

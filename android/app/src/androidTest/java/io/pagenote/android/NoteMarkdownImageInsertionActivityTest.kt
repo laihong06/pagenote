@@ -47,8 +47,6 @@ class NoteMarkdownImageInsertionActivityTest {
     val savedNotes = PageNotes.join(savedPages)
     val project = installProject(savedNotes)
 
-    imageCommand().assertIsNotEnabled()
-
     val session = attachProjectToReader(project, savedNotes)
     composeRule.waitUntil(timeoutMillis = 10_000) { findNoteEditor() != null }
     composeRule.onNodeWithTag("note_tab_preview").performClick()
@@ -253,9 +251,11 @@ class NoteMarkdownImageInsertionActivityTest {
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     composeRule.runOnUiThread {
       session.project.value = project
+      session.replaceRenderer(null)
       session.markdownSource.value = "Source document text"
       session.notesMarkdown.value = notes
       session.noteDraft.value = NotePage.pageAt(notes, 1)
@@ -276,7 +276,7 @@ class NoteMarkdownImageInsertionActivityTest {
       null,
       Bundle().apply {
         putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest)
-        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, "%PDF-fixture".toByteArray())
+        putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
         putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, notes.toByteArray(Charsets.UTF_8))
         putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
       },

@@ -1,0 +1,62 @@
+/* Baseline sources: Android ReaderSettingsDialog.kt and desktop src/styles.
+   These local tokens are the editable reference, not imported by production. */
+:root {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  font-synthesis: none;
+  letter-spacing: 0;
+  color-scheme: light;
+  --accent: #245e59;
+  --on-accent: #fff;
+  --accent-soft: #dcece7;
+  --background: #f7faf8;
+  --surface: #fff;
+  --surface-alt: #f0f4f3;
+  --sidebar: #f2f6f8;
+  --text: #263735;
+  --muted: #687b74;
+  --border: #dce4e1;
+  --error: #b43c3c;
+  --warning: #8b652c;
+  --success: #3f7958;
+  --sage: #dce8db;
+  --rose: #efdadb;
+  --sky: #dce6f1;
+  --graphite: #d4d9df;
+  --radius: 6px;
+  --dialog-radius: 8px;
+  --toolbar-height: 56px;
+  --sidebar-width: 230px;
+  --left-pane: 50%;
+  --cover-width: 168px;
+  --shadow: 0 3px 12px #213b2924;
+}
+:root[data-platform='desktop'] {
+  --accent: #185abd;
+  --accent-soft: #e6eefb;
+  --sidebar: #f5f8fc;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --accent: #8dd3c5;
+  --on-accent: #073731;
+  --accent-soft: #243f37;
+  --background: #161d1b;
+  --surface: #202925;
+  --surface-alt: #29332f;
+  --sidebar: #1b2522;
+  --text: #e2ebe6;
+  --muted: #acbcb4;
+  --border: #3c4841;
+  --error: #ffadad;
+  --warning: #e4c68f;
+  --success: #9ad3b0;
+  --shadow: 0 3px 12px #0005;
+}
+:root[data-theme='dark'][data-platform='desktop'] {
+  --accent: #8bb8ff;
+  --on-accent: #172d4b;
+  --accent-soft: #293f5b;
+}

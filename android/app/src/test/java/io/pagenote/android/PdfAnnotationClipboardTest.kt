@@ -226,5 +226,118 @@ class PdfAnnotationClipboardTest {
     assertFalse(history.canRedo("project-a", 1))
   }
 
+  @Test
+  fun textBoundsHonorExplicitFontSizeAndAlignment() {
+    val left = item(
+      """{"type":"text","color":"#123456","width":4,"points":[[100,200]],"text":"hi"}""",
+    )
+    // Derived size for width 4 is max(20, 20) = 20; text width = 2 chars * 20 * 0.62.
+    val leftBounds = PdfAnnotationClipboard.bounds(left)!!
+    assertEquals(100.0, leftBounds.left, 1e-9)
+    assertEquals(100.0 + 2 * 20.0 * 0.62, leftBounds.right, 1e-9)
+
+    val styled = item(
+      """{"type":"text","color":"#123456","width":4,"points":[[100,200]],"text":"hi","""
+        + """"font":"mono","fontSize":40.0,"align":"center"}""",
+    )
+    val centerBounds = PdfAnnotationClipboard.bounds(styled)!!
+    val width = 2 * 40.0 * 0.62
+    assertEquals(100.0 - width / 2.0, centerBounds.left, 1e-9)
+    assertEquals(100.0 + width / 2.0, centerBounds.right, 1e-9)
+    assertEquals(200.0 - 40.0, centerBounds.top, 1e-9)
+
+    val right = item(
+      """{"type":"text","color":"#123456","width":4,"points":[[100,200]],"text":"hi","fontSize":40.0,"align":"right"}""",
+    )
+    val rightBounds = PdfAnnotationClipboard.bounds(right)!!
+    assertEquals(100.0 - width, rightBounds.left, 1e-9)
+    assertEquals(100.0, rightBounds.right, 1e-9)
+
+    // Invalid explicit sizes degrade to the derived size instead of failing.
+    val invalid = item(
+      """{"type":"text","color":"#123456","width":4,"points":[[100,200]],"text":"hi","fontSize":9999.0}""",
+    )
+    assertEquals(leftBounds, PdfAnnotationClipboard.bounds(invalid))
+  }
+
+  @Test
+  fun updateHtmlContentReplacesHtmlAndRefitsHeightOnly() {
+    val before = json.parseToJsonElement(
+      """
+      [{"type":"html","color":"#123456","width":2,"points":[[80,90],[580,170]],
+        "html":"<p>old</p>","custom":"keep"}]
+      """.trimIndent(),
+    ) as JsonArray
+
+    val after = PdfAnnotationClipboard.updateHtmlContent(
+      before, 0, before[0] as JsonObject, "<p>new</p>", 120,
+    )!!
+
+    val updated = after[0] as JsonObject
+    assertEquals("<p>new</p>", updated["html"]!!.jsonPrimitive.content)
+    assertEquals("keep", updated["custom"]!!.jsonPrimitive.content)
+    assertEquals("#123456", updated["color"]!!.jsonPrimitive.content)
+    // The measured height maps to max(60, contentHeight + 20) = 140; only the
+    // second point's y moves, the width between the two points is preserved.
+    assertEquals(
+      json.parseToJsonElement("[[80.0,90.0],[580.0,230.0]]"),
+      updated["points"],
+    )
+    assertEquals(updated, PdfAnnotationClipboard.decode(PdfAnnotationClipboard.encode(updated)))
+  }
+
+  @Test
+  fun updateHtmlContentIsANoopWhenContentAndHeightMatch() {
+    val before = json.parseToJsonElement(
+      """[{"type":"html","color":"#123456","width":2,"points":[[80,90],[580,170]],"html":"<p>x</p>"}]""",
+    ) as JsonArray
+    // Height 60 -> max(60, 60 + 20) = 80 == 170 - 90.
+    val after = PdfAnnotationClipboard.updateHtmlContent(
+      before, 0, before[0] as JsonObject, "<p>x</p>", 60,
+    )
+    assertTrue(after === before)
+  }
+
+  @Test
+  fun updateHtmlContentRejectsStaleOrInvalidTargets() {
+    val page = json.parseToJsonElement(
+      """
+      [{"type":"html","color":"#123456","width":2,"points":[[80,90],[580,170]],"html":"<p>x</p>"},
+       {"type":"rect","color":"#123456","width":2,"points":[[10,20],[30,40]]}]
+      """.trimIndent(),
+    ) as JsonArray
+    val expected = page[0] as JsonObject
+
+    // Stale expectation (page already changed elsewhere).
+    val stale = json.parseToJsonElement(
+      """[{"type":"html","color":"#123456","width":2,"points":[[80,90],[580,170]],"html":"<p>other</p>"}]""",
+    ) as JsonArray
+    assertNull(PdfAnnotationClipboard.updateHtmlContent(stale, 0, expected, "<p>x</p>", 100))
+    // Non-html target and out-of-bounds index.
+    assertNull(PdfAnnotationClipboard.updateHtmlContent(page, 1, page[1] as JsonObject, "<p>x</p>", 100))
+    assertNull(PdfAnnotationClipboard.updateHtmlContent(page, 9, expected, "<p>x</p>", 100))
+    // Blank / oversized content and non-positive height.
+    assertNull(PdfAnnotationClipboard.updateHtmlContent(page, 0, expected, "   ", 100))
+    assertNull(PdfAnnotationClipboard.updateHtmlContent(page, 0, expected, "x".repeat(100_001), 100))
+    assertNull(PdfAnnotationClipboard.updateHtmlContent(page, 0, expected, "<p>x</p>", 0))
+  }
+
+  @Test fun insertionMovesUndoHistoryWithoutOverwritingAnotherPageOrProject() {
+    val history = PdfAnnotationEditHistory()
+    val empty = JsonArray(emptyList())
+    val a = json.parseToJsonElement("""[{"type":"rect","tag":"A"}]""") as JsonArray
+    val b = json.parseToJsonElement("""[{"type":"rect","tag":"B"}]""") as JsonArray
+    history.record("project-a", 1, empty, a)
+    history.record("project-a", 2, empty, b)
+    history.record("project-b", 1, empty, b)
+    history.remapPages("project-a", mapOf(1 to 2, 2 to 3))
+    assertFalse(history.canUndo("project-a", 1))
+    assertEquals(empty, history.undo("project-a", 2))
+    assertEquals(a, history.redo("project-a", 2))
+    assertEquals(empty, history.undo("project-a", 3))
+    assertEquals(b, history.redo("project-a", 3))
+    assertEquals(empty, history.undo("project-b", 1))
+  }
+
   private fun item(value: String) = json.parseToJsonElement(value) as JsonObject
 }

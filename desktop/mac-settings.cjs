@@ -19,6 +19,7 @@ function createMacSettings({
   applySetting,
   readPrompt,
   savePrompt,
+  chooseBookshelfDirectory,
   onQuit = () => {},
   onClosed = () => {},
   onError = () => {},
@@ -84,6 +85,10 @@ function createMacSettings({
             throw Error('Setting must be boolean');
         } else throw Error('Unsupported setting');
         await applySetting(packet.key, packet.value);
+      } else if (packet.action === 'choose-bookshelf-directory') {
+        if (!chooseBookshelfDirectory)
+          throw Error('Bookshelf directory picker unavailable');
+        await chooseBookshelfDirectory();
       } else if (['read-prompt', 'save-prompt'].includes(packet.action)) {
         if (!promptModules.has(packet.module))
           throw Error('Unsupported prompt module');

@@ -2,6 +2,7 @@ package io.pagenote.android
 
 import android.graphics.Bitmap
 import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -19,12 +20,14 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.platform.testTag
+import io.pagenote.feature.annotations.TextFontCatalog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -39,10 +42,15 @@ data class PdfAnnotationOverlayItem(
   val imageAssetName: String? = null,
   val html: String? = null,
   val sourceIndex: Int = -1,
+  /** Text style schema (port batch 4); null keeps the desktop-derived defaults. */
+  val fontId: String? = null,
+  val fontSize: Double? = null,
+  val align: String? = null,
 ) {
   companion object {
     private val colorPattern = Regex("^#[a-fA-F0-9]{6}$")
     private val vectorTypes = setOf("line", "arrow", "ellipse")
+    private val alignKeys = setOf("left", "center", "right")
 
     fun fromPage(page: JsonElement): List<PdfAnnotationOverlayItem> {
       val items = page as? JsonArray ?: return emptyList()
@@ -111,6 +119,25 @@ data class PdfAnnotationOverlayItem(
       } else {
         null
       }
+      // Text style schema extension fields (feature-annotations AnnotationTextStyle):
+      // unknown font ids and out-of-range sizes degrade to the derived defaults.
+      val fontId = if (type == "text") {
+        item["font"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+          ?.takeIf(TextFontCatalog::isValidFontId)
+      } else {
+        null
+      }
+      val fontSize = if (type == "text") {
+        item["fontSize"]?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() }
+          ?.takeIf { it.isFinite() && it >= MIN_FONT_SIZE && it <= MAX_FONT_SIZE }
+      } else {
+        null
+      }
+      val align = if (type == "text") {
+        item["align"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }?.takeIf(alignKeys::contains)
+      } else {
+        null
+      }
       return PdfAnnotationOverlayItem(
         type = type,
         points = normalizedPoints,
@@ -120,11 +147,16 @@ data class PdfAnnotationOverlayItem(
         imageAssetName = imageAssetName,
         html = html,
         sourceIndex = sourceIndex,
+        fontId = fontId,
+        fontSize = fontSize,
+        align = align,
       )
     }
 
     private const val MAX_COORDINATE = 1_000_000.0
     private const val MAX_HTML_CHARS = 100_000
+    private const val MIN_FONT_SIZE = 20.0
+    private const val MAX_FONT_SIZE = 500.0
   }
 }
 
@@ -200,10 +232,18 @@ internal fun PdfAnnotationOverlay(
         }
         "text" -> {
           val point = item.points.first()
-          val textSize = maxOf(20.0, item.width * 5.0).toFloat() * pageWidthScale
+          // Text style schema (port batch 4): explicit size/font/align with
+          // fallback to the desktop derivation (max(20, width*5), sans, left).
+          val textSize = (item.fontSize ?: maxOf(20.0, item.width * 5.0)).toFloat() * pageWidthScale
           val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = android.graphics.Color.parseColor(item.color)
             this.textSize = textSize
+            typeface = AnnotationTextFontLoader.typefaceFor(item.fontId)
+            textAlign = when (item.align) {
+              "center" -> Paint.Align.CENTER
+              "right" -> Paint.Align.RIGHT
+              else -> Paint.Align.LEFT
+            }
             style = Paint.Style.FILL
           }
           item.text.orEmpty().split('\n').forEachIndexed { index, line ->
@@ -303,4 +343,20 @@ internal fun PdfAnnotationOverlay(
       }
     }
   }
+}
+
+/**
+ * Font loader for text annotations (port batch 4): resolves [TextFontCatalog]
+ * ids to [Typeface]s for canvas rendering. Catalog entries map to Android
+ * system font families (no binary font assets are bundled), and `Typeface.create`
+ * already returns shared instances for them; the cache only avoids repeated
+ * lookups from the draw loop. Unknown ids degrade to the catalog default.
+ */
+internal object AnnotationTextFontLoader {
+  private val cache = ConcurrentHashMap<String, Typeface>()
+
+  fun typefaceFor(fontId: String?): Typeface =
+    cache.getOrPut(fontId ?: TextFontCatalog.DEFAULT_FONT_ID) {
+      Typeface.create(TextFontCatalog.androidFamilyFor(fontId), Typeface.NORMAL)
+    }
 }

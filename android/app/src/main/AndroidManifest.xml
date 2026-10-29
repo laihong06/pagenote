@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <!-- 批次 10：系统截屏（MediaProjection）→ OCR/取色。 -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- 批次 12：悬浮窗（差距清单 #24）——悬浮球/悬浮笔记/剪贴板/常用语/计时器。 -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
   <application
     android:label="@string/app_name"
     android:theme="@android:style/Theme.Material.Light.NoActionBar">
@@ -12,5 +20,17 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+    <service
+      android:name=".ScreenCaptureService"
+      android:exported="false"
+      android:foregroundServiceType="mediaProjection" />
+    <service
+      android:name=".FloatingWindowService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Floating note/clipboard/timer overlay windows (port gap #24)" />
+    </service>
   </application>
 </manifest>

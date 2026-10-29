@@ -8,6 +8,19 @@
 
 Keep the active reader session intact across Activity configuration recreation, adaptive window changes, and Android system process reclamation. Recovery includes unsaved page-note drafts without changing the project format or silently writing a draft to the project.
 
+### Bookshelf Navigation Update (2026-10-22)
+
+The approved `bookshelf-home.md` supersedes the old cold-launch navigation:
+a fresh task starts at the bookshelf, and selecting a book restores its position
+and recoverable draft. A retained reader route still survives Activity/process
+recreation. Local DataStore positions are keyed by the SAF tree/root, checked
+against the project ID, debounced while reading, and flushed before returning to
+the shelf. Returning saves notes and refuses to leave on failed/pending ink or
+note writes; shelf display cancels reader PDF prefetch. The prior test results
+below are historical, not a claim that the full legacy Activity test suite has
+been rerun against the new startup screen. This change's acceptance remains the
+focused Android 14 tablet checks in `bookshelf-implementation.md`.
+
 ## Session Checkpoint
 
 `MainActivity` owns one `ReaderSessionViewModel`. The ViewModel retains the open project, PDF renderer or Markdown source, note state, pen state, viewport bookmark, and session jobs across configuration recreation. A small process-restoration checkpoint is written through `SavedStateHandle`: SAF access URI and root document ID, project ID, page index, normalized PDF viewport bookmark, selected pen tool, and the identity of the active draft. Large note text and stroke payloads do not go in the saved-state Bundle.

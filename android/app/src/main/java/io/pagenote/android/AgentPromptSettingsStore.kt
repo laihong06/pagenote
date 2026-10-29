@@ -42,6 +42,10 @@ internal object AgentPromptCatalog {
     AgentPromptModule("output", R.string.agent_prompt_module_output, "output.txt"),
     AgentPromptModule("tag-edit", R.string.agent_prompt_module_tag_edit, "tag-edit.txt"),
     AgentPromptModule("learner", R.string.agent_prompt_module_learner, "learner.txt"),
+    // 批次 10：选区 AI 动作（语气/翻译/总结）的提示词模块并入 Agent 提示词设置。
+    AgentPromptModule("ai-tone", R.string.agent_prompt_module_ai_tone, "ai-tone.txt"),
+    AgentPromptModule("ai-translate", R.string.agent_prompt_module_ai_translate, "ai-translate.txt"),
+    AgentPromptModule("ai-summary", R.string.agent_prompt_module_ai_summary, "ai-summary.txt"),
   )
   private val byId = modules.associateBy(AgentPromptModule::id)
 
