@@ -1,5 +1,9 @@
 # Project workflow
 
+## Pull request submission
+
+Follow `docs/PR-STANDARD.zh-CN.md` and `.github/pull_request_template.md` for new or updated PRs. Explain affected modules, entry points, user actions, results and limitations in plain language. UI changes require real application screenshots for each affected platform, including before/after views and relevant interaction states; identify the environment and runtime commit. Design references do not replace runtime evidence. Explain screenshot exemptions for changes without UI impact. Maintainer visual review is separate from CI, functional checks and release approval. If GitHub does not auto-populate the template, copy it manually; do not assume a beta-only template is active on the default branch.
+
 ## Branch policy
 
 `main` is the stable branch; `beta` is the integration and testing branch. Start all new features and routine fixes from `beta`; feature PRs must target `beta`. Do not push development changes directly to `main`. Promote tested changes through a PR to `main` only after real-use testing and explicit founder approval for that promotion. Passing CI alone does not authorize a stable release. Each branch has its own README and matching downloads: main links stable packages, beta links beta prereleases. Never use stable downloads as the beta download entry. Unavailable platform builds must be marked unavailable, not substituted with older builds. Beta packages use a distinct installation identity and user data directory and do not claim stable file associations. Preserve the appropriate branch README when promoting code.

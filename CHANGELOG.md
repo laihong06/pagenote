@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Define a contributor-facing PR standard and template requiring plain-language module explanations, real application screenshots for UI changes, and explicit simplicity/layout review separate from tests and release approval. Documentation only; no binaries or download links changed. / 新增 PR 提交规范、模板与贡献入口：通俗说明各功能模块、入口和操作结果，界面改动提交真实截图并单独审查简洁性与布局；仅文档更新，不发布安装包或修改下载链接。
+
 - Desktop development advances to 1.1.0-beta.5: new projects link src/source.* and src/notes.md from project.pagenote; standalone imports and opened legacy standalone entries become portable projects while preserving managed history, page notes, assets and Tags. Existing manifests retain their linked filenames. Serialize source replacement with note persistence and reject aliasing note/source paths. Public Beta 4, Android beta.5 and the Windows frozen candidate remain unchanged. / 桌面开发版统一项目目录与 src 文件，补齐直接导入和旧独立文档转换；保留分页、附件、Tag、历史和旧项目链接，不更改已发布安装包及冻结候选。
 
 - Adopt PolyForm Noncommercial 1.0.0 for newly licensed founder-original material; preserve historical MIT/contributor permissions and third-party notices, update bilingual scope and package metadata, and include both scope and legacy notices in future distributions. Published binaries and tags are unchanged. / 新增原创内容改用非商业许可，保留历史 MIT、贡献者和依赖授权，未来分发携带许可范围与旧声明，不替换历史包。
