@@ -1,6 +1,6 @@
 # pagenote Beta
 
-Markdown S 增强渲染正在规划与原型验证：[开发指导、架构和验收文件](docs/markdown-s/README.md)。尚未发布，现有下载不代表已经包含这些能力。
+Markdown S 开发分支已接入原生 SVG／Canvas／图表／Three.js 交互组件，修改自动保存到同一 Markdown：[原生架构与格式](docs/markdown-s/NATIVE-MARKDOWN.zh-CN.md) · [模块截图及验收记录](docs/markdown-s/VALIDATION-NATIVE-2026-10-30.md)。尚未公开发布，现有下载不包含本轮开发功能。
 
 ## 按系统查看
 

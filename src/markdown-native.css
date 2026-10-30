@@ -1,0 +1,112 @@
+.markdown-s-native {
+  margin: 24px 0;
+  padding: 26px;
+  background: #f0ecdf;
+  color: #293028;
+  border: 1px solid #353a2e30;
+  border-radius: 2px;
+  font:
+    14px/1.8 system-ui,
+    sans-serif;
+  overflow: hidden;
+}
+.markdown-s-native figcaption {
+  color: #a44c34;
+  font-size: 11px;
+  letter-spacing: 2px;
+  border-bottom: 1px solid #353a2e30;
+  padding-bottom: 12px;
+}
+.markdown-s-native h2 {
+  font:
+    30px/1.4 Georgia,
+    SimSun,
+    serif;
+  margin: 20px 0 8px;
+}
+.markdown-s-native p,
+.markdown-s-native label {
+  color: #696c5e;
+}
+.markdown-s-native svg,
+.markdown-s-native canvas {
+  display: block;
+  width: 100%;
+  background: #f7f3e8;
+  border: 1px solid #353a2e20;
+  margin: 16px 0;
+}
+.markdown-s-native [role='button'] {
+  cursor: pointer;
+}
+.markdown-s-native [role='button']:focus {
+  outline: 2px solid #376d70;
+}
+.markdown-s-native input {
+  display: block;
+  width: 100%;
+  accent-color: #a44c34;
+}
+.markdown-s-native output {
+  display: block;
+  font:
+    28px Georgia,
+    serif;
+  color: #a44c34;
+}
+.markdown-s-native details {
+  margin-top: 16px;
+  font-size: 12px;
+}
+.markdown-s-native button {
+  padding: 6px 12px;
+  border: 1px solid #a44c3466;
+  background: transparent;
+  color: #a44c34;
+  cursor: pointer;
+  font: inherit;
+}
+.markdown-s-native nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0;
+}
+.markdown-s-native nav button {
+  font-size: 11px;
+}
+.markdown-s-native section {
+  border-top: 1px solid #353a2e25;
+  padding-top: 14px;
+  margin-top: 24px;
+  scroll-margin-top: 18px;
+}
+.markdown-native-scene {
+  height: 360px;
+  min-height: 320px;
+  background: #f7f3e8;
+  border: 1px solid #353a2e20;
+}
+.markdown-native-scene canvas {
+  margin: 0;
+  border: 0;
+  max-width: 100%;
+}
+.markdown-s-native:fullscreen {
+  overflow: auto;
+  background: #f0ecdf;
+  border: 0;
+  border-radius: 0;
+  padding: 32px clamp(24px, 10vw, 160px);
+  margin: 0;
+}
+.markdown-s-native:fullscreen h2 {
+  font-size: clamp(32px, 4vw, 48px);
+}
+.markdown-s-native:fullscreen .markdown-native-scene {
+  height: 480px;
+}
+.markdown-s-native pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

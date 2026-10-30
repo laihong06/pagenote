@@ -433,6 +433,7 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
     }
   });
   root.addEventListener('input', (e) => {
+    if (e.target.closest('.markdown-s-native')) return;
     if (e.target.matches('textarea')) return;
     const code =
       e.target.closest('pre code') ||
@@ -463,6 +464,7 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
     }
   });
   root.addEventListener('keydown', (e) => {
+    if (e.target.closest('.markdown-s-native')) return;
     if (e.target.matches('textarea')) return;
     const anchor = getSelection()?.anchorNode,
       paragraph = (
@@ -505,6 +507,7 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
     }
   });
   root.addEventListener('paste', (e) => {
+    if (e.target.closest('.markdown-s-native')) return;
     if (e.target.matches('textarea')) {
       e.stopPropagation();
       return;
@@ -558,6 +561,13 @@ export function createRichEditor({ root, changed, canEdit, toast }) {
     changed(lastMarkdown);
   }
   return {
+    acceptExternal(markdown) {
+      if (markdown === lastMarkdown) return;
+      undo.push(lastMarkdown);
+      if (undo.length > 80) undo.shift();
+      redo = [];
+      lastMarkdown = markdown;
+    },
     load,
     command,
     heading,

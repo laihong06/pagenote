@@ -2,6 +2,10 @@
 
 ## Markdown S implementation
 
+Founder correction: the primary Markdown S experience must use PageNote-owned renderers directly in the note DOM, with component state serialized into the current Markdown and persisted through existing autosave to the same project file. An iframe or embedded HTML document is not an equivalent implementation. Keep legacy HTML execution isolated only for compatibility; do not present it as the native product direction. Follow `docs/markdown-s/NATIVE-MARKDOWN.zh-CN.md` for this superseding requirement.
+
+Render-engine PRs must include a separate real runtime screenshot for every advertised module (including SVG and Canvas), an exercised interaction with observable results, and the environment/source provenance. When the founder supplies a visual reference, render and inspect it, compare layout/typography/color/interaction against the implementation, explain concrete gaps and their causes, and improve them before resubmission. Do not use a single generic screenshot, static placeholders or design mockups as evidence for all engines. Show remaining visual differences candidly; do not declare aesthetic equivalence on the founder's behalf.
+
 For Markdown S work, follow `docs/markdown-s/README.md`, `ARCHITECTURE.zh-CN.md`, `IMPLEMENTATION.zh-CN.md` and `ACCEPTANCE.zh-CN.md` in that directory. Preserve original Markdown, existing reading/editing/saving flows and unsupported-platform fallback. Declare the implementation milestone, affected platforms and acceptance case IDs in each PR; distinguish plans, unverified prototypes, verified functionality and published artifacts. Do not claim renderer safety, screenshot coverage or platform support without evidence. These feature-specific requirements do not override the founder-approved release policy or impose gates on unrelated future platforms.
 
 ## Pull request submission

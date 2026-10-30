@@ -2,6 +2,7 @@ import { Marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
+import { renderNativeMarkdown, disposeNativeMarkdown } from './markdown-native';
 import { RenderScope } from './render-scope';
 import { RenderQueue } from './render-queue';
 import { renderMarkdownS, disposeMarkdownS } from './markdown-s';
@@ -254,6 +255,7 @@ export async function validateNote(markdown) {
   };
 }
 export function renderMarkdown(text, target, depth = 0) {
+  disposeNativeMarkdown(target);
   disposeMarkdownS(target);
   diagramScopes.get(target)?.abort();
   diagramScopes.delete(target);
@@ -299,6 +301,7 @@ export function renderMarkdown(text, target, depth = 0) {
     frame.loading = 'lazy';
     node.replaceWith(frame);
   });
+  renderNativeMarkdown(target);
   renderMarkdownS(target);
   if (depth >= 2) return;
   target.querySelectorAll('img').forEach((node) => {

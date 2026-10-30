@@ -51,7 +51,8 @@
     "capture:guide": "node scripts/capture-platform-guide.mjs",
     "predev": "node scripts/build-markdown-s.mjs",
     "test:markdown-s": "node tests/markdown-s.mjs",
-    "demo:markdown-s": "npm run build && node scripts/demo-markdown-s.mjs"
+    "demo:markdown-s": "npm run build && node scripts/demo-markdown-s.mjs",
+    "test:markdown-native": "node tests/markdown-native-ga.mjs && node tests/markdown-native-state.mjs && node scripts/demo-markdown-s.mjs --verify"
   },
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",

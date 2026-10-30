@@ -1,21 +1,20 @@
-# Markdown S 离线演示
+# Markdown S 原生交互与保存
 
-适用于当前开发分支，尚未包含在公开 beta.4 下载中。示例源码见 [markdown-s.md](../../../../examples/markdown-s.md)。
+这是开发分支功能，公开 beta.4 安装包尚不包含。本轮截图和差距分析见 [逐模块审查](../../markdown-s/VISUAL-REVIEW.zh-CN.md)，数据格式见 [原生规范](../../markdown-s/NATIVE-MARKDOWN.zh-CN.md)。
 
-开发环境依赖安装完成后，在项目目录运行 `npm run demo:markdown-s`，将构建当前源码并打开独立演示项目。示例、配置与数据都位于本仓库 `tmp/markdown-s-demo-*/`，不会覆盖已有学习笔记；关闭后可以打开输出的 `project.pagenote` 继续查看。`node scripts/demo-markdown-s.mjs --verify` 可自动核验项目打开及运行／停止。
+1. 在开发目录运行 `npm run demo:markdown-s`，打开独立原生示例项目。
+2. 直接操作基因、采样滑块、种群、轮盘、交叉、变异概率和代际图表，不需要点“运行 HTML”。
+3. 三维染色体也由 PageNote 直接绘制：拖动、点击基因或暂停／继续。
+4. 修改自动进入当前 Markdown。等待“已保存到本地”，或使用软件原有保存操作；无需另存 HTML。
+5. 关闭并重新打开项目，组件参数和状态继续保留。可展开“Markdown 数据”查看当前持久化数据。
+6. 通过原有“导入笔记”选择提供的遗传算法实验室 HTML，可转换为原生模板；自定义网页尚不支持通用转换。
 
-1. 在当前开发构建中打开项目，把示例内容复制到右侧页面笔记。
-2. 点击增强卡片的“运行”；HTML 示例可拖动信息素滑块，图表展示合成数据，Three.js 展示旋转立方体。
-3. 点击“停止”释放该预览，展开“查看源码”阅读实现。同一视图最多同时运行两个演示。
-4. 进入笔记编辑模式，双击卡片标题修改源码；支持应用的撤销和重做。源码修改会停止原预览，需重新运行。
-5. 保存并关闭项目后重开，源码应保留；动态运行状态不保存。
+示例：[原生 Markdown](../../../../examples/markdown-s-native.md)。所有示例和临时配置位于仓库 tmp 内，不覆盖已有笔记。
 
-以下为 Windows 真实应用截图。环境、代码来源和工作区状态见 [采集记录](images/markdown-s/provenance.json)。它们展示开发版本，不代表 Mac 或 Android 验收。
+![原生 SVG](images/markdown-native/native-svg.png)
 
-![信息素交互演示](images/markdown-s/markdown-s-interactive.png)
+![原生 Canvas](images/markdown-native/native-canvas.png)
 
-![迭代数据图表](images/markdown-s/markdown-s-chart.png)
+![原生三维染色体](images/markdown-native/native-three.png)
 
-![Three.js 空间演示](images/markdown-s/markdown-s-three.png)
-
-专项测试已覆盖源码编辑、撤销、重做、HTML 交互、SVG、Canvas、图表、WebGL 像素绘制和停止；完整权限、设备兼容、旧端读写与长文档生命周期验收仍在进行。运行未知来源脚本前应检查源码，当前沙盒不提供 CPU／GPU 的硬资源隔离。
+旧 [HTML 沙盒截图](images/markdown-s/provenance.json) 只是历史原型记录，不能作为原生交付证据。

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -28,10 +29,10 @@ await fs.writeFile(
 );
 await fs.writeFile(
   path.join(project, 'src/source.md'),
-  '# Markdown S 离线演示\n\n右侧是可以操作的学习笔记。\n\n1. 点击运行，尝试滑块、图表与三维场景。\n2. 点击停止，释放预览。\n3. 编辑模式双击标题修改源码。\n\n这是独立演示项目，关闭后可以再次打开 project.pagenote。\n',
+  '# Markdown S 离线演示\n\n右侧是可以操作的学习笔记。\n\n1. 直接操作 SVG、Canvas、图表与三维场景。\n2. 修改自动写回 Markdown 文件。\n3. 关闭重开后继续保留组件状态。\n\n这是独立演示项目，关闭后可以再次打开 project.pagenote。\n',
 );
 await fs.copyFile(
-  path.join(root, 'examples/markdown-s.md'),
+  path.join(root, 'examples/markdown-s-native.md'),
   path.join(project, 'src/notes.md'),
 );
 const executablePath = path.join(
@@ -57,13 +58,18 @@ if (process.argv.includes('--verify')) {
     const page = await app.firstWindow();
     await page.waitForFunction(() => !!window.pageNotes);
     await dismissWelcome(page);
-    const card = page.locator('#preview .markdown-s-block').first();
+    const card = page.locator('#preview .markdown-s-native').first();
     await card.waitFor();
-    await card.getByRole('button', { name: '运行', exact: true }).click();
-    await card.frameLocator('iframe').locator('input').waitFor();
-    await card.getByRole('button', { name: '停止', exact: true }).click();
+    await card.getByRole('button', { name: '基因 1', exact: true }).click();
+    await page.evaluate(() => window.pageNotes.flush());
+    const saved = await fs.readFile(path.join(project, 'src/notes.md'), 'utf8');
+    const state = JSON.parse(
+      saved.match(/\x60\x60\x60markdowns\s*\n([\s\S]*?)\n\x60\x60\x60/)[1],
+    );
+    assert.equal(state.genes[0], 0);
+    assert.equal(await card.locator('iframe').count(), 0);
     console.log(
-      'PASS demo command opens the real project and runs/stops its interactive note',
+      'PASS native demo edits write directly to project Markdown without iframe',
     );
   } finally {
     await app.close();

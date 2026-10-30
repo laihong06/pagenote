@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+共享 Markdown S 新增原生 SVG／Canvas／图表／Three.js 实验册与同一 Markdown 文件保存，不以 HTML iframe 作为主方案。专注模式、章节导航及模板导入接入共享代码；本次截图和保存重开验证来自 Windows，Mac 需本轮 CI／实机独立核验，不沿用截图结论。
+
 增加共享桌面演示启动脚本，使用本系统 Electron 路径；本次启动专项在 Windows 验证。
 
 共享 RenderScope 增加取消和完成后的引用释放，具体平台回归另行记录。

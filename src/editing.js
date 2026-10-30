@@ -80,16 +80,21 @@ converter.addRule('editableCode', {
 export function htmlToMarkdown(html) {
   const holder = document.createElement('div');
   holder.innerHTML = html;
-  holder.querySelectorAll('.mermaid-diagram,.markdown-s-block').forEach((n) => {
-    const pre = document.createElement('pre'),
-      code = document.createElement('code');
-    code.className =
-      'language-' +
-      (n.classList.contains('markdown-s-block') ? n.dataset.engine : 'mermaid');
-    code.textContent = n.getAttribute('data-source') || '';
-    pre.append(code);
-    n.replaceWith(pre);
-  });
+  holder
+    .querySelectorAll('.mermaid-diagram,.markdown-s-block,.markdown-s-native')
+    .forEach((n) => {
+      const pre = document.createElement('pre'),
+        code = document.createElement('code');
+      code.className =
+        'language-' +
+        (n.classList.contains('markdown-s-block') ||
+        n.classList.contains('markdown-s-native')
+          ? n.dataset.engine
+          : 'mermaid');
+      code.textContent = n.getAttribute('data-source') || '';
+      pre.append(code);
+      n.replaceWith(pre);
+    });
   const clean = DOMPurify.sanitize(holder.innerHTML, {
     ADD_TAGS: ['annotation'],
     ADD_ATTR: ['encoding'],
