@@ -15,6 +15,13 @@ try {
   const output = path.join(dir, 'result.pdf');
   await convertOffice(input, output);
   assert.equal((await fs.readFile(output)).subarray(0, 5).toString(), '%PDF-');
+  for (const ext of ['docx', 'pptx']) {
+    const source = path.join(import.meta.dirname, 'fixtures', 'sample.' + ext);
+    const copied = path.join(dir, '中文 空格.' + ext);
+    await fs.copyFile(source, copied);
+    await convertOffice(copied, output);
+    assert.equal((await fs.readFile(output)).subarray(0, 5).toString(), '%PDF-');
+  }
   const original = process.env.PAGE_NOTES_LIBREOFFICE;
   process.env.PAGE_NOTES_LIBREOFFICE = path.join(dir, 'missing');
   try {
@@ -24,7 +31,7 @@ try {
     else process.env.PAGE_NOTES_LIBREOFFICE = original;
   }
   console.log(
-    'PASS Linux LibreOffice conversion, Unicode paths and missing dependency message',
+    'PASS Linux LibreOffice ODT/DOCX/PPTX conversion, Unicode paths and missing dependency message',
   );
 } finally {
   await fs.rm(dir, { recursive: true, force: true });
