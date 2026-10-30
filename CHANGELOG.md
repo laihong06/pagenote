@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- 英文稳定入口补充对应 v1.0.0 安装包链接，保持双语下载渠道一致。
+
 - Windows 稳定分支首页改为本系统独立说明，同步已审查的 main 导航文档；仅文档，不包含 beta 运行代码或新发行包。
 
 - Reorganize the default project README into platform navigation and provide a separate Windows stable guide; preserve prior mixed documentation as history. Documentation only: stable source behavior, versions and published binaries are unchanged. / 默认首页改为系统导航，Windows正式版使用独立操作说明与历史截图；旧混合文档归档，不晋级测试代码、不修改版本与制品。
