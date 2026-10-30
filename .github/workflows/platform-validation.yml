@@ -75,6 +75,7 @@ jobs:
           name: native-guide-${{ matrix.platform }}
           path: |
             docs/${{ matrix.platform }}/guide/images/current/
+              docs/${{ matrix.platform }}/guide/images/ai-representation/
             docs/${{ matrix.platform }}/guide/images/markdown-native/
             docs/${{ matrix.platform }}/guide/images/markdown-native-source/
           if-no-files-found: warn

@@ -23,6 +23,7 @@ for (const route of store.index().routes)
     '。' +
     route.first +
     '。\n';
+text += '\n## 表达意图路由（与工作流合并）\n\n```json\n' + JSON.stringify(store.index().intentRoutes,null,2) + '\n```\n';
 for (const item of prompts.modules) {
   const value = store.read(item.id);
   text +=

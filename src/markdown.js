@@ -5,9 +5,10 @@ import DOMPurify from 'dompurify';
 import { renderNativeMarkdown, disposeNativeMarkdown } from './markdown-native';
 import { RenderScope } from './render-scope';
 import { RenderQueue } from './render-queue';
-import { renderMarkdownS, disposeMarkdownS } from './markdown-s';
+import { renderMarkdownS, disposeMarkdownS, chartHTML } from './markdown-s';
 import { codeLanguage, highlightCode } from './code-highlight';
 import { normalizeMath } from './math-input';
+import { parseNativeState } from './markdown-native-contract';
 import 'highlight.js/styles/github.css';
 
 const md = new Marked(
@@ -154,7 +155,9 @@ export async function validateNote(markdown) {
     tokens = md.lexer(normalizedMarkdown),
     images = [],
     diagrams = [],
-    mathCode = [];
+    mathCode = [],
+    visualBlocks = [],
+    nativeIds = new Map();
   let fence = null;
   for (const line of normalizedMarkdown.split(/\r?\n/)) {
     const m = line.match(/^ {0,3}(`{3,}|~{3,})/);
@@ -170,6 +173,70 @@ export async function validateNote(markdown) {
   }
   if (fence) errors.push('代码围栏未闭合');
   md.walkTokens(tokens, (t) => {
+    const engine = t.type === 'code' ? t.lang?.trim().toLowerCase() : '';
+    if (
+      engine === 'markdowns' ||
+      engine === 'mds-native' ||
+      engine === 'mds' ||
+      engine?.startsWith('mds-')
+    ) {
+      const block = {
+        engine,
+        sourceBytes: new TextEncoder().encode(t.text).byteLength,
+        supported: false,
+        errors: [],
+        warnings: [],
+        runtimeVerified: false,
+      };
+      visualBlocks.push(block);
+      if (engine === 'markdowns' || engine === 'mds-native') {
+        block.supported = true;
+        try {
+          const state = parseNativeState(t.text);
+          block.id = state.id;
+          block.kind = state.kind;
+          const previous = nativeIds.get(state.id);
+          if (previous) {
+            const message = '原生组件 id 重复：' + state.id;
+            block.errors.push(message);
+            previous.errors.push(message);
+          } else nativeIds.set(state.id, block);
+        } catch (error) {
+          block.errors.push(error.message);
+        }
+      } else {
+        block.supported = [
+          'mds',
+          'mds-html',
+          'mds-svg',
+          'mds-canvas',
+          'mds-three',
+          'mds-chart',
+        ].includes(engine);
+        if (!block.supported)
+          block.errors.push('未知 Markdown S 围栏：' + engine);
+        block.warnings.push(
+          '历史沙盒兼容块，不是原生组件；本次仅检查保留格式，未验证脚本运行。',
+        );
+        if (block.sourceBytes > 200 * 1024)
+          block.errors.push('源码超过 200 KiB');
+        if (engine === 'mds-chart') {
+          try {
+            chartHTML(t.text);
+          } catch (error) {
+            block.errors.push('图表数据：' + error.message);
+          }
+        }
+        if (
+          /(?:https?:)?\/\/[^\s"'<>]+|\b(?:fetch|WebSocket|XMLHttpRequest)\s*\(/i.test(
+            t.text,
+          )
+        )
+          block.warnings.push(
+            '检测到可能的外部资源或网络API；离线沙盒会阻止网络访问，静态扫描不能判定运行成功。',
+          );
+      }
+    }
     if (t.type === 'blockKatex' || t.type === 'inlineKatex') {
       try {
         katex.renderToString(t.text, {
@@ -240,6 +307,10 @@ export async function validateNote(markdown) {
       errors.push('图片不可加载: ' + href);
     }
   }
+  for (const block of visualBlocks) {
+    errors.push(...block.errors);
+    warnings.push(...block.warnings);
+  }
   return {
     valid: errors.length === 0,
     normalizedMarkdown,
@@ -249,7 +320,9 @@ export async function validateNote(markdown) {
       formulas: target.querySelectorAll('.katex').length + mathCode.length,
       diagrams: diagrams.length,
       images: images.length,
+      enhancedBlocks: visualBlocks.length,
     },
+    visualBlocks,
     scope:
       'syntax-and-local-assets; not semantic correctness or cross-device guarantee',
   };

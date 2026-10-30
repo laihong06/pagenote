@@ -41,6 +41,74 @@ try {
       .contents[0].text,
   );
   const tools = (await client.listTools()).tools.map((t) => t.name);
+  assert.equal(index.schemaVersion, 3);
+  const shared = ['learning', 'representation', 'output', 'learner', 'profile'];
+  for (const scenario of ['generation', 'revision'])
+    for (const id of shared)
+      assert.ok(
+        index.routes.find((r) => r.scenario === scenario).modules.includes(id),
+      );
+  assert.deepEqual(
+    index.intentRoutes.find((r) => r.intent === 'explain').modules,
+    shared,
+  );
+  assert.deepEqual(index.capabilities.representation.native.kinds, [
+    'genetic-lab',
+  ]);
+  const representation = await call('page_notes_read_prompt', {
+    id: 'representation',
+  });
+  assert.ok(representation.text.includes('理解障碍'));
+  const unchangedRepresentation = await call('page_notes_read_prompt', {
+    id: 'representation',
+    knownRevision: representation.revision,
+  });
+  assert.equal(unchangedRepresentation.unchanged, true);
+  const nativeData = {
+    version: 1,
+    id: 'workflow-native',
+    kind: 'genetic-lab',
+    genes: [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+  };
+  const nativeMarkdown =
+    '```markdowns\n' + JSON.stringify(nativeData) + '\n```';
+  const validNative = await call('page_notes_validate_note', {
+    markdown: nativeMarkdown,
+  });
+  assert.equal(validNative.valid, true);
+  assert.equal(validNative.counts.enhancedBlocks, 1);
+  assert.equal(validNative.visualBlocks[0].runtimeVerified, false);
+  assert.equal(validNative.normalizedMarkdown, nativeMarkdown);
+  const duplicates = await call('page_notes_validate_note', {
+    markdown: nativeMarkdown + '\n\n' + nativeMarkdown,
+  });
+  assert.equal(duplicates.valid, false);
+  assert.ok(
+    duplicates.visualBlocks.every((b) =>
+      b.errors.some((e) => e.includes('重复')),
+    ),
+  );
+  const invalidKind = await call('page_notes_validate_note', {
+    markdown: nativeMarkdown.replace('genetic-lab', 'invented-kind'),
+  });
+  assert.equal(invalidKind.valid, false);
+  const unknownEngine = await call('page_notes_validate_note', {
+    markdown: '```mds-invented\n{}\n```',
+  });
+  assert.equal(unknownEngine.valid, false);
+  const invalidChart = await call('page_notes_validate_note', {
+    markdown: '```mds-chart\n{"type":"pie"}\n```',
+  });
+  assert.equal(invalidChart.valid, false);
+  const oversized = await call('page_notes_validate_note', {
+    markdown:
+      '```markdowns\n' +
+      JSON.stringify({ ...nativeData, metadata: '汉'.repeat(70000) }) +
+      '\n```',
+  });
+  assert.equal(oversized.valid, false);
+  assert.ok(oversized.visualBlocks[0].sourceBytes > 200 * 1024);
+  assert.ok(oversized.errors.some((e) => e.includes('200 KiB')));
   assert.ok(index.entry.includes('不规定会话数量'));
   for (const capability of Object.values(index.capabilities)) {
     if (capability.tool) assert.ok(tools.includes(capability.tool));
@@ -72,6 +140,7 @@ try {
     [1, 2, 3],
   );
   assert.equal(task.sources[1].role, 'current');
+  for (const id of shared) assert.ok(task.route.modules.includes(id));
   assert.ok(task.note.hasMore);
   assert.equal(
     task.note.range.totalChars,
@@ -124,6 +193,17 @@ try {
     neighbors: false,
   });
   assert.equal(revision.reviews[0].instruction, review.instruction);
+  for (const id of shared) assert.ok(revision.route.modules.includes(id));
+  const spelling = await call('page_notes_prepare_task', {
+    documentId: imported.id,
+    page: 2,
+    scenario: 'revision',
+    intent: 'edit',
+    instruction: '只改错字',
+    neighbors: false,
+  });
+  assert.ok(!spelling.route.modules.includes('learning'));
+  assert.ok(!spelling.route.modules.includes('representation'));
   assert.equal(revision.note.revision, task.note.revision);
   assert.ok(revision.note.markdown.startsWith('Original explanation'));
   const wrongPage = await client.callTool({
@@ -221,6 +301,38 @@ try {
   );
   await useWebSettings(app);
   await w.evaluate(() => window.pageNotes.openAISettings());
+  await w.locator('#aiPromptModule').selectOption('representation');
+  await w.waitForFunction(() =>
+    document.querySelector('#aiSystemPrompt').value.includes('# 表达与交互'),
+  );
+  const gallery = path.join(
+    root,
+    'docs',
+    process.platform === 'darwin' ? 'macos' : 'windows',
+    'guide/images/ai-representation',
+  );
+  await fs.mkdir(gallery, { recursive: true });
+  await w.screenshot({ path: path.join(gallery, 'settings.png') });
+  await fs.writeFile(
+    path.join(gallery, 'provenance.json'),
+    JSON.stringify(
+      {
+        platform: process.platform,
+        capturedAt: new Date().toISOString(),
+        runtime:
+          'Electron source build; uncommitted representation changes based on e8bce49',
+        scope:
+          'Real AI settings showing the editable representation module; not model behavior evaluation',
+        viewport: await w.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+          density: devicePixelRatio,
+        })),
+      },
+      null,
+      2,
+    ) + '\n',
+  );
   await w.locator('#aiPromptModule').selectOption('entry');
   await w.waitForFunction(() =>
     document.querySelector('#aiSystemPrompt').value.includes('# 入口与路由'),

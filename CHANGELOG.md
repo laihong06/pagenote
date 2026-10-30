@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
+
 - Correct Markdown S's primary architecture to native PageNote SVG/Canvas/chart/WebGL components; serialize interaction state into the existing Markdown fence and reuse project autosave, without creating or resaving HTML documents. / 按发起人修正改为原生组件直绘笔记，交互状态写回同一 Markdown 并复用项目自动保存；不以独立 HTML 或 iframe 代替。
 
 - Add a native genetic-algorithm work with 36 individuals, 40 generations, SVG/Canvas/WebGL, chapter navigation, focus mode and recognized-template-to-data import; document per-module screenshots and visual differences from the reference. Preserve source bytes outside the changed data fence and avoid replacing live source views during layout changes. / 新增原生遗传算法作品，包含36个体、40代、章节导航、专注模式和已识别模板转数据导入；附逐模块截图及视觉差距，保留数据围栏外源码，修复排版变化打断源文档交互的问题。

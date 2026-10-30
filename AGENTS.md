@@ -1,5 +1,9 @@
 # Project workflow
 
+## Shared teaching and representation standards
+
+Initial generation, knowledge-related revisions and direct explanations share `learning`, `representation`, `output`, `learner` and `profile`. Workflow modules govern preparation and safe edits, not separate teaching depth. Pure typo/symbol/format fixes stay within the requested scope. Keep workflow/intent routes, MCP module discovery, editable settings and exported prompt documentation in sync. Advertise only actual platform capabilities; do not invent native templates or substitute legacy HTML sandboxes for native Markdown S. See `docs/AI-REPRESENTATION-ROUTING.zh-CN.md`.
+
 ## Markdown S implementation
 
 Founder correction: the primary Markdown S experience must use PageNote-owned renderers directly in the note DOM, with component state serialized into the current Markdown and persisted through existing autosave to the same project file. An iframe or embedded HTML document is not an equivalent implementation. Keep legacy HTML execution isolated only for compatibility; do not present it as the native product direction. Follow `docs/markdown-s/NATIVE-MARKDOWN.zh-CN.md` for this superseding requirement.

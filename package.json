@@ -38,7 +38,7 @@
     "pretest:mac-office": "node scripts/ensure-electron.mjs",
     "test:version": "node tests/versioning.mjs && node scripts/check-release-version.mjs",
     "check:release": "node scripts/check-release-version.mjs --release",
-    "test:workflows": "node tests/workflows.mjs",
+    "test:workflows": "node tests/prompt-routing.mjs && node tests/workflows.mjs",
     "pretest:workflows": "node scripts/ensure-electron.mjs",
     "test:trackpad": "node tests/trackpad.mjs",
     "pretest:trackpad": "node scripts/ensure-electron.mjs",
