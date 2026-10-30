@@ -356,5 +356,45 @@
   "系统提示词保存后重新连接客户端；模块修改在 AI 下次读取时生效。仅保存当前选中的模块。": [
     "系统提示词保存后重新连接客户端；模块修改在 AI 下次读取时生效。仅保存当前选中的模块。",
     "Reconnect after changing the system prompt. Module changes apply on the next AI read. Save affects only the selected module."
+  ],
+  "正在保存…": ["正在保存…", "Saving…"],
+  "重试保存": ["重试保存", "Retry save"],
+  "查看保存冲突": ["查看保存冲突", "Review save conflict"],
+  "保存冲突": ["保存冲突", "Save conflict"],
+  "保存冲突 · 草稿已备份到历史": [
+    "保存冲突 · 草稿已备份到历史",
+    "Save conflict · Draft backed up in history"
+  ],
+  "已有内容在编辑期间发生变化。当前草稿已备份到本页历史版本，没有覆盖已保存内容。": [
+    "已有内容在编辑期间发生变化。当前草稿已备份到本页历史版本，没有覆盖已保存内容。",
+    "The saved note changed while you were editing. Your draft is backed up in this page’s history; the saved note was not overwritten."
+  ],
+  "我的草稿": ["我的草稿", "My draft"],
+  "已保存内容": ["已保存内容", "Saved note"],
+  "下载我的草稿": ["下载我的草稿", "Download my draft"],
+  "重新载入已保存内容": ["重新载入已保存内容", "Reload saved note"],
+  "继续查看草稿": ["继续查看草稿", "Keep viewing draft"],
+  "已载入保存内容 · 草稿可在历史版本中查看": [
+    "已载入保存内容 · 草稿可在历史版本中查看",
+    "Saved note loaded · Draft available in history"
+  ],
+  "已保存到本地": ["已保存到本地", "Saved locally"],
+  "等待保存…": ["等待保存…", "Waiting to save…"],
+  "保存失败 · 已保留本地恢复副本": [
+    "保存失败 · 已保留本地恢复副本",
+    "Save failed · Recovery draft retained"
+  ],
+  "已打开 · 本地保存": ["已打开 · 本地保存", "Opened · Saved locally"],
+  "笔记已更新，本地草稿已备份到历史版本": [
+    "笔记已更新，本地草稿已备份到历史版本",
+    "The note changed; your draft was backed up in history"
+  ],
+  "编辑内容已变化，请重新查看保存冲突": [
+    "编辑内容已变化，请重新查看保存冲突",
+    "The draft changed; review the save conflict again"
+  ],
+  "保存失败 · 草稿仍在编辑区，请导出备份": [
+    "保存失败 · 草稿仍在编辑区，请导出备份",
+    "Save failed · Draft remains in the editor; export a backup"
   ]
 }

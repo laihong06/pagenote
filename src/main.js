@@ -80,6 +80,25 @@ let doc = null,
   saving = Promise.resolve(),
   dirty = null,
   aiEditing = false;
+const noteBases = new Map(),
+  pendingNoteSaves = new Map();
+const noteKey = (id, p) => `${id}:${p}`;
+async function noteRevision(text) {
+  if (text === null) return '0'.repeat(64); // Legacy drafts have an unknown base.
+  const bytes = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(text),
+  );
+  return Array.from(new Uint8Array(bytes), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
+}
+function noteSaveStatus(text, conflict = false, failed = false) {
+  $('saveStatus').textContent = text;
+  $('saveStatus').title = text;
+  $('resolveNoteConflict').hidden = !conflict;
+  $('retryNoteSave').hidden = !failed;
+}
 let wordActive = false,
   wordBusy = false,
   wordFinishing = false,
@@ -92,7 +111,10 @@ const annotations = createAnnotations({
   toast,
   getDocument: () => doc,
   getPage: () => page,
-  onSaveStatus: (text) => ($('saveStatus').textContent = text),
+  onSaveStatus: (text) => {
+    if (!dirty && pendingNoteSaves.size === 0)
+      $('saveStatus').textContent = text;
+  },
   onRegion: (region) => {
     if (document.body.dataset.aiPointer === 'rect')
       document.dispatchEvent(new CustomEvent('ai-box-tag', { detail: region }));
@@ -150,7 +172,10 @@ async function request(url, options) {
     try {
       info = await res.json();
     } catch {}
-    throw Error(info?.error || `请求失败 ${res.status}`);
+    throw Object.assign(Error(info?.error || `请求失败 ${res.status}`), {
+      status: res.status,
+      details: info,
+    });
   }
   return res.json();
 }
@@ -189,8 +214,11 @@ function editChanged(fromRich = false) {
   dirty = { id: doc.id, page, text };
   try {
     localStorage.setItem(recoveryKey(doc.id, page), text);
+    const base = noteBases.get(noteKey(doc.id, page));
+    if (base !== null && base !== undefined)
+      localStorage.setItem(recoveryKey(doc.id, page) + ':base', base);
   } catch {}
-  $('saveStatus').textContent = '等待保存…';
+  noteSaveStatus('等待保存…');
   if (!fromRich) updatePreview();
   else
     $('wordCount').textContent =
@@ -209,30 +237,139 @@ async function flush(finishDraft = true) {
     return;
   }
   const snapshot = dirty;
+  const key = recoveryKey(snapshot.id, snapshot.page),
+    baseKey = noteKey(snapshot.id, snapshot.page);
+  pendingNoteSaves.set(baseKey, (pendingNoteSaves.get(baseKey) || 0) + 1);
   dirty = null;
   const job = saving
     .catch(() => {})
     .then(async () => {
       try {
+        noteSaveStatus('正在保存…');
         await request(`/api/documents/${snapshot.id}/notes/${snapshot.page}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ markdown: snapshot.text }),
+          body: JSON.stringify({
+            markdown: snapshot.text,
+            expectedRevision: await noteRevision(
+              noteBases.get(baseKey) ?? (noteBases.has(baseKey) ? null : ''),
+            ),
+          }),
         });
-        const key = recoveryKey(snapshot.id, snapshot.page);
-        if (localStorage.getItem(key) === snapshot.text)
-          localStorage.removeItem(key);
-        if (doc?.id === snapshot.id && !dirty)
-          $('saveStatus').textContent = '已保存到本地';
+        noteBases.set(baseKey, snapshot.text);
+        if (
+          dirty?.id === snapshot.id &&
+          dirty.page === snapshot.page &&
+          dirty.text === snapshot.text
+        )
+          dirty = null;
+        try {
+          if (
+            localStorage.getItem(key) === snapshot.text ||
+            (doc?.id === snapshot.id && notes[snapshot.page] === snapshot.text)
+          ) {
+            localStorage.removeItem(key);
+            localStorage.removeItem(key + ':base');
+          } else if (localStorage.getItem(key) !== null) {
+            localStorage.setItem(key + ':base', snapshot.text);
+          }
+        } catch {
+          /* A recovery-cache failure must not undo an acknowledged save. */
+        }
+        if (
+          doc?.id === snapshot.id &&
+          !dirty &&
+          pendingNoteSaves.get(baseKey) === 1
+        )
+          noteSaveStatus('已保存到本地');
       } catch (e) {
-        if (!dirty) dirty = snapshot;
-        $('saveStatus').textContent = '保存失败 · 已保留本地恢复副本';
+        if (!dirty)
+          dirty = {
+            ...snapshot,
+            text:
+              doc?.id === snapshot.id
+                ? (notes[snapshot.page] ?? snapshot.text)
+                : snapshot.text,
+          };
+        const conflict = e.details?.code === 'NOTE_CONFLICT';
+        let hasRecovery = false;
+        try {
+          hasRecovery = localStorage.getItem(key) === dirty.text;
+        } catch {}
+        noteSaveStatus(
+          conflict
+            ? '保存冲突 · 草稿已备份到历史'
+            : hasRecovery
+              ? '保存失败 · 已保留本地恢复副本'
+              : '保存失败 · 草稿仍在编辑区，请导出备份',
+          conflict,
+          !conflict,
+        );
         throw e;
+      } finally {
+        const count = pendingNoteSaves.get(baseKey) - 1;
+        if (count) pendingNoteSaves.set(baseKey, count);
+        else pendingNoteSaves.delete(baseKey);
       }
     });
   saving = job;
   await job;
 }
+$('retryNoteSave').onclick = () => flush().catch((e) => toast(e.message));
+$('resolveNoteConflict').onclick = async () => {
+  try {
+    await flush();
+  } catch (e) {
+    if (e.details?.code !== 'NOTE_CONFLICT') {
+      toast(e.message);
+      return;
+    }
+    $('noteConflictDraft').value = dirty?.text || '';
+    $('noteConflictSaved').value = e.details.currentMarkdown;
+    $('noteConflictDialog').showModal();
+  }
+};
+$('closeNoteConflict').onclick = () => $('noteConflictDialog').close();
+$('downloadConflictDraft').onclick = () =>
+  download(
+    `草稿-第${page}页.md`,
+    $('noteConflictDraft').value,
+    'text/markdown',
+  );
+$('reloadConflictSaved').onclick = async () => {
+  $('reloadConflictSaved').disabled = true;
+  try {
+    // Confirm the latest draft has reached history before clearing recovery data.
+    try {
+      await flush();
+    } catch (e) {
+      if (e.details?.code !== 'NOTE_CONFLICT') throw e;
+    }
+    const snapshot = dirty;
+    if (!snapshot) {
+      $('noteConflictDialog').close();
+      return;
+    }
+    const incoming = await request(`/api/documents/${snapshot.id}/notes`);
+    if (doc?.id !== snapshot.id || page !== snapshot.page || dirty !== snapshot)
+      throw Error('编辑内容已变化，请重新查看保存冲突');
+    notes = incoming;
+    saving = Promise.resolve();
+    for (const [p, text] of Object.entries(incoming))
+      noteBases.set(noteKey(doc.id, p), text);
+    noteBases.set(noteKey(doc.id, page), incoming[page] || '');
+    dirty = null;
+    localStorage.removeItem(recoveryKey(doc.id, page));
+    localStorage.removeItem(recoveryKey(doc.id, page) + ':base');
+    loadNote();
+    noteSaveStatus('已载入保存内容 · 草稿可在历史版本中查看');
+    $('noteConflictDialog').close();
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    $('reloadConflictSaved').disabled = false;
+  }
+};
 function updateControls() {
   const active = !!doc;
   $('noteEditButton').disabled = !active || wordBusy;
@@ -283,8 +420,12 @@ function updateControls() {
 }
 function loadNote(direction = 0) {
   let text = notes[page] || '';
+  const key = noteKey(doc.id, page);
+  if (!noteBases.has(key)) noteBases.set(key, text);
   const restored = localStorage.getItem(recoveryKey(doc.id, page));
   if (restored !== null) {
+    const base = localStorage.getItem(recoveryKey(doc.id, page) + ':base');
+    noteBases.set(key, base === null && restored === text ? text : base);
     text = restored;
     notes[page] = text;
     dirty = { id: doc.id, page, text };
@@ -650,6 +791,10 @@ async function performOpenDocument(meta, fromWord = false) {
     pdf = newPdf;
     mdPages = newPages;
     notes = newNotes;
+    for (const key of noteBases.keys())
+      if (key.startsWith(meta.id + ':')) noteBases.delete(key);
+    for (const [p, text] of Object.entries(newNotes))
+      noteBases.set(noteKey(meta.id, p), text);
     total = pdf?.numPages || mdPages.length;
     page = Math.min(
       total,
@@ -667,7 +812,8 @@ async function performOpenDocument(meta, fromWord = false) {
     loadNote();
     updateControls();
     await renderPage();
-    $('saveStatus').textContent = '已打开 · 本地保存';
+    if (!dirty && pendingNoteSaves.size === 0)
+      noteSaveStatus('已打开 · 本地保存');
     await reviews.reload(doc.id);
     $('documentEditButton').disabled = false;
     $('documentEditButton').title =
@@ -1109,6 +1255,7 @@ $('noteInput').onchange = safely(async (e) => {
         body: JSON.stringify({ markdown: value }),
       });
       notes[p] = value;
+      noteBases.set(noteKey(doc.id, p), value);
     }
     loadNote();
     toast('整份笔记已导入');
@@ -1353,6 +1500,7 @@ $('restoreHistory').onclick = safely(async () => {
     );
     if (doc?.id === target.id) {
       notes[target.page] = result.markdown;
+      noteBases.set(noteKey(target.id, target.page), result.markdown);
       if (page === target.page) loadNote();
     }
     $('historyDialog').close();
@@ -1819,6 +1967,20 @@ window.pageNotes = {
       const incoming = await request(`/api/documents/${id}/notes`);
       if (doc?.id !== id) return;
       const previous = notes[page] || '';
+      for (const p of new Set([
+        ...Object.keys(notes),
+        ...Object.keys(incoming),
+        String(page),
+      ])) {
+        const key = noteKey(id, p);
+        if (
+          pendingNoteSaves.has(key) ||
+          localStorage.getItem(recoveryKey(id, p)) !== null ||
+          (dirty?.id === id && String(dirty.page) === p)
+        )
+          incoming[p] = notes[p] || '';
+        else noteBases.set(key, incoming[p] || '');
+      }
       notes = incoming;
       // Background writes to other pages must not rebuild the reader's DOM,
       // clear their selection or move either pane.
@@ -1967,9 +2129,9 @@ window.addEventListener('beforeunload', (e) => {
 });
 new MutationObserver(() => {
   const text = $('saveStatus').textContent;
-  $('saveStatus').dataset.state = text.includes('失败')
+  $('saveStatus').dataset.state = /失败|冲突|fail|conflict/i.test(text)
     ? 'error'
-    : text.includes('等待')
+    : /等待|正在保存|waiting|saving/i.test(text)
       ? 'waiting'
       : 'saved';
 }).observe($('saveStatus'), { childList: true });

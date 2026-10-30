@@ -647,8 +647,38 @@ async function historyEntries(id, page) {
 async function saveNote(id, page, markdown, expectedRevision) {
   const notes = await readNotes(id),
     old = notes[page] || '';
-  if (expectedRevision && noteRevision(old) !== expectedRevision)
-    throw Error('当前笔记已发生变化，请重新打开历史版本后再恢复');
+  if (
+    expectedRevision &&
+    noteRevision(old) !== expectedRevision &&
+    old !== markdown
+  ) {
+    const history = path.join(path.dirname(metaFile(id)), 'history');
+    await fs.mkdir(history, { recursive: true });
+    const latest = (await historyEntries(id, page))[0];
+    let draftVersion = latest;
+    if (
+      !latest ||
+      (await fs.readFile(path.join(history, latest), 'utf8')) !== markdown
+    ) {
+      const stamp = Math.max(
+        Date.now(),
+        latest ? Number(latest.match(historyName)[1]) + 1 : 0,
+      );
+      draftVersion = `${stamp}-${randomUUID()}-page${page}.md`;
+      await fs.writeFile(path.join(history, draftVersion) + '.tmp', markdown);
+      await moveFile(
+        path.join(history, draftVersion) + '.tmp',
+        path.join(history, draftVersion),
+      );
+    }
+    throw Object.assign(Error('笔记已更新，本地草稿已备份到历史版本'), {
+      status: 409,
+      code: 'NOTE_CONFLICT',
+      currentMarkdown: old,
+      revision: noteRevision(old),
+      draftVersion,
+    });
+  }
   if (notes[page] === markdown) return;
   const dir = path.dirname(metaFile(id)),
     history = path.join(dir, 'history');
@@ -684,11 +714,16 @@ app.put('/api/documents/:id/notes/:page', async (req, res, next) => {
       !validId(id) ||
       !/^\d+$/.test(page) ||
       Number(page) < 1 ||
-      typeof req.body.markdown !== 'string'
+      typeof req.body.markdown !== 'string' ||
+      (req.body.expectedRevision !== undefined &&
+        (typeof req.body.expectedRevision !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(req.body.expectedRevision)))
     )
       return res.sendStatus(400);
     await fs.access(metaFile(id));
-    const job = writeQueue.then(() => saveNote(id, page, req.body.markdown));
+    const job = writeQueue.then(() =>
+      saveNote(id, page, req.body.markdown, req.body.expectedRevision),
+    );
     writeQueue = job.catch(() => {});
     await job;
     res.json({ ok: true });
@@ -938,7 +973,15 @@ if (process.argv.includes('--dev')) {
   });
   app.use(vite.middlewares);
 } else app.use(express.static(path.join(root, 'dist')));
-app.use((e, req, res, next) => res.status(400).json({ error: e.message }));
+app.use((e, req, res, next) =>
+  res.status(e.status || 400).json({
+    error: e.message,
+    code: e.code,
+    currentMarkdown: e.currentMarkdown,
+    revision: e.revision,
+    draftVersion: e.draftVersion,
+  }),
+);
 export function startServer(port = Number(process.env.PORT || 4173)) {
   return new Promise((resolve, reject) => {
     const server = app.listen(port, '127.0.0.1');

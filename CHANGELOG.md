@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Protect editor saves with atomic revision checks; keep conflicting drafts in page history, preserve recovery bases across restarts, and expose persistent save/retry/conflict controls in the note footer. AI writes now pass their expected revision to the same commit-time check. Existing unconditioned API clients remain compatible. Local source iteration only; public v1.0.0 binaries are unchanged. / 笔记编辑保存增加落盘时版本校验，冲突草稿备份到本页历史，恢复副本保留原始版本基线；底栏常驻显示保存、重试及冲突对照入口，AI 写入同样在提交时校验版本。兼容未传版本号的旧接口调用。本次仅迭代源码，不替换已发布安装包。
+
 - Adopt PolyForm Noncommercial 1.0.0 for newly licensed founder-original material; preserve historical MIT/contributor permissions and third-party notices, update bilingual scope and package metadata, and include both scope and legacy notices in future distributions. Published binaries and tags are unchanged. / 新增原创内容改用非商业许可，保留历史 MIT、贡献者和依赖授权，未来分发携带许可范围与旧声明，不替换历史包。
 
 - State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。

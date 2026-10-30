@@ -72,7 +72,7 @@ try {
   assert.ok(copiedSkill.includes('page-notes://prompts/index'));
   assert.ok(copiedSkill.includes('tag-edit'));
   assert.ok(await w.locator('.titlebar').isHidden());
-  assert.ok(await w.locator('#saveStatus').isHidden());
+  assert.ok(await w.locator('.note-pane .pane-footer #saveStatus').isVisible());
   assert.ok(await w.locator('#helpButton').isHidden());
   await w.evaluate(() => window.pageNotes.menuAction('newProject'));
   await w.locator('#newName').fill('新的学习项目');

@@ -109,10 +109,52 @@ select:focus-visible {
   color: var(--accent);
   border-bottom: 3px solid var(--accent);
 }
+#noteConflictDialog {
+  width: min(960px, 90vw);
+}
+#noteConflictDialog .history-actions {
+  flex-wrap: wrap;
+}
+.note-conflict-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.note-conflict-columns textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 650px) {
+  .note-conflict-columns {
+    grid-template-columns: 1fr;
+  }
+}
 #saveStatus {
-  margin-left: auto;
   font-size: 12px;
   color: #64736d;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#noteSaveControls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+#noteSaveControls button {
+  flex-shrink: 0;
+}
+.note-pane .pane-footer {
+  gap: 8px;
+}
+.note-pane .pane-footer:has(#resolveNoteConflict:not([hidden])) .note-formats,
+.note-pane .pane-footer:has(#retryNoteSave:not([hidden])) .note-formats {
+  display: none;
 }
 .ribbon {
   height: 88px;
