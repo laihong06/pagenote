@@ -1,5 +1,7 @@
 # 参与 PageNote / Contributing
 
+先按[实际分支地图](docs/BRANCHES.zh-CN.md)选目标：共享变更回 beta；平台私有变更回 windows/beta、macos/beta 或 android/beta。任务分支用 codex/<platform>-<topic>，完成后清理。各系统 README 独立说明界面、操作和功能，不将桌面能力套到 Android。
+
 涉及 Markdown S 的渲染、编辑、保存、引擎或平台适配时，先阅读 [开发指导与架构](docs/markdown-s/README.md)，在 PR 中列出实施阶段、适用验收编号和实际证据。不能把未验收原型或规划引擎写成已支持功能。
 
 提交 PR 前请阅读 [PR 提交与界面审查标准](docs/PR-STANDARD.zh-CN.md)，并使用 [PR 模板](.github/pull_request_template.md)。

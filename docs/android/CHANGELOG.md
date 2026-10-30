@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Android README 独立说明平板触控、手写、系统目录授权、内置 AI 与桌面功能差异；不再沿用桌面版的泛化介绍。公开 APK 与开发源码功能分开，截图缺口如实标记；程序和发行版本未变。
+
 本地 `:feature-notes:testDebugUnitTest` 通过，新增六种 Markdown S 围栏解析／逐页编辑保真验证；尚未覆盖 Android UI 或增强执行。
 
 新增六种 Markdown S 围栏在解析与逐页编辑中的源码保真测试；仅检查降级数据路径，不宣称支持交互执行。运行结果以对应测试记录为准。
