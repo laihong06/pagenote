@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Resubmit platform documentation and review evidence for merged PR #13 under the new contribution standard: add 30 Android API 34 and 20 actual Mac captures, numbered workflows, per-module coverage and provenance; retain Windows capture origins and disclose shape-undo/floating-window defects and validation gaps. No runtime, format, version or public download changes. / 按新规范补交 #13 的平台 README、功能表与配图教程；新增 Android 30 张、Mac 20 张真实运行图及操作过程和来源，保留 Windows 原图来源，如实列出形状撤销、悬浮窗布局与验证缺口；不改程序、格式、版本或公开下载。
+
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
 - Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。

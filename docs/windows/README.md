@@ -23,9 +23,13 @@ PageNote 将课件与逐页笔记并排显示。Windows 版面向键盘、鼠标
 
 ## 界面与截图
 
-下面为 Windows 开发源码实际运行图，不代表 Beta 4 安装包的完整界面；[截图来源](guide/images/markdown-native/provenance.json)。
+下面沿用仓库已有 Windows 开发源码实际运行图，不代表 Beta 4 安装包的完整界面。本轮在 Mac 主机整理文档，没有重新运行 Windows：基础图来源基线为 `8daaf15`，原生作品图来源基线为 `ddc0384`，原采集工作区均有修改，不能据此反推为当前 `6388245` 的精确运行证据。[完整来源与未测范围](guide/capture.md)。
+
+![Windows 双栏阅读，沿用原始 Windows 运行图](guide/images/current/reading.png)
 
 ![Windows 原生交互笔记](guide/images/markdown-native/native-svg.png)
+
+当前共享源码 `6388245` 的 [Windows CI](https://github.com/laihong06/pagenote/actions/runs/41019223250/job/123942471901) 构建、回归和原生作品专项通过；这是云端结果，不能代替作者本轮安装包实测或维护者布局复核。OCR、Office、真实 AI 和账号流程没有用通用阅读图代替证据。
 
 ## 教程与版本记录
 

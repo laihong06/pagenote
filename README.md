@@ -21,6 +21,8 @@
 
 当前为 **beta 共享集成源码**，不是所有平台都已验收的新发行版。[源码边界](apps/README.md) · [贡献与 PR 规范](CONTRIBUTING.md) · [已知问题](KNOWN_ISSUES.md)。
 
+本轮按新提交标准补充了 [PR #13 的功能、截图与验证材料](docs/review/PR13-evidence-2026-10-30.md)：Android API 34 整屏操作图、Mac 实机窗口与原生模块过程图，以及保留原始来源的 Windows 截图。各平台 README 分别展示，未验证功能和布局缺陷单列，不代表新版本发布。
+
 ## 项目资料
 
 [原生 Markdown S](docs/markdown-s/NATIVE-MARKDOWN.zh-CN.md) · [AI 教学与表达路由](docs/AI-REPRESENTATION-ROUTING.zh-CN.md) · [许可与历史授权](LICENSING.md) · [English](README.en.md)
