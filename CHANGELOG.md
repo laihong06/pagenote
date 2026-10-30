@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- macOS 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
+
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
 
 - Repair platform CI YAML and add an independent metadata gate; record screenshot runtime and target package versions separately. / 修复平台 CI 配置解析，增加独立的平台元数据检查，并区分截图运行版本与目标打包版本；不发布制品。

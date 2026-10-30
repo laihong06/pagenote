@@ -2,7 +2,7 @@
   "platform": "macos",
   "developmentVersion": "1.1.0-beta.5-dev.1",
   "betaBranch": "macos/beta",
-  "mainBranch": "macos/main",
+  "mainBranch": null,
   "published": {
     "stable": null,
     "beta": {
