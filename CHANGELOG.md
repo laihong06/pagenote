@@ -2,6 +2,45 @@
 
 ## Unreleased / 尚未发布
 
+- 同步共享集成线 6388245 到 Windows 测试线，包含已在 Windows CI 和本地打包验证的原生 Markdown S 与 AI 表达路由；本分支根 README 改为 Windows 专属入口，不修改已发布版本或下载。
+
+- Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
+
+- Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
+
+- Correct Markdown S's primary architecture to native PageNote SVG/Canvas/chart/WebGL components; serialize interaction state into the existing Markdown fence and reuse project autosave, without creating or resaving HTML documents. / 按发起人修正改为原生组件直绘笔记，交互状态写回同一 Markdown 并复用项目自动保存；不以独立 HTML 或 iframe 代替。
+
+- Add a native genetic-algorithm work with 36 individuals, 40 generations, SVG/Canvas/WebGL, chapter navigation, focus mode and recognized-template-to-data import; document per-module screenshots and visual differences from the reference. Preserve source bytes outside the changed data fence and avoid replacing live source views during layout changes. / 新增原生遗传算法作品，包含36个体、40代、章节导航、专注模式和已识别模板转数据导入；附逐模块截图及视觉差距，保留数据围栏外源码，修复排版变化打断源文档交互的问题。
+
+- Verify 20 real preview start/stop cycles preserve surrounding prose and release iframe nodes, and runtime errors remain visible and restartable. / 验证二十次真实运行停止不改变正文、释放 iframe，运行错误可见且可重新启动；不据此宣称无内存泄漏。
+
+- Verify Android notes-module tests including six Markdown S fence-preservation paths after restoring official test dependencies; document JVM-only scope. / Android 笔记模块测试通过，包含六种增强围栏源码保真；明确仅 JVM 数据路径，未宣称移动端交互执行。
+
+- Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。
+
+- Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
+
+- Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。
+
+- Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
+
+- Fix desktop preview suspension when minimize does not update document visibility: native minimize/hide events now suspend Markdown S previews; real window minimize/restore and explicit restart pass. / 修复最小化不触发网页可见性变化时预览不停的问题；宿主最小化／隐藏通知负责停止，真实窗口恢复后手动重跑通过。
+
+- Verify Markdown S source persistence through real project files and a full application restart; dispose removed previews and stop on document backgrounding. / 验证真实项目文件保存及完整应用重启后源码保留；清理被删除的运行组件并接入后台停止，后台系统行为仍待实测。
+
+- Validate preview replacement cleanup, concurrency and network/navigation isolation; add renderer contracts and real Electron checks to platform CI, with scoped acceptance evidence. / 验证预览替换清理、并发限制及网络／导航隔离，接入平台 CI 并按验收项记录证据与未完成范围。
+
+- Add a reproducible Markdown S learning demo and real Windows tutorial screenshots; verify component source editing, undo and redo. / 新增可复现的学习演示笔记、真实 Windows 配图教程，并验证组件源码编辑和撤销重做；开发功能未发布。
+
+- Verify offline SVG, Canvas pixels, charts and Three.js WebGL drawing, restore local build dependencies and pass production build plus formula/code/editor regression; limit concurrent previews per view to two. / 验证多引擎实际绘制，补齐本地构建依赖并通过生产构建及公式／代码／编辑回归，每视图最多运行两个演示；仍未发布。
+
+- Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
+
+- Begin the confirmed render-kernel guidance: introduce task scopes with monotonic generations and cancellation, and invalidate Markdown S preparation when its view is replaced. Add ABA/disposal contract checks. / 按确认的内核指导开始统一任务代次和取消，视图替换时失效 Markdown S 旧任务，增加异步竞争与销毁检查；尚未完成整个内核迁移。
+
+- Add an experimental offline Markdown S preview for HTML/CSS/JS, SVG, Canvas, Three.js and simple data charts, explicit start/stop and source-preserving serialization; validate real Electron interaction and parent isolation. Remaining acceptance stays open; no public release. / 新增 Markdown S 离线交互预览原型、运行停止和源码保真，已通过真实 Electron 交互及父页面隔离测试；其余验收仍待完成，不公开发布。
+- Record completed integration PR #15, merged predecessor PRs, passing Windows/macOS/Android CI and actual platform branch routing; distinguish pending package and stable-baseline validation. / 记录整合合并、多平台检查通过与实际分支入口，明确安装包及未获批稳定线的剩余范围。
+
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
 
 - Repair platform CI YAML and add an independent metadata gate; record screenshot runtime and target package versions separately. / 修复平台 CI 配置解析，增加独立的平台元数据检查，并区分截图运行版本与目标打包版本；不发布制品。

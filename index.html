@@ -42,7 +42,7 @@
               <div class="command-row">
                 <button
                   id="importNote"
-                  title="导入本页 Markdown，或恢复整份 JSON 笔记备份"
+                  title="导入 Markdown、支持的 HTML 教学模板，或恢复 JSON 笔记备份"
                 >
                   导入笔记</button
                 ><button
@@ -279,7 +279,7 @@
     /><input id="attachmentInput" type="file" hidden /><input
       id="noteInput"
       type="file"
-      accept=".md,.markdown,.txt,.json"
+      accept=".md,.markdown,.txt,.json,.html,.htm"
       hidden
     />
     <div id="toast" role="status" hidden></div>
@@ -426,6 +426,7 @@
         <option value="entry">入口与路由</option>
         <option value="generation">初次生成</option>
         <option value="learning">学习讲解</option>
+        <option value="representation">表达与交互</option>
         <option value="page-tutor">逐页精讲</option>
         <option value="output">输出格式</option>
         <option value="tag-edit">AI Tag 修改</option>

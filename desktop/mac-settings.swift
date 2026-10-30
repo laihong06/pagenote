@@ -8,7 +8,7 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     var values: [String: Any] = [:]
     var pane = "general"
     let panes = ["general", "appearance", "reading", "ai"]
-    let modules = ["system", "entry", "generation", "learning", "page-tutor", "output", "tag-edit", "learner", "profile"]
+    let modules = ["system", "entry", "generation", "learning", "representation", "page-tutor", "output", "tag-edit", "learner", "profile"]
     var controls: [String: NSControl] = [:]
     var callbacks: [String: ([String: Any]) -> Void] = [:]
     var sequence = 0
@@ -38,6 +38,7 @@ final class SettingsApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         case "generation": return tr("生成策略", "Generation strategy")
         case "profile": return tr("用户画像", "Learner preferences")
         case "learning": return tr("学习讲解", "Learning")
+        case "representation": return tr("表达与交互", "Representation")
         case "page-tutor": return tr("逐页精讲", "Page tutor")
         case "output": return tr("输出格式", "Output format")
         case "tag-edit": return tr("AI Tag 修改", "AI Tag editing")
