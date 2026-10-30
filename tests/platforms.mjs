@@ -29,6 +29,7 @@ try {
   for (const [id, arg] of [
     ['windows', 'win'],
     ['macos', 'mac'],
+    ['linux', 'linux'],
   ]) {
     execFileSync(
       process.execPath,
@@ -50,6 +51,23 @@ try {
       'preserve all shared desktop features',
     );
     assert.ok(build.files.includes('apps/desktop/**'));
+    if (id === 'linux') {
+      assert.ok(
+        !build.files.includes(
+          '!node_modules/onnxruntime-node/bin/napi-v6/linux/**',
+        ),
+      );
+      assert.ok(
+        build.files.includes(
+          '!node_modules/onnxruntime-node/bin/napi-v6/win32/**',
+        ),
+      );
+      assert.equal(build.linux.mimeTypes, undefined);
+      assert.ok(
+        build.extraResources.some((r) => r.from === 'mcp-dist/mcp-node'),
+      );
+      assert.deepEqual(build.linux.target, ['AppImage', 'deb']);
+    }
     if (id === 'macos') {
       assert.equal(build.executableName, undefined);
       assert.equal(build.mac.extendInfo.CFBundleDocumentTypes, undefined);

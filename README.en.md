@@ -7,7 +7,8 @@ Read source documents alongside page-linked notes. Windows, macOS and Android ha
 | Windows | [Windows guide](docs/windows/README.md) | x64; stable history and beta development |
 | macOS | [Mac guide](docs/macos/README.md) | Experimental Apple Silicon; no Intel package |
 | Android tablets | [Android guide](docs/android/README.md) | Android 14+, ARM64; separate native implementation |
-| Linux / HarmonyOS | No implementation or downloads yet | Planned |
+| Linux | [Linux guide](docs/linux/README.md) | Locally verified Ubuntu x64; no published package |
+| HarmonyOS | No implementation or downloads yet | Planned |
 
 Use the guide for your platform. Published binaries and development sources are identified separately; desktop screenshots do not establish Android support.
 

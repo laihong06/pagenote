@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add the first Linux desktop port from shared beta 6388245: isolated Linux entry/version and packaging, LibreOffice conversion, browser/source launch, Linux regression tests and platform guide with runtime evidence. Linux development version 1.1.0-beta.5-dev.3; no public release or changes to other platform versions.
+
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
 - Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
