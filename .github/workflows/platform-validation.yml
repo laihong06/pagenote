@@ -104,3 +104,29 @@ jobs:
             android/**/build/reports/tests/
             android/app/build/outputs/apk/debug/
           if-no-files-found: warn
+
+  linux:
+    name: Linux local-package validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      PAGENOTE_PLATFORM: linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Desktop and Office conversion dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb libreoffice libgtk-3-0 libnss3 libasound2 libgbm1
+      - run: npm ci
+      - run: node scripts/ensure-electron.mjs
+      - run: npm run test:platforms
+      - name: Build Linux package using installed Electron
+        run: PAGENOTE_ELECTRON_DIST="$PWD/node_modules/electron/dist" npm run package:linux:local
+      - run: xvfb-run -a npm run test:linux
+      - name: Verify packaged application
+        run: |
+          version=$(node -p "require('./platforms/linux/version.json').developmentVersion")
+          DESKTOP_EXE="$PWD/release/beta-$version/linux-unpacked/pagenote" xvfb-run -a node tests/linux-smoke.mjs
+      - run: xvfb-run -a npm run test:markdown-native

@@ -1,0 +1,55 @@
+{
+  "platform": "linux",
+  "os": "6.8.0-138-generic",
+  "architecture": "x64",
+  "viewport": {
+    "width": 1440,
+    "height": 928,
+    "density": 1
+  },
+  "capturedAt": "2026-10-30T08:17:29.653Z",
+  "sourceCommit": "9b403d8811c11b3a517f90b8ba065738c1e20982",
+  "workingTree": "modified integration worktree",
+  "version": "1.1.0-beta.5-dev.3",
+  "targetPackageVersion": "1.1.0-beta.5-dev.3",
+  "sample": "synthetic, no account or network AI request",
+  "captures": [
+    "bookshelf",
+    "reading",
+    "editing",
+    "ink-tools",
+    "ai-workbench"
+  ],
+  "captureViewports": {
+    "bookshelf": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "reading": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "editing": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "ink-tools": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "ai-workbench": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    }
+  }
+}

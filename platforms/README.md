@@ -12,3 +12,5 @@ node scripts/platform.mjs windows package --dir
 在 Mac 上将 `windows` 替换为 `macos`；Android 使用 `cd android` 后运行 `./gradlew` 或 `gradlew.bat`。Gradle 读取 Android 自己的 JSON 元数据。Windows 与 Mac 的 `package` 命令先运行 `build`，保证读取到最新资源。
 
 开发构建保持 beta 安装身份，不改变已发布包。当前仅开放测试集成；稳定版晋级与公开发布仍需执行发布政策。平台命名标签不自动发布二进制；发布工作流必须验证标签、版本、完整制品和批准记录，禁止使用开发编号公开替换历史包。
+
+Linux 首次适配使用 `node scripts/platform.mjs linux info|check|build|package`，仅在 Linux 执行构建和打包。独立版本来自 `platforms/linux/version.json`；无公开发布，无远端 Linux 平台线，当前 PR 目标仍为共享 beta。

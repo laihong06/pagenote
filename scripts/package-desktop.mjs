@@ -7,7 +7,17 @@ const cache =
   process.env.ELECTRON_BUILDER_CACHE || path.join(root, '.builder-cache');
 await fs.mkdir(cache, { recursive: true });
 const dir = process.argv.includes('--dir');
-const platform = process.argv.includes('--mac') ? 'mac' : 'win';
+const platform = process.argv.includes('--linux')
+  ? 'linux'
+  : process.argv.includes('--win')
+    ? 'win'
+    : process.argv.includes('--mac')
+      ? 'mac'
+      : process.platform === 'linux'
+        ? 'linux'
+        : process.platform === 'darwin'
+          ? 'mac'
+          : 'win';
 // Generate the platform-specific electron-builder config first so Mac keeps
 // its AppleScript bridge, Darwin OCR natives and universal MCP runtime while
 // Windows keeps its own helpers.
@@ -23,18 +33,43 @@ await new Promise((resolve, reject) => {
   );
 });
 const args =
-  platform === 'mac'
-    ? dir
-      ? ['--mac', 'dir', '--arm64', '--config', 'electron-builder.json']
-      : ['--mac', 'dmg', 'zip', '--arm64', '--config', 'electron-builder.json']
-    : dir
-      ? ['--win', 'dir', '--x64', '--config', 'electron-builder.json']
-      : ['--win', 'nsis', 'zip', '--x64', '--config', 'electron-builder.json'];
+  platform === 'linux'
+    ? [
+        '--linux',
+        ...(dir ? ['dir'] : ['AppImage', 'deb']),
+        '--config',
+        'electron-builder.json',
+      ]
+    : platform === 'mac'
+      ? dir
+        ? ['--mac', 'dir', '--arm64', '--config', 'electron-builder.json']
+        : [
+            '--mac',
+            'dmg',
+            'zip',
+            '--arm64',
+            '--config',
+            'electron-builder.json',
+          ]
+      : dir
+        ? ['--win', 'dir', '--x64', '--config', 'electron-builder.json']
+        : [
+            '--win',
+            'nsis',
+            'zip',
+            '--x64',
+            '--config',
+            'electron-builder.json',
+          ];
+
 const child = spawn(
   process.execPath,
   [
     path.join(root, 'node_modules/electron-builder/cli.js'),
     ...args,
+    ...(process.env.PAGENOTE_ELECTRON_DIST
+      ? ['--config.electronDist=' + process.env.PAGENOTE_ELECTRON_DIST]
+      : []),
     '--publish',
     'never',
   ],

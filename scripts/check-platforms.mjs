@@ -23,7 +23,7 @@ for (const id of platformIds) {
     }
   }
 }
-for (const id of ['windows', 'macos'])
+for (const id of ['windows', 'macos', 'linux'])
   await fs.access(path.join(root, 'apps/desktop', id, 'main.cjs'));
 console.log(
   `PASS platform manifests, application entries and ${links} documentation links`,
