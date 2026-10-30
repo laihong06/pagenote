@@ -1,0 +1,61 @@
+.markdown-s-block {
+  margin: 1em 0;
+  border: 1px solid #94a3b855;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.markdown-s-block > figcaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #94a3b80c;
+  flex-wrap: wrap;
+}
+.markdown-s-block > figcaption strong {
+  flex: 1;
+  font-size: 13px;
+}
+.markdown-s-block button {
+  padding: 4px 12px;
+  border: 1px solid #94a3b866;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.markdown-s-block button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.markdown-s-block > .mds-status {
+  margin: 8px 12px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.markdown-s-block > details {
+  padding: 8px 12px;
+}
+.markdown-s-block > details pre {
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.mds-frame {
+  display: block;
+  width: 100%;
+  height: 420px;
+  min-height: 180px;
+  border: 0;
+  resize: vertical;
+  background: white;
+}
+@media print {
+  .markdown-s-block button,
+  .mds-status {
+    display: none;
+  }
+  .mds-frame {
+    height: 420px;
+  }
+}

@@ -305,6 +305,16 @@ if (!app.requestSingleInstanceLock()) {
       win.webContents.setVisualZoomLevelLimits(1, 1);
       // Reader gestures own pane zoom; never magnify the toolbar/window.
       win.webContents.setZoomMode?.('manual');
+      const suspendPreviews = () => {
+        if (!win.isDestroyed())
+          win.webContents
+            .executeJavaScript(
+              'window.dispatchEvent(new Event("pagenote-render-suspend"))',
+            )
+            .catch(() => {});
+      };
+      win.on('minimize', suspendPreviews);
+      win.on('hide', suspendPreviews);
       nativeTheme.on('updated', () => {
         if (!win.isDestroyed())
           win.setBackgroundColor(
@@ -414,6 +424,16 @@ if (!app.requestSingleInstanceLock()) {
       win.webContents.setWindowOpenHandler(({ url: target }) => {
         if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
         return { action: 'deny' };
+      });
+      // Markdown S uses opaque srcdoc frames. Keep component navigation inside
+      // its offline preview even if source code changes window.name/location.
+      win.webContents.on('will-frame-navigate', (event) => {
+        if (
+          event.url !== 'about:srcdoc' &&
+          (event.frame?.url === 'about:srcdoc' ||
+            event.initiator?.url === 'about:srcdoc')
+        )
+          event.preventDefault();
       });
       win.webContents.on('will-navigate', (event, target) => {
         if (new URL(target).origin !== url) {

@@ -448,7 +448,13 @@ exports.createAIController = async function ({ win, url, data, word }) {
         scenario: args.scenario,
         instruction: args.instruction || '',
         evidenceId,
-        route: index.routes.find((r) => r.scenario === args.scenario),
+        route: {
+          ...index.routes.find((r) => r.scenario === args.scenario),
+          ...require('./prompts.cjs').resolvePromptRoute(
+            args.scenario,
+            args.intent || 'explain',
+          ),
+        },
         profile: {
           id: 'profile',
           revision: index.modules.find((m) => m.id === 'profile').revision,

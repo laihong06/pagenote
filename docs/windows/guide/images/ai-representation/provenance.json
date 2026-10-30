@@ -1,0 +1,11 @@
+{
+  "platform": "win32",
+  "capturedAt": "2026-10-30T06:42:33.638Z",
+  "runtime": "Electron source build; uncommitted representation changes based on e8bce49",
+  "scope": "Real AI settings showing the editable representation module; not model behavior evaluation",
+  "viewport": {
+    "width": 1426,
+    "height": 898,
+    "density": 1.5
+  }
+}
