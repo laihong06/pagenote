@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
+
 - Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
 
 - Correct Markdown S's primary architecture to native PageNote SVG/Canvas/chart/WebGL components; serialize interaction state into the existing Markdown fence and reuse project autosave, without creating or resaving HTML documents. / 按发起人修正改为原生组件直绘笔记，交互状态写回同一 Markdown 并复用项目自动保存；不以独立 HTML 或 iframe 代替。

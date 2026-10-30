@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+Mac README 单独说明 Apple Silicon、原生设置／Office 桥接和未验证范围；稳定线配置改为 null，避免链接尚未建立的 macos/main。此次仅文档与维护元数据，不改变程序或发布包。
+
 共享 AI 提示词接入“表达与交互”模块和双轴路由，生成与知识性修改采用统一标准；Mac 原生设置增加对应模块选择项。本轮实际 UI／MCP 回归在 Windows 执行，Mac 原生设置需独立验证；不提升 Mac 公开制品版本。
 
 共享 Markdown S 新增原生 SVG／Canvas／图表／Three.js 实验册与同一 Markdown 文件保存，不以 HTML iframe 作为主方案。专注模式、章节导航及模板导入接入共享代码；本次截图和保存重开验证来自 Windows，Mac 需本轮 CI／实机独立核验，不沿用截图结论。
