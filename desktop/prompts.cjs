@@ -34,6 +34,12 @@ const modules = [
     when: '解释、教学或重讲文档知识',
   },
   {
+    id: 'representation',
+    folder: 'pagenote-representation',
+    title: '表达与交互',
+    when: '所有解释、补讲和知识性修改共享的表达选择，不依赖学科',
+  },
+  {
     id: 'page-tutor',
     folder: 'pagenote-page-tutor',
     title: '逐页精讲',
@@ -52,7 +58,25 @@ const modules = [
     when: '需要采用用户明确提供的基础、目标和偏好',
   },
 ];
-const entry = `从本索引进入，按 routes 选择场景和模块，按 capabilities 找准备好的数据与 MCP 工具。尊重上层 Agent 的原生调度与上下文管理，不规定会话数量或材料必须一次装入；逐页是成果约定。模块按 revision 复用，可分批读取。用户当前要求优先，其他任务按用户要求执行。入口正文可在 AI 设置中修改。`;
+const entry = `从本索引进入，分别判断 workflow 与 intent，按 routes 和 intentRoutes 合并模块。生成、按意见修改和临时问答中的解释共用 learning、representation、output、learner、profile，不降低修改任务的讲解标准；纯纠错不扩写知识。按 capabilities 发现实际表达能力与工具，不虚构未实现的原生模板。尊重上层 Agent 的原生调度与上下文管理，不规定会话数量或材料必须一次装入；逐页是成果约定。模块按 revision 复用，可分批读取。用户当前要求优先。入口正文可在 AI 设置中修改。`;
+const qualityModules = [
+  'learning',
+  'representation',
+  'output',
+  'learner',
+  'profile',
+];
+const intentRoutes = [
+  {
+    intent: 'explain',
+    workflows: ['generation', 'revision', 'direct'],
+    modules: qualityModules,
+  },
+  { intent: 'summarize', modules: ['output'] },
+  { intent: 'translate', modules: ['output'] },
+  { intent: 'edit', modules: ['output', 'learner', 'profile'] },
+  { intent: 'annotate', modules: ['output'] },
+];
 const routes = [
   {
     task: '初始生成或补充指定页讲解',
@@ -60,6 +84,7 @@ const routes = [
     modules: [
       'generation',
       'learning',
+      'representation',
       'page-tutor',
       'output',
       'learner',
@@ -71,9 +96,16 @@ const routes = [
   {
     task: '按AI Tag或批注修改',
     scenario: 'revision',
-    modules: ['tag-edit', 'output', 'learner', 'profile'],
+    modules: ['tag-edit', ...qualityModules],
     tool: 'page_notes_prepare_task',
-    first: '读取待处理AI批注及目标页已有笔记；需要重讲时再读learning',
+    first: '定位意见与已有内容；涉及理解时必读共享教学和表达模块，纯纠错不扩写',
+  },
+  {
+    task: '临时解释、举例、演示或重讲',
+    workflow: 'direct',
+    intent: 'explain',
+    modules: qualityModules,
+    first: '按用户范围解释；与生成和知识性修改共用质量标准',
   },
   {
     task: '普通文稿修改或格式修复',
@@ -86,6 +118,23 @@ const routes = [
     first: '直接依照本次用户要求，按需使用文档工具',
   },
 ];
+function resolvePromptRoute(workflow, intent = 'explain') {
+  if (!['generation', 'revision', 'direct'].includes(workflow))
+    throw Error('Invalid workflow');
+  const expression = intentRoutes.find((route) => route.intent === intent);
+  if (!expression) throw Error('Invalid expression intent');
+  const execution =
+    workflow === 'generation'
+      ? ['generation', 'page-tutor']
+      : workflow === 'revision'
+        ? ['tag-edit']
+        : [];
+  return {
+    workflow,
+    intent,
+    modules: [...new Set([...execution, ...expression.modules])],
+  };
+}
 function createPromptStore(skillsRoot, data) {
   let writes = Promise.resolve();
   const file = path.join(data, 'ai-prompts.json');
@@ -119,9 +168,36 @@ function createPromptStore(skillsRoot, data) {
     };
   }
   const capabilities = {
+    representation: {
+      module: 'representation',
+      platform: 'desktop',
+      purpose: '依据理解障碍选择最简有效表达；所有解释路径共享',
+      static: ['Markdown', 'LaTeX', 'Mermaid', 'local-images', 'code'],
+      native: {
+        sourceLimitBytes: 200 * 1024,
+        resources: '内置离线渲染器；数据围栏不执行用户HTML/JS，不引用CDN或远程脚本',
+        syntax: ['markdowns', 'mds-native'],
+        version: 1,
+        kinds: ['genetic-lab'],
+        execution:
+          'PageNote 原生渲染；交互状态自动保存至同一 Markdown；不是用户点击运行 HTML',
+        contract:
+          '读取 output 模块；JSON 数据包含唯一 id 和12个二进制 genes。不允许任意 HTML、脚本或未实现 kind。',
+        scope:
+          '目前仅有遗传算法原生模板；不将其强套其他知识，未支持的交互改用静态图表、代码或计算绘图。',
+        platformLimit:
+          '仅本开发桌面版本；Android 不宣称执行，旧版保留源码围栏。',
+      },
+      legacy: {
+        policy:
+          'mds-html/svg/canvas/three/chart 为历史沙盒兼容；非默认表达和原生能力，不为主动展示而新增整页HTML。',
+      },
+      validation: 'page_notes_validate_note：静态格式与真实运行分别报告',
+    },
     task: {
       tool: 'page_notes_prepare_task',
-      input: 'documentId, page, scenario, reviewIds?, instruction?, neighbors?',
+      input:
+        'documentId, page, scenario, intent?, reviewIds?, instruction?, neighbors?',
       returns:
         '逐页预处理文字、OCR警告、原图入口、笔记revision和对应意见；正文分页返回续读位置',
     },
@@ -182,8 +258,10 @@ function createPromptStore(skillsRoot, data) {
       entry: read('entry').text,
       bootstrap: entry,
       routes,
+      intentRoutes,
+      qualityModules,
       capabilities,
-      schemaVersion: 2,
+      schemaVersion: 3,
       locations: {
         index: 'page-notes://prompts/index',
         prompts: file,
@@ -195,6 +273,7 @@ function createPromptStore(skillsRoot, data) {
         .update(
           entry +
             JSON.stringify(routes) +
+            JSON.stringify(intentRoutes) +
             JSON.stringify(items) +
             JSON.stringify(capabilities),
         )
@@ -230,4 +309,4 @@ function createPromptStore(skillsRoot, data) {
   }
   return { read, index, save };
 }
-module.exports = { createPromptStore, modules, entry };
+module.exports = { createPromptStore, modules, entry, resolvePromptRoute };

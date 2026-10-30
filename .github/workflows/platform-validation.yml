@@ -44,6 +44,24 @@ jobs:
       - run: node scripts/ensure-electron.mjs
       - run: npm run test:platforms
       - run: node scripts/platform.mjs ${{ matrix.platform }} build
+      - name: Render scope and engine queue contracts
+        run: node tests/render-scope.mjs && node tests/render-queue.mjs
+      - name: Markdown S real Electron rendering and isolation
+        run: npm run test:markdown-s
+      - name: Native Markdown data contracts and actual demo
+        run: npm run test:markdown-native
+      - name: Native modules, import, same-file save and restart
+        env:
+          PAGENOTE_GUIDE_MARKDOWN: examples/markdown-s-native.md
+          PAGENOTE_GUIDE_NATIVE: '1'
+          PAGENOTE_NATIVE_IMPORT: tests/fixtures/native-genetic-import.html
+        run: node scripts/capture-platform-guide.mjs docs/${{ matrix.platform }}/guide/images/markdown-native
+      - name: Native source-document same-file save and restart
+        env:
+          PAGENOTE_GUIDE_MARKDOWN: examples/markdown-s-native.md
+          PAGENOTE_GUIDE_NATIVE: '1'
+          PAGENOTE_NATIVE_SOURCE: '1'
+        run: node scripts/capture-platform-guide.mjs docs/${{ matrix.platform }}/guide/images/markdown-native-source
       - name: Prepare isolated test workspace
         run: |
           node -e "require('node:fs').mkdirSync('tmp', { recursive: true })"
@@ -55,7 +73,11 @@ jobs:
         if: always()
         with:
           name: native-guide-${{ matrix.platform }}
-          path: docs/${{ matrix.platform }}/guide/images/current/
+          path: |
+            docs/${{ matrix.platform }}/guide/images/current/
+              docs/${{ matrix.platform }}/guide/images/ai-representation/
+            docs/${{ matrix.platform }}/guide/images/markdown-native/
+            docs/${{ matrix.platform }}/guide/images/markdown-native-source/
           if-no-files-found: warn
   android:
     runs-on: ubuntu-latest
