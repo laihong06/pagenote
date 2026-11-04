@@ -27,6 +27,31 @@ interface RainPageAsset {
   asset: string;
 }
 
+interface InkToolSpec {
+  id: string;
+  label: string;
+}
+
+const INK_TOOLS: InkToolSpec[] = [
+  { id: 'pen', label: '笔' },
+  { id: 'highlight', label: '荧光' },
+  { id: 'line', label: '直线' },
+  { id: 'rect', label: '方框' },
+  { id: 'ellipse', label: '椭圆' },
+  { id: 'text', label: '文字' }
+];
+
+interface InkWidthSpec {
+  value: number;
+  label: string;
+}
+
+const INK_WIDTHS: InkWidthSpec[] = [
+  { value: 2, label: '细' },
+  { value: 4, label: '中' },
+  { value: 7, label: '粗' }
+];
+
 /**
  * 阅读页：左侧源文档（PDF 走 PdfView，Markdown 直接显示），右侧逐页 Markdown 笔记。
  * 笔记按 `<!-- pagebreak -->` 分页；保存时带 revision 校验并写历史快照；
@@ -59,8 +84,13 @@ struct ReaderPage {
   @State inkMode: boolean = false;
   @State inkColor: string = '#dc3545';
   @State inkItems: AnnotationItem[] = [];
+  @State inkTool: string = 'pen'; // pen | highlight | line | rect | ellipse | text
+  @State inkWidth: number = 3;
+  @State inkTextEditing: boolean = false;
+  @State inkTextDraft: string = '';
   // 夜览滤镜：阅读区暖色遮罩（对齐桌面/Android 夜览语义，遮罩不拦截触摸）
   @State nightMode: boolean = false;
+  private inkTextPoint: number[] = [0, 0];
 
   private annotations: AnnotationBook = Annotations.empty();
 
@@ -460,9 +490,18 @@ struct ReaderPage {
 
       if (this.inkMode) {
         Row() {
-          Text('批注')
-            .fontSize(13)
-            .fontColor('#2263EB')
+          ForEach(INK_TOOLS, (spec: InkToolSpec) => {
+            Button(spec.label)
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 8, right: 8 })
+              .margin({ left: 6 })
+              .backgroundColor(this.inkTool === spec.id ? '#2263EB' : '#EEEEEE')
+              .fontColor(this.inkTool === spec.id ? '#FFFFFF' : '#333333')
+              .onClick(() => {
+                this.inkTool = spec.id;
+              })
+          }, (spec: InkToolSpec) => spec.id)
           ForEach(['#dc3545', '#2263EB', '#0E9F6E', '#222222'], (c: string) => {
             Circle()
               .width(22)
@@ -474,6 +513,18 @@ struct ReaderPage {
                 this.inkColor = c;
               })
           }, (c: string) => c)
+          ForEach(INK_WIDTHS, (spec: InkWidthSpec) => {
+            Button(spec.label)
+              .fontSize(12)
+              .height(28)
+              .padding({ left: 6, right: 6 })
+              .margin({ left: 6 })
+              .backgroundColor(this.inkWidth === spec.value ? '#B45309' : '#EEEEEE')
+              .fontColor(this.inkWidth === spec.value ? '#FFFFFF' : '#333333')
+              .onClick(() => {
+                this.inkWidth = spec.value;
+              })
+          }, (spec: InkWidthSpec) => spec.label)
           Blank()
           Button('撤销')
             .fontSize(13)
@@ -491,6 +542,45 @@ struct ReaderPage {
             .margin({ left: 8 })
             .onClick(() => {
               this.clearInk();
+            })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, bottom: 6 })
+        .alignItems(VerticalAlign.Center)
+      }
+
+      // 文字批注输入行：内嵌在页面里（sheet 会被软键盘顶掉，实测）
+      if (this.inkMode && this.inkTextEditing) {
+        Row() {
+          TextInput({ placeholder: '批注内容', text: $$this.inkTextDraft })
+            .layoutWeight(1)
+            .height(36)
+          Button('添加')
+            .fontSize(13)
+            .height(30)
+            .margin({ left: 8 })
+            .onClick(() => {
+              const text = this.inkTextDraft.trim();
+              if (text.length === 0) {
+                promptAction.showToast({ message: '请输入批注内容' });
+                return;
+              }
+              const item: AnnotationItem = {
+                type: 'text', color: this.inkColor, width: this.inkWidth,
+                points: [this.inkTextPoint], text: text
+              };
+              this.inkItems = [...this.inkItems, item];
+              this.saveAnnotations();
+              this.inkTextEditing = false;
+            })
+          Button('取消')
+            .fontSize(13)
+            .height(30)
+            .margin({ left: 8 })
+            .backgroundColor('#EEEEEE')
+            .fontColor('#333333')
+            .onClick(() => {
+              this.inkTextEditing = false;
             })
         }
         .width('100%')
@@ -545,10 +635,17 @@ struct ReaderPage {
           InkCanvas({
             items: this.inkItems,
             penColor: this.inkColor,
+            penWidth: this.inkWidth,
+            tool: this.inkTool,
             drawingEnabled: this.inkMode,
             onChange: (items: AnnotationItem[]) => {
               this.inkItems = items;
               this.saveAnnotations();
+            },
+            onTextTap: (x: number, y: number) => {
+              this.inkTextPoint = [x, y];
+              this.inkTextDraft = '';
+              this.inkTextEditing = true;
             }
           })
             .width('100%')

@@ -12,6 +12,7 @@ export interface AnnotationItem {
   color: string;
   width: number;
   points: number[][];
+  text?: string; // type=text 的文字内容
 }
 
 export interface AnnotationBook {
@@ -85,7 +86,12 @@ export class Annotations {
         }
       }
     }
-    return { type: type, color: color, width: width, points: validPoints };
+    const item: AnnotationItem = { type: type, color: color, width: width, points: validPoints };
+    const text = raw['text'];
+    if (typeof text === 'string' && text.length > 0) {
+      item.text = text;
+    }
+    return item;
   }
 
   static pageItems(book: AnnotationBook, side: AnnotationSide, page: number): AnnotationItem[] {

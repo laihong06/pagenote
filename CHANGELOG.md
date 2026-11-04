@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Expand HarmonyOS annotations to the shared contract's drawable types: pen, highlighter (semi-transparent), line/rect/ellipse drag shapes with live preview, and tap-to-place text annotations (inline input row — a bottom sheet proved unusable because the soft keyboard dismisses it on this system), plus three stroke widths. Verified on emulator: rect/highlight/text committed to `annotations.json` in the contract format (screenshots `emulator-13/14`). / 鸿蒙批注扩展到契约图形类型：笔、荧光、直线/方框/椭圆拖拽预览、点击落文字批注（软键盘会顶掉底部弹层，输入改为工具栏内嵌行），三档粗细；模拟器实测写入 annotations.json 契约格式。
+
 - Add the night-reading warm filter on HarmonyOS: a toolbar toggle overlays the reading area with a non-interactive warm mask. Verified on the tablet emulator (screenshot `emulator-12-night-filter.jpeg`). / 鸿蒙端新增夜览滤镜：阅读页工具栏开关，阅读区覆盖不拦截触摸的暖色遮罩，模拟器实测。
 
 - Add inline `$…$` formula rendering on HarmonyOS: math spans mix into text via a wrapping Flex row of inline MathView instances sized by rendered content (Web CSS px are component vp — no px2vp scaling; zero-size initial width prevented Web content creation). Verified on the tablet emulator with block and inline KaTeX rendering side by side (screenshot `emulator-11-math-inline.jpeg`); missing note images degrade to their alt placeholder. / 鸿蒙端新增行内 $…$ 公式渲染：公式 span 经 Flex 换行混排，行内 MathView 按内容定宽高；模拟器实测块级与行内 KaTeX 渲染，缺失图片按占位降级。
