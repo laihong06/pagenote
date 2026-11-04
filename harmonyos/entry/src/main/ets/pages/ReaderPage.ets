@@ -59,6 +59,8 @@ struct ReaderPage {
   @State inkMode: boolean = false;
   @State inkColor: string = '#dc3545';
   @State inkItems: AnnotationItem[] = [];
+  // 夜览滤镜：阅读区暖色遮罩（对齐桌面/Android 夜览语义，遮罩不拦截触摸）
+  @State nightMode: boolean = false;
 
   private annotations: AnnotationBook = Annotations.empty();
 
@@ -437,6 +439,15 @@ struct ReaderPage {
           .onClick(() => {
             this.inkMode = !this.inkMode;
           })
+        Button(this.nightMode ? '夜览中' : '夜览')
+          .fontSize(13)
+          .height(30)
+          .margin({ left: 8 })
+          .backgroundColor(this.nightMode ? '#B45309' : '#EEEEEE')
+          .fontColor(this.nightMode ? '#FFFFFF' : '#333333')
+          .onClick(() => {
+            this.nightMode = !this.nightMode;
+          })
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
@@ -487,7 +498,8 @@ struct ReaderPage {
         .alignItems(VerticalAlign.Center)
       }
 
-      Row() {
+      Stack() {
+        Row() {
         // 左侧：源文档 + 手写批注层
         Stack() {
           Column() {
@@ -651,6 +663,18 @@ struct ReaderPage {
           height: SheetSize.FIT_CONTENT,
           title: { title: 'AI 模型设置' }
         })
+      }
+      .layoutWeight(1)
+      .width('100%')
+
+        // 夜览滤镜：覆盖阅读区的暖色遮罩，不拦截触摸与批注
+        if (this.nightMode) {
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor('#3DFF9E3D')
+            .hitTestBehavior(HitTestMode.None)
+        }
       }
       .layoutWeight(1)
       .width('100%')
