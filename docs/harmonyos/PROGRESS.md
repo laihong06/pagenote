@@ -86,6 +86,13 @@
 - 实测：方框/荧光/文字均写入 annotations.json 契约格式（1000 比例坐标系），截图 emulator-13/14
 - 未实现：契约的 image/html 批注类型、橡皮擦、压感
 
+## 闪卡与复习（2026-11-04 晚，已提交 ca9d997）
+
+- `core/Flashcards.ets`：FlashcardCapture（选区/段落制卡，UTF-16 锚点+页 revision）、ReviewScheduler（SM-2 简化四档，常数与 Android 逐项一致）、FlashcardStore（`src/flashcards.json` 原子写；Android 在 Room 不跨端，JSON 为鸿蒙端选择）
+- 阅读页「卡片」面板：制卡（选区优先，光标段落兜底，页面无内容允许手工卡）/复习（到期队列、翻面、四档评分）/卡片库（列表+删除）
+- 实测修复：saveCard 原先强制从笔记重取锚点，页面无内容时手工卡无法保存 → 允许无锚点降级
+- 模拟器实测：制卡→存储→复习→评分（reps=1/interval=1/dueAt+24h 正确）→卡片库计数，截图 emulator-15/16
+
 ## 下一步（按序）
 
 1. 雨课堂实时课堂采集的真实课堂验收（重连/去重/笔记保护）
