@@ -21,6 +21,12 @@ interface SearchHit {
   source: string; // 笔记 | 原文
 }
 
+/** 雨课堂来源清单中的单页：项目页码 + 页面图片路径。 */
+interface RainPageAsset {
+  page: number;
+  asset: string;
+}
+
 /**
  * 阅读页：左侧源文档（PDF 走 PdfView，Markdown 直接显示），右侧逐页 Markdown 笔记。
  * 笔记按 `<!-- pagebreak -->` 分页；保存时带 revision 校验并写历史快照；
@@ -57,6 +63,8 @@ struct ReaderPage {
   private annotations: AnnotationBook = Annotations.empty();
 
   @State pdfPaneBuilder: WrappedBuilder<[PdfBridge]> | null = null;
+  // PDF Kit 缺失时，雨课堂项目用来源图片降级显示（页序 = yuketang-source.json 的 projectPage）
+  @State rainPageImages: string[] = [];
 
   private project: OpenProject | null = null;
   private noteRevision: string | null = null;
@@ -88,7 +96,7 @@ struct ReaderPage {
     this.aiApiKey = saved.apiKey;
     this.aiModel = saved.model;
     if (this.isPdf) {
-      this.initPdf();
+      this.initPdf(this.loadRainFallback());
     } else {
       this.loadMarkdownSource();
     }
@@ -106,10 +114,47 @@ struct ReaderPage {
     return `${this.project!.dir}/src/history`;
   }
 
-  /** 设备缺失 PDF Kit（部分模拟器镜像）时不阻断页面：只提示，Markdown 笔记侧功能保持可用。 */
-  private async initPdf(): Promise<void> {
+  /** 读取雨课堂来源清单作为 PDF Kit 缺失时的图片降级；返回是否有可用页面图片。 */
+  private loadRainFallback(): boolean {
+    if (this.project === null) {
+      return false;
+    }
+    const path = `${this.project.dir}/src/yuketang-source.json`;
+    try {
+      const parsed = JSON.parse(fs.readTextSync(path)) as Record<string, Object | null>;
+      const pages = parsed['pages'];
+      if (!Array.isArray(pages)) {
+        return false;
+      }
+      const dir = this.project.dir;
+      const entries = (pages as Array<Object | null>)
+        .map((element: Object | null): RainPageAsset => {
+          const item = element as Record<string, Object | null>;
+          const entry: RainPageAsset = {
+            page: Number(item['projectPage'] ?? 0),
+            asset: item['asset']?.toString() ?? ''
+          };
+          return entry;
+        })
+        .filter((entry: RainPageAsset): boolean => entry.page >= 1 && entry.asset.length > 0)
+        .sort((a: RainPageAsset, b: RainPageAsset): number => a.page - b.page);
+      if (entries.length === 0) {
+        return false;
+      }
+      this.rainPageImages = entries.map((entry: RainPageAsset): string => `file://${dir}/${entry.asset}`);
+      this.pageCount = this.rainPageImages.length;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** 设备缺失 PDF Kit（部分模拟器镜像）时不阻断页面：雨课堂项目降级为来源图片显示，其余提示。 */
+  private async initPdf(imageFallback: boolean): Promise<void> {
     if (!canIUse('SystemCapability.OfficeService.PDFService.Core')) {
-      this.statusText = '当前设备不支持 PDF Kit，无法阅读 PDF（Markdown 项目不受影响）';
+      this.statusText = imageFallback
+        ? '当前设备不支持 PDF Kit，正用课件原始图片显示（内容与 PDF 一致）'
+        : '当前设备不支持 PDF Kit，无法阅读 PDF（Markdown 项目不受影响）';
       return;
     }
     try {
@@ -117,7 +162,9 @@ struct ReaderPage {
       this.pdfPaneBuilder = pdfPane.pdfPaneWrappedBuilder;
       this.loadPdf(0);
     } catch (e) {
-      this.statusText = 'PDF 组件加载失败，无法阅读 PDF（Markdown 项目不受影响）';
+      this.statusText = imageFallback
+        ? 'PDF 组件加载失败，正用课件原始图片显示（内容与 PDF 一致）'
+        : 'PDF 组件加载失败，无法阅读 PDF（Markdown 项目不受影响）';
     }
   }
 
@@ -269,7 +316,8 @@ struct ReaderPage {
     if (cleaned.startsWith('/') || cleaned.indexOf('..') >= 0 || cleaned.length === 0) {
       return '';
     }
-    return `${this.project.dir}/src/${cleaned}`;
+    // Image 组件对裸路径会按 rawfile 资源查找（GetAsset failed），必须 file:// 前缀
+    return `file://${this.project.dir}/src/${cleaned}`;
   }
 
   private openHistory(): void {
@@ -446,6 +494,15 @@ struct ReaderPage {
             if (this.isPdf) {
               if (this.pdfPaneBuilder !== null) {
                 this.pdfPaneBuilder.builder(this.pdfBridge)
+              } else if (this.rainPageImages.length > 0) {
+                Scroll() {
+                  Image(this.rainPageImages[this.currentPage - 1] ?? this.rainPageImages[0])
+                    .width('100%')
+                    .objectFit(ImageFit.Contain)
+                }
+                .layoutWeight(1)
+                .width('100%')
+                .align(Alignment.TopStart)
               } else {
                 Column() {
                   Text(this.statusText.length > 0 ? this.statusText : 'PDF 组件不可用')

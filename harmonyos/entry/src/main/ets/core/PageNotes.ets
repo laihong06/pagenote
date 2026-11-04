@@ -33,7 +33,10 @@ export class PageNotes {
   static async sha256Hex(text: string): Promise<string> {
     const md = cryptoFramework.createMd('SHA256');
     const bytes = new util.TextEncoder().encodeInto(text);
-    await md.update({ data: bytes });
+    // 空数组会让 cryptoFramework update 报错（HCF DataBlob 校验），空输入直接取摘要
+    if (bytes.length > 0) {
+      await md.update({ data: bytes });
+    }
     const digest = await md.digest();
     let hex = '';
     for (let i = 0; i < digest.data.length; i++) {

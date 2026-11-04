@@ -74,6 +74,8 @@ export class RainProjectWriter {
       return {
         width: Math.max(1, Math.round(info.size.width * scale)),
         height: Math.max(1, Math.round(info.size.height * scale)),
+        imageWidth: info.size.width,
+        imageHeight: info.size.height,
         jpegBytes: jpeg
       };
     } finally {

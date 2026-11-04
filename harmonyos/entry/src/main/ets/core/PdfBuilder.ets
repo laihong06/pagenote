@@ -6,8 +6,12 @@ import { util } from '@kit.ArkTS';
  * 输入的 jpegBytes 必须是合法的 JPEG 文件字节（调用方用 ImagePacker 统一重编码）。
  */
 export interface PdfImagePage {
+  /** 页面显示尺寸（pt，≤960×720 等比缩放后） */
   width: number;
   height: number;
+  /** JPEG 图像的原始像素尺寸，写入图像字典的 /Width /Height，必须与流一致 */
+  imageWidth: number;
+  imageHeight: number;
   jpegBytes: ArrayBuffer;
 }
 
@@ -78,8 +82,8 @@ export class PdfBuilder {
         + `/Contents ${contentObjId(i)} 0 R >>\nendobj\n`);
 
       beginObj(imageObjId(i));
-      body.text(`<< /Type /XObject /Subtype /Image /Width ${Math.round(page.width)} `
-        + `/Height ${Math.round(page.height)} /ColorSpace /DeviceRGB /BitsPerComponent 8 `
+      body.text(`<< /Type /XObject /Subtype /Image /Width ${page.imageWidth} `
+        + `/Height ${page.imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 `
         + `/Filter /DCTDecode /Length ${page.jpegBytes.byteLength} >>\nstream\n`);
       body.binary(page.jpegBytes);
       body.text('\nendstream\nendobj\n');
