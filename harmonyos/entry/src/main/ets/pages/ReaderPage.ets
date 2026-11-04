@@ -9,6 +9,7 @@ import { NoteHistory, NoteVersion } from '../core/NoteHistory';
 import { AgentSettings, ModelConfig, PageTutor, ModelEndpoint, SelectionActions, SelectionAction } from '../core/Agent';
 import { Annotations, AnnotationBook, AnnotationItem } from '../core/Annotations';
 import { FlashcardItem, FlashcardStore, FlashcardCapture, FlashcardDraft, ReviewOutcome } from '../core/Flashcards';
+import { NoteTransfer, NoteTransferFile } from '../core/NoteTransfer';
 import { MarkdownView } from '../components/MarkdownView';
 import { InkCanvas } from '../components/InkCanvas';
 
@@ -111,6 +112,9 @@ struct ReaderPage {
   @State aiActionBusy: boolean = false;
   @State aiActionResult: string = '';
   @State aiActionError: string = '';
+
+  // 导出/导入
+  @State showTransfer: boolean = false;
 
   private annotations: AnnotationBook = Annotations.empty();
 
@@ -642,6 +646,111 @@ struct ReaderPage {
     this.statusText = 'AI 结果已插入笔记，保存后生效';
   }
 
+  // ---- 导出 / 导入 ----
+
+  /** 脏草稿先落盘再导出，导出内容含当前页草稿。 */
+  private async prepareTransfer(): Promise<boolean> {
+    if (this.project === null) {
+      return false;
+    }
+    if (this.dirty) {
+      await this.saveCurrentPage();
+      if (this.dirty) {
+        promptAction.showToast({ message: '当前页保存失败，未导出' });
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private async exportBackup(): Promise<void> {
+    if (!await this.prepareTransfer()) {
+      return;
+    }
+    const project = this.project!;
+    let fullText = '';
+    try {
+      fullText = fs.readTextSync(project.rightPath);
+    } catch (e) {
+      // 无笔记文件按空导出
+    }
+    const pageCount = PageNotes.split(fullText).length;
+    const file = NoteTransfer.fullBackup(project.manifest.name, pageCount, fullText);
+    this.saveToUserFile(file);
+  }
+
+  private async exportCurrentPage(): Promise<void> {
+    if (this.project === null) {
+      return;
+    }
+    const file = NoteTransfer.currentPage(this.project.manifest.name, this.currentPage, this.note);
+    this.saveToUserFile(file);
+  }
+
+  private saveToUserFile(file: NoteTransferFile): void {
+    const context = getContext(this) as common.UIAbilityContext;
+    const docPicker = new picker.DocumentViewPicker(context);
+    const options = new picker.DocumentSaveOptions();
+    options.newFileNames = [file.fileName];
+    docPicker.save(options).then((uris: string[]) => {
+      if (uris.length === 0) {
+        return;
+      }
+      try {
+        const target = fs.openSync(uris[0], fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+        try {
+          fs.writeSync(target.fd, file.content);
+        } finally {
+          fs.closeSync(target);
+        }
+        this.statusText = `已导出：${file.fileName}`;
+      } catch (e) {
+        promptAction.showToast({ message: `导出失败：${(e as Error).message}` });
+      }
+    }).catch(() => {
+      // 用户取消
+    });
+  }
+
+  /** 导入：JSON 备份合并进整份笔记（合法页覆盖、空串清页、缺失不动）；MD/TXT 文本插入光标处。 */
+  private importNotes(): void {
+    const context = getContext(this) as common.UIAbilityContext;
+    const docPicker = new picker.DocumentViewPicker(context);
+    const options = new picker.DocumentSelectOptions();
+    options.maxSelectNumber = 1;
+    options.fileSuffixFilters = ['JSON(.json)', 'Markdown(.md,.markdown,.txt)', '所有文件(.*)'];
+    docPicker.select(options).then((uris: string[]) => {
+      if (uris.length === 0) {
+        return;
+      }
+      try {
+        const text = fs.readTextSync(uris[0]);
+        if (NoteTransfer.isBackupJson(text)) {
+          let existing = '';
+          try {
+            existing = fs.readTextSync(this.project!.rightPath);
+          } catch (e) {
+            // 无笔记文件按空合并
+          }
+          const merged = NoteTransfer.mergeBackup(existing, text);
+          ProjectStore.atomicWrite(this.project!.rightPath, merged);
+          this.loadPage(this.currentPage);
+          this.statusText = '备份已合并进当前项目';
+        } else {
+          const at = Math.min(Math.max(this.selEnd, 0), this.note.length);
+          this.note = this.note.substring(0, at) + text + this.note.substring(at);
+          this.dirty = true;
+          this.statusText = '文件内容已插入当前页，保存后生效';
+        }
+        this.showTransfer = false;
+      } catch (e) {
+        promptAction.showToast({ message: `导入失败：${(e as Error).message}` });
+      }
+    }).catch(() => {
+      // 用户取消
+    });
+  }
+
   private goToPage(page: number): void {
     let target = page;
     if (target < 1) {
@@ -691,6 +800,15 @@ struct ReaderPage {
           .fontColor(this.nightMode ? '#FFFFFF' : '#333333')
           .onClick(() => {
             this.nightMode = !this.nightMode;
+          })
+        Button('更多')
+          .fontSize(13)
+          .height(30)
+          .margin({ left: 8 })
+          .backgroundColor('#EEEEEE')
+          .fontColor('#333333')
+          .onClick(() => {
+            this.showTransfer = true;
           })
       }
       .width('100%')
@@ -1012,6 +1130,10 @@ struct ReaderPage {
       }
       .layoutWeight(1)
       .width('100%')
+      .bindSheet($$this.showTransfer, this.transferBuilder(), {
+        height: SheetSize.FIT_CONTENT,
+        title: { title: '导出 / 导入笔记' }
+      })
 
         // 夜览滤镜：覆盖阅读区的暖色遮罩，不拦截触摸与批注
         if (this.nightMode) {
@@ -1037,6 +1159,45 @@ struct ReaderPage {
       height: SheetSize.LARGE,
       title: { title: '闪卡' }
     })
+  }
+
+  @Builder
+  transferBuilder() {
+    Column() {
+      Text('导出内容不写入项目源文件；导入 JSON 备份按页合并（合法页覆盖、空串清页、缺失不动），Markdown/文本插入当前页光标处。')
+        .fontSize(12)
+        .fontColor('#999999')
+        .width('100%')
+        .margin({ bottom: 8 })
+      Row() {
+        Button('导出全量备份（JSON）')
+          .onClick(() => {
+            this.showTransfer = false;
+            this.exportBackup();
+          })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+      Row() {
+        Button('导出当前页（Markdown）')
+          .onClick(() => {
+            this.showTransfer = false;
+            this.exportCurrentPage();
+          })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+      Row() {
+        Button('导入笔记（JSON / Markdown / TXT）')
+          .onClick(() => {
+            this.importNotes();
+          })
+      }
+      .width('100%')
+      .margin({ top: 8, bottom: 16 })
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16 })
   }
 
   @Builder
