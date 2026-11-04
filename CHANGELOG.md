@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add flashcards on HarmonyOS (Android flashcard module parity): create cards from note selection or the paragraph at cursor (UTF-16 anchors + page revision; manual cards allowed when the page has no usable content), SM-2 simplified four-grade review scheduling with the same constants as Android, due queue, and card library management; stored per project in `src/flashcards.json`. Verified on emulator: card creation, persistence, due-review, rating side effects (reps/interval/dueAt) and library counts (screenshots `emulator-15/16`). / 鸿蒙端新增闪卡：选区/段落制卡（锚点+页 revision，页面无内容时允许手工卡）、SM-2 四档复习排程（常数与 Android 一致）、到期队列与卡片库，存项目 src/flashcards.json；模拟器实测制卡/复习/评分/卡片库全链路。
+
 - Expand HarmonyOS annotations to the shared contract's drawable types: pen, highlighter (semi-transparent), line/rect/ellipse drag shapes with live preview, and tap-to-place text annotations (inline input row — a bottom sheet proved unusable because the soft keyboard dismisses it on this system), plus three stroke widths. Verified on emulator: rect/highlight/text committed to `annotations.json` in the contract format (screenshots `emulator-13/14`). / 鸿蒙批注扩展到契约图形类型：笔、荧光、直线/方框/椭圆拖拽预览、点击落文字批注（软键盘会顶掉底部弹层，输入改为工具栏内嵌行），三档粗细；模拟器实测写入 annotations.json 契约格式。
 
 - Add the night-reading warm filter on HarmonyOS: a toolbar toggle overlays the reading area with a non-interactive warm mask. Verified on the tablet emulator (screenshot `emulator-12-night-filter.jpeg`). / 鸿蒙端新增夜览滤镜：阅读页工具栏开关，阅读区覆盖不拦截触摸的暖色遮罩，模拟器实测。

@@ -8,6 +8,7 @@ import { ProjectValidation } from '../core/ProjectManifest';
 import { NoteHistory, NoteVersion } from '../core/NoteHistory';
 import { AgentSettings, ModelConfig, PageTutor, ModelEndpoint } from '../core/Agent';
 import { Annotations, AnnotationBook, AnnotationItem } from '../core/Annotations';
+import { FlashcardItem, FlashcardStore, FlashcardCapture, FlashcardDraft, ReviewOutcome } from '../core/Flashcards';
 import { MarkdownView } from '../components/MarkdownView';
 import { InkCanvas } from '../components/InkCanvas';
 
@@ -91,6 +92,19 @@ struct ReaderPage {
   // 夜览滤镜：阅读区暖色遮罩（对齐桌面/Android 夜览语义，遮罩不拦截触摸）
   @State nightMode: boolean = false;
   private inkTextPoint: number[] = [0, 0];
+
+  // 闪卡
+  @State showCards: boolean = false;
+  @State cardTab: string = 'make'; // make | review | lib
+  @State cards: FlashcardItem[] = [];
+  @State cardFront: string = '';
+  @State cardBack: string = '';
+  @State cardTags: string = '';
+  @State reviewQueue: FlashcardItem[] = [];
+  @State reviewIndex: number = 0;
+  @State reviewShowBack: boolean = false;
+  private selStart: number = 0;
+  private selEnd: number = 0;
 
   private annotations: AnnotationBook = Annotations.empty();
 
@@ -428,6 +442,103 @@ struct ReaderPage {
     this.saveAnnotations();
   }
 
+  // ---- 闪卡 ----
+
+  private flashcardsPath(): string {
+    return `${this.project!.dir}/src/flashcards.json`;
+  }
+
+  private reloadCards(): void {
+    if (this.project === null) {
+      return;
+    }
+    this.cards = FlashcardStore.load(this.flashcardsPath());
+  }
+
+  private openCards(): void {
+    this.reloadCards();
+    this.cardTab = 'make';
+    this.cardFront = '';
+    this.cardBack = '';
+    this.cardTags = '';
+    this.reviewQueue = [];
+    this.showCards = true;
+  }
+
+  /** 制卡草稿：有选区用选区，否则用光标（selEnd）所在段落。 */
+  private async fillCardDraft(): Promise<void> {
+    if (this.note.trim().length === 0) {
+      promptAction.showToast({ message: '本页笔记为空，无可制卡内容' });
+      return;
+    }
+    try {
+      const draft = this.selEnd > this.selStart
+        ? await FlashcardCapture.fromSelection(this.currentPage, this.note, this.selStart, this.selEnd)
+        : await FlashcardCapture.fromParagraph(this.currentPage, this.note, this.selEnd);
+      this.cardFront = draft.front;
+      this.cardTab = 'make';
+    } catch (e) {
+      promptAction.showToast({ message: (e as Error).message });
+    }
+  }
+
+  private async saveCard(): Promise<void> {
+    if (this.project === null || this.cardFront.trim().length === 0) {
+      promptAction.showToast({ message: '卡片正面不能为空' });
+      return;
+    }
+    const tags = this.cardTags.split(/[,，]/).map((t: string): string => t.trim())
+      .filter((t: string): boolean => t.length > 0 && t.length <= FlashcardCapture.MAX_TAG_LENGTH);
+    try {
+      // 优先按选区/段落捕获锚点；本页无可用内容时允许纯手工卡（无来源锚点）
+      let draft: FlashcardDraft;
+      try {
+        draft = this.selEnd > this.selStart
+          ? await FlashcardCapture.fromSelection(this.currentPage, this.note, this.selStart, this.selEnd)
+          : await FlashcardCapture.fromParagraph(this.currentPage, this.note, this.selEnd);
+        draft.front = this.cardFront.trim();
+      } catch (e) {
+        draft = {
+          page: this.currentPage, sourceKind: 'note_paragraph',
+          front: this.cardFront.trim(), sourceQuote: '',
+          anchorStart: 0, anchorEnd: 0,
+          revision: this.noteRevision ?? ''
+        };
+      }
+      const card = FlashcardStore.newCard(draft, this.cardBack.trim(), tags, Date.now());
+      const next = [...this.cards, card];
+      FlashcardStore.save(this.flashcardsPath(), next);
+      this.cards = next;
+      this.cardFront = '';
+      this.cardBack = '';
+      this.cardTags = '';
+      promptAction.showToast({ message: '卡片已保存' });
+    } catch (e) {
+      promptAction.showToast({ message: `保存失败：${(e as Error).message}` });
+    }
+  }
+
+  private startReview(): void {
+    this.reviewQueue = FlashcardStore.dueCards(this.cards, Date.now());
+    this.reviewIndex = 0;
+    this.reviewShowBack = false;
+    this.cardTab = 'review';
+  }
+
+  private rateCard(outcome: ReviewOutcome): void {
+    const card = this.reviewQueue[this.reviewIndex];
+    FlashcardStore.applyReview(card, outcome, Date.now());
+    FlashcardStore.save(this.flashcardsPath(), this.cards);
+    this.reviewIndex += 1;
+    this.reviewShowBack = false;
+  }
+
+  private deleteCard(card: FlashcardItem): void {
+    const next = this.cards.filter((item: FlashcardItem): boolean => item.id !== card.id);
+    FlashcardStore.save(this.flashcardsPath(), next);
+    this.cards = next;
+  }
+
   private goToPage(page: number): void {
     let target = page;
     if (target < 1) {
@@ -714,6 +825,15 @@ struct ReaderPage {
               .onClick(() => {
                 this.explainCurrentPage();
               })
+            Button('卡片')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openCards();
+              })
             Button(this.dirty ? '保存 *' : '保存')
               .fontSize(13)
               .height(32)
@@ -743,6 +863,10 @@ struct ReaderPage {
               .onChange((value: string) => {
                 this.note = value;
                 this.dirty = true;
+              })
+              .onTextSelectionChange((selectionStart: number, selectionEnd: number) => {
+                this.selStart = selectionStart;
+                this.selEnd = selectionEnd;
               })
           }
 
@@ -783,6 +907,176 @@ struct ReaderPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#FAFAFA')
+    // 根节点无其他 sheet，闪卡面板挂这里
+    .bindSheet($$this.showCards, this.cardsBuilder(), {
+      height: SheetSize.LARGE,
+      title: { title: '闪卡' }
+    })
+  }
+
+  @Builder
+  cardsBuilder() {
+    Column() {
+      Row() {
+        Button('制卡')
+          .fontSize(13)
+          .height(30)
+          .backgroundColor(this.cardTab === 'make' ? '#2263EB' : '#EEEEEE')
+          .fontColor(this.cardTab === 'make' ? '#FFFFFF' : '#333333')
+          .onClick(() => {
+            this.fillCardDraft();
+          })
+        Button(`复习(${FlashcardStore.dueCards(this.cards, Date.now()).length})`)
+          .fontSize(13)
+          .height(30)
+          .margin({ left: 8 })
+          .backgroundColor(this.cardTab === 'review' ? '#2263EB' : '#EEEEEE')
+          .fontColor(this.cardTab === 'review' ? '#FFFFFF' : '#333333')
+          .onClick(() => {
+            this.startReview();
+          })
+        Button(`卡片库(${this.cards.length})`)
+          .fontSize(13)
+          .height(30)
+          .margin({ left: 8 })
+          .backgroundColor(this.cardTab === 'lib' ? '#2263EB' : '#EEEEEE')
+          .fontColor(this.cardTab === 'lib' ? '#FFFFFF' : '#333333')
+          .onClick(() => {
+            this.cardTab = 'lib';
+          })
+      }
+      .width('100%')
+      .padding({ top: 4, bottom: 8 })
+
+      if (this.cardTab === 'make') {
+        Column() {
+          Text('正面（问题/原文，默认取选区或光标段落）')
+            .fontSize(12)
+            .fontColor('#999999')
+            .width('100%')
+          TextArea({ placeholder: '卡片正面', text: $$this.cardFront })
+            .height(100)
+            .margin({ top: 4 })
+          Text('背面（答案）')
+            .fontSize(12)
+            .fontColor('#999999')
+            .width('100%')
+            .margin({ top: 8 })
+          TextArea({ placeholder: '卡片背面（可留空）', text: $$this.cardBack })
+            .height(100)
+            .margin({ top: 4 })
+          TextInput({ placeholder: '标签（逗号分隔，可留空）', text: $$this.cardTags })
+            .margin({ top: 8 })
+          Button('保存卡片')
+            .margin({ top: 12 })
+            .onClick(() => {
+              this.saveCard();
+            })
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+      } else if (this.cardTab === 'review') {
+        if (this.reviewQueue.length === 0 || this.reviewIndex >= this.reviewQueue.length) {
+          Text(this.cards.length === 0 ? '还没有卡片，先去制卡' : '现在没有到期的卡片')
+            .fontSize(14)
+            .fontColor('#999999')
+            .padding(24)
+        } else {
+          Column() {
+            Text(`第 ${this.reviewIndex + 1} / ${this.reviewQueue.length} 张 · 第 ${this.reviewQueue[this.reviewIndex].page} 页`)
+              .fontSize(12)
+              .fontColor('#999999')
+              .width('100%')
+            Text(this.reviewQueue[this.reviewIndex].front)
+              .fontSize(17)
+              .width('100%')
+              .margin({ top: 12 })
+              .textAlign(TextAlign.Center)
+            if (this.reviewShowBack) {
+              Divider().margin({ top: 12, bottom: 12 })
+              Text(this.reviewQueue[this.reviewIndex].back.length > 0
+                ? this.reviewQueue[this.reviewIndex].back : '（背面留空，回忆后自评）')
+                .fontSize(15)
+                .fontColor('#555555')
+                .width('100%')
+                .textAlign(TextAlign.Center)
+              Row() {
+                Button('没记住')
+                  .backgroundColor('#C7254E')
+                  .onClick(() => {
+                    this.rateCard('again');
+                  })
+                Button('勉强')
+                  .margin({ left: 8 })
+                  .backgroundColor('#B45309')
+                  .onClick(() => {
+                    this.rateCard('hard');
+                  })
+                Button('记住')
+                  .margin({ left: 8 })
+                  .backgroundColor('#0E9F6E')
+                  .onClick(() => {
+                    this.rateCard('good');
+                  })
+                Button('轻松')
+                  .margin({ left: 8 })
+                  .onClick(() => {
+                    this.rateCard('easy');
+                  })
+              }
+              .margin({ top: 16 })
+              .justifyContent(FlexAlign.Center)
+              .width('100%')
+            } else {
+              Button('显示答案')
+                .margin({ top: 16 })
+                .onClick(() => {
+                  this.reviewShowBack = true;
+                })
+            }
+          }
+          .width('100%')
+          .padding({ bottom: 16 })
+        }
+      } else {
+        List() {
+          ForEach(this.cards, (card: FlashcardItem) => {
+            ListItem() {
+              Row() {
+                Column() {
+                  Text(`第 ${card.page} 页 · ${card.tags.join('、')}`)
+                    .fontSize(12)
+                    .fontColor('#999999')
+                  Text(card.front)
+                    .fontSize(14)
+                    .maxLines(2)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .margin({ top: 4 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                Button('删除')
+                  .fontSize(13)
+                  .height(30)
+                  .margin({ left: 12 })
+                  .backgroundColor('#EEEEEE')
+                  .fontColor('#C7254E')
+                  .onClick(() => {
+                    this.deleteCard(card);
+                  })
+              }
+              .width('100%')
+              .padding(12)
+            }
+          }, (card: FlashcardItem) => card.id)
+        }
+        .width('100%')
+        .layoutWeight(1)
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, bottom: 16 })
   }
 
   @Builder
