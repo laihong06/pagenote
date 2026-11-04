@@ -298,3 +298,136 @@ export function normalizeCurrentLessons(payload: JsonObject): RainCurrentLesson[
   }
   return result;
 }
+
+// ---- 实时课堂（R4）：对齐 Android RainProtocol.kt 的消息解析与游标回放 ----
+
+export interface RainLiveSlideEvent {
+  presentationId: string;
+  sourceIndex: number | null;
+  pageId: string | null;
+}
+
+export function rainLiveEventKey(event: RainLiveSlideEvent): string {
+  return event.sourceIndex !== null
+    ? `${event.presentationId}:${event.sourceIndex}`
+    : `${event.presentationId}:page:${event.pageId}`;
+}
+
+export interface RainLiveMessage {
+  finished: boolean;
+  timeline: boolean;
+  slides: RainLiveSlideEvent[];
+}
+
+export interface RainTimelineReplay {
+  slides: RainLiveSlideEvent[];
+  possibleGap: boolean;
+}
+
+export function normalizeLiveMessage(payload: JsonObject): RainLiveMessage {
+  const op = payload['op']?.toString() ?? '';
+  if (op === 'lessonfinished') {
+    return { finished: true, timeline: false, slides: [] };
+  }
+  const empty: RainLiveMessage = { finished: false, timeline: false, slides: [] };
+  if (op === 'hello' || op === 'fetchtimeline') {
+    const slides: RainLiveSlideEvent[] = [];
+    const timeline = rainAsArray(payload['timeline']) ?? [];
+    for (const element of timeline) {
+      const item = rainAsObject(element);
+      if (item === null) {
+        continue;
+      }
+      if (item['type'] !== undefined && item['type'] !== null && item['type']!.toString() !== 'slide') {
+        continue;
+      }
+      const presentationId = rainIdOf(item, ['pres']);
+      if (presentationId === null) {
+        continue;
+      }
+      const sourceIndex = rainInt(item['si']);
+      const pageId = sourceIndex === null ? rainIdOf(item, ['sid']) : null;
+      if (sourceIndex === null && pageId === null) {
+        continue;
+      }
+      slides.push({ presentationId: presentationId, sourceIndex: sourceIndex, pageId: pageId });
+    }
+    const currentPresentation = rainIdOf(payload, ['presentation']);
+    const currentIndex = rainInt(payload['slideindex']);
+    if (currentPresentation !== null && currentIndex !== null) {
+      const current: RainLiveSlideEvent = {
+        presentationId: currentPresentation, sourceIndex: currentIndex, pageId: null
+      };
+      const last = slides.length > 0 ? slides[slides.length - 1] : null;
+      if (last === null || rainLiveEventKey(last) !== rainLiveEventKey(current)) {
+        slides.push(current);
+      }
+    }
+    return { finished: false, timeline: true, slides: slides };
+  }
+  if (['showpresentation', 'presentationupdated', 'presentationcreated', 'showfinished', 'slidenav']
+    .indexOf(op) < 0) {
+    return empty;
+  }
+  const slide = rainAsObject(payload['slide']);
+  const presentationId = rainIdOf(payload, ['presentation'])
+    ?? (slide !== null ? rainIdOf(slide, ['pres']) : null);
+  let sourceIndex = rainInt(payload['slideindex']);
+  if (sourceIndex === null && slide !== null) {
+    sourceIndex = rainInt(slide['si']);
+  }
+  const pageId = sourceIndex === null && slide !== null ? rainIdOf(slide, ['sid']) : null;
+  if (presentationId !== null && (sourceIndex !== null || pageId !== null)) {
+    return { finished: false, timeline: false,
+      slides: [{ presentationId: presentationId, sourceIndex: sourceIndex, pageId: pageId }] };
+  }
+  return empty;
+}
+
+/**
+ * 断线重连后的 timeline 回放选择：首次连接全量去重回放；后续连接从游标后继续；
+ * 游标不在时间线中只补当前页并标记可能缺页。
+ */
+export function selectTimelineReplay(slides: RainLiveSlideEvent[], cursor: string | null,
+  initialConnection: boolean, pageCursor?: string | null): RainTimelineReplay {
+  if (slides.length === 0) {
+    return { slides: [], possibleGap: false };
+  }
+  if (initialConnection) {
+    const seen = new Set<string>();
+    const unique = slides.filter((event: RainLiveSlideEvent): boolean => {
+      const key = rainLiveEventKey(event);
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+    return { slides: unique, possibleGap: false };
+  }
+  if (cursor !== null || (pageCursor ?? null) !== null) {
+    for (let i = slides.length - 1; i >= 0; i--) {
+      const key = rainLiveEventKey(slides[i]);
+      if (key === cursor || key === pageCursor) {
+        return { slides: slides.slice(i + 1), possibleGap: false };
+      }
+    }
+  }
+  return { slides: [slides[slides.length - 1]], possibleGap: true };
+}
+
+/** 在课件页列表中定位时间线事件指向的页面；找不到即协议与课件不一致。 */
+export function resolveRainLiveSlide(event: RainLiveSlideEvent, slides: RainSlide[]): RainSlide {
+  for (const slide of slides) {
+    if (slide.presentationId !== event.presentationId) {
+      continue;
+    }
+    if (event.sourceIndex !== null && slide.sourceIndex === event.sourceIndex) {
+      return slide;
+    }
+    if (event.sourceIndex === null && event.pageId !== null && slide.pageId === event.pageId) {
+      return slide;
+    }
+  }
+  throw new Error('课件中找不到时间线指定的页面');
+}

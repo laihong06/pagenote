@@ -40,7 +40,7 @@
 
 未完成的验证：PDF 导入全链路（picker 只显示媒体库已索引文件，hdc 推送的 PDF 未索引，选文件一步受阻——环境限制非应用缺陷）；PdfView 真实渲染（需带 PDF Kit 的镜像/真机）；AI 真实请求；公式/图片预览的设备实测（代码路径与搜索同页，编译已过）。
 
-## 雨课堂历史导入（2026-11-04，本批待提交）
+## 雨课堂历史导入（2026-11-04）
 
 对齐 Android feature-yuketang / RainProjectWriter 契约的鸿蒙实现：
 
@@ -52,9 +52,17 @@
 - 模拟器实测：登录 WebSocket、ticket、QR 下载与渲染通过（截图 emulator-08）；修复响应头大小写与 image/jpg 归一问题
 - 未验证：微信扫码后的完整登录、真实课程列表与导入（需用户账号）；实时课堂采集未实现（R4，下一阶段）
 
+## 雨课堂实时采集（R4，2026-11-04）
+
+- `RainProtocol.ets` 增加：实时消息解析（hello/fetchtimeline/slidenav 等）、timeline 游标回放（断线续采、游标缺失标记可能缺页）、事件→课件页定位
+- `RainClient.ets` 增加：checkin 进入课堂（lessonToken/identityId/Set-Auth）、WS hello 连接、指数退避重连（≤30s）、待写队列顺序处理+显式重试、停止/结束语义
+- `RainProjectWriter.insert`：幂等去重（classroomId+presentationId+pageId+sha256）→ 按 RainPageOrder 语义分组排序 → 从来源图片重建整份 PDF → 笔记/批注按 oldToNew 重映射 → 统一落盘；页码/来源非法即中止保护现有数据
+- 面板：当前课堂列表（匹配课程、匹配不上不静默借用）、开始/停止采集、状态与已采集页数
+- 验证：BUILD SUCCESSFUL；PdfBuilder 产物经离线字节级校验（xref 偏移/页数/EOF 正确）；模拟器冒烟面板正常无崩溃；真实课堂采集需登录账号验收
+
 ## 下一步（按序）
 
-1. 雨课堂：用户扫码完成一次真实登录+历史导入验收；随后做实时课堂采集（checkin + WS timeline）
+1. 雨课堂真实账号验收：扫码登录 → 历史导入一次 → 实时课堂采集一次（覆盖重连/去重/笔记保护）
 2. 行内公式 `$…$` 与图片/公式预览的设备实测
 3. 真机或带 PDF Kit 镜像验证 PdfView 与 PDF 项目全链路
 4. 其余 Android 模块按优先级继续（选区/Tag、OCR、闪卡等）

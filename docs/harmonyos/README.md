@@ -21,7 +21,7 @@ PageNote 的鸿蒙版是 **ArkTS／ArkUI 原生应用**（Stage 模型，平板�
 | 笔记预览 | 基础 Markdown 渲染（标题/列表/引用/代码块/粗斜体/行内代码）、图片附件（`src/assets` 沙箱路径）、KaTeX 公式（$$ 与 ```math，本地 rawfile，不依赖网络） | 外部 http(s) 图片占位提示；行内 $…$ 与 mermaid 不渲染 |
 | 笔记历史 | 保存时自动生成快照（`src/history/`），可按页查看与恢复，恢复带 revision 校验 | — |
 | AI 讲解 | OpenAI 兼容接口按页讲解；BaseURL/Key/模型可配，密钥只存本机应用偏好 | 缺 Key 时提示配置；不内置模型、Key 不硬编码 |
-| 雨课堂 | 应用内二维码登录（官方 WebSocket 流程，凭据只存本机应用偏好）、课程/历史课堂列表、历史课件导入为标准项目（图片型 PDF + 分页笔记 + `yuketang-source.json` 来源清单，契约与 Android 逐条对齐） | 实时课堂采集未实现；登录扫码与真实导入需用户账号，自动化验证只到二维码展示 |
+| 雨课堂 | 应用内二维码登录（官方 WebSocket 流程，凭据只存本机应用偏好）、课程/历史课堂列表、历史课件导入为标准项目（图片型 PDF + 分页笔记 + `yuketang-source.json` 来源清单，契约与 Android 逐条对齐）、当前课堂实时逐页采集（checkin + WebSocket timeline 回放、断线重连、按内容哈希去重、追加重建 PDF 并重映射笔记/批注页码） | 登录扫码、历史导入与实时采集均需真实账号验收，自动化验证只到二维码展示与冒烟 |
 
 项目格式与桌面／Android 完全一致：`project.pagenote` + `src/left.*` + `src/right.md` + `src/assets/`，manifest 校验、分页规则、revision 语义逐条对齐共享契约（`android/docs/spec/contracts/`），核心层在 `harmonyos/entry/src/main/ets/core/`。
 

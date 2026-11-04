@@ -4,8 +4,8 @@ import { picker, fileIo as fs } from '@kit.CoreFileKit';
 import { promptAction } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
 import { ProjectStore, ProjectSummary, OpenProject } from '../core/ProjectStore';
-import { RainClient, RainLoginState } from '../core/RainClient';
-import { RainCourse, RainLesson, RainSlideImage } from '../core/RainProtocol';
+import { RainClient, RainLoginState, RainLiveState } from '../core/RainClient';
+import { RainCourse, RainLesson, RainSlideImage, RainCurrentLesson } from '../core/RainProtocol';
 import { RainProjectWriter } from '../core/RainProjectWriter';
 
 /**
@@ -30,8 +30,12 @@ struct BookshelfPage {
   @State rainBusy: boolean = false;
   @State rainProgress: string = '';
   @State rainError: string = '';
+  @State rainCurrentLessons: RainCurrentLesson[] = [];
+  @State rainLiveStatus: string = '';
+  @State rainLiveText: string = '';
 
   private rainClient: RainClient | null = null;
+  private liveProjectDir: string | null = null;
 
   private rain(): RainClient {
     if (this.rainClient === null) {
@@ -177,6 +181,13 @@ struct BookshelfPage {
 
   private loadRainCourses(): void {
     this.rainBusy = true;
+    this.rain().listCurrentLessons()
+      .then((lessons: RainCurrentLesson[]) => {
+        this.rainCurrentLessons = lessons;
+      })
+      .catch(() => {
+        this.rainCurrentLessons = [];
+      });
     this.rain().listCourses()
       .then((courses: RainCourse[]) => {
         this.rainCourses = courses;
@@ -214,6 +225,82 @@ struct BookshelfPage {
   private sanitizeRainProjectName(name: string): string {
     const cleaned = name.replace(/[<>:"/\\|?*]/g, '_').trim();
     return cleaned.length > 0 ? cleaned : '雨课堂课件';
+  }
+
+  private rainLiveStatusText(status: string): string {
+    switch (status) {
+      case 'joining': return '正在进入课堂（进入行为可能记录签到）';
+      case 'connecting': return '正在连接课堂';
+      case 'active': return '正在实时采集';
+      case 'reconnecting': return '连接断开，重连中';
+      case 'finished': return '课堂已结束';
+      case 'stopped': return '已停止采集';
+      case 'error': return '采集出错';
+      default: return status;
+    }
+  }
+
+  /** 开始实时采集：首条页面创建项目，后续页面追加。课程匹配不上时不静默借用其他课程。 */
+  private async startRainLive(current: RainCurrentLesson): Promise<void> {
+    let course = this.rainCourses.find(
+      (item: RainCourse): boolean => item.classroomId === current.classroomId);
+    if (course === undefined && current.classroomId === null) {
+      course = this.rainCourses.find(
+        (item: RainCourse): boolean => item.courseId === current.courseId);
+    }
+    if (course === undefined) {
+      this.rainError = '无法将该课堂关联到你的课程，请确认课程列表已刷新';
+      return;
+    }
+    const lesson: RainLesson = {
+      classroomId: current.classroomId ?? course.classroomId,
+      lessonId: current.lessonId,
+      presentationId: '',
+      name: current.name,
+      createdAt: null
+    };
+    this.liveProjectDir = null;
+    this.rainError = '';
+    try {
+      await this.rain().startLive(lesson,
+        async (image: RainSlideImage): Promise<void> => {
+          if (this.liveProjectDir === null) {
+            let candidate = this.sanitizeRainProjectName(lesson.name);
+            let suffix = 2;
+            while (this.projects.some((item: ProjectSummary): boolean => item.name === candidate)) {
+              candidate = `${this.sanitizeRainProjectName(lesson.name)}(${suffix})`;
+              suffix += 1;
+            }
+            const project = await RainProjectWriter.create(this.projectsRoot(), candidate,
+              course!, lesson, [image]);
+            this.liveProjectDir = project.dir;
+            this.reload();
+          } else {
+            await RainProjectWriter.insert(this.liveProjectDir, course!, lesson, image);
+          }
+        },
+        (state: RainLiveState) => {
+          this.rainLiveStatus = state.status === 'stopped' ? '' : state.status;
+          let text = `${this.rainLiveStatusText(state.status)}，已采集 ${state.collected} 页`;
+          if (state.pending > 0) {
+            text += `，待写入 ${state.pending} 页`;
+          }
+          if (state.error !== null) {
+            text += `：${state.error}`;
+          }
+          this.rainLiveText = text;
+        });
+    } catch (e) {
+      this.rainError = (e as Error).message;
+      this.rainLiveStatus = '';
+      this.rainLiveText = '';
+    }
+  }
+
+  private stopRainLive(): void {
+    this.rain().stopLive();
+    this.rainLiveStatus = '';
+    this.rainLiveText = '';
   }
 
   private async importRainLesson(course: RainCourse, lesson: RainLesson): Promise<void> {
@@ -434,6 +521,59 @@ struct BookshelfPage {
         }
         .width('100%')
         .padding({ top: 4, bottom: 8 })
+
+        if (this.rainLiveText.length > 0) {
+          Row() {
+            Text(this.rainLiveText)
+              .fontSize(13)
+              .fontColor('#2263EB')
+              .layoutWeight(1)
+            Button('停止采集')
+              .fontSize(13)
+              .height(30)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .onClick(() => {
+                this.stopRainLive();
+              })
+          }
+          .width('100%')
+          .padding({ bottom: 8 })
+        }
+
+        if (this.rainCurrentLessons.length > 0 && this.rainSelectedCourse.length === 0
+          && this.rainLiveStatus.length === 0) {
+          Text('正在进行的课堂')
+            .fontSize(13)
+            .fontColor('#999999')
+            .width('100%')
+            .padding({ bottom: 4 })
+          ForEach(this.rainCurrentLessons, (current: RainCurrentLesson) => {
+            Row() {
+              Text(current.name)
+                .fontSize(15)
+                .layoutWeight(1)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              Button('开始采集')
+                .fontSize(13)
+                .height(30)
+                .margin({ left: 12 })
+                .enabled(!this.rainBusy)
+                .onClick(() => {
+                  this.startRainLive(current);
+                })
+            }
+            .width('100%')
+            .padding({ top: 6, bottom: 6 })
+          }, (current: RainCurrentLesson) => current.lessonId)
+          Divider().margin({ top: 8, bottom: 8 })
+          Text('历史课件')
+            .fontSize(13)
+            .fontColor('#999999')
+            .width('100%')
+            .padding({ bottom: 4 })
+        }
 
         if (this.rainSelectedCourse.length === 0) {
           List() {

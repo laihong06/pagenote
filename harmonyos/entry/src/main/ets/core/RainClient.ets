@@ -5,6 +5,8 @@ import { url as arkUrl } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
 import {
   RainCourse, RainLesson, RainSlide, RainSlideImage, RainCurrentLesson,
+  RainLiveSlideEvent, rainLiveEventKey, normalizeLiveMessage, selectTimelineReplay,
+  resolveRainLiveSlide,
   rainApiHeaders, rainHttpError, rainObjectData, rainAsObject, rainAsArray, rainIdOf, rainId,
   normalizeHistoryLessons, normalizeReportSlides, normalizeRainPresentation, normalizeCurrentLessons
 } from './RainProtocol';
@@ -12,6 +14,7 @@ import {
 interface RainPostResult {
   cookies: string[];
   authorization: string | null;
+  body: string;
 }
 
 /** 响应头大小写不敏感取原始值（set-cookie 可能是数组）。 */
@@ -50,6 +53,15 @@ export interface RainSession {
   cookie: string;
   name: string;
   authorization: string | null;
+}
+
+export interface RainLiveState {
+  status: string; // stopped | joining | connecting | active | reconnecting | finished | error
+  lessonId: string;
+  error: string | null;
+  collected: number;
+  pending: number;
+  possibleGap: boolean;
 }
 
 const MAX_QR_IMAGE_BYTES: number = 2 * 1024 * 1024;
@@ -434,6 +446,229 @@ export class RainClient {
     }
   }
 
+  // ---- 实时课堂采集（对齐 Android startLive/connectLive/processPendingLiveSlides）----
+
+  private liveSocket: webSocket.WebSocket | null = null;
+  private liveStopped: boolean = true;
+  private liveLessonId: string = '';
+  private liveAttempts: number = 0;
+  private liveProcessing: boolean = false;
+  private livePending: Map<string, RainLiveSlideEvent> = new Map<string, RainLiveSlideEvent>();
+  private liveInitialReceived: boolean = false;
+  private liveLastKey: string | null = null;
+  private liveLastPageKey: string | null = null;
+  private livePresentations: Map<string, RainSlide[]> = new Map<string, RainSlide[]>();
+  private liveCookie: string = '';
+  private liveToken: string = '';
+  private liveIdentity: string = '';
+  private liveCollected: number = 0;
+  private lessonAuthorization: string | null = null;
+  private liveOnSlide: ((image: RainSlideImage) => Promise<void>) | null = null;
+  private liveOnState: ((state: RainLiveState) => void) | null = null;
+
+  isLiveActive(): boolean {
+    return !this.liveStopped;
+  }
+
+  private emitLive(status: string, error: string | null): void {
+    if (this.liveOnState !== null) {
+      this.liveOnState({
+        status: status,
+        lessonId: this.liveLessonId,
+        error: error,
+        collected: this.liveCollected,
+        pending: this.livePending.size,
+        possibleGap: false
+      });
+    }
+  }
+
+  /** 进入课堂（checkin）并建立 WebSocket 实时连接；每下载好一页回调 onSlide。 */
+  async startLive(lesson: RainLesson, onSlide: (image: RainSlideImage) => Promise<void>,
+    onState: (state: RainLiveState) => void): Promise<void> {
+    if (lesson.lessonId === null || lesson.lessonId.length === 0) {
+      throw new Error('此课件没有可连接的课堂编号');
+    }
+    if (!this.liveStopped) {
+      throw new Error('已有正在采集的课堂，请先停止');
+    }
+    const session = this.requireSession();
+    this.livePresentations.clear();
+    this.livePending.clear();
+    this.liveCollected = 0;
+    this.liveLastKey = null;
+    this.liveLastPageKey = null;
+    this.liveInitialReceived = false;
+    this.liveAttempts = 0;
+    this.liveStopped = false;
+    this.liveOnSlide = onSlide;
+    this.liveOnState = onState;
+    this.liveLessonId = lesson.lessonId;
+    this.liveCookie = session.cookie;
+    this.emitLive('joining', null);
+
+    const response = await this.postRaw(`${YUKETANG_HOME}/api/v3/lesson/checkin`,
+      JSON.stringify({ source: 5, lessonId: lesson.lessonId }), session.cookie,
+      `${YUKETANG_HOME}/lesson/fullscreen/v3/${lesson.lessonId}?source=5`);
+    this.lessonAuthorization = response.authorization;
+    const payload = rainAsObject(JSON.parse(response.body) as Object);
+    if (payload === null) {
+      throw new Error('进入雨课堂失败');
+    }
+    const data = rainObjectData(payload);
+    const token = data['lessonToken']?.toString() ?? '';
+    const identity = rainIdOf(data, ['identityId']);
+    if (token.length === 0 || identity === null) {
+      throw new Error('进入雨课堂失败');
+    }
+    this.liveToken = token;
+    this.liveIdentity = identity;
+    this.emitLive('connecting', null);
+    this.connectLive();
+  }
+
+  private connectLive(): void {
+    if (this.liveStopped) {
+      return;
+    }
+    const ws = webSocket.createWebSocket();
+    this.liveSocket = ws;
+    ws.on('open', () => {
+      this.liveAttempts = 0;
+      ws.send(JSON.stringify({
+        op: 'hello', userid: this.liveIdentity, role: 'student',
+        auth: this.liveToken, lessonid: this.liveLessonId
+      })).catch(() => {});
+      this.emitLive('active', null);
+    });
+    ws.on('message', (err: BusinessError, value: string | ArrayBuffer) => {
+      if (this.liveStopped) {
+        return;
+      }
+      let payload: Record<string, Object | null>;
+      try {
+        const parsed = rainAsObject(JSON.parse(value as string) as Object);
+        if (parsed === null) {
+          return;
+        }
+        payload = parsed;
+      } catch (e) {
+        return;
+      }
+      const message = normalizeLiveMessage(payload);
+      if (message.finished) {
+        this.emitLive('finished', null);
+        this.stopLive();
+        return;
+      }
+      if (message.slides.length === 0) {
+        return;
+      }
+      const initialReplay = message.timeline && !this.liveInitialReceived;
+      let replay = message.slides;
+      if (message.timeline) {
+        const result = selectTimelineReplay(message.slides, this.liveLastKey,
+          initialReplay, this.liveLastPageKey);
+        if (result.possibleGap) {
+          this.emitLive('active', '重连时间线未包含上次位置，可能存在缺页');
+        }
+        replay = result.slides;
+      }
+      for (const event of replay) {
+        const key = rainLiveEventKey(event);
+        if (!this.livePending.has(key)) {
+          this.livePending.set(key, event);
+        }
+      }
+      if (initialReplay) {
+        this.liveInitialReceived = true;
+      }
+      this.emitLive(this.liveStopped ? 'stopped' : 'active', null);
+      this.processLiveQueue();
+    });
+    const onDead = (reason: string): void => {
+      if (this.liveStopped) {
+        return;
+      }
+      this.liveAttempts += 1;
+      this.emitLive('reconnecting', reason);
+      const waitMs = Math.min(30000, 1000 * (1 << Math.min(this.liveAttempts, 5)));
+      setTimeout(() => {
+        if (!this.liveStopped) {
+          this.connectLive();
+        }
+      }, waitMs);
+    };
+    ws.on('error', () => {
+      onDead('课堂连接失败');
+    });
+    ws.on('close', () => {
+      onDead('课堂连接已断开');
+    });
+    ws.connect('wss://www.yuketang.cn/wsapp/').catch(() => {
+      onDead('课堂连接失败');
+    });
+  }
+
+  /** 顺序处理待写队列：定位页面 → 下载 → 回调写入。ArkTS 单线程，用处理标志代替锁。 */
+  private async processLiveQueue(): Promise<void> {
+    if (this.liveProcessing) {
+      return;
+    }
+    this.liveProcessing = true;
+    try {
+      while (this.livePending.size > 0) {
+        const firstKey = this.livePending.keys().next().value as string;
+        const event = this.livePending.get(firstKey)!;
+        let slides = this.livePresentations.get(event.presentationId);
+        if (slides === undefined) {
+          slides = await this.fetchLiveSlides(event.presentationId);
+          this.livePresentations.set(event.presentationId, slides);
+        }
+        const slide = resolveRainLiveSlide(event, slides);
+        const image = await this.downloadSlideImage(slide);
+        if (this.liveOnSlide !== null) {
+          await this.liveOnSlide(image);
+        }
+        this.livePending.delete(firstKey);
+        this.liveLastKey = `${slide.presentationId}:${slide.sourceIndex}`;
+        this.liveLastPageKey = `${slide.presentationId}:page:${slide.pageId}`;
+        this.liveCollected += 1;
+        this.emitLive(this.liveStopped ? 'stopped' : 'active', null);
+      }
+    } catch (e) {
+      // 失败页保留在队列中，等待显式重试
+      this.emitLive('error', (e as Error).message);
+    } finally {
+      this.liveProcessing = false;
+    }
+  }
+
+  /** 失败页重试。 */
+  async retryLive(): Promise<void> {
+    if (this.livePending.size === 0) {
+      throw new Error('当前没有待写入的课堂页面');
+    }
+    await this.processLiveQueue();
+  }
+
+  stopLive(): void {
+    this.liveStopped = true;
+    if (this.liveSocket !== null) {
+      this.liveSocket.close().catch(() => {});
+      this.liveSocket = null;
+    }
+    this.emitLive('stopped', null);
+  }
+
+  private async fetchLiveSlides(presentationId: string): Promise<RainSlide[]> {
+    const session = this.requireSession();
+    const url = `${YUKETANG_HOME}/api/v3/lesson/presentation/fetch?presentation_id=`
+      + encodeURIComponent(presentationId);
+    const payload = await this.requestJson(url, session.cookie, this.lessonAuthorization);
+    return normalizeRainPresentation(payload, presentationId);
+  }
+
   // ---- HTTP 基础 ----
 
   private requireSession(): RainSession {
@@ -513,7 +748,7 @@ export class RainClient {
       if (cookie !== null && authorization !== null) {
         this.captureAuthorization(cookie, response.header);
       }
-      return { cookies: cookies, authorization: authorization };
+      return { cookies: cookies, authorization: authorization, body: response.result as string };
     } finally {
       request.destroy();
     }
