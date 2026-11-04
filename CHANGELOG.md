@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Enable the locally installed CodeGraph for this repository: project index built (95 files, 1,791 symbols) and its MCP server added alongside `deveco-mcp` in the gitignored project `.mcp.json`; index directory excluded as local tooling. No runtime code changes. / 为本仓库启用本机 CodeGraph：已建索引并把其 MCP 与 deveco-mcp 并列写入不入库的 `.mcp.json`，索引目录按本机工具排除，不改动运行代码。
+
 - Wire the locally installed DevEco CLI into the HarmonyOS line: 53 official `hmos-*` skills and the `deveco-mcp` syntax-check server are installed per-machine for this project; their directories and MCP config are gitignored as local tooling, and the project-local `harmonyos-dev` skill documents the setup and division of roles. No runtime code changes. / 鸿蒙线接入本机 DevEco CLI：53 个官方技能与语法检查 MCP 按本机安装，相关目录已加入 gitignore 作为本机工具，不入库；项目局部技能记录接入方式与分工，不改动运行代码。
 
 - Extend the HarmonyOS line on `harmonyos/beta`: handwriting annotations over the source document (four colors, undo, per-page clear, `src/annotations.json` with the desktop-compatible 1000-scale coordinate contract), cross-page full-text note search with jump-to-page (Markdown projects include the source text), image attachment rendering from project `src/assets` sandbox paths, and offline KaTeX formula rendering ($$ / ```math blocks) via a Web component with vendored rawfile assets. Compile verified; emulator/device runs still pending. / 鸿蒙线新增：源文档手写批注（四色/撤销/清页，1000 比例坐标契约）、跨页笔记全文搜索并跳页（MD 项目连同原文）、`src/assets` 图片附件渲染、本地 KaTeX 公式渲染（Web 组件 + rawfile，不依赖网络）；编译通过，模拟器/真机验证仍待做。

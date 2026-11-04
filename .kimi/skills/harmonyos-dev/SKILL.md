@@ -117,6 +117,7 @@ harmonyos/
 - **53 个官方 `hmos-*` 技能**：实体在 `.deveco-cli/skills/store/`，经符号链接挂到 `.agents/skills/`（项目作用域，会话内可直接用）。
 - **deveco-mcp**（.ets / C/C++ 语法检查）：配置在项目根 `.mcp.json`（stdio，`devecocli serve mcp`，`PROJECT_PATH` 指向本仓库）。会话需重启后才加载 MCP。
 - 以上均为**本机工具，不入库**：`.agents/`、`.deveco-cli/`、`.codex/`、`.opencode/`、`.mcp.json` 已加入 `.gitignore`；其他机器需自行运行 `devecocli init --mcp --project .` 与 `devecocli skills add --all --project .`。
+- **CodeGraph**（`@colbymchenry/codegraph`，代码知识图谱）也已为本项目启用：索引在 `.codegraph/`（不入库，重建用 `codegraph init .`），MCP 与 deveco-mcp 并列配置在 `.mcp.json`（`codegraph serve --mcp`），覆盖 src/ 与 harmonyos/ 的符号查询、调用链与影响面分析。会话重启后两个 MCP 同时生效。
 - 分工：官方技能管 ArkTS/ArkUI 语法与框架用法；本技能继续管本机离线构建与 PageNote 共享契约。
 
 ## 9. 测试与验证纪律（项目要求）
