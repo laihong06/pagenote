@@ -18,6 +18,7 @@ interface ReaderParams {
 interface SearchHit {
   page: number;
   snippet: string;
+  source: string; // 笔记 | 原文
 }
 
 /**
@@ -170,6 +171,78 @@ struct ReaderPage {
       this.statusText = `保存失败：${(e as Error).message}`;
       promptAction.showToast({ message: this.statusText });
     }
+  }
+
+  /** 跨页全文检索笔记；Markdown 项目连同原文一起检索。每页/原文取首个命中做摘要。 */
+  private runSearch(): void {
+    if (this.project === null) {
+      return;
+    }
+    const query = this.searchQuery.trim().toLowerCase();
+    if (query.length === 0) {
+      this.searchResults = [];
+      return;
+    }
+    const hits: SearchHit[] = [];
+    const notes = ProjectStore.readNotes(this.project.rightPath);
+    notes.forEach((text: string, page: number) => {
+      const snippet = ReaderPage.snippetAt(text, query);
+      if (snippet !== null) {
+        hits.push({ page: page, snippet: snippet, source: '笔记' });
+      }
+    });
+    if (!this.isPdf && this.sourceMarkdown.length > 0) {
+      const snippet = ReaderPage.snippetAt(this.sourceMarkdown, query);
+      if (snippet !== null) {
+        hits.push({ page: 0, snippet: snippet, source: '原文' });
+      }
+    }
+    this.searchResults = hits;
+  }
+
+  /** 返回命中位置前后的摘要（空白压缩为单空格），未命中返回 null。 */
+  private static snippetAt(text: string, queryLower: string): string | null {
+    const index = text.toLowerCase().indexOf(queryLower);
+    if (index < 0) {
+      return null;
+    }
+    const start = Math.max(0, index - 20);
+    const end = Math.min(text.length, index + queryLower.length + 40);
+    let snippet = text.substring(start, end).replace(/\s+/g, ' ').trim();
+    if (start > 0) {
+      snippet = `…${snippet}`;
+    }
+    if (end < text.length) {
+      snippet = `${snippet}…`;
+    }
+    return snippet;
+  }
+
+  private openSearch(): void {
+    this.showSearch = true;
+    this.runSearch();
+  }
+
+  private jumpToHit(hit: SearchHit): void {
+    this.showSearch = false;
+    if (hit.source === '笔记') {
+      this.goToPage(hit.page);
+    }
+  }
+
+  /** 笔记内图片链接（如 assets/x.png）解析为项目 src/ 下的沙箱路径；拒绝逃逸与绝对路径。 */
+  private resolveAsset(src: string): string {
+    if (this.project === null || src.length === 0) {
+      return '';
+    }
+    let cleaned = src;
+    if (cleaned.startsWith('./')) {
+      cleaned = cleaned.substring(2);
+    }
+    if (cleaned.startsWith('/') || cleaned.indexOf('..') >= 0 || cleaned.length === 0) {
+      return '';
+    }
+    return `${this.project.dir}/src/${cleaned}`;
   }
 
   private openHistory(): void {
@@ -408,6 +481,15 @@ struct ReaderPage {
               .onClick(() => {
                 this.previewMode = !this.previewMode;
               })
+            Button('搜索')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openSearch();
+              })
             Button('历史')
               .fontSize(13)
               .height(32)
@@ -439,7 +521,10 @@ struct ReaderPage {
           .alignItems(VerticalAlign.Center)
 
           if (this.previewMode) {
-            MarkdownView({ content: this.note })
+            MarkdownView({
+              content: this.note,
+              resolveImage: (src: string): string => this.resolveAsset(src)
+            })
               .layoutWeight(1)
               .width('100%')
           } else {
@@ -472,6 +557,10 @@ struct ReaderPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#FAFAFA')
+    .bindSheet($$this.showSearch, this.searchBuilder(), {
+      height: SheetSize.LARGE,
+      title: { title: '搜索笔记' }
+    })
     .bindSheet($$this.showHistory, this.historyBuilder(), {
       height: SheetSize.FIT_CONTENT,
       title: { title: `第 ${this.currentPage} 页历史` }
@@ -484,6 +573,65 @@ struct ReaderPage {
       height: SheetSize.LARGE,
       title: { title: `第 ${this.currentPage} 页讲解` }
     })
+  }
+
+  @Builder
+  searchBuilder() {
+    Column() {
+      Search({ value: $$this.searchQuery, placeholder: '搜索全部笔记' + (this.isPdf ? '' : '与原文') })
+        .searchButton('搜索')
+        .margin({ top: 4, bottom: 8 })
+        .onSubmit((value: string) => {
+          this.searchQuery = value;
+          this.runSearch();
+        })
+        .onChange((value: string) => {
+          this.searchQuery = value;
+          this.runSearch();
+        })
+      if (this.searchQuery.trim().length > 0 && this.searchResults.length === 0) {
+        Text('没有匹配的内容')
+          .fontSize(14)
+          .fontColor('#999999')
+          .padding(24)
+      } else {
+        List() {
+          ForEach(this.searchResults, (hit: SearchHit) => {
+            ListItem() {
+              Column() {
+                Row() {
+                  Text(hit.source === '笔记' ? `第 ${hit.page} 页` : hit.source)
+                    .fontSize(12)
+                    .fontColor('#2263EB')
+                    .backgroundColor('#EAF0FE')
+                    .borderRadius(4)
+                    .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                }
+                .width('100%')
+                Text(hit.snippet)
+                  .fontSize(14)
+                  .fontColor('#333333')
+                  .maxLines(2)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .width('100%')
+                  .margin({ top: 4 })
+              }
+              .width('100%')
+              .alignItems(HorizontalAlign.Start)
+              .padding(12)
+              .onClick(() => {
+                this.jumpToHit(hit);
+              })
+            }
+          }, (hit: SearchHit) => `${hit.source}-${hit.page}-${hit.snippet.length}`)
+        }
+        .width('100%')
+        .layoutWeight(1)
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, bottom: 16 })
   }
 
   @Builder
@@ -577,7 +725,10 @@ struct ReaderPage {
           .fontColor('#999999')
           .padding(24)
       } else {
-        MarkdownView({ content: this.aiResult })
+        MarkdownView({
+          content: this.aiResult,
+          resolveImage: (src: string): string => this.resolveAsset(src)
+        })
           .layoutWeight(1)
           .width('100%')
       }

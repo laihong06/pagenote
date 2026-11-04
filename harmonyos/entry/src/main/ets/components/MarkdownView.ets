@@ -1,8 +1,11 @@
 /**
- * 轻量 Markdown 渲染组件（基础预览）：标题、段落、代码块、有序/无序列表、引用、分割线，
- * 行内支持 **粗体**、*斜体*、`行内代码`。不追求完整 CommonMark，复杂语法原样显示。
- * 桌面的完整渲染管线（公式、mermaid 等）不在本组件范围内。
+ * 轻量 Markdown 渲染组件：标题、段落、代码块、有序/无序列表、引用、分割线，
+ * 行内支持 **粗体**、*斜体*、`行内代码`；块级图片经 resolveImage 解析为沙箱路径渲染
+ * （外部 http(s) 图片占位提示，保持离线）；块级公式（$$ 与 ```math）交给 MathView 渲染。
+ * 不追求完整 CommonMark，复杂语法原样显示。
  */
+
+import { MathView } from './MathView';
 
 interface InlineSpan {
   text: string;
@@ -12,9 +15,11 @@ interface InlineSpan {
 }
 
 interface MdBlock {
-  kind: string; // heading1..6 | paragraph | code | list | quote | hr
+  kind: string; // heading1..6 | paragraph | code | list | quote | hr | image | math
   text: string;
   spans: InlineSpan[];
+  src: string;
+  alt: string;
 }
 
 function parseInline(text: string): InlineSpan[] {
@@ -45,30 +50,50 @@ function parseInline(text: string): InlineSpan[] {
   return spans;
 }
 
+function plainBlock(kind: string, text: string, spans: InlineSpan[]): MdBlock {
+  return { kind: kind, text: text, spans: spans, src: '', alt: '' };
+}
+
 function parseBlocks(markdown: string): MdBlock[] {
   const blocks: MdBlock[] = [];
   const lines = markdown.split('\n');
   let inCode = false;
+  let codeLang = '';
   let codeBuffer: string[] = [];
+  let inMath = false;
+  let mathBuffer: string[] = [];
   let paraBuffer: string[] = [];
 
   const flushPara = (): void => {
     if (paraBuffer.length > 0) {
-      const text = paraBuffer.join('\n');
-      blocks.push({ kind: 'paragraph', text: text, spans: parseInline(text) });
+      // 行内图片无法混入 ArkUI Text，占位显示 alt
+      const text = paraBuffer.join('\n').replace(/!\[([^\]]*)\]\([^)]*\)/g, '[图：$1]');
+      blocks.push(plainBlock('paragraph', text, parseInline(text)));
       paraBuffer = [];
     }
   };
 
+  const flushFence = (): void => {
+    const body = codeBuffer.join('\n');
+    if (codeLang === 'math' || codeLang === 'latex') {
+      blocks.push(plainBlock('math', body, []));
+    } else {
+      blocks.push(plainBlock('code', body, []));
+    }
+    codeBuffer = [];
+    codeLang = '';
+  };
+
   for (const line of lines) {
-    if (line.trimStart().startsWith('```')) {
+    const fence = /^\s*```(\w*)/.exec(line);
+    if (fence !== null) {
       if (inCode) {
-        blocks.push({ kind: 'code', text: codeBuffer.join('\n'), spans: [] });
-        codeBuffer = [];
+        flushFence();
         inCode = false;
-      } else {
+      } else if (!inMath) {
         flushPara();
         inCode = true;
+        codeLang = (fence[1] ?? '').toLowerCase();
       }
       continue;
     }
@@ -77,19 +102,40 @@ function parseBlocks(markdown: string): MdBlock[] {
       continue;
     }
     const trimmed = line.trim();
+    if (trimmed === '$$') {
+      if (inMath) {
+        blocks.push(plainBlock('math', mathBuffer.join('\n'), []));
+        mathBuffer = [];
+        inMath = false;
+      } else {
+        flushPara();
+        inMath = true;
+      }
+      continue;
+    }
+    if (inMath) {
+      mathBuffer.push(line);
+      continue;
+    }
     if (trimmed.length === 0) {
       flushPara();
+      continue;
+    }
+    const image = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/.exec(trimmed);
+    if (image !== null) {
+      flushPara();
+      blocks.push({ kind: 'image', text: '', spans: [], src: image[2], alt: image[1] });
       continue;
     }
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading !== null) {
       flushPara();
-      blocks.push({ kind: `heading${heading[1].length}`, text: heading[2], spans: parseInline(heading[2]) });
+      blocks.push(plainBlock(`heading${heading[1].length}`, heading[2], parseInline(heading[2])));
       continue;
     }
     if (/^(-{3,}|\*{3,})$/.test(trimmed)) {
       flushPara();
-      blocks.push({ kind: 'hr', text: '', spans: [] });
+      blocks.push(plainBlock('hr', '', []));
       continue;
     }
     if (/^([-*+]|\d+\.)\s+/.test(trimmed)) {
@@ -97,19 +143,22 @@ function parseBlocks(markdown: string): MdBlock[] {
       const itemText = trimmed.replace(/^([-*+]|\d+\.)\s+/, '');
       const marker = /^([-*+]|\d+\.)/.exec(trimmed);
       const prefix = marker !== null ? marker[1] : '-';
-      blocks.push({ kind: 'list', text: `${prefix} ${itemText}`, spans: parseInline(`${prefix} ${itemText}`) });
+      blocks.push(plainBlock('list', `${prefix} ${itemText}`, parseInline(`${prefix} ${itemText}`)));
       continue;
     }
     if (trimmed.startsWith('>')) {
       flushPara();
       const quoteText = trimmed.replace(/^>\s?/, '');
-      blocks.push({ kind: 'quote', text: quoteText, spans: parseInline(quoteText) });
+      blocks.push(plainBlock('quote', quoteText, parseInline(quoteText)));
       continue;
     }
     paraBuffer.push(trimmed);
   }
   if (inCode) {
-    blocks.push({ kind: 'code', text: codeBuffer.join('\n'), spans: [] });
+    flushFence();
+  }
+  if (inMath) {
+    blocks.push(plainBlock('math', mathBuffer.join('\n'), []));
   }
   flushPara();
   return blocks;
@@ -118,17 +167,53 @@ function parseBlocks(markdown: string): MdBlock[] {
 @Component
 export struct MarkdownView {
   content: string = '';
+  /** 把笔记里的相对图片路径（如 assets/x.png）解析为可加载的沙箱绝对路径；返回空串表示不可渲染。 */
+  resolveImage: (src: string) => string = () => '';
   @State private blocks: MdBlock[] = [];
 
   aboutToAppear(): void {
     this.blocks = parseBlocks(this.content);
   }
 
+  private imagePath(src: string): string {
+    if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+      return '';
+    }
+    return this.resolveImage(src);
+  }
+
   build() {
     Scroll() {
       Column() {
         ForEach(this.blocks, (block: MdBlock) => {
-          if (block.kind === 'code') {
+          if (block.kind === 'image') {
+            if (this.imagePath(block.src).length > 0) {
+              Column() {
+                Image(this.imagePath(block.src))
+                  .width('100%')
+                  .constraintSize({ maxHeight: 320 })
+                  .objectFit(ImageFit.Contain)
+                if (block.alt.length > 0) {
+                  Text(block.alt)
+                    .fontSize(12)
+                    .fontColor('#999999')
+                    .margin({ top: 4 })
+                }
+              }
+              .width('100%')
+              .margin({ top: 8, bottom: 8 })
+            } else {
+              Text(`[图片${block.alt.length > 0 ? `：${block.alt}` : ''}] ${block.src}`)
+                .fontSize(13)
+                .fontColor('#999999')
+                .width('100%')
+                .margin({ top: 4, bottom: 4 })
+            }
+          } else if (block.kind === 'math') {
+            MathView({ latex: block.text })
+              .width('100%')
+              .margin({ top: 4, bottom: 4 })
+          } else if (block.kind === 'code') {
             Text(block.text)
               .fontFamily('monospace')
               .fontSize(13)

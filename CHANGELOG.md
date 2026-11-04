@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Extend the HarmonyOS line on `harmonyos/beta`: handwriting annotations over the source document (four colors, undo, per-page clear, `src/annotations.json` with the desktop-compatible 1000-scale coordinate contract), cross-page full-text note search with jump-to-page (Markdown projects include the source text), image attachment rendering from project `src/assets` sandbox paths, and offline KaTeX formula rendering ($$ / ```math blocks) via a Web component with vendored rawfile assets. Compile verified; emulator/device runs still pending. / 鸿蒙线新增：源文档手写批注（四色/撤销/清页，1000 比例坐标契约）、跨页笔记全文搜索并跳页（MD 项目连同原文）、`src/assets` 图片附件渲染、本地 KaTeX 公式渲染（Web 组件 + rawfile，不依赖网络）；编译通过，模拟器/真机验证仍待做。
+
 - Start the HarmonyOS (ArkTS/ArkUI) platform line on `harmonyos/beta`: native tablet-first app under `harmonyos/` with bookshelf, document import via system picker, PDF reading through PDF Kit, page-linked Markdown notes with the shared `<!-- pagebreak -->` format, revision-checked saves, note history snapshots, basic Markdown preview, and an OpenAI-compatible per-page AI explainer (key stored in app preferences, never in project dirs). Core layer matches the shared project contract field by field. Built with DevEco Studio 26 (API 26 SDK); unsigned debug HAP verified to compile; emulator/device runs and screenshots not yet performed. No published downloads. / 启动鸿蒙平台线：原生平板应用，含书架、系统文件选择器导入、PDF Kit 阅读、共享格式逐页 Markdown 笔记、revision 校验保存、历史快照、基础 Markdown 预览与按页 AI 讲解；核心层与共享契约逐条对齐；编译验证通过但未做模拟器/真机验证，无公开下载。
 
 - Add a project-local HarmonyOS development skill at `.kimi/skills/harmonyos-dev/` capturing the verified local toolchain paths, offline build command and shared format contract. / 新增项目局部鸿蒙开发技能，记录本机工具链、离线构建命令与共享格式契约。
