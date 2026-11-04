@@ -40,7 +40,8 @@ export class ProjectStore {
     }
   }
 
-  private static readText(path: string): string {
+  /** 读取 UTF-8 文本文件；不存在时抛异常，调用方自行判断。 */
+  static readText(path: string): string {
     return fs.readTextSync(path);
   }
 
