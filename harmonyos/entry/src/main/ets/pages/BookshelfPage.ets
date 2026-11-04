@@ -2,7 +2,11 @@ import { router } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { picker, fileIo as fs } from '@kit.CoreFileKit';
 import { promptAction } from '@kit.ArkUI';
+import { image } from '@kit.ImageKit';
 import { ProjectStore, ProjectSummary, OpenProject } from '../core/ProjectStore';
+import { RainClient, RainLoginState } from '../core/RainClient';
+import { RainCourse, RainLesson, RainSlideImage } from '../core/RainProtocol';
+import { RainProjectWriter } from '../core/RainProjectWriter';
 
 /**
  * 书架页：列出沙箱项目库中的全部项目，支持新建项目与导入文档建项目。
@@ -15,6 +19,26 @@ struct BookshelfPage {
   @State showCreateDialog: boolean = false;
   @State newProjectName: string = '';
   @State errorText: string = '';
+  // 雨课堂面板
+  @State showRain: boolean = false;
+  @State rainLoginStatus: string = 'signed_out';
+  @State rainQr: PixelMap | null = null;
+  @State rainAccount: string = '';
+  @State rainCourses: RainCourse[] = [];
+  @State rainLessons: RainLesson[] = [];
+  @State rainSelectedCourse: string = '';
+  @State rainBusy: boolean = false;
+  @State rainProgress: string = '';
+  @State rainError: string = '';
+
+  private rainClient: RainClient | null = null;
+
+  private rain(): RainClient {
+    if (this.rainClient === null) {
+      this.rainClient = new RainClient(getContext(this) as common.UIAbilityContext);
+    }
+    return this.rainClient;
+  }
 
   private projectsRoot(): string {
     return ProjectStore.projectsRoot(getContext(this).filesDir);
@@ -60,8 +84,7 @@ struct BookshelfPage {
     });
   }
 
-  private importIntoNewProject(uri: string): void {
-    const decoded = decodeURIComponent(uri);
+  private importIntoNewProject(uri: string): void {    const decoded = decodeURIComponent(uri);
     const slash = decoded.lastIndexOf('/');
     const fileName = slash >= 0 ? decoded.substring(slash + 1) : decoded;
     const dot = fileName.lastIndexOf('.');
@@ -89,6 +112,141 @@ struct BookshelfPage {
       });
   }
 
+  // ---- 雨课堂 ----
+
+  private openRain(): void {
+    this.showRain = true;
+    this.rainError = '';
+    this.rainProgress = '';
+    this.rainSelectedCourse = '';
+    this.rainLessons = [];
+    this.rain().refreshLogin()
+      .then((state: RainLoginState) => {
+        this.rainLoginStatus = state.status;
+        if (state.status === 'authenticated') {
+          this.rainAccount = state.accountName ?? '雨课堂用户';
+          this.loadRainCourses();
+        }
+      })
+      .catch((e: Error) => {
+        this.rainLoginStatus = 'signed_out';
+        this.rainError = e.message;
+      });
+  }
+
+  private startRainLogin(): void {
+    this.rainError = '';
+    this.rain().startLogin((state: RainLoginState) => {
+      this.onRainLoginState(state);
+    });
+  }
+
+  private onRainLoginState(state: RainLoginState): void {
+    this.rainLoginStatus = state.status;
+    this.rainError = state.error ?? '';
+    if (state.status === 'waiting_scan' && state.qrImage !== null) {
+      const source = image.createImageSource(state.qrImage);
+      source.createPixelMap().then((pm: PixelMap) => {
+        this.rainQr = pm;
+        source.release();
+      }).catch(() => {
+        this.rainError = '二维码图片解码失败';
+      });
+    }
+    if (state.status === 'authenticated') {
+      this.rainAccount = state.accountName ?? '雨课堂用户';
+      this.rainQr = null;
+      this.loadRainCourses();
+    }
+  }
+
+  private cancelRainLogin(): void {
+    this.rain().cancelLogin();
+    this.rainLoginStatus = 'signed_out';
+    this.rainQr = null;
+  }
+
+  private logoutRain(): void {
+    this.rain().logout();
+    this.rainLoginStatus = 'signed_out';
+    this.rainAccount = '';
+    this.rainCourses = [];
+    this.rainLessons = [];
+    this.rainSelectedCourse = '';
+  }
+
+  private loadRainCourses(): void {
+    this.rainBusy = true;
+    this.rain().listCourses()
+      .then((courses: RainCourse[]) => {
+        this.rainCourses = courses;
+        this.rainError = courses.length === 0 ? '这个账号下没有课程' : '';
+      })
+      .catch((e: Error) => {
+        this.rainError = e.message;
+      })
+      .finally(() => {
+        this.rainBusy = false;
+      });
+  }
+
+  private selectRainCourse(course: RainCourse): void {
+    this.rainSelectedCourse = course.classroomId;
+    this.rainLessons = [];
+    this.rainBusy = true;
+    this.rainError = '';
+    this.rain().listLessons(course.classroomId)
+      .then((lessons: RainLesson[]) => {
+        this.rainLessons = lessons;
+        if (lessons.length === 0) {
+          this.rainError = '这门课还没有历史课件';
+        }
+      })
+      .catch((e: Error) => {
+        this.rainError = e.message;
+      })
+      .finally(() => {
+        this.rainBusy = false;
+      });
+  }
+
+  /** 项目名只允许安全字符；与 ProjectStore.newManifest 的 BAD_NAME 一致。 */
+  private sanitizeRainProjectName(name: string): string {
+    const cleaned = name.replace(/[<>:"/\\|?*]/g, '_').trim();
+    return cleaned.length > 0 ? cleaned : '雨课堂课件';
+  }
+
+  private async importRainLesson(course: RainCourse, lesson: RainLesson): Promise<void> {
+    const name = this.sanitizeRainProjectName(lesson.name);
+    if (this.projects.some((item: ProjectSummary): boolean => item.name === name)) {
+      this.rainError = `已存在同名项目：${name}`;
+      return;
+    }
+    this.rainBusy = true;
+    this.rainError = '';
+    try {
+      this.rainProgress = '正在读取课件列表…';
+      const slides = await this.rain().loadImportSlides(lesson);
+      const images: RainSlideImage[] = [];
+      for (let i = 0; i < slides.length; i++) {
+        this.rainProgress = `正在下载 ${i + 1} / ${slides.length} 页…`;
+        images.push(await this.rain().downloadSlideImage(slides[i]));
+      }
+      const project = await RainProjectWriter.create(this.projectsRoot(), name, course, lesson, images,
+        (done: number, total: number) => {
+          this.rainProgress = `正在生成项目 ${done} / ${total} 页…`;
+        });
+      this.showRain = false;
+      this.reload();
+      router.pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
+    } catch (e) {
+      this.rainError = (e as Error).message;
+      this.rainProgress = '';
+    } finally {
+      this.rainBusy = false;
+    }
+  }
+
   build() {
     Column() {
       Row() {
@@ -96,7 +254,12 @@ struct BookshelfPage {
           .fontSize(24)
           .fontWeight(FontWeight.Bold)
         Blank()
+        Button('雨课堂')
+          .onClick(() => {
+            this.openRain();
+          })
         Button('导入文档')
+          .margin({ left: 12 })
           .onClick(() => {
             this.importDocument();
           })
@@ -110,6 +273,11 @@ struct BookshelfPage {
       .width('100%')
       .padding(16)
       .alignItems(VerticalAlign.Center)
+      // 同节点多 bindSheet 会全部失效，雨课堂面板挂到标题栏节点
+      .bindSheet($$this.showRain, this.rainBuilder(), {
+        height: SheetSize.LARGE,
+        title: { title: '雨课堂' }
+      })
 
       if (this.projects.length === 0) {
         Column() {
@@ -170,6 +338,188 @@ struct BookshelfPage {
       height: SheetSize.FIT_CONTENT,
       title: { title: '新建项目' }
     })
+  }
+
+  @Builder
+  rainBuilder() {
+    Column() {
+      if (this.rainProgress.length > 0) {
+        Text(this.rainProgress)
+          .fontSize(13)
+          .fontColor('#2263EB')
+          .width('100%')
+          .padding({ top: 4, bottom: 4 })
+      }
+      if (this.rainError.length > 0) {
+        Text(this.rainError)
+          .fontSize(13)
+          .fontColor('#C7254E')
+          .width('100%')
+          .padding({ top: 4, bottom: 4 })
+      }
+
+      if (this.rainLoginStatus !== 'authenticated') {
+        // 登录区
+        Column() {
+          if (this.rainQr !== null) {
+            Image(this.rainQr)
+              .width(220)
+              .height(220)
+              .margin({ top: 12 })
+            Text('用微信扫描雨课堂官方二维码完成登录')
+              .fontSize(13)
+              .fontColor('#666666')
+              .margin({ top: 8 })
+          } else {
+            Text(this.rainLoginStatus === 'connecting' || this.rainLoginStatus === 'loading_qr'
+              ? '正在获取雨课堂登录二维码…'
+              : '登录后可将雨课堂课件导入为项目')
+              .fontSize(14)
+              .fontColor('#666666')
+              .margin({ top: 16 })
+          }
+          Row() {
+            if (this.rainLoginStatus !== 'waiting_scan' && this.rainLoginStatus !== 'connecting'
+              && this.rainLoginStatus !== 'loading_qr') {
+              Button(this.rainLoginStatus === 'expired' ? '重新生成二维码' : '登录雨课堂')
+                .margin({ top: 16 })
+                .enabled(!this.rainBusy)
+                .onClick(() => {
+                  this.startRainLogin();
+                })
+            }
+            if (this.rainLoginStatus === 'waiting_scan' || this.rainLoginStatus === 'connecting'
+              || this.rainLoginStatus === 'loading_qr') {
+              Button('取消')
+                .margin({ top: 16, left: 12 })
+                .backgroundColor('#EEEEEE')
+                .fontColor('#333333')
+                .onClick(() => {
+                  this.cancelRainLogin();
+                })
+            }
+          }
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+      } else {
+        // 已登录：账号条 + 课程/课堂列表
+        Row() {
+          Text(this.rainAccount)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .layoutWeight(1)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Button('刷新')
+            .fontSize(13)
+            .height(30)
+            .backgroundColor('#EEEEEE')
+            .fontColor('#333333')
+            .enabled(!this.rainBusy)
+            .onClick(() => {
+              this.loadRainCourses();
+            })
+          Button('退出登录')
+            .fontSize(13)
+            .height(30)
+            .backgroundColor('#EEEEEE')
+            .fontColor('#333333')
+            .margin({ left: 8 })
+            .enabled(!this.rainBusy)
+            .onClick(() => {
+              this.logoutRain();
+            })
+        }
+        .width('100%')
+        .padding({ top: 4, bottom: 8 })
+
+        if (this.rainSelectedCourse.length === 0) {
+          List() {
+            ForEach(this.rainCourses, (course: RainCourse) => {
+              ListItem() {
+                Column() {
+                  Text(course.name)
+                    .fontSize(16)
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  Text(`${course.teacher}${course.term.length > 0 ? ` · ${course.term}` : ''}`)
+                    .fontSize(12)
+                    .fontColor('#999999')
+                    .margin({ top: 4 })
+                }
+                .width('100%')
+                .alignItems(HorizontalAlign.Start)
+                .padding(12)
+              }
+              .onClick(() => {
+                this.selectRainCourse(course);
+              })
+            }, (course: RainCourse) => course.classroomId)
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
+        } else {
+          Row() {
+            Button('返回课程列表')
+              .fontSize(13)
+              .height(30)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .enabled(!this.rainBusy)
+              .onClick(() => {
+                this.rainSelectedCourse = '';
+                this.rainLessons = [];
+                this.rainError = '';
+              })
+          }
+          .width('100%')
+          .padding({ bottom: 8 })
+          List() {
+            ForEach(this.rainLessons, (lesson: RainLesson) => {
+              ListItem() {
+                Row() {
+                  Column() {
+                    Text(lesson.name)
+                      .fontSize(16)
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    Text(lesson.createdAt ?? '')
+                      .fontSize(12)
+                      .fontColor('#999999')
+                      .margin({ top: 4 })
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                  Button('导入')
+                    .fontSize(13)
+                    .height(30)
+                    .margin({ left: 12 })
+                    .enabled(!this.rainBusy)
+                    .onClick(() => {
+                      const course = this.rainCourses.find(
+                        (item: RainCourse): boolean => item.classroomId === this.rainSelectedCourse);
+                      if (course !== undefined) {
+                        this.importRainLesson(course, lesson);
+                      }
+                    })
+                }
+                .width('100%')
+                .padding(12)
+              }
+            }, (lesson: RainLesson) => `${lesson.presentationId}-${lesson.lessonId ?? ''}`)
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
+        }
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, bottom: 16 })
   }
 
   @Builder

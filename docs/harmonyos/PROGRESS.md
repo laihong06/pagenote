@@ -40,12 +40,24 @@
 
 未完成的验证：PDF 导入全链路（picker 只显示媒体库已索引文件，hdc 推送的 PDF 未索引，选文件一步受阻——环境限制非应用缺陷）；PdfView 真实渲染（需带 PDF Kit 的镜像/真机）；AI 真实请求；公式/图片预览的设备实测（代码路径与搜索同页，编译已过）。
 
+## 雨课堂历史导入（2026-11-04，本批待提交）
+
+对齐 Android feature-yuketang / RainProjectWriter 契约的鸿蒙实现：
+
+- `core/RainProtocol.ets`：协议类型与解析（历史 type=3/14 语义、可见页过滤、LESSON_ON、当前课堂）
+- `core/RainClient.ets`：应用内二维码登录（wss requestlogin → ticket 域名校验 → QR 图片 → UserID/Auth → web_login → basic-info），会话存应用偏好（不落项目目录；注意 Android 为 Keystore 加密，鸿蒙端当前与 AI 密钥同级明文偏好，差异已记录）；课程/历史课堂列表、课后报告课件下载
+- `core/PdfBuilder.ets`：最小图片型 PDF 生成器（鸿蒙无 PDF 创建 API；JPEG DCTDecode 直接嵌入，页尺寸 ≤960×720）
+- `core/RainProjectWriter.ets`：图片解码重编码（JPEG q88）→ PDF + 分页空笔记 + 来源清单 + manifest，失败整目录回滚
+- 书架「雨课堂」面板：登录/二维码/课程列表/课堂列表/导入进度
+- 模拟器实测：登录 WebSocket、ticket、QR 下载与渲染通过（截图 emulator-08）；修复响应头大小写与 image/jpg 归一问题
+- 未验证：微信扫码后的完整登录、真实课程列表与导入（需用户账号）；实时课堂采集未实现（R4，下一阶段）
+
 ## 下一步（按序）
 
-1. 行内公式 `$…$` 与图片/公式预览的设备实测（在笔记里写入含 $$ 与图片的多页内容，可用 UI 输入验证）
-2. 真机或带 PDF Kit 镜像验证 PdfView 与 PDF 项目全链路
-3. AI 讲解真实请求验证（需配置可用端点）
-4. 参考 Android features.md 20 模块排适配优先级（见 README 功能表差距）
+1. 雨课堂：用户扫码完成一次真实登录+历史导入验收；随后做实时课堂采集（checkin + WS timeline）
+2. 行内公式 `$…$` 与图片/公式预览的设备实测
+3. 真机或带 PDF Kit 镜像验证 PdfView 与 PDF 项目全链路
+4. 其余 Android 模块按优先级继续（选区/Tag、OCR、闪卡等）
 
 ## 复现构建
 
