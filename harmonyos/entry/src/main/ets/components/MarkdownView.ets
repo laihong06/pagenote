@@ -1,8 +1,8 @@
 /**
  * 轻量 Markdown 渲染组件：标题、段落、代码块、有序/无序列表、引用、分割线，
- * 行内支持 **粗体**、*斜体*、`行内代码`；块级图片经 resolveImage 解析为沙箱路径渲染
- * （外部 http(s) 图片占位提示，保持离线）；块级公式（$$ 与 ```math）交给 MathView 渲染。
- * 不追求完整 CommonMark，复杂语法原样显示。
+ * 行内支持 **粗体**、*斜体*、`行内代码`、$…$ 行内公式；块级图片经 resolveImage 解析为
+ * 沙箱路径渲染（外部 http(s) 图片占位提示，保持离线）；块级公式（$$ 与 ```math）与
+ * 行内公式均交给 MathView（本地 KaTeX）渲染。不追求完整 CommonMark，复杂语法原样显示。
  */
 
 import { MathView } from './MathView';
@@ -12,6 +12,7 @@ interface InlineSpan {
   bold: boolean;
   italic: boolean;
   code: boolean;
+  math: boolean;
 }
 
 interface MdBlock {
@@ -22,30 +23,38 @@ interface MdBlock {
   alt: string;
 }
 
+function textSpan(text: string): InlineSpan {
+  return { text: text, bold: false, italic: false, code: false, math: false };
+}
+
 function parseInline(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
-  const pattern = /(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(`[^`\n]+`)/g;
+  const pattern = /(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(`[^`\n]+`)|(\$\$[^$]+\$\$)|(\$[^$\n]+\$)/g;
   let last = 0;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) {
-      spans.push({ text: text.substring(last, match.index), bold: false, italic: false, code: false });
+      spans.push(textSpan(text.substring(last, match.index)));
     }
     const raw = match[0];
     if (raw.startsWith('**')) {
-      spans.push({ text: raw.substring(2, raw.length - 2), bold: true, italic: false, code: false });
+      spans.push({ text: raw.substring(2, raw.length - 2), bold: true, italic: false, code: false, math: false });
     } else if (raw.startsWith('*')) {
-      spans.push({ text: raw.substring(1, raw.length - 1), bold: false, italic: true, code: false });
+      spans.push({ text: raw.substring(1, raw.length - 1), bold: false, italic: true, code: false, math: false });
+    } else if (raw.startsWith('`')) {
+      spans.push({ text: raw.substring(1, raw.length - 1), bold: false, italic: false, code: true, math: false });
+    } else if (raw.startsWith('$$')) {
+      spans.push({ text: raw.substring(2, raw.length - 2), bold: false, italic: false, code: false, math: true });
     } else {
-      spans.push({ text: raw.substring(1, raw.length - 1), bold: false, italic: false, code: true });
+      spans.push({ text: raw.substring(1, raw.length - 1), bold: false, italic: false, code: false, math: true });
     }
     last = match.index + raw.length;
   }
   if (last < text.length) {
-    spans.push({ text: text.substring(last), bold: false, italic: false, code: false });
+    spans.push(textSpan(text.substring(last)));
   }
   if (spans.length === 0) {
-    spans.push({ text: text, bold: false, italic: false, code: false });
+    spans.push(textSpan(text));
   }
   return spans;
 }
@@ -182,6 +191,10 @@ export struct MarkdownView {
     return this.resolveImage(src);
   }
 
+  private hasMath(block: MdBlock): boolean {
+    return block.spans.some((span: InlineSpan): boolean => span.math);
+  }
+
   build() {
     Scroll() {
       Column() {
@@ -238,6 +251,23 @@ export struct MarkdownView {
             .backgroundColor('#F7F7F7')
             .border({ width: { left: 3 }, color: '#2263EB' })
             .padding(8)
+            .width('100%')
+            .margin({ top: 4, bottom: 4 })
+          } else if ((block.kind === 'paragraph' || block.kind === 'list') && this.hasMath(block)) {
+            // 含行内公式的段落：Text 无法混入公式组件，用 Flex 自动换行混排
+            Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
+              ForEach(block.spans, (span: InlineSpan) => {
+                if (span.math) {
+                  MathView({ latex: span.text, displayMode: false })
+                } else {
+                  Text(span.text)
+                    .fontWeight(span.bold ? FontWeight.Bold : FontWeight.Normal)
+                    .fontStyle(span.italic ? FontStyle.Italic : FontStyle.Normal)
+                    .fontFamily(span.code ? 'monospace' : '')
+                    .fontColor(span.code ? '#C7254E' : '#222222')
+                }
+              }, (span: InlineSpan, index: number) => `${index}-${span.text.length}-${span.math}`)
+            }
             .width('100%')
             .margin({ top: 4, bottom: 4 })
           } else {

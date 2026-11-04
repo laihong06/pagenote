@@ -18,7 +18,7 @@ PageNote 的鸿蒙版是 **ArkTS／ArkUI 原生应用**（Stage 模型，平板�
 | 手写批注 | 笔迹层覆盖源文档，四色、撤销、清除本页，翻页随页加载；1000 比例坐标系与桌面互通，存 `src/annotations.json` | 仅笔迹（pen），无橡皮/图形 |
 | 逐页笔记 | Markdown 编辑，`<!-- pagebreak -->` 分页，翻页加载，保存做 revision 校验 | — |
 | 笔记搜索 | 跨页全文检索笔记（Markdown 项目连同原文），结果点击跳页 | 每页取首个命中做摘要，不支持正则 |
-| 笔记预览 | 基础 Markdown 渲染（标题/列表/引用/代码块/粗斜体/行内代码）、图片附件（`src/assets` 沙箱路径）、KaTeX 公式（$$ 与 ```math，本地 rawfile，不依赖网络） | 外部 http(s) 图片占位提示；行内 $…$ 与 mermaid 不渲染 |
+| 笔记预览 | 基础 Markdown 渲染（标题/列表/引用/代码块/粗斜体/行内代码）、图片附件（`src/assets` 沙箱路径）、KaTeX 公式（$$ 与 ```math 块级 + $…$ 行内，本地 rawfile，不依赖网络） | 外部 http(s) 图片占位提示；行内图片以 `[图：alt]` 占位；mermaid 不渲染 |
 | 笔记历史 | 保存时自动生成快照（`src/history/`），可按页查看与恢复，恢复带 revision 校验 | — |
 | AI 讲解 | OpenAI 兼容接口按页讲解；BaseURL/Key/模型可配，密钥只存本机应用偏好 | 缺 Key 时提示配置；不内置模型、Key 不硬编码 |
 | 雨课堂 | 应用内二维码登录（官方 WebSocket 流程，凭据只存本机应用偏好）、课程/历史课堂列表、历史课件导入为标准项目（图片型 PDF + 分页笔记 + `yuketang-source.json` 来源清单，契约与 Android 逐条对齐）、当前课堂实时逐页采集（checkin + WebSocket timeline 回放、断线重连、按内容哈希去重、追加重建 PDF 并重映射笔记/批注页码）；PDF Kit 缺失的设备用来源图片降级显示课件页 | 实时采集尚未在真实课堂验证；服务器已删除的页面会使整次导入失败并回滚（与 Android 一致） |
