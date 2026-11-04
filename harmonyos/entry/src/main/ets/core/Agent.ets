@@ -140,3 +140,26 @@ export class PageTutor {
     return OpenAiCompatibleClient.complete(endpoint, messages);
   }
 }
+
+export type SelectionAction = 'rewrite' | 'translate' | 'summarize';
+
+/** 笔记选区 AI 动作（对齐 Android 选区 AI 动作：改写/翻译/总结，确认后插回）。 */
+export class SelectionActions {
+  static async run(endpoint: ModelEndpoint, action: SelectionAction, text: string): Promise<string> {
+    if (text.trim().length === 0) {
+      throw new Error('没有选中内容');
+    }
+    let instruction: string;
+    if (action === 'rewrite') {
+      instruction = '请改写下面这段文字，让它更清晰流畅，保持原意与信息量，只输出改写后的文字：';
+    } else if (action === 'translate') {
+      instruction = '请把下面这段文字翻译成英文（已是英文则翻译成中文），只输出译文：';
+    } else {
+      instruction = '请用简洁中文总结下面这段文字的要点，只输出总结：';
+    }
+    const messages: ChatMessage[] = [
+      { role: 'user', content: `${instruction}\n\n${text}` }
+    ];
+    return OpenAiCompatibleClient.complete(endpoint, messages);
+  }
+}

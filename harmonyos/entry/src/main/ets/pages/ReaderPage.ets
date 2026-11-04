@@ -6,7 +6,7 @@ import { PdfBridge } from '../core/PdfBridge';
 import { PageNotes } from '../core/PageNotes';
 import { ProjectValidation } from '../core/ProjectManifest';
 import { NoteHistory, NoteVersion } from '../core/NoteHistory';
-import { AgentSettings, ModelConfig, PageTutor, ModelEndpoint } from '../core/Agent';
+import { AgentSettings, ModelConfig, PageTutor, ModelEndpoint, SelectionActions, SelectionAction } from '../core/Agent';
 import { Annotations, AnnotationBook, AnnotationItem } from '../core/Annotations';
 import { FlashcardItem, FlashcardStore, FlashcardCapture, FlashcardDraft, ReviewOutcome } from '../core/Flashcards';
 import { MarkdownView } from '../components/MarkdownView';
@@ -105,6 +105,12 @@ struct ReaderPage {
   @State reviewShowBack: boolean = false;
   private selStart: number = 0;
   private selEnd: number = 0;
+
+  // 选区 AI 动作
+  @State showAiAction: boolean = false;
+  @State aiActionBusy: boolean = false;
+  @State aiActionResult: string = '';
+  @State aiActionError: string = '';
 
   private annotations: AnnotationBook = Annotations.empty();
 
@@ -539,6 +545,64 @@ struct ReaderPage {
     this.cards = next;
   }
 
+  // ---- 选区 AI 动作 ----
+
+  private selectedText(): string {
+    if (this.selEnd > this.selStart && this.selEnd <= this.note.length) {
+      return this.note.substring(this.selStart, this.selEnd);
+    }
+    return '';
+  }
+
+  private openAiAction(): void {
+    this.aiActionResult = '';
+    this.aiActionError = '';
+    this.showAiAction = true;
+  }
+
+  private async runAiAction(action: SelectionAction): Promise<void> {
+    const text = this.selectedText();
+    if (text.trim().length === 0) {
+      this.aiActionError = '请先在笔记里选中一段文字';
+      return;
+    }
+    let endpoint: ModelEndpoint;
+    try {
+      endpoint = ModelConfig.resolve(this.aiBaseUrl, this.aiApiKey, this.aiModel);
+    } catch (e) {
+      this.showAiAction = false;
+      this.showAiSettings = true;
+      return;
+    }
+    this.aiActionBusy = true;
+    this.aiActionResult = '';
+    this.aiActionError = '';
+    try {
+      this.aiActionResult = await SelectionActions.run(endpoint, action, text);
+    } catch (e) {
+      this.aiActionError = `调用失败：${(e as Error).message}`;
+    } finally {
+      this.aiActionBusy = false;
+    }
+  }
+
+  /** 确认后插回：替换选区或追加到选区之后。 */
+  private insertAiAction(mode: string): void {
+    if (this.aiActionResult.trim().length === 0 || this.selEnd <= this.selStart) {
+      return;
+    }
+    if (mode === 'replace') {
+      this.note = this.note.substring(0, this.selStart) + this.aiActionResult
+        + this.note.substring(this.selEnd);
+    } else {
+      this.note = this.note.substring(0, this.selEnd) + '\n\n' + this.aiActionResult
+        + this.note.substring(this.selEnd);
+    }
+    this.dirty = true;
+    this.showAiAction = false;
+    this.statusText = 'AI 结果已插入笔记，保存后生效';
+  }
+
   private goToPage(page: number): void {
     let target = page;
     if (target < 1) {
@@ -834,6 +898,15 @@ struct ReaderPage {
               .onClick(() => {
                 this.openCards();
               })
+            Button('AI 选区')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openAiAction();
+              })
             Button(this.dirty ? '保存 *' : '保存')
               .fontSize(13)
               .height(32)
@@ -845,6 +918,10 @@ struct ReaderPage {
           .width('100%')
           .padding(8)
           .alignItems(VerticalAlign.Center)
+          .bindSheet($$this.showAiAction, this.aiActionBuilder(), {
+            height: SheetSize.LARGE,
+            title: { title: '选区 AI 动作' }
+          })
 
           if (this.previewMode) {
             MarkdownView({
@@ -1072,6 +1149,96 @@ struct ReaderPage {
         }
         .width('100%')
         .layoutWeight(1)
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, bottom: 16 })
+  }
+
+  @Builder
+  aiActionBuilder() {
+    Column() {
+      if (this.selectedText().trim().length === 0) {
+        Text('请先在笔记里选中一段文字（长按拖选），再回到这里')
+          .fontSize(14)
+          .fontColor('#999999')
+          .padding(24)
+          .width('100%')
+      } else {
+        Text(`选区（第 ${this.currentPage} 页）：${this.selectedText().substring(0, 80)}${this.selectedText().length > 80 ? '…' : ''}`)
+          .fontSize(12)
+          .fontColor('#999999')
+          .width('100%')
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Row() {
+          Button('改写')
+            .enabled(!this.aiActionBusy)
+            .onClick(() => {
+              this.runAiAction('rewrite');
+            })
+          Button('翻译')
+            .margin({ left: 8 })
+            .enabled(!this.aiActionBusy)
+            .onClick(() => {
+              this.runAiAction('translate');
+            })
+          Button('总结')
+            .margin({ left: 8 })
+            .enabled(!this.aiActionBusy)
+            .onClick(() => {
+              this.runAiAction('summarize');
+            })
+        }
+        .margin({ top: 8 })
+        if (this.aiActionBusy) {
+          Text('正在调用模型…')
+            .fontSize(13)
+            .fontColor('#999999')
+            .padding(16)
+        }
+        if (this.aiActionError.length > 0) {
+          Text(this.aiActionError)
+            .fontSize(13)
+            .fontColor('#C7254E')
+            .padding(8)
+            .width('100%')
+        }
+        if (this.aiActionResult.length > 0) {
+          Scroll() {
+            Text(this.aiActionResult)
+              .fontSize(14)
+              .width('100%')
+              .textAlign(TextAlign.Start)
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .margin({ top: 8 })
+          Row() {
+            Text('确认后插回：')
+              .fontSize(13)
+              .fontColor('#666666')
+            Button('替换选区')
+              .fontSize(13)
+              .height(30)
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.insertAiAction('replace');
+              })
+            Button('追加到选区后')
+              .fontSize(13)
+              .height(30)
+              .margin({ left: 8 })
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .onClick(() => {
+                this.insertAiAction('append');
+              })
+          }
+          .width('100%')
+          .margin({ top: 8, bottom: 8 })
+        }
       }
     }
     .width('100%')
