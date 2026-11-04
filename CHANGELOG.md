@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add image insertion into notes on HarmonyOS: the 插图 toolbar button opens the system photo picker, copies the chosen image into project `src/assets/`, and inserts a Markdown reference at the cursor. The picker flow is verified on emulator (empty gallery on emulator — only picker launch verified); renders through the existing preview image path. / 鸿蒙端新增插图：系统相册选择器选图复制进项目 src/assets 并在光标处插入引用；选择器链路模拟器已验（空图库只验到弹出），渲染走既有图片预览路径。
+
 - Add Mermaid diagram rendering on HarmonyOS: ```mermaid fenced blocks render through a Web component with vendored local mermaid 11 (rawfile, offline), content-height sized via result polling since runJavaScript does not await promises. Verified on emulator with a flowchart screenshot (`emulator-18-mermaid.jpeg`). / 鸿蒙端新增 Mermaid 渲染：```mermaid 围栏块经 Web 组件用本地 vendor 的 mermaid 11 离线渲染，按内容定高（runJavaScript 不等 Promise，改为轮询结果）；模拟器实测流程图渲染。
 
 - Add note-selection AI actions on HarmonyOS (rewrite / translate / summarize): capture the note TextArea selection, run the configured OpenAI-compatible endpoint, and insert the confirmed result back by replacing or appending after the selection. Sheet UI verified on emulator; a real model call still needs a configured reachable endpoint. / 鸿蒙端新增笔记选区 AI 动作：改写/翻译/总结，确认后替换或追加插回；面板流程模拟器已验证，真实模型调用待可用端点。

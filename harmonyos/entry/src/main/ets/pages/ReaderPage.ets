@@ -1,6 +1,6 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
+import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { ProjectStore, OpenProject } from '../core/ProjectStore';
 import { PdfBridge } from '../core/PdfBridge';
 import { PageNotes } from '../core/PageNotes';
@@ -545,6 +545,45 @@ struct ReaderPage {
     this.cards = next;
   }
 
+  // ---- 图片插入 ----
+
+  /** 相册选图复制进项目 src/assets/ 并在光标处插入引用（与 MarkdownView 图片渲染同一契约）。 */
+  private insertImage(): void {
+    if (this.project === null) {
+      return;
+    }
+    const context = getContext(this) as common.UIAbilityContext;
+    const photoPicker = new picker.PhotoViewPicker(context);
+    const options = new picker.PhotoSelectOptions();
+    options.maxSelectNumber = 1;
+    photoPicker.select(options).then((result: picker.PhotoSelectResult) => {
+      const uris = result.photoUris;
+      if (uris.length === 0) {
+        return;
+      }
+      const uri = uris[0];
+      const decoded = decodeURIComponent(uri);
+      const dot = decoded.lastIndexOf('.');
+      const ext = dot > 0 ? decoded.substring(dot + 1).toLowerCase() : 'jpg';
+      const name = `insert-${Date.now()}.${ext}`;
+      const targetPath = `${this.project!.dir}/src/assets/${name}`;
+      const src = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      try {
+        fs.copyFileSync(src.fd, targetPath);
+      } finally {
+        fs.closeSync(src);
+      }
+      // 插入到光标（selEnd）处
+      const insertion = `![图片](assets/${name})`;
+      const at = Math.min(Math.max(this.selEnd, 0), this.note.length);
+      this.note = this.note.substring(0, at) + insertion + this.note.substring(at);
+      this.dirty = true;
+      this.statusText = `图片已插入：assets/${name}`;
+    }).catch(() => {
+      // 用户取消选择
+    });
+  }
+
   // ---- 选区 AI 动作 ----
 
   private selectedText(): string {
@@ -888,6 +927,15 @@ struct ReaderPage {
               .margin({ left: 8 })
               .onClick(() => {
                 this.explainCurrentPage();
+              })
+            Button('插图')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.insertImage();
               })
             Button('卡片')
               .fontSize(13)

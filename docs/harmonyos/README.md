@@ -23,6 +23,7 @@ PageNote 的鸿蒙版是 **ArkTS／ArkUI 原生应用**（Stage 模型，平板�
 | AI 讲解 | OpenAI 兼容接口按页讲解；BaseURL/Key/模型可配，密钥只存本机应用偏好；笔记选区 AI 动作（改写/翻译/总结，确认后替换或追加插回） | 缺 Key 时提示配置；不内置模型、Key 不硬编码 |
 | 夜览滤镜 | 阅读页工具栏开关，阅读区覆盖暖色遮罩，不拦截触摸与批注 | 固定一档暖色，亮度/色温不可调 |
 | 闪卡复习 | 笔记选区/段落制卡（UTF-16 锚点+页 revision）、SM-2 简化四档排程复习（没记住/勉强/记住/轻松）、卡片库管理；存项目 `src/flashcards.json` | 无标签筛选复习、无统计图表；导图制卡无入口 |
+| 图片插入 | 笔记工具栏「插图」经系统相册选择器选图，复制进项目 `src/assets/` 并在光标处插入 `![…](assets/…)` 引用，预览可见 | 模拟器图库为空只验到选择器弹出；无缩放/排版编辑 |
 | 雨课堂 | 应用内二维码登录（官方 WebSocket 流程，凭据只存本机应用偏好）、课程/历史课堂列表、历史课件导入为标准项目（图片型 PDF + 分页笔记 + `yuketang-source.json` 来源清单，契约与 Android 逐条对齐）、当前课堂实时逐页采集（checkin + WebSocket timeline 回放、断线重连、按内容哈希去重、追加重建 PDF 并重映射笔记/批注页码）；PDF Kit 缺失的设备用来源图片降级显示课件页 | 实时采集尚未在真实课堂验证；服务器已删除的页面会使整次导入失败并回滚（与 Android 一致） |
 
 项目格式与桌面／Android 完全一致：`project.pagenote` + `src/left.*` + `src/right.md` + `src/assets/`，manifest 校验、分页规则、revision 语义逐条对齐共享契约（`android/docs/spec/contracts/`），核心层在 `harmonyos/entry/src/main/ets/core/`。
