@@ -1,8 +1,8 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { PdfView, pdfViewManager, pdfService } from '@kit.PDFKit';
 import { ProjectStore, OpenProject } from '../core/ProjectStore';
+import { PdfBridge } from '../core/PdfBridge';
 import { PageNotes } from '../core/PageNotes';
 import { ProjectValidation } from '../core/ProjectManifest';
 import { NoteHistory, NoteVersion } from '../core/NoteHistory';
@@ -56,9 +56,12 @@ struct ReaderPage {
 
   private annotations: AnnotationBook = Annotations.empty();
 
+  @State pdfPaneBuilder: WrappedBuilder<[PdfBridge]> | null = null;
+
   private project: OpenProject | null = null;
   private noteRevision: string | null = null;
-  private pdfController: pdfViewManager.PdfController = new pdfViewManager.PdfController();
+  // PDF Kit 只在 PdfPane（动态 import）里实例化，缺失 PDF Kit 的设备上本页仍可打开 Markdown 项目
+  private pdfBridge: PdfBridge = { controller: null };
   private pdfLoaded: boolean = false;
 
   aboutToAppear(): void {
@@ -85,7 +88,7 @@ struct ReaderPage {
     this.aiApiKey = saved.apiKey;
     this.aiModel = saved.model;
     if (this.isPdf) {
-      this.loadPdf();
+      this.initPdf();
     } else {
       this.loadMarkdownSource();
     }
@@ -93,8 +96,8 @@ struct ReaderPage {
   }
 
   aboutToDisappear(): void {
-    if (this.pdfLoaded) {
-      this.pdfController.releaseDocument();
+    if (this.pdfLoaded && this.pdfBridge.controller !== null) {
+      this.pdfBridge.controller.releaseDocument();
       this.pdfLoaded = false;
     }
   }
@@ -103,17 +106,41 @@ struct ReaderPage {
     return `${this.project!.dir}/src/history`;
   }
 
-  private loadPdf(): void {
+  /** 设备缺失 PDF Kit（部分模拟器镜像）时不阻断页面：只提示，Markdown 笔记侧功能保持可用。 */
+  private async initPdf(): Promise<void> {
+    if (!canIUse('SystemCapability.OfficeService.PDFService.Core')) {
+      this.statusText = '当前设备不支持 PDF Kit，无法阅读 PDF（Markdown 项目不受影响）';
+      return;
+    }
+    try {
+      const pdfPane = await import('../components/PdfPane');
+      this.pdfPaneBuilder = pdfPane.pdfPaneWrappedBuilder;
+      this.loadPdf(0);
+    } catch (e) {
+      this.statusText = 'PDF 组件加载失败，无法阅读 PDF（Markdown 项目不受影响）';
+    }
+  }
+
+  private loadPdf(retried: number): void {
     if (this.project === null) {
       return;
     }
     const path = this.project.leftPath;
-    // loadDocument 需要组件挂载完成，用 setTimeout 让出一帧
+    // loadDocument 需要 PdfPane 挂载并创建好控制器，让出一帧；未就绪时重试一次
     setTimeout(() => {
-      this.pdfController.loadDocument(path, undefined, 0)
+      const controller = this.pdfBridge.controller;
+      if (controller === null) {
+        if (retried < 1) {
+          this.loadPdf(retried + 1);
+        } else {
+          this.statusText = 'PDF 初始化超时';
+        }
+        return;
+      }
+      controller.loadDocument(path, undefined, 0)
         .then(() => {
           this.pdfLoaded = true;
-          this.pageCount = this.pdfController.getPageCount();
+          this.pageCount = controller.getPageCount();
           if (this.pageCount < 1) {
             this.pageCount = 1;
           }
@@ -149,8 +176,8 @@ struct ReaderPage {
     PageNotes.revision(this.note).then((rev: string) => {
       this.noteRevision = rev;
     });
-    if (this.isPdf && this.pdfLoaded) {
-      this.pdfController.goToPage(page - 1);
+    if (this.isPdf && this.pdfLoaded && this.pdfBridge.controller !== null) {
+      this.pdfBridge.controller.goToPage(page - 1);
     }
   }
 
@@ -366,6 +393,11 @@ struct ReaderPage {
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      // 同一节点挂多个 bindSheet 会导致全部失效（API 24 实测），每个 sheet 挂不同节点
+      .bindSheet($$this.showSearch, this.searchBuilder(), {
+        height: SheetSize.LARGE,
+        title: { title: '搜索笔记' }
+      })
 
       if (this.inkMode) {
         Row() {
@@ -412,15 +444,19 @@ struct ReaderPage {
         Stack() {
           Column() {
             if (this.isPdf) {
-              PdfView({
-                controller: this.pdfController,
-                pageFit: pdfService.PageFit.FIT_WIDTH,
-                pageLayout: pdfService.PageLayout.LAYOUT_SINGLE,
-                isContinuous: false,
-                showScroll: true
-              })
+              if (this.pdfPaneBuilder !== null) {
+                this.pdfPaneBuilder.builder(this.pdfBridge)
+              } else {
+                Column() {
+                  Text(this.statusText.length > 0 ? this.statusText : 'PDF 组件不可用')
+                    .fontSize(14)
+                    .fontColor('#999999')
+                    .padding(24)
+                }
                 .layoutWeight(1)
                 .width('100%')
+                .justifyContent(FlexAlign.Center)
+              }
             } else {
               Scroll() {
                 Text(this.sourceMarkdown)
@@ -453,6 +489,10 @@ struct ReaderPage {
         .height('100%')
         .backgroundColor('#FFFFFF')
         .border({ width: { right: 0.5 }, color: '#E0E0E0' })
+        .bindSheet($$this.showAiResult, this.aiResultBuilder(), {
+          height: SheetSize.LARGE,
+          title: { title: `第 ${this.currentPage} 页讲解` }
+        })
 
         // 右侧：逐页笔记
         Column() {
@@ -550,29 +590,21 @@ struct ReaderPage {
         }
         .layoutWeight(1)
         .height('100%')
+        .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
+          height: SheetSize.FIT_CONTENT,
+          title: { title: 'AI 模型设置' }
+        })
       }
       .layoutWeight(1)
       .width('100%')
+      .bindSheet($$this.showHistory, this.historyBuilder(), {
+        height: SheetSize.FIT_CONTENT,
+        title: { title: `第 ${this.currentPage} 页历史` }
+      })
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#FAFAFA')
-    .bindSheet($$this.showSearch, this.searchBuilder(), {
-      height: SheetSize.LARGE,
-      title: { title: '搜索笔记' }
-    })
-    .bindSheet($$this.showHistory, this.historyBuilder(), {
-      height: SheetSize.FIT_CONTENT,
-      title: { title: `第 ${this.currentPage} 页历史` }
-    })
-    .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
-      height: SheetSize.FIT_CONTENT,
-      title: { title: 'AI 模型设置' }
-    })
-    .bindSheet($$this.showAiResult, this.aiResultBuilder(), {
-      height: SheetSize.LARGE,
-      title: { title: `第 ${this.currentPage} 页讲解` }
-    })
   }
 
   @Builder

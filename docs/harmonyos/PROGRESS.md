@@ -1,11 +1,11 @@
 # PageNote 鸿蒙版适配 · 工作进度
 
-更新时间：2026-11-04 15:00（Asia/Shanghai）
+更新时间：2026-11-04 16:00（Asia/Shanghai）
 分支：`harmonyos/beta`（本地，未推送远端）
 
 ## 当前状态一句话
 
-鸿蒙原生应用骨架、核心阅读链路、手写批注、笔记搜索、图片附件渲染与本地 KaTeX 公式渲染均已完成并**编译通过**（未签名 debug HAP）；上一批（骨架+批注）已提交，本批（搜索/图片/公式）编译验证后随本文档一起提交。
+功能主体完成且**已在 MatePad Pro 13 平板模拟器（API 24）完成首轮运行验证**：书架→新建→阅读→笔记→搜索→批注主链路实测通过并留存截图；运行验证暴露并修复了三个真实缺陷（PDF Kit 崩溃、bindSheet 失效、批注 @Prop）；PDF 真实渲染受模拟器镜像限制（无 PDF Kit 原生库）走降级分支，待真机验证。
 
 ## 已完成（已提交，commit 2721b1a / e9b2e20）
 
@@ -28,11 +28,24 @@
 - 顺手修复：`ProjectManifest.ets` 中一个字面 NUL 字节改为 `\x00` 转义（内容等价，便于工具链读取）
 - 编译验证：BUILD SUCCESSFUL ×2（hvigor 手动命令；`build.cmd` 在 GBK 控制台下因 UTF-8 中文注释解析失败，属已知脚本限制，SKILL.md 手动命令为准）
 
+## 模拟器运行验证（2026-11-04，MatePad Pro 13 / API 24）
+
+已验证通过：书架、新建项目、Markdown 阅读、笔记编辑/保存/脏标记/预览、历史快照列表（含恢复按钮）、跨页搜索+跳页、批注笔迹（四色/撤销/清除本页）、导入文档选择器弹出与目录导航。截图存 `docs/harmonyos/images/`。
+
+验证中修复的三个真实缺陷（均已复测）：
+
+1. **PDF Kit 静态 import 崩溃**：模拟器镜像缺 `libpdfview.z.so`，ReaderPage 顶部静态 import 导致任何项目打开即 SyntaxError 崩溃。修复：PDF 面板抽为 `components/PdfPane.ets`，ReaderPage 经 `canIUse('SystemCapability.OfficeService.PDFService.Core')` 检测 + 动态 import（WrappedBuilder 在 PdfPane 模块作用域包好导出，规避编译器 10905109；类型经 import type 桥接，规避 arkts-no-structural-typing），失败走降级文案。
+2. **多 bindSheet 同节点全失效**：4 个 sheet 挂同一根节点导致全部无法弹出（书架单 sheet 正常）。修复：每个 sheet 挂不同常驻节点。
+3. **InkCanvas 批注永不生效**：`penColor`/`drawingEnabled` 是普通字段，运行期父组件传值不更新。修复：改 @Prop。
+
+未完成的验证：PDF 导入全链路（picker 只显示媒体库已索引文件，hdc 推送的 PDF 未索引，选文件一步受阻——环境限制非应用缺陷）；PdfView 真实渲染（需带 PDF Kit 的镜像/真机）；AI 真实请求；公式/图片预览的设备实测（代码路径与搜索同页，编译已过）。
+
 ## 下一步（按序）
 
-1. 模拟器验证：DevEco 自动生成调试签名 → 装 MatePad Pro 13 模拟器，跑书架→导入→阅读→笔记→搜索→批注→公式/图片预览全链路，截图存档
-2. 行内公式 `$…$` 与连续滚动阅读（如需）评估
-3. 全部完成后：更新 docs/harmonyos/README.md 验证状态与 CHANGELOG、推送 `harmonyos/beta`
+1. 行内公式 `$…$` 与图片/公式预览的设备实测（在笔记里写入含 $$ 与图片的多页内容，可用 UI 输入验证）
+2. 真机或带 PDF Kit 镜像验证 PdfView 与 PDF 项目全链路
+3. AI 讲解真实请求验证（需配置可用端点）
+4. 参考 Android features.md 20 模块排适配优先级（见 README 功能表差距）
 
 ## 复现构建
 

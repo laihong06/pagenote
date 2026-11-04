@@ -29,7 +29,9 @@ PageNote 的鸿蒙版是 **ArkTS／ArkUI 原生应用**（Stage 模型，平板�
 ## 验证状态
 
 - 已通过：`hvigor assembleHap` 完整构建（DevEco Studio 26.0.0.851，API 26 SDK），产物 `entry/build/default/outputs/default/entry-default-unsigned.hap`。
-- 未验证：模拟器／真机运行、PDF Kit 实际渲染、文件选择器与 AI 调用的真机行为。截图待补，不用其他平台截图替代。
+- 已在 **MatePad Pro 13 平板模拟器（HarmonyOS 6.1.1 / API 24）** 实际运行验证（2026-11-04，截图见 `images/`）：书架、新建项目、Markdown 原文阅读、笔记编辑/保存/脏标记、历史快照列表、跨页搜索与跳页、批注笔迹（四色/撤销/清除）、导入文档选择器弹出与目录导航。
+- 运行验证中修复的三个真实缺陷：PDF Kit 静态 import 在缺失原生库的设备上导致整页崩溃（改为 canIUse 检测 + 动态 import 降级）；同一节点挂多个 bindSheet 全部失效（改为每个 sheet 挂不同节点）；InkCanvas 的运行期参数未用 @Prop 导致批注永远不生效。
+- 已知边界：本模拟器镜像不含 PDF Kit 原生库（`libpdfview.z.so` 缺失，syscap 无 `OfficeService.PDFService.Core`），PDF 项目在此镜像上走降级提示分支，PdfView 真实渲染需真机或带 PDF Kit 的镜像验证；文件选择器只能看到媒体库已索引的文件，hdc 推送的 PDF 未被索引，导入→选中→打开全链路未完成；AI 讲解未做真实请求。
 
 ## 开发入口
 

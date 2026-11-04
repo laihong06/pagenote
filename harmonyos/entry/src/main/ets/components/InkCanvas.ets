@@ -8,9 +8,10 @@ import { AnnotationItem } from '../core/Annotations';
 @Component
 export struct InkCanvas {
   @Prop @Watch('onItemsChange') items: AnnotationItem[] = [];
-  penColor: string = '#dc3545';
+  // 父组件运行期会切换/改色的参数必须是 @Prop，否则只在创建时赋值一次
+  @Prop penColor: string = '#dc3545';
   penWidth: number = 3;
-  drawingEnabled: boolean = false;
+  @Prop drawingEnabled: boolean = false;
   onChange: (items: AnnotationItem[]) => void = () => {};
 
   @State private redrawTick: number = 0;
