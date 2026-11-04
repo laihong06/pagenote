@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Draft the Android notebook-first workspace redesign: adaptive source/note panes, in-app floating pen palette, closable agent drawer, and silent autosave/navigation safety. Design documentation only; no runtime or release changes. / 补充 Android 笔记软件式工作区设计：自适应原文／笔记布局、应用内浮动笔盒、可关闭的 Agent 侧栏与静默自动保存；仅设计稿，不改程序或制品。
+
 - Android 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
