@@ -587,6 +587,10 @@
   <string name="note_write_recovery_failed">保存和恢复均失败。恢复副本仍保留：%1$s</string>
   <string name="note_save_failed">笔记保存失败：%1$s</string>
   <string name="note_reload_failed">重新载入笔记失败：%1$s</string>
+  <string name="note_reload_changed">重新载入失败：页面或草稿已发生变化。草稿已保留。</string>
+  <string name="note_copy_reload">复制草稿并重载</string>
+  <string name="note_copy_reload_explanation">先将当前草稿复制到剪贴板，再载入项目中的版本。如需保留修改，可将草稿粘贴回来。</string>
+  <string name="note_copy_failed">无法复制草稿，草稿仍保留在当前页面。</string>
   <string name="note_reloaded">已重新载入</string>
   <string name="note_recovery_restored">已从本机恢复此页未保存的草稿。</string>
   <string name="note_recovery_conflict">已恢复草稿，但项目笔记后来发生了变化。草稿仍保存在本机；保存前请先重新载入。</string>
@@ -832,4 +836,9 @@
   <string name="preview_ai">AI</string>
   <string name="preview_more">更多</string>
   <string name="preview_done">完成</string>
+  <string name="floating_pen_drag">拖动笔盒</string>
+  <string name="floating_pen_collapse">收起笔盒</string>
+  <string name="floating_pen_expand">打开笔盒</string>
+  <string name="reader_source_pane">原文</string>
+  <string name="reader_note_pane">笔记</string>
 </resources>

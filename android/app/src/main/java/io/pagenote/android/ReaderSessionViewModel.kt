@@ -55,6 +55,11 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   val errorMessage: MutableState<String?> = mutableStateOf(null)
 
   val penSaveMutex = Mutex()
+  internal val noteSaveCoordinator = NoteSaveCoordinator()
+  internal val navigationMutex = Mutex()
+  internal val isNoteSaving = mutableStateOf(false)
+  internal val isNavigating = mutableStateOf(false)
+  internal val narrowShowsNote = mutableStateOf(false)
 
   private val sessionJob = SupervisorJob()
   private val sessionScope = CoroutineScope(sessionJob + Dispatchers.Main.immediate)

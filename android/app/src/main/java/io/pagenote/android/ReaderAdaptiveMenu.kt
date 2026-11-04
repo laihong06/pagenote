@@ -140,7 +140,7 @@ internal fun ReaderAdaptiveMenu(
     ReaderPreviewToolbar(groups, onPreviewHand, onPreviewTool, onPreviewEdit, content)
     return
   }
-  val menuColorScheme = desktopReaderMenuColorScheme(MaterialTheme.colorScheme)
+  val menuColorScheme = MaterialTheme.colorScheme
 
   if (layout == ReaderMenuLayout.COMPACT_DRAWER) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)

@@ -12,6 +12,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
@@ -83,6 +84,7 @@ class ReaderPageJumpActivityTest {
       session.penWritable.value = true
     }
     composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
     composeRule.onNodeWithTag("reader_pen_rail").assertWidthIsEqualTo(44.dp)
     composeRule.onNodeWithTag("reader_pen_ballpoint").performClick()
     composeRule.runOnIdle { assertEquals(io.pagenote.feature.pen.PenCanvasTool.BALLPOINT, session.penTool.value) }
@@ -100,8 +102,13 @@ class ReaderPageJumpActivityTest {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     instrumentation.uiAutomation.waitForIdle(300, 5_000)
     val bitmap = instrumentation.uiAutomation.takeScreenshot()
-    try { File(instrumentation.targetContext.cacheDir, name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }
-    finally { bitmap.recycle() }
+    try {
+      val outputDir = File(instrumentation.targetContext.getExternalFilesDir(null), "ui-evidence").apply { mkdirs() }
+      val file = File(outputDir, name)
+      file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand("mkdir -p /sdcard/Download/pagenote-ui-evidence")).use { it.readBytes() }
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand("cp ${file.absolutePath} /sdcard/Download/pagenote-ui-evidence/$name")).use { it.readBytes() }
+    } finally { bitmap.recycle() }
   }
 
   @Test
@@ -269,6 +276,147 @@ class ReaderPageJumpActivityTest {
     assertEquals("Third page note", session.noteDraft.value)
   }
 
+  @Test
+  fun narrowWindowSwitchesPanesWithoutLosingDraft() {
+    org.junit.Assume.assumeTrue(composeRule.activity.resources.configuration.screenWidthDp < 840)
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    editNativeNote("First page note", "Draft in narrow view")
+    composeRule.onNodeWithTag("reader_show_source").performClick()
+    composeRule.onNodeWithTag("markdown_source_pane").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_show_note").performClick()
+    composeRule.waitUntil(10_000) { findEditText("Draft in narrow view") != null }
+    assertEquals("Draft in narrow view", session.noteDraft.value)
+    val editor = requireNotNull(findEditText("Draft in narrow view"))
+    composeRule.runOnUiThread {
+      editor.requestFocus()
+      composeRule.activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+        .showSoftInput(editor, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+    composeRule.waitForIdle()
+    saveUiScreenshot("workspace-narrow.png")
+  }
+
+  @Test
+  fun homeKeepsTheDraftWhenSavingConflicts() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    editNativeNote("First page note", "Local unsaved draft")
+    val externalNotes = PageNotes.join(listOf("Changed externally", "Second page note", "Third page note"))
+    replaceNotes(externalNotes)
+    composeRule.onNodeWithTag("reader_bookshelf").assertIsEnabled().performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteStatus.value == PageNoteConflictException().message }
+    assertEquals(0, session.pageIndex.intValue)
+    assertEquals("Local unsaved draft", session.noteDraft.value)
+    assertEquals(externalNotes, ProjectNoteStore(testResolver, project.notesUri).read())
+    assertTrue(composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isEmpty())
+    composeRule.onNodeWithTag("note_copy_reload").performClick()
+    composeRule.onNodeWithTag("note_copy_reload_confirm").performClick()
+    composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == "Changed externally" }
+    val clipboard = composeRule.activity.getSystemService(android.content.ClipboardManager::class.java)
+    assertEquals("Local unsaved draft", clipboard.primaryClip?.getItemAt(0)?.text?.toString())
+    assertEquals(externalNotes, ProjectNoteStore(testResolver, project.notesUri).read())
+  }
+
+  @Test
+  fun idleEditPersistsWithoutSavedNotice() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val edited = "First page note saved automatically"
+    editNativeNote("First page note", edited)
+    composeRule.waitUntil(timeoutMillis = 15_000) {
+      runCatching { NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == edited }.getOrDefault(false)
+    }
+    assertEquals(edited, session.noteDraft.value)
+    assertTrue(session.noteStatus.value != composeRule.activity.getString(R.string.note_saved))
+  }
+
+  @Test
+  fun homeWaitsForPendingAutosaveAndPreservesLaterEdits() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    pauseNextNoteWrite()
+    editNativeNote("First page note", "First pending version")
+    try {
+      composeRule.waitUntil(timeoutMillis = 15_000) {
+        testResolver.call(ExistingProjectSafTestProvider.AUTHORITY,
+          ExistingProjectSafTestProvider.METHOD_CHECK_NOTE_WRITE, null, null)?.getBoolean("started") == true
+      }
+      editNativeNote("First pending version", "Latest version before returning home")
+      composeRule.onNodeWithTag("reader_bookshelf").assertIsEnabled().performClick()
+      assertEquals(0, session.pageIndex.intValue)
+    } finally {
+      releaseNoteWrite()
+    }
+    composeRule.waitUntil(timeoutMillis = 15_000) {
+      composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isNotEmpty()
+    }
+    assertEquals("Latest version before returning home", NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1))
+  }
+
+  @Test
+  fun floatingPaletteMovesAndAgentDrawerClosesWithoutChangingThePage() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes, createWorkspacePdf())
+    val session = attachProjectToReader(project, notes)
+    val sampleNote = """
+      # 蚁群算法：从局部选择到完整路线
+
+      信息素记录此前搜索的经验，距离启发让较近的城市更容易被选择。
+
+      ## 下一步怎样选择？
+
+      对尚未访问的城市，综合考虑信息素与距离，计算选择概率。
+
+      ```python
+      weight = pheromone ** alpha / distance ** beta
+      ```
+
+      | 要素 | 在搜索中的作用 |
+      | --- | --- |
+      | 信息素 | 共享成功路线的经验 |
+      | 距离启发 | 偏向较近的城市 |
+
+      这是自编离线学习材料，不是在线 AI 生成结果。
+    """.trimIndent()
+    composeRule.runOnUiThread { session.setNoteDraft(sampleNote) }
+    composeRule.onNodeWithTag("note_tab_preview").performClick()
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnUiThread {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penWritable.value = true
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("floating_pen_palette").fetchSemanticsNodes().isNotEmpty() }
+    saveUiScreenshot("workspace-reading.png")
+    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
+    saveUiScreenshot("workspace-pen-expanded.png")
+    val before = composeRule.onNodeWithTag("floating_pen_palette").fetchSemanticsNode().boundsInRoot.left
+    composeRule.onNodeWithTag("floating_pen_handle").performTouchInput {
+      down(center)
+      moveBy(Offset(1800f, 50f))
+      up()
+    }
+    composeRule.waitForIdle()
+    val after = composeRule.onNodeWithTag("floating_pen_palette").fetchSemanticsNode().boundsInRoot.left
+    assertTrue("palette should move when its handle is dragged", after > before)
+    saveUiScreenshot("workspace-pen-moved.png")
+    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
+    saveUiScreenshot("workspace-pen-collapsed.png")
+    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
+    composeRule.onNodeWithTag("reader_agent_toggle").performClick()
+    composeRule.onNodeWithTag("agent_task_drawer").assertIsDisplayed()
+    saveUiScreenshot("workspace-agent-drawer.png")
+    composeRule.onNodeWithTag("agent_task_dismiss").performClick()
+    assertEquals(0, session.pageIndex.intValue)
+    assertEquals(sampleNote, session.noteDraft.value)
+  }
+
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
     val activity = composeRule.activity
     val resolver = activity.contentResolver
@@ -311,6 +459,12 @@ class ReaderPageJumpActivityTest {
       session.noteBaseRevision.value = PageNotes.revision(NotePage.pageAt(notes, 1))
       session.noteWritable.value = true
       session.noteStatus.value = null
+    }
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      findEditText("First page note") != null || composeRule.onAllNodesWithTag("reader_show_note").fetchSemanticsNodes().isNotEmpty()
+    }
+    if (composeRule.onAllNodesWithTag("reader_show_note").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("reader_show_note").performClick()
     }
     composeRule.waitUntil(timeoutMillis = 10_000) { findEditText("First page note") != null }
     return session
@@ -378,6 +532,34 @@ class ReaderPageJumpActivityTest {
       },
     )
     return ProjectDocumentOpener(testResolver).open(treeUri)
+  }
+
+  private fun createWorkspacePdf(): ByteArray {
+    val doc = PdfDocument()
+    for (pageNo in 1..3) {
+      val page = doc.startPage(PdfDocument.PageInfo.Builder(612, 792, pageNo).create())
+      val canvas = page.canvas
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+      canvas.drawColor(android.graphics.Color.WHITE)
+      paint.color = android.graphics.Color.rgb(24, 90, 189); paint.textSize = 13f
+      canvas.drawText("PAGENOTE / ORIGINAL LEARNING SAMPLE", 44f, 54f, paint)
+      paint.color = android.graphics.Color.rgb(30, 45, 65); paint.textSize = 28f; paint.isFakeBoldText = true
+      canvas.drawText(if (pageNo == 1) "Ant Colony Optimization" else "Recall and explain", 44f, 108f, paint)
+      paint.isFakeBoldText = false; paint.textSize = 16f
+      val lines = listOf("How do local choices produce a good route?", "", "1. Start with several candidate routes.",
+        "2. Prefer short edges with stronger pheromone.", "3. Compare the total route lengths.",
+        "4. Evaporate old pheromone and reinforce good routes.", "", "Three ideas to connect:",
+        "distance  /  shared experience  /  exploration")
+      lines.forEachIndexed { i, line -> canvas.drawText(line, 44f, 155f + i * 31f, paint) }
+      paint.color = android.graphics.Color.rgb(235, 243, 252); canvas.drawRect(44f, 555f, 568f, 700f, paint)
+      paint.color = android.graphics.Color.rgb(24, 90, 189); paint.textSize = 18f
+      canvas.drawText("Try it on this page", 62f, 586f, paint)
+      paint.color = android.graphics.Color.rgb(50, 70, 90); paint.textSize = 15f
+      canvas.drawText("Draw a shape, undo it, then restore it.", 62f, 620f, paint)
+      canvas.drawText("Use the note to create a review card.", 62f, 650f, paint)
+      doc.finishPage(page)
+    }
+    return ByteArrayOutputStream().use { out -> doc.writeTo(out); doc.close(); out.toByteArray() }
   }
 
   private fun createThreePagePdf(): ByteArray {

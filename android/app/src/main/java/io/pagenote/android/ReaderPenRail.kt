@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -52,7 +53,7 @@ internal fun ReaderPenRail(
   val ink = Color(android.graphics.Color.parseColor(style.color))
   Column(
     modifier.width(READER_PEN_RAIL_WIDTH).fillMaxHeight()
-      .background(Color(0xFF1B1E22)).verticalScroll(rememberScrollState())
+      .background(MaterialTheme.colorScheme.surface).verticalScroll(rememberScrollState())
       .padding(vertical = 6.dp).testTag("reader_pen_rail"),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
@@ -130,11 +131,12 @@ internal fun ReaderPenRail(
       }
     }
     RailDivider()
+    val lineColor = MaterialTheme.colorScheme.onSurface
     PenStyle.WIDTH_OPTIONS.take(3).forEach { width ->
       val label = stringResource(R.string.pen_width_value, width.toString())
       RailAction(label, "reader_pen_preset_$width", style.width == width, enabled, 28, { onWidth(width) }) {
         Canvas(Modifier.size(20.dp)) {
-          drawLine(Color.White, Offset(2.dp.toPx(), size.height / 2), Offset(size.width - 2.dp.toPx(), size.height / 2), width.toFloat() * 0.8.dp.toPx())
+          drawLine(lineColor, Offset(2.dp.toPx(), size.height / 2), Offset(size.width - 2.dp.toPx(), size.height / 2), width.toFloat() * 0.8.dp.toPx())
         }
       }
     }
@@ -150,15 +152,17 @@ internal fun ReaderPenRail(
 @Composable
 private fun ColorSwatch(color: String, name: String, active: Boolean, enabled: Boolean, onColor: (String) -> Unit) {
   val label = stringResource(R.string.pen_color_value, name)
+  val swatch = Color(android.graphics.Color.parseColor(color))
+  val checkColor = if (swatch.luminance() > 0.45f) Color.Black else Color.White
   Box(
     Modifier.size(36.dp, 30.dp).clickable(enabled) { onColor(color) }
       .semantics { contentDescription = label; selected = active }
       .testTag("reader_pen_color_${color.drop(1)}"),
     contentAlignment = Alignment.Center,
   ) {
-    Box(Modifier.size(20.dp).background(Color(android.graphics.Color.parseColor(color)), RoundedCornerShape(4.dp))
-      .border(if (active) 2.dp else 1.dp, if (active) Color.White else Color.Gray, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-      if (active) Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(15.dp))
+    Box(Modifier.size(20.dp).background(swatch, RoundedCornerShape(4.dp))
+      .border(if (active) 2.dp else 1.dp, if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+      if (active) Icon(Icons.Outlined.Check, null, tint = checkColor, modifier = Modifier.size(15.dp))
     }
   }
 }
@@ -166,7 +170,7 @@ private fun ColorSwatch(color: String, name: String, active: Boolean, enabled: B
 @Composable
 private fun RailIcon(icon: ImageVector, label: String, tag: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
   RailAction(label, tag, active, enabled, onClick = onClick) {
-    Icon(icon, null, tint = if (enabled) Color(0xFFD9DFE0) else Color.Gray, modifier = Modifier.size(21.dp))
+    Icon(icon, null, tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline, modifier = Modifier.size(21.dp))
   }
 }
 
@@ -176,19 +180,19 @@ private fun RailAction(label: String, tag: String, active: Boolean, enabled: Boo
   TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) {
     Box(
       Modifier.width(READER_PEN_RAIL_WIDTH).height(height.dp)
-        .background(if (active) Color(0xFF353E44) else Color.Transparent)
+        .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
         .clickable(enabled = enabled, onClick = onClick)
         .semantics { contentDescription = label; selected = active }.testTag(tag),
       contentAlignment = Alignment.Center,
     ) {
       content()
-      if (active) Box(Modifier.align(Alignment.CenterStart).width(2.dp).fillMaxHeight().background(Color(0xFF63C9D3)))
+      if (active) Box(Modifier.align(Alignment.CenterStart).width(2.dp).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
     }
   }
 }
 
 @Composable
-private fun RailDivider() = HorizontalDivider(Modifier.padding(horizontal = 6.dp, vertical = 5.dp), color = Color(0xFF42484B))
+private fun RailDivider() = HorizontalDivider(Modifier.padding(horizontal = 6.dp, vertical = 5.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
 @Composable
 private fun PenIllustration(tool: PenCanvasTool, ink: Color, active: Boolean) {

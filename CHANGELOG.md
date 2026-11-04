@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Redesign the Android notebook workspace with an in-app draggable pen palette, closable Agent side panel, compact adaptive reading panes and quieter automatic saving. Serialize pending edits before page or bookshelf navigation and keep failed drafts recoverable. / Android 阅读工作区改为可拖动悬浮笔盒、可关闭 Agent 侧栏与自适应原文／笔记布局；后台静默自动保存，翻页和回书架前等待最新草稿落盘，失败时保留草稿与重试入口。
+
+- Allow users to copy an unsaved Android note draft before explicitly reloading after a conflict, without overwriting edits made during reload. / Android 笔记冲突时可选择先复制草稿再重载，重载期间的新编辑不会被覆盖。
+
 - Draft the Android notebook-first workspace redesign: adaptive source/note panes, in-app floating pen palette, closable agent drawer, and silent autosave/navigation safety. Design documentation only; no runtime or release changes. / 补充 Android 笔记软件式工作区设计：自适应原文／笔记布局、应用内浮动笔盒、可关闭的 Agent 侧栏与静默自动保存；仅设计稿，不改程序或制品。
 
 - Android 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。

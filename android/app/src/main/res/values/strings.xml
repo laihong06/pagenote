@@ -587,6 +587,10 @@
   <string name="note_write_recovery_failed">Saving and restoring failed. Recovery copy remains: %1$s</string>
   <string name="note_save_failed">Unable to save notes: %1$s</string>
   <string name="note_reload_failed">Unable to reload notes: %1$s</string>
+  <string name="note_reload_changed">Reload failed because the page or draft changed. Your draft was kept.</string>
+  <string name="note_copy_reload">Copy draft and reload</string>
+  <string name="note_copy_reload_explanation">Copy the current draft to the clipboard, then load the version in the project. Paste the draft back if you want to reapply your changes.</string>
+  <string name="note_copy_failed">Unable to copy the draft. It has been kept on this page.</string>
   <string name="note_reloaded">Reloaded</string>
   <string name="note_recovery_restored">Recovered this page\'s unsaved draft from this device.</string>
   <string name="note_recovery_conflict">Recovered the draft, but the saved note changed afterward. The draft is preserved locally; reload before saving.</string>
@@ -832,4 +836,9 @@
   <string name="preview_ai">AI</string>
   <string name="preview_more">More</string>
   <string name="preview_done">Done</string>
+  <string name="floating_pen_drag">Move pen palette</string>
+  <string name="floating_pen_collapse">Collapse pen palette</string>
+  <string name="floating_pen_expand">Open pen palette</string>
+  <string name="reader_source_pane">Document</string>
+  <string name="reader_note_pane">Notes</string>
 </resources>

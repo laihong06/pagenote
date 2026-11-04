@@ -75,7 +75,7 @@ internal fun BookshelfScreen(
   }
   val bound = preferences?.tree != null
   Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("bookshelf_home")) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
       Icon(Icons.Default.AutoStories, null, tint = MaterialTheme.colorScheme.primary)
       Spacer(Modifier.width(12.dp))
       Text(stringResource(R.string.bookshelf_title), style = MaterialTheme.typography.headlineSmall)
@@ -140,7 +140,7 @@ internal fun BookshelfScreen(
       else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp)
         .testTag(if (preferences.view == "list") "bookshelf_list" else "bookshelf_grid")) {
         val columns = (maxWidth.value / 200).toInt().coerceIn(1, 8)
-        LazyColumn(Modifier.fillMaxSize().testTag("bookshelf_books"), contentPadding = PaddingValues(top = 30.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        LazyColumn(Modifier.fillMaxSize().testTag("bookshelf_books"), contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
           if (preferences.view == "list") {
             items(visible, key = { it.key }) { book ->
               Row(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpen(book) }.padding(8.dp).testTag("bookshelf_book_${book.project.name}"),
