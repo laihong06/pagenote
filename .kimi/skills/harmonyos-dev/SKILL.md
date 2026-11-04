@@ -110,7 +110,16 @@ harmonyos/
 - revision = 整页笔记 UTF-8 的 SHA-256 hex；写操作带 `expectedRevision`，不一致拒绝覆盖。
 - 写文件用"临时文件 + rename"原子写，避免半写状态。
 
-## 8. 测试与验证纪律（项目要求）
+## 8. DevEco CLI 技能与 MCP（2026-11-04 起）
+
+本机 npm 全局装有 `@deveco/deveco-cli`，并已为项目接入：
+
+- **53 个官方 `hmos-*` 技能**：实体在 `.deveco-cli/skills/store/`，经符号链接挂到 `.agents/skills/`（项目作用域，会话内可直接用）。
+- **deveco-mcp**（.ets / C/C++ 语法检查）：配置在项目根 `.mcp.json`（stdio，`devecocli serve mcp`，`PROJECT_PATH` 指向本仓库）。会话需重启后才加载 MCP。
+- 以上均为**本机工具，不入库**：`.agents/`、`.deveco-cli/`、`.codex/`、`.opencode/`、`.mcp.json` 已加入 `.gitignore`；其他机器需自行运行 `devecocli init --mcp --project .` 与 `devecocli skills add --all --project .`。
+- 分工：官方技能管 ArkTS/ArkUI 语法与框架用法；本技能继续管本机离线构建与 PageNote 共享契约。
+
+## 9. 测试与验证纪律（项目要求）
 
 - 不宣称未执行的验证。模拟器/真机截图只能来自鸿蒙端实际运行。
 - 每次推送必须更新根 `CHANGELOG.md`（Unreleased 段）。

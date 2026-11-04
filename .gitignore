@@ -31,3 +31,9 @@ tests/*.log
 .env*
 !.env.example
 tests/typora-*.txt
+# AI agent tooling installed per-machine by devecocli (skills store + MCP configs)
+.agents/
+.deveco-cli/
+.codex/
+.opencode/
+.mcp.json
