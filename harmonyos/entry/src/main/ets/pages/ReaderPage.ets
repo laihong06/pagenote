@@ -92,6 +92,8 @@ struct ReaderPage {
   @State inkTextDraft: string = '';
   // 夜览滤镜：阅读区暖色遮罩（对齐桌面/Android 夜览语义，遮罩不拦截触摸）
   @State nightMode: boolean = false;
+  // 横屏左右分栏、竖屏上下分栏（平板旋转/自由窗口）
+  @State isLandscape: boolean = true;
   private inkTextPoint: number[] = [0, 0];
 
   // 闪卡
@@ -921,219 +923,31 @@ struct ReaderPage {
       }
 
       Stack() {
-        Row() {
-        // 左侧：源文档 + 手写批注层
-        Stack() {
-          Column() {
-            if (this.isPdf) {
-              if (this.pdfPaneBuilder !== null) {
-                this.pdfPaneBuilder.builder(this.pdfBridge)
-              } else if (this.rainPageImages.length > 0) {
-                Scroll() {
-                  Image(this.rainPageImages[this.currentPage - 1] ?? this.rainPageImages[0])
-                    .width('100%')
-                    .objectFit(ImageFit.Contain)
-                }
-                .layoutWeight(1)
-                .width('100%')
-                .align(Alignment.TopStart)
-              } else {
-                Column() {
-                  Text(this.statusText.length > 0 ? this.statusText : 'PDF 组件不可用')
-                    .fontSize(14)
-                    .fontColor('#999999')
-                    .padding(24)
-                }
-                .layoutWeight(1)
-                .width('100%')
-                .justifyContent(FlexAlign.Center)
-              }
-            } else {
-              Scroll() {
-                Text(this.sourceMarkdown)
-                  .fontSize(15)
-                  .padding(16)
-                  .width('100%')
-                  .textAlign(TextAlign.Start)
-              }
-              .layoutWeight(1)
-              .width('100%')
-              .align(Alignment.TopStart)
-            }
-          }
-          .width('100%')
-          .height('100%')
-
-          InkCanvas({
-            items: this.inkItems,
-            penColor: this.inkColor,
-            penWidth: this.inkWidth,
-            tool: this.inkTool,
-            drawingEnabled: this.inkMode,
-            onChange: (items: AnnotationItem[]) => {
-              this.inkItems = items;
-              this.saveAnnotations();
-            },
-            onTextTap: (x: number, y: number) => {
-              this.inkTextPoint = [x, y];
-              this.inkTextDraft = '';
-              this.inkTextEditing = true;
-            }
-          })
-            .width('100%')
-            .height('100%')
-        }
-        .layoutWeight(1)
-        .height('100%')
-        .backgroundColor('#FFFFFF')
-        .border({ width: { right: 0.5 }, color: '#E0E0E0' })
-        .bindSheet($$this.showAiResult, this.aiResultBuilder(), {
-          height: SheetSize.LARGE,
-          title: { title: `第 ${this.currentPage} 页讲解` }
-        })
-
-        // 右侧：逐页笔记
-        Column() {
+        // 横屏左右分栏，竖屏（或窄窗口）上下分栏
+        if (this.isLandscape) {
           Row() {
-            Button('上一页')
-              .fontSize(13)
-              .height(32)
-              .onClick(() => {
-                this.goToPage(this.currentPage - 1);
-              })
-            Text(`第 ${this.currentPage} 页`)
-              .fontSize(14)
-              .margin({ left: 8, right: 8 })
-            Button('下一页')
-              .fontSize(13)
-              .height(32)
-              .onClick(() => {
-                this.goToPage(this.currentPage + 1);
-              })
-            Blank()
-            Button(this.previewMode ? '编辑' : '预览')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .onClick(() => {
-                this.previewMode = !this.previewMode;
-              })
-            Button('搜索')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.openSearch();
-              })
-            Button('历史')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.openHistory();
-              })
-            Button('AI')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.explainCurrentPage();
-              })
-            Button('插图')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.insertImage();
-              })
-            Button('卡片')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.openCards();
-              })
-            Button('AI 选区')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.openAiAction();
-              })
-            Button(this.dirty ? '保存 *' : '保存')
-              .fontSize(13)
-              .height(32)
-              .margin({ left: 8 })
-              .onClick(() => {
-                this.saveCurrentPage();
-              })
+            this.leftPane()
+            this.rightPane()
           }
+          .layoutWeight(1)
           .width('100%')
-          .padding(8)
-          .alignItems(VerticalAlign.Center)
-          .bindSheet($$this.showAiAction, this.aiActionBuilder(), {
-            height: SheetSize.LARGE,
-            title: { title: '选区 AI 动作' }
+          .bindSheet($$this.showTransfer, this.transferBuilder(), {
+            height: SheetSize.FIT_CONTENT,
+            title: { title: '导出 / 导入笔记' }
           })
-
-          if (this.previewMode) {
-            MarkdownView({
-              content: this.note,
-              resolveImage: (src: string): string => this.resolveAsset(src)
-            })
-              .layoutWeight(1)
-              .width('100%')
-          } else {
-            TextArea({ placeholder: '这一页的笔记，Markdown 格式', text: this.note })
-              .layoutWeight(1)
-              .width('100%')
-              .padding(8)
-              .fontSize(15)
-              .textAlign(TextAlign.Start)
-              .onChange((value: string) => {
-                this.note = value;
-                this.dirty = true;
-              })
-              .onTextSelectionChange((selectionStart: number, selectionEnd: number) => {
-                this.selStart = selectionStart;
-                this.selEnd = selectionEnd;
-              })
+        } else {
+          Column() {
+            this.leftPane()
+            this.rightPane()
           }
-
-          if (this.statusText.length > 0) {
-            Text(this.statusText)
-              .fontSize(12)
-              .fontColor('#999999')
-              .padding(8)
-              .width('100%')
-          }
+          .layoutWeight(1)
+          .width('100%')
+          .bindSheet($$this.showTransfer, this.transferBuilder(), {
+            height: SheetSize.FIT_CONTENT,
+            title: { title: '导出 / 导入笔记' }
+          })
         }
-        .layoutWeight(1)
-        .height('100%')
-        .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
-          height: SheetSize.FIT_CONTENT,
-          title: { title: 'AI 模型设置' }
-        })
-      }
-      .layoutWeight(1)
-      .width('100%')
-      .bindSheet($$this.showTransfer, this.transferBuilder(), {
-        height: SheetSize.FIT_CONTENT,
-        title: { title: '导出 / 导入笔记' }
-      })
+
 
         // 夜览滤镜：覆盖阅读区的暖色遮罩，不拦截触摸与批注
         if (this.nightMode) {
@@ -1154,6 +968,9 @@ struct ReaderPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#FAFAFA')
+    .onAreaChange((oldValue: Area, newValue: Area) => {
+      this.isLandscape = Number(newValue.width) >= Number(newValue.height);
+    })
     // 根节点无其他 sheet，闪卡面板挂这里
     .bindSheet($$this.showCards, this.cardsBuilder(), {
       height: SheetSize.LARGE,
@@ -1453,6 +1270,220 @@ struct ReaderPage {
     .width('100%')
     .height('100%')
     .padding({ left: 16, right: 16, bottom: 16 })
+  }
+
+  @Builder
+  rightPane() {
+        // 右侧：逐页笔记
+        Column() {
+          Row() {
+            Button('上一页')
+              .fontSize(13)
+              .height(32)
+              .onClick(() => {
+                this.goToPage(this.currentPage - 1);
+              })
+            Text(`第 ${this.currentPage} 页`)
+              .fontSize(14)
+              .margin({ left: 8, right: 8 })
+            Button('下一页')
+              .fontSize(13)
+              .height(32)
+              .onClick(() => {
+                this.goToPage(this.currentPage + 1);
+              })
+            Blank()
+            Button(this.previewMode ? '编辑' : '预览')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .onClick(() => {
+                this.previewMode = !this.previewMode;
+              })
+            Button('搜索')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openSearch();
+              })
+            Button('历史')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openHistory();
+              })
+            Button('AI')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.explainCurrentPage();
+              })
+            Button('插图')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.insertImage();
+              })
+            Button('卡片')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openCards();
+              })
+            Button('AI 选区')
+              .fontSize(13)
+              .height(32)
+              .backgroundColor('#EEEEEE')
+              .fontColor('#333333')
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.openAiAction();
+              })
+            Button(this.dirty ? '保存 *' : '保存')
+              .fontSize(13)
+              .height(32)
+              .margin({ left: 8 })
+              .onClick(() => {
+                this.saveCurrentPage();
+              })
+          }
+          .width('100%')
+          .padding(8)
+          .alignItems(VerticalAlign.Center)
+          .bindSheet($$this.showAiAction, this.aiActionBuilder(), {
+            height: SheetSize.LARGE,
+            title: { title: '选区 AI 动作' }
+          })
+
+          if (this.previewMode) {
+            MarkdownView({
+              content: this.note,
+              resolveImage: (src: string): string => this.resolveAsset(src)
+            })
+              .layoutWeight(1)
+              .width('100%')
+          } else {
+            TextArea({ placeholder: '这一页的笔记，Markdown 格式', text: this.note })
+              .layoutWeight(1)
+              .width('100%')
+              .padding(8)
+              .fontSize(15)
+              .textAlign(TextAlign.Start)
+              .onChange((value: string) => {
+                this.note = value;
+                this.dirty = true;
+              })
+              .onTextSelectionChange((selectionStart: number, selectionEnd: number) => {
+                this.selStart = selectionStart;
+                this.selEnd = selectionEnd;
+              })
+          }
+
+          if (this.statusText.length > 0) {
+            Text(this.statusText)
+              .fontSize(12)
+              .fontColor('#999999')
+              .padding(8)
+              .width('100%')
+          }
+        }
+        .layoutWeight(1)
+        .width(this.isLandscape ? '0%' : '100%')
+        .height(this.isLandscape ? '100%' : '0%')
+        .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
+          height: SheetSize.FIT_CONTENT,
+          title: { title: 'AI 模型设置' }
+        })
+  }
+
+  @Builder
+  leftPane() {
+    // 左侧：源文档 + 手写批注层
+    Stack() {
+      Column() {
+        if (this.isPdf) {
+          if (this.pdfPaneBuilder !== null) {
+            this.pdfPaneBuilder.builder(this.pdfBridge)
+          } else if (this.rainPageImages.length > 0) {
+            Scroll() {
+              Image(this.rainPageImages[this.currentPage - 1] ?? this.rainPageImages[0])
+                .width('100%')
+                .objectFit(ImageFit.Contain)
+            }
+            .layoutWeight(1)
+            .width('100%')
+            .align(Alignment.TopStart)
+          } else {
+            Column() {
+              Text(this.statusText.length > 0 ? this.statusText : 'PDF 组件不可用')
+                .fontSize(14)
+                .fontColor('#999999')
+                .padding(24)
+            }
+            .layoutWeight(1)
+            .width('100%')
+            .justifyContent(FlexAlign.Center)
+          }
+        } else {
+          Scroll() {
+            Text(this.sourceMarkdown)
+              .fontSize(15)
+              .padding(16)
+              .width('100%')
+              .textAlign(TextAlign.Start)
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .align(Alignment.TopStart)
+        }
+      }
+      .width('100%')
+      .height('100%')
+
+      InkCanvas({
+        items: this.inkItems,
+        penColor: this.inkColor,
+        penWidth: this.inkWidth,
+        tool: this.inkTool,
+        drawingEnabled: this.inkMode,
+        onChange: (items: AnnotationItem[]) => {
+          this.inkItems = items;
+          this.saveAnnotations();
+        },
+        onTextTap: (x: number, y: number) => {
+          this.inkTextPoint = [x, y];
+          this.inkTextDraft = '';
+          this.inkTextEditing = true;
+        }
+      })
+        .width('100%')
+        .height('100%')
+    }
+    .layoutWeight(1)
+    .width(this.isLandscape ? '0%' : '100%')
+    .height(this.isLandscape ? '100%' : '0%')
+    .backgroundColor('#FFFFFF')
+    .border(this.isLandscape ? { width: { right: 0.5 }, color: '#E0E0E0' } : { width: { bottom: 0.5 }, color: '#E0E0E0' })
+    .bindSheet($$this.showAiResult, this.aiResultBuilder(), {
+      height: SheetSize.LARGE,
+      title: { title: `第 ${this.currentPage} 页讲解` }
+    })
   }
 
   @Builder

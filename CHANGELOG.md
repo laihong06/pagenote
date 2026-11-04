@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Make the HarmonyOS reader orientation-adaptive: left/right panes in landscape switch to top/bottom stacking in portrait or narrow windows (tracked via onAreaChange; the transfer sheet is bound to whichever branch container is mounted). Landscape regression (all sheets) verified on the tablet emulator; the portrait branch is compile-verified but not device-verified because emulator rotation commands are no-ops on this image and the foldable emulator's debug channel never came up. / 鸿蒙阅读页横竖屏自适应：横屏左右分栏、竖屏上下堆叠；横屏回归（各弹层）实测通过，竖屏分支编译验证（模拟器旋转无效、折叠屏调试通道未连通，未能上机）。
+
 - Add note export/import on HarmonyOS (Android note-export/import parity): 更多 sheet in the reader offers full JSON v1 backup export (version/document/pages/notes field-compatible with desktop), current-page Markdown export via the system save picker (dirty draft saved first), and import that merges JSON backups page-wise (valid pages override, empty string clears, missing pages untouched) or inserts Markdown/TXT at the cursor. Export content verified on device; merge semantics verified offline; the import picker only lists media-indexed files so the on-device import loop did not complete. / 鸿蒙端新增笔记导出/导入：JSON v1 全量备份（字段与桌面一致）、当前页 Markdown、备份按页合并或文本插入光标；导出内容设备实测，合并语义离线校验，导入选择器受媒体库索引限制。
 
 - Add image insertion into notes on HarmonyOS: the 插图 toolbar button opens the system photo picker, copies the chosen image into project `src/assets/`, and inserts a Markdown reference at the cursor. The picker flow is verified on emulator (empty gallery on emulator — only picker launch verified); renders through the existing preview image path. / 鸿蒙端新增插图：系统相册选择器选图复制进项目 src/assets 并在光标处插入引用；选择器链路模拟器已验（空图库只验到弹出），渲染走既有图片预览路径。
