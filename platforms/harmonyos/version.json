@@ -1,0 +1,11 @@
+{
+  "platform": "harmonyos",
+  "developmentVersion": "0.1.0-dev.1",
+  "versionCode": 1,
+  "betaBranch": "harmonyos/beta",
+  "mainBranch": null,
+  "published": {
+    "stable": null,
+    "beta": null
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "app": {
+    "bundleName": "io.pagenote.harmonyos",
+    "vendor": "pagenote",
+    "versionCode": 1,
+    "versionName": "0.1.0-dev.1",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name"
+  }
+}

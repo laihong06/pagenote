@@ -1,0 +1,6 @@
+{
+  "src": [
+    "pages/BookshelfPage",
+    "pages/ReaderPage"
+  ]
+}
