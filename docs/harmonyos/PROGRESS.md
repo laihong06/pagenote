@@ -99,6 +99,24 @@
 - 阅读页「AI 选区」：TextArea onTextSelectionChange 捕获选区 → sheet 显示选区摘要 → 三动作 → 确认后替换选区或追加插回（标脏待保存）
 - sheet 挂笔记工具栏节点（各 sheet 分节点挂载原则）；模拟器实测面板与空选区提示正常；真实模型调用未验证（本机中转 127.0.0.1:3457 未运行）
 
+## Mermaid 渲染（2026-11-04 晚，已提交）
+
+- rawfile vendor mermaid 11.17.2（3.5MB 含 LICENSE）；`mermaid.html` + `components/MermaidView.ets`（Web 组件，内容定高）
+- mermaid.render 是异步的而 runJavaScript 不等 Promise → 结果写 `window.__mmdResult`，宿主轮询（300ms 起，最多 5 次）
+- MarkdownView ```mermaid 围栏块接入；模拟器实测流程图渲染正常（截图 emulator-18，同页含行内公式混排）
+
+## 剩余 Android 模块可行性评估（2026-11-04）
+
+| 模块 | 鸿蒙可行性 | 结论 |
+| --- | --- | --- |
+| OCR | 需本地推理引擎（桌面/安卓为各自原生模型）；鸿蒙端可用 AI 端点做云端识别替代 | 不承诺离线 OCR；可做"AI 识别当前页图"变体（待评估） |
+| Office 转换 | 桌面是 LibreOffice/Office 进程调用；鸿蒙无此能力 | 不在鸿蒙端计划内（文档已声明） |
+| 录音转写 | 录音可用 AudioCapturer；离线转写需模型 | 录音可行但价值低，转写需云端；暂不排期 |
+| 系统截屏 | 需系统权限/应用分身场景 | 不排期 |
+| 悬浮工具 | 需要悬浮窗权限（floating window，平板需授权） | 可评估小窗笔记，优先级低 |
+| 素材贴纸 | 纯 UI（图片素材插入笔记），可行 | 与图片附件能力重叠，待需求 |
+| 选区/Tag 卡片 | PDF 文本层依赖 PDF Kit（当前模拟器缺）；MD 原文可选中 | MD 侧可做文字选区制卡已实现；Tag 卡片待做 |
+
 ## 下一步（按序）
 
 1. 雨课堂实时课堂采集的真实课堂验收（重连/去重/笔记保护）

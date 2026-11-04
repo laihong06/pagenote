@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Mermaid diagram rendering on HarmonyOS: ```mermaid fenced blocks render through a Web component with vendored local mermaid 11 (rawfile, offline), content-height sized via result polling since runJavaScript does not await promises. Verified on emulator with a flowchart screenshot (`emulator-18-mermaid.jpeg`). / 鸿蒙端新增 Mermaid 渲染：```mermaid 围栏块经 Web 组件用本地 vendor 的 mermaid 11 离线渲染，按内容定高（runJavaScript 不等 Promise，改为轮询结果）；模拟器实测流程图渲染。
+
 - Add note-selection AI actions on HarmonyOS (rewrite / translate / summarize): capture the note TextArea selection, run the configured OpenAI-compatible endpoint, and insert the confirmed result back by replacing or appending after the selection. Sheet UI verified on emulator; a real model call still needs a configured reachable endpoint. / 鸿蒙端新增笔记选区 AI 动作：改写/翻译/总结，确认后替换或追加插回；面板流程模拟器已验证，真实模型调用待可用端点。
 
 - Add flashcards on HarmonyOS (Android flashcard module parity): create cards from note selection or the paragraph at cursor (UTF-16 anchors + page revision; manual cards allowed when the page has no usable content), SM-2 simplified four-grade review scheduling with the same constants as Android, due queue, and card library management; stored per project in `src/flashcards.json`. Verified on emulator: card creation, persistence, due-review, rating side effects (reps/interval/dueAt) and library counts (screenshots `emulator-15/16`). / 鸿蒙端新增闪卡：选区/段落制卡（锚点+页 revision，页面无内容时允许手工卡）、SM-2 四档复习排程（常数与 Android 一致）、到期队列与卡片库，存项目 src/flashcards.json；模拟器实测制卡/复习/评分/卡片库全链路。

@@ -1,11 +1,13 @@
 /**
  * 轻量 Markdown 渲染组件：标题、段落、代码块、有序/无序列表、引用、分割线，
  * 行内支持 **粗体**、*斜体*、`行内代码`、$…$ 行内公式；块级图片经 resolveImage 解析为
- * 沙箱路径渲染（外部 http(s) 图片占位提示，保持离线）；块级公式（$$ 与 ```math）与
- * 行内公式均交给 MathView（本地 KaTeX）渲染。不追求完整 CommonMark，复杂语法原样显示。
+ * 沙箱路径渲染（外部 http(s) 图片占位提示，保持离线）；块级公式（$$ 与 ```math）交给 MathView、
+ * ```mermaid 图交给 MermaidView（均为本地 KaTeX/mermaid，不依赖网络）渲染。
+ * 不追求完整 CommonMark，复杂语法原样显示。
  */
 
 import { MathView } from './MathView';
+import { MermaidView } from './MermaidView';
 
 interface InlineSpan {
   text: string;
@@ -86,6 +88,8 @@ function parseBlocks(markdown: string): MdBlock[] {
     const body = codeBuffer.join('\n');
     if (codeLang === 'math' || codeLang === 'latex') {
       blocks.push(plainBlock('math', body, []));
+    } else if (codeLang === 'mermaid') {
+      blocks.push(plainBlock('mermaid', body, []));
     } else {
       blocks.push(plainBlock('code', body, []));
     }
@@ -224,6 +228,10 @@ export struct MarkdownView {
             }
           } else if (block.kind === 'math') {
             MathView({ latex: block.text })
+              .width('100%')
+              .margin({ top: 4, bottom: 4 })
+          } else if (block.kind === 'mermaid') {
+            MermaidView({ source: block.text })
               .width('100%')
               .margin({ top: 4, bottom: 4 })
           } else if (block.kind === 'code') {
