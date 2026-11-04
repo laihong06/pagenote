@@ -101,6 +101,8 @@ class ReaderPageJumpActivityTest {
     composeRule.waitForIdle()
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     instrumentation.uiAutomation.waitForIdle(300, 5_000)
+    // Semantics may settle before SurfaceFlinger presents the updated frame.
+    android.os.SystemClock.sleep(600)
     val bitmap = instrumentation.uiAutomation.takeScreenshot()
     try {
       val outputDir = File(instrumentation.targetContext.getExternalFilesDir(null), "ui-evidence").apply { mkdirs() }
@@ -404,7 +406,8 @@ class ReaderPageJumpActivityTest {
     }
     composeRule.waitForIdle()
     val after = composeRule.onNodeWithTag("floating_pen_palette").fetchSemanticsNode().boundsInRoot.left
-    assertTrue("palette should move when its handle is dragged", after > before)
+    val host = composeRule.onNodeWithTag("floating_pen_host").fetchSemanticsNode().boundsInRoot
+    assertTrue("palette should snap to the opposite edge: before=$before after=$after host=$host", after > host.center.x)
     saveUiScreenshot("workspace-pen-moved.png")
     composeRule.onNodeWithTag("floating_pen_toggle").performClick()
     saveUiScreenshot("workspace-pen-collapsed.png")
