@@ -103,15 +103,31 @@ internal fun BookshelfScreen(
             }
           }
           val grid = preferences?.view != "list"
-          ShelfIcon(if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-            stringResource(if (grid) R.string.bookshelf_list else R.string.bookshelf_grid), "bookshelf_view") {
-            onPresentation(preferences?.sort ?: "updated", if (grid) "list" else "grid")
+          if (!compactHeader) {
+            ShelfIcon(if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+              stringResource(if (grid) R.string.bookshelf_list else R.string.bookshelf_grid), "bookshelf_view") {
+              onPresentation(preferences?.sort ?: "updated", if (grid) "list" else "grid")
+            }
+            ShelfIcon(Icons.Default.Refresh, stringResource(R.string.bookshelf_refresh), "bookshelf_refresh", !scanning) { onRefresh() }
           }
-          ShelfIcon(Icons.Default.Refresh, stringResource(R.string.bookshelf_refresh), "bookshelf_refresh", !scanning) { onRefresh() }
           ShelfIcon(Icons.Default.Settings, stringResource(R.string.settings_action), "bookshelf_settings") { onSettings() }
           Box {
             ShelfIcon(Icons.Default.MoreVert, stringResource(R.string.reader_menu_group_file), "bookshelf_more") { moreMenu = true }
             DropdownMenu(moreMenu, { moreMenu = false }) {
+              if (compactHeader) {
+                DropdownMenuItem(
+                  text = { Text(stringResource(if (grid) R.string.bookshelf_list else R.string.bookshelf_grid)) },
+                  onClick = { moreMenu = false; onPresentation(preferences?.sort ?: "updated", if (grid) "list" else "grid") },
+                  modifier = Modifier.testTag("bookshelf_view"),
+                )
+                DropdownMenuItem(
+                  text = { Text(stringResource(R.string.bookshelf_refresh)) },
+                  enabled = !scanning,
+                  onClick = { moreMenu = false; onRefresh() },
+                  modifier = Modifier.testTag("bookshelf_refresh"),
+                )
+                HorizontalDivider()
+              }
               DropdownMenuItem(text = { Text(stringResource(R.string.rain_classroom_menu)) }, onClick = { moreMenu = false; onRain() })
               DropdownMenuItem(text = { Text(stringResource(R.string.bookshelf_open_external)) }, enabled = !busy, onClick = { moreMenu = false; onExternal() })
               DropdownMenuItem(text = { Text(stringResource(R.string.bookshelf_change)) }, enabled = !busy, onClick = { moreMenu = false; onBind() })

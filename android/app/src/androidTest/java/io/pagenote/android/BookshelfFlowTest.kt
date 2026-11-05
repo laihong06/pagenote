@@ -18,11 +18,26 @@ class BookshelfFlowTest {
 
   @Test fun narrowBookshelfKeepsSearchUsableAndLeavesSpaceForBooks() {
     org.junit.Assume.assumeTrue(compose.activity.resources.configuration.screenWidthDp < 600)
-    waitTag("bookshelf_home")
-    val search = compose.onNodeWithTag("bookshelf_search").fetchSemanticsNode().boundsInRoot
-    val density = compose.activity.resources.displayMetrics.density
-    assertTrue("search field must have usable width, was ${search.width / density} dp", search.width / density >= 140f)
-    assertTrue("search field must not stretch vertically, was ${search.height / density} dp", search.height / density < 100f)
+    val store = BookshelfStore(compose.activity)
+    val previous = runBlocking { store.preferences.first() }
+    try {
+      waitTag("bookshelf_home")
+      val search = compose.onNodeWithTag("bookshelf_search").fetchSemanticsNode().boundsInRoot
+      val density = compose.activity.resources.displayMetrics.density
+      assertTrue("search field must have usable width, was ${search.width / density} dp", search.width / density >= 140f)
+      assertTrue("search field must not stretch vertically, was ${search.height / density} dp", search.height / density < 100f)
+      val title = compose.onNodeWithText(compose.activity.getString(R.string.bookshelf_title)).fetchSemanticsNode().boundsInRoot
+      assertTrue("bookshelf title needs enough room, was ${title.width / density} dp", title.width / density >= 120f)
+      compose.onNodeWithTag("bookshelf_more").performClick()
+      compose.onNodeWithTag("bookshelf_view").assertIsDisplayed()
+      compose.onNodeWithTag("bookshelf_refresh").assertIsDisplayed()
+      compose.onNodeWithTag("bookshelf_view").performClick()
+      compose.waitUntil(5_000) { runBlocking { store.preferences.first().view != previous.view } }
+      compose.onNodeWithTag("bookshelf_more").performClick()
+      compose.onNodeWithTag("bookshelf_refresh").assertIsDisplayed()
+    } finally {
+      runBlocking { store.presentation(previous.sort, previous.view) }
+    }
   }
 
   @Test fun boundRootCreatesDiscoversCustomizesAndSavesOnReturn(): Unit = runBlocking {
