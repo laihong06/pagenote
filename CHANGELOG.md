@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Archive four completed task branches (codex/yuketang-import-target, codex/yuketang-source-identity, codex/yuketang-cross-platform, codex/android-rainclassroom-fixes) behind recoverable `archive/2026-11-06/*` tags on the fork and record them in docs/BRANCH-ARCHIVE-2026-11-06.json; their content already reached beta through the Android tablet port, the yuketang integration merges, and the bookshelf/Rain capture fixes. / 将四个已完工任务分支（yuketang 导入目标、页面身份、跨平台集成、雨课堂书架修复）归档为 fork 上可恢复的 `archive/2026-11-06/*` 标签并登记到 docs/BRANCH-ARCHIVE-2026-11-06.json；其内容均已通过 Android 平板移植、yuketang 集成合并及书架／雨课堂采集修复进入 beta。
+
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
 - Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。

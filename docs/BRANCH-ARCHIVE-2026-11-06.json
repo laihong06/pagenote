@@ -1,0 +1,22 @@
+[
+  {
+    "sha": "78989e4abc8c03ea111e103f44c8cf4f8acd8281",
+    "branch": "codex/yuketang-import-target",
+    "archiveTag": "archive/2026-11-06/codex/yuketang-import-target"
+  },
+  {
+    "sha": "12dd3ed86e592e7438a7b3b96fe552ebdd0e47fc",
+    "branch": "codex/yuketang-source-identity",
+    "archiveTag": "archive/2026-11-06/codex/yuketang-source-identity"
+  },
+  {
+    "sha": "ec484705125e0f96e558f4c358d344d0e3387093",
+    "branch": "codex/yuketang-cross-platform",
+    "archiveTag": "archive/2026-11-06/codex/yuketang-cross-platform"
+  },
+  {
+    "sha": "883179b0e9976952c95637f0489d845ac89f8fe7",
+    "branch": "codex/android-rainclassroom-fixes",
+    "archiveTag": "archive/2026-11-06/codex/android-rainclassroom-fixes"
+  }
+]
