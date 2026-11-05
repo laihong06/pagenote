@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Document Android handwriting and hold-to-shape behavior with before/after emulator images. / 补充 Android 手写与停笔识别的改前改后模拟器截图和说明。
+
 - Reduce Android stylus input and drawing overhead, keep writing while recognized shapes save, and improve hold-to-shape recognition and rendering. / 优化 Android 手写输入与绘制，图形保存时可继续书写；改进停笔识别及图形保存后的显示和选中。
 
 - Keep Android note formatting available while an Agent task runs. / Agent 后台执行时仍可使用 Android 笔记格式工具。
