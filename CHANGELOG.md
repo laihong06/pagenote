@@ -8,6 +8,8 @@
 
 - Keep the narrow bookshelf title readable by moving view and refresh actions into its More menu. / 窄屏书架将视图切换和刷新移入“更多”，为标题留出空间。
 
+- Document Android menu and settings categories with before/after emulator screenshots. / 补充 Android 菜单、设置分类及窄屏书架的模拟器改前改后截图和教程。
+
 - Reduce Android writing delays by coalescing queued pen snapshots and moving note-history snapshots off the save path. Page changes and returning to the bookshelf wait for the latest pen and note writes, retaining the current page on failure. / 优化 Android 连续书写保存：合并排队的旧笔迹快照，历史记录改为后台生成；翻页和回书架仍等待最新笔迹与笔记写入，失败时留在当前页。
 
 - Add an Android emulator screenshot showing the navigation entry during an in-progress ink save. / 补充 Android 手写保存期间的导航入口模拟器截图。

@@ -27,7 +27,7 @@ PageNote 的 Android 版是 **Kotlin／Jetpack Compose 原生应用**，围绕�
 
 ![Android 浮动笔盒与双栏阅读](guide/images/workspace/after-reading.png)
 
-[查看操作步骤、改前／改后截图和采集环境](guide/workspace.md)。真机手写笔、不同设备与外部模型服务仍需各自验证；维护者布局审查另行记录。
+[查看工作区操作与截图](guide/workspace.md) · [菜单和设置分类](guide/menu-and-settings.md)。真机手写笔、不同设备与外部模型服务仍需各自验证；维护者布局审查另行记录。
 
 ## 教程与版本记录
 
