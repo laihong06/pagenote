@@ -16,6 +16,15 @@ import java.util.UUID
 class BookshelfFlowTest {
   @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+  @Test fun narrowBookshelfKeepsSearchUsableAndLeavesSpaceForBooks() {
+    org.junit.Assume.assumeTrue(compose.activity.resources.configuration.screenWidthDp < 600)
+    waitTag("bookshelf_home")
+    val search = compose.onNodeWithTag("bookshelf_search").fetchSemanticsNode().boundsInRoot
+    val density = compose.activity.resources.displayMetrics.density
+    assertTrue("search field must have usable width, was ${search.width / density} dp", search.width / density >= 140f)
+    assertTrue("search field must not stretch vertically, was ${search.height / density} dp", search.height / density < 100f)
+  }
+
   @Test fun boundRootCreatesDiscoversCustomizesAndSavesOnReturn(): Unit = runBlocking {
     val activity = compose.activity
     val resolver = activity.contentResolver

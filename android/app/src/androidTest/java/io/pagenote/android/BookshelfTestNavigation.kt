@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
@@ -75,12 +76,11 @@ internal fun revealReaderMenuCommand(
   if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()) return
 
   val groupTag = "reader_menu_group_$group"
-  if (composeRule.onAllNodesWithTag(groupTag).fetchSemanticsNodes().isNotEmpty()) {
-    composeRule.onNodeWithTag("reader_menu_group_$group").performClick()
-  } else if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
+  if (composeRule.onAllNodesWithTag(groupTag).fetchSemanticsNodes().isEmpty()) {
     composeRule.onNodeWithTag("reader_menu_trigger").performClick()
   }
-
+  waitForTaggedNode(composeRule, groupTag, 10_000)
+  composeRule.onNodeWithTag(groupTag).performScrollTo().performClick()
   waitForTaggedNode(composeRule, commandTag, 10_000)
 }
 

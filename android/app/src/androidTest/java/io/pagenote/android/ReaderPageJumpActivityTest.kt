@@ -73,6 +73,19 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
+  fun readerMenuShowsGroupedCommandsOnDemand() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    attachProjectToReader(project, notes)
+    composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    saveUiScreenshot("reader-menu-groups.png")
+    assertTrue(composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isEmpty())
+    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
+    saveUiScreenshot("reader-menu-expanded.png")
+  }
+
+  @Test
   fun nativePdfShowsNarrowRailAndRealThumbnailDrawer() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
@@ -532,9 +545,15 @@ class ReaderPageJumpActivityTest {
       previousLibrary = library.preferences.first()
       library.bind(treeUri.toString(), "Navigation fixture")
     }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag("bookshelf_book_Page jump fixture").fetchSemanticsNodes().isNotEmpty()
+    try {
+      composeRule.waitUntil(timeoutMillis = 10_000) {
+        composeRule.onAllNodesWithTag("bookshelf_book_Page jump fixture").fetchSemanticsNodes().isNotEmpty()
+      }
+    } catch (failure: Throwable) {
+      saveUiScreenshot("bookshelf-fixture-error.png")
+      throw AssertionError("Fixture missing from bookshelf:\n${composeRule.onRoot().printToString()}", failure)
     }
+    if (activity.resources.configuration.screenWidthDp < 600) saveUiScreenshot("bookshelf-narrow.png")
     composeRule.onNodeWithTag("bookshelf_book_Page jump fixture").performClick()
     try {
       composeRule.waitUntil(timeoutMillis = 15_000) {

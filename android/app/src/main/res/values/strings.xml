@@ -1,4 +1,11 @@
 <resources>
+  <string name="settings_category_appearance">General</string>
+  <string name="settings_category_reading">Reading</string>
+  <string name="settings_category_recognition">OCR &amp; audio</string>
+  <string name="settings_category_search">Search</string>
+  <string name="settings_category_agent">Agent</string>
+  <string name="reader_menu_group_expanded">Expanded</string>
+  <string name="reader_menu_group_collapsed">Collapsed</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">Reader settings</string>
   <string name="reader_settings_loading">Loading saved reader settings…</string>

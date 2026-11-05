@@ -1,4 +1,11 @@
 <resources>
+  <string name="settings_category_appearance">通用外观</string>
+  <string name="settings_category_reading">阅读手写</string>
+  <string name="settings_category_recognition">识别录音</string>
+  <string name="settings_category_search">搜索</string>
+  <string name="settings_category_agent">Agent</string>
+  <string name="reader_menu_group_expanded">已展开</string>
+  <string name="reader_menu_group_collapsed">已收起</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">阅读设置</string>
   <string name="reader_settings_loading">正在读取阅读设置…</string>

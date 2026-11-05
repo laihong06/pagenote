@@ -139,12 +139,10 @@ class PdfTextAnnotationToolTest {
   private fun handwritingCommand(id: String) = run {
     val tag = "reader_menu_command_$id"
     if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
-      } else {
+      if (composeRule.onAllNodesWithTag("reader_menu_group_handwriting").fetchSemanticsNodes().isEmpty()) {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
+      composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().performClick()
     }
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()

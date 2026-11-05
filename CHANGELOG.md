@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Organize Android reader commands into expandable groups and split reader settings into focused categories while keeping edits together until saved. / Android 阅读菜单改为按组展开，设置分为通用与外观、阅读与手写、识别与录音、搜索和 Agent，切换分类保留待保存的修改。
+
+- Fix the Android bookshelf header on narrow screens so its search field remains usable and book covers stay visible. / 修复 Android 窄屏书架顶部搜索框被挤没、内容区域被过度占用的问题。
+
 - Reduce Android writing delays by coalescing queued pen snapshots and moving note-history snapshots off the save path. Page changes and returning to the bookshelf wait for the latest pen and note writes, retaining the current page on failure. / 优化 Android 连续书写保存：合并排队的旧笔迹快照，历史记录改为后台生成；翻页和回书架仍等待最新笔迹与笔记写入，失败时留在当前页。
 
 - Add an Android emulator screenshot showing the navigation entry during an in-progress ink save. / 补充 Android 手写保存期间的导航入口模拟器截图。
