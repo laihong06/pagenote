@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add Android pinch-zoom comparison screenshots and describe the verified gesture behavior. / 补充 Android 双指缩放的改前改后截图与已验证交互说明。
+
 - Improve Android pinch zoom by accumulating all gesture deltas locally and reusing hardware ink commands across zoom and pan. / 修复 Android 连续缩放增量丢失，缩放过程本地更新，并复用硬件笔迹绘制记录以减少卡顿。
 
 - Document Android handwriting and hold-to-shape behavior with before/after emulator images. / 补充 Android 手写与停笔识别的改前改后模拟器截图和说明。
