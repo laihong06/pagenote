@@ -131,6 +131,8 @@ import io.pagenote.agent.PageTutorResult
 import io.pagenote.agent.AgentEvent
 import io.pagenote.agent.AgentRunner
 import io.pagenote.agent.LocalToolDispatcher
+import io.pagenote.agent.ToolDispatcher
+import io.pagenote.agent.ToolResult
 import io.pagenote.agent.ModelEndpoint
 import io.pagenote.agent.SerialPages
 import io.pagenote.core.project.PageNotes
@@ -767,6 +769,7 @@ private fun ReaderHome(
   var agentEvent by remember { mutableStateOf<AgentEvent?>(null) }
   var agentError by remember { mutableStateOf<String?>(null) }
   var isAgentRunning by remember { mutableStateOf(false) }
+  var agentTaskProject by remember { mutableStateOf<OpenedProject?>(null) }
   var isRendering by remember { mutableStateOf(false) }
   var isSaving by readerSession.isSaving
   val isPenSaving = pendingPenSaves > 0
@@ -2976,90 +2979,73 @@ private fun ReaderHome(
       promptSettingsStore.readModules(AgentPromptRouting.forAgentTask(instruction))
     }
     val messages = AgentPromptComposition.append(input.messages, promptModules)
-    return agentRunner.run(input.task, endpoint, messages, LocalToolDispatcher(handlers))
-  }
-
-  fun runAgentTask(instruction: String) {
-    val activeProject = project ?: return
-    val targetPageIndex = pageIndex
-    val activeMarkdown = markdownSource
-    val activeRenderer = renderer
-    if (activeRenderer == null && activeMarkdown == null) return
-    scope.launch {
-      agentInstruction = instruction
-      isAgentRunning = true
-      agentError = null
-      agentEvent = null
-      try {
-        val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
-        if (hasUnsavedChanges && !noteSaver.saveCurrentNote()) {
-          agentError = noteStatus ?: context.getString(R.string.note_save_failed, "")
-          return@launch
+    val delegate = LocalToolDispatcher(handlers)
+    var noteWriteFailed = false
+    val dispatcher = object : ToolDispatcher {
+      override suspend fun dispatch(tool: io.pagenote.agent.ToolRequest): ToolResult {
+        if (tool.name != "write_note" && tool.name != "patch_note") {
+          return withContext(Dispatchers.IO) { delegate.dispatch(tool) }
         }
-        val event = executeAgentPage(
-          activeProject = activeProject,
-          activeMarkdown = activeMarkdown,
-          activeRenderer = activeRenderer,
-          targetPage = targetPageIndex + 1,
-          instruction = instruction,
-          endpoint = endpoint,
-        )
-        if (project?.manifest?.id != activeProject.manifest.id || pageIndex != targetPageIndex) {
-          agentError = context.getString(R.string.page_tutor_conflict)
-        } else {
-          agentEvent = event
-          val updated = (event as? AgentEvent.Done)?.updated.orEmpty()
-          if (targetPageIndex + 1 in updated) {
+        return readerSession.noteSaveCoordinator.exclusive {
+          if (project !== activeProject) return@exclusive ToolResult(false, "project changed")
+          val target = tool.args["page"]?.toIntOrNull()
+          val currentPage = pageIndex + 1
+          val savedPage = NotePage.pageAt(notesMarkdown, currentPage)
+          if (target == currentPage && noteDraft != savedPage) {
+            noteWriteFailed = true
+            agentError = context.getString(R.string.agent_task_note_conflict)
+            return@exclusive ToolResult(false, "The user is editing this page; do not overwrite the draft.")
+          }
+          val result = withContext(Dispatchers.IO) { delegate.dispatch(tool) }
+          noteWriteFailed = !result.ok
+          if (result.ok && result.updatedPage != null && project === activeProject) {
             val latest = withContext(Dispatchers.IO) {
               ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
             }
-            notesMarkdown = latest
-            val freshPage = NotePage.pageAt(latest, targetPageIndex + 1)
-            readerSession.setNoteDraft(freshPage)
-            noteBaseRevision = PageNotes.revision(freshPage)
-            // 批次 7：代理整页写入后的重读钩子入索引。
-            search.indexSavedNotePage(
-              activeProject.manifest.id,
-              targetPageIndex + 1,
-              freshPage,
-              PageNotes.revision(freshPage),
-            )
-            noteStatus = context.getString(R.string.note_reloaded)
+            if (project === activeProject) {
+              val visiblePage = pageIndex + 1
+              val previous = NotePage.pageAt(notesMarkdown, visiblePage)
+              val fresh = NotePage.pageAt(latest, visiblePage)
+              val reconciliation = reconcileAgentNote(previous, noteDraft, fresh, noteBaseRevision)
+              notesMarkdown = latest
+              noteBaseRevision = reconciliation.baseRevision
+              readerSession.setNoteDraft(reconciliation.draft)
+              if (reconciliation.conflict) {
+                agentError = context.getString(R.string.agent_task_note_conflict)
+                noteStatus = context.getString(R.string.agent_task_note_conflict)
+              }
+              val updatedPage = requireNotNull(result.updatedPage)
+              val updatedText = NotePage.pageAt(latest, updatedPage)
+              search.indexSavedNotePage(activeProject.manifest.id, updatedPage, updatedText, PageNotes.revision(updatedText))
+            }
           }
+          result
         }
-      } catch (missing: MissingModelConfigException) {
-        agentError = context.getString(R.string.page_tutor_model_missing)
-        settingsAgentPage = SettingsAgentPage.MODEL
-        showSettings = true
-      } catch (timeout: TimeoutCancellationException) {
-        agentError = context.getString(R.string.page_tutor_timeout)
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (error: PageTutorSourceException) {
-        agentError = "${context.getString(R.string.page_tutor_source_failed)} ${error.message.orEmpty()}"
-      } catch (error: Exception) {
-        agentError = "${context.getString(R.string.page_tutor_request_failed)} ${error.message.orEmpty()}"
-      } finally {
-        isAgentRunning = false
       }
     }
+    val event = agentRunner.run(input.task, endpoint, messages, dispatcher)
+    return if (noteWriteFailed && event is AgentEvent.Done) {
+      AgentEvent.Failed(context.getString(R.string.agent_task_write_incomplete))
+    } else event
   }
 
   fun runAgentBatch(instruction: String, rangeText: String) {
     val activeProject = project ?: return
     val activeMarkdown = markdownSource
     val activeRenderer = renderer
+    val startingPage = pageIndex + 1
     if (activeRenderer == null && activeMarkdown == null) return
     scope.launch {
       agentInstruction = instruction
       agentPageRange = rangeText
+      agentTaskProject = activeProject
       isAgentRunning = true
       agentError = null
       agentEvent = null
       agentReport = null
       try {
         val endpoint = withContext(Dispatchers.IO) { modelSettingsStore.resolveEndpoint() }
-        if (hasUnsavedChanges && !noteSaver.saveCurrentNote()) {
+        if (pageIndex + 1 == startingPage && hasUnsavedChanges && !noteSaver.saveCurrentNote()) {
           agentError = noteStatus ?: context.getString(R.string.note_save_failed, "")
           return@launch
         }
@@ -3072,15 +3058,14 @@ private fun ReaderHome(
           activeRenderer!!.pageCount
         }
         val pages = try {
-          val raw = rangeText.trim().ifBlank { (pageIndex + 1).toString() }
+          val raw = rangeText.trim().ifBlank { startingPage.toString() }
           AgentPageRange.parse(raw, totalPages)
         } catch (error: IllegalArgumentException) {
           agentError = context.getString(R.string.agent_task_bad_range, rangeText.trim())
           return@launch
         }
-        val documentId = activeProject.manifest.id
         val report = SerialPages.run(pages) { targetPage ->
-          if (project?.manifest?.id != documentId) return@run AgentEvent.Failed("project changed")
+          if (project !== activeProject) return@run AgentEvent.Failed("project changed")
           executeAgentPage(
             activeProject = activeProject,
             activeMarkdown = activeMarkdown,
@@ -3101,22 +3086,13 @@ private fun ReaderHome(
           }
           AgentEvent.Failed(reason)
         }
-        if (pageIndex + 1 in report.updated) {
-          val latest = withContext(Dispatchers.IO) {
-            ProjectNoteStore(context.contentResolver, activeProject.notesUri).read()
-          }
-          notesMarkdown = latest
-          val freshPage = NotePage.pageAt(latest, pageIndex + 1)
-          readerSession.setNoteDraft(freshPage)
-          noteBaseRevision = PageNotes.revision(freshPage)
-          // 批次 7：批量任务可能更新多页，整本重读入索引（revision 幂等）。
-          search.indexNotePages(activeProject.manifest.id, latest)
-          noteStatus = context.getString(R.string.note_reloaded)
-        }
       } catch (missing: MissingModelConfigException) {
         agentError = context.getString(R.string.page_tutor_model_missing)
-        settingsAgentPage = SettingsAgentPage.MODEL
-        showSettings = true
+        if (project === activeProject) {
+          showAgentTask = true
+          settingsAgentPage = SettingsAgentPage.MODEL
+          showSettings = true
+        }
       } catch (timeout: TimeoutCancellationException) {
         agentError = context.getString(R.string.page_tutor_timeout)
       } catch (cancelled: CancellationException) {
@@ -5594,8 +5570,6 @@ private fun ReaderHome(
             !readerInputLocked,
           disabledReason = commandReason(requireProject = true),
         ) {
-          agentEvent = null
-          agentError = null
           showPageJumpDialog = false
           showAgentTask = true
         },
@@ -6243,6 +6217,12 @@ private fun ReaderHome(
         page = pageIndex.takeIf { activeProject != null },
         pageCount = totalPages,
         canChangePage = canChangePage,
+        agentStatus = if (agentTaskProject !== activeProject) null else when {
+          isAgentRunning -> AgentTaskStatus.RUNNING
+          agentError != null || agentEvent is AgentEvent.Failed -> AgentTaskStatus.NEEDS_ATTENTION
+          agentEvent is AgentEvent.Done -> AgentTaskStatus.DONE
+          else -> null
+        },
         onHome = ::returnToBookshelf,
         onMenu = { if (menuLayout == ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = true else menuSidebarExpanded = true },
         onAgent = { showPageJumpDialog = false; showAgentTask = !showAgentTask },

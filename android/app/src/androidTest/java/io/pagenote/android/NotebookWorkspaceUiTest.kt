@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -52,4 +53,23 @@ class NotebookWorkspaceUiTest {
     compose.onNodeWithTag("agent_task_drawer").assertIsDisplayed()
     compose.onNodeWithTag("agent_task_dismiss").assertIsDisplayed()
   }
+  @Test fun agentStatusRemainsVisibleAndOpensItsPanel() {
+    var status by mutableStateOf(AgentTaskStatus.RUNNING)
+    var opened = false
+    compose.setContent {
+      MaterialTheme {
+        ReaderWorkspaceToolbar(
+          showHome = true, homeEnabled = true, showMenu = false, title = "Notes",
+          zoomPercent = null, page = 0, pageCount = 3, canChangePage = true,
+          agentStatus = status, onHome = {}, onMenu = {}, onAgent = { opened = true },
+          onPrevious = {}, onPage = {}, onNext = {},
+        )
+      }
+    }
+    compose.onNodeWithTag("reader_agent_status", useUnmergedTree = true).assertExists()
+    compose.onNodeWithTag("reader_agent_toggle").performClick()
+    compose.runOnIdle { assertTrue(opened); status = AgentTaskStatus.DONE }
+    compose.onNodeWithTag("reader_agent_status", useUnmergedTree = true).assertExists()
+  }
+
 }

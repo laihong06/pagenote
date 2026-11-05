@@ -617,6 +617,11 @@
   <string name="ocr_block_confidence">Confidence %1$d%% · position x=%2$d‰ y=%3$d‰ width=%4$d‰ height=%5$d‰</string>
   <string name="close">Close</string>
   <string name="note_edit">Edit</string>
+  <string name="agent_status_running">Running</string>
+  <string name="agent_status_done">Done</string>
+  <string name="agent_status_attention">Needs attention</string>
+  <string name="agent_task_write_incomplete">The agent could not apply the note update.</string>
+  <string name="agent_task_note_conflict">The agent changed or tried to change a page you are editing. Your draft was kept; review the conflict before reloading.</string>
   <string name="agent_task_title">Agent task: page %1$d</string>
   <string name="agent_task_instruction">Task instruction</string>
   <string name="agent_task_run">Run task</string>

@@ -7,6 +7,8 @@ import kotlinx.coroutines.sync.withLock
 internal class NoteSaveCoordinator {
   private val mutex = Mutex()
 
+  suspend fun <T> exclusive(action: suspend () -> T): T = mutex.withLock { action() }
+
   suspend fun flush(hasPending: () -> Boolean, writePending: suspend () -> Boolean): Boolean =
     mutex.withLock {
       while (hasPending()) {

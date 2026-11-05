@@ -133,7 +133,7 @@ internal fun AgentTaskDialog(
           Button(
             modifier = Modifier.testTag("agent_task_run"),
             enabled = !isRunning && instruction.isNotBlank(),
-            onClick = { onRun(instruction, pageRange) },
+            onClick = { onRun(instruction, pageRange); onDismiss() },
           ) { Text(stringResource(R.string.agent_task_run)) }
         }
       }

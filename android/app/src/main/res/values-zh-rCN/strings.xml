@@ -617,6 +617,11 @@
   <string name="ocr_block_confidence">置信度 %1$d%% · 位置 x=%2$d‰ y=%3$d‰ 宽=%4$d‰ 高=%5$d‰</string>
   <string name="close">关闭</string>
   <string name="note_edit">编辑</string>
+  <string name="agent_status_running">进行中</string>
+  <string name="agent_status_done">已完成</string>
+  <string name="agent_status_attention">需处理</string>
+  <string name="agent_task_write_incomplete">Agent 未能写入笔记修改。</string>
+  <string name="agent_task_note_conflict">Agent 修改了或尝试修改你正在编辑的页面。草稿已保留，请先处理冲突再重新载入。</string>
   <string name="agent_task_title">Agent 任务：第 %1$d 页</string>
   <string name="agent_task_instruction">任务指令</string>
   <string name="agent_task_run">执行任务</string>

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Let Android Agent tasks run behind the reader with a compact status indicator, and protect concurrent note edits from Agent writes. / Android Agent 任务提交后在阅读器内后台执行并显示轻量状态，写入时保护并发编辑的笔记草稿。
+
 - Document the Android full-page settings with tablet and phone emulator screenshots. / 补充 Android 全页设置的平板、手机模拟器截图及操作说明。
 
 - Move Android settings to a full page with a tablet category/detail layout and phone list/detail navigation; keep drafts across categories and activity recreation. Agent model and prompt settings now open within the settings page. / Android 设置改为完整页面：平板使用分类与详情双栏，手机使用列表与详情层级；跨分类和页面重建时保留设置草稿，Agent 模型及提示词配置也在设置页内打开。

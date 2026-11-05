@@ -56,4 +56,28 @@ class NoteSaveCoordinatorTest {
     assertTrue(second.await())
     assertEquals(1, writes)
   }
+  @Test fun agentWriteAndAutosaveAreSerialized() = runBlocking {
+    val coordinator = NoteSaveCoordinator()
+    val started = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    val events = mutableListOf<String>()
+    val agent = async {
+      coordinator.exclusive {
+        events += "agent start"
+        started.complete(Unit)
+        release.await()
+        events += "agent done"
+      }
+    }
+    started.await()
+    var pending = true
+    val save = async {
+      coordinator.flush({ pending }) { events += "saved"; pending = false; true }
+    }
+    release.complete(Unit)
+    agent.await()
+    assertTrue(save.await())
+    assertEquals(listOf("agent start", "agent done", "saved"), events)
+  }
+
 }

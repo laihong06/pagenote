@@ -12,10 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+
+internal enum class AgentTaskStatus { RUNNING, DONE, NEEDS_ATTENTION }
 
 @Composable
 internal fun ReaderWorkspaceToolbar(
@@ -27,6 +30,7 @@ internal fun ReaderWorkspaceToolbar(
   page: Int?,
   pageCount: Int,
   canChangePage: Boolean,
+  agentStatus: AgentTaskStatus? = null,
   onHome: () -> Unit,
   onMenu: () -> Unit,
   onAgent: () -> Unit,
@@ -44,9 +48,25 @@ internal fun ReaderWorkspaceToolbar(
     if (showMenu) ReaderMenuTrigger(onClick = onMenu)
     Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     if (page != null) {
+      val statusLabel = when (agentStatus) {
+        AgentTaskStatus.RUNNING -> stringResource(R.string.agent_status_running)
+        AgentTaskStatus.DONE -> stringResource(R.string.agent_status_done)
+        AgentTaskStatus.NEEDS_ATTENTION -> stringResource(R.string.agent_status_attention)
+        null -> null
+      }
       if (compact) IconButton(onClick = onAgent, modifier = Modifier.testTag("reader_agent_toggle")) {
-        Icon(Icons.Outlined.AutoAwesome, stringResource(R.string.agent_task_action))
-      } else TextButton(onClick = onAgent, modifier = Modifier.testTag("reader_agent_toggle")) { Text("Agent") }
+        BadgedBox(badge = {
+          if (statusLabel != null) Badge(Modifier.testTag("reader_agent_status").semantics { contentDescription = statusLabel })
+        }) {
+          Icon(Icons.Outlined.AutoAwesome, stringResource(R.string.agent_task_action))
+        }
+      } else TextButton(onClick = onAgent, modifier = Modifier.testTag("reader_agent_toggle")) {
+        if (agentStatus == AgentTaskStatus.RUNNING) {
+          CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+          Spacer(Modifier.width(6.dp))
+        }
+        Text(if (statusLabel == null) "Agent" else "Agent · $statusLabel", Modifier.testTag("reader_agent_status"))
+      }
     }
     if (zoomPercent != null && !compact) Text("$zoomPercent%", Modifier.testTag("reader_zoom_status"), style = MaterialTheme.typography.labelLarge)
     if (page != null) {

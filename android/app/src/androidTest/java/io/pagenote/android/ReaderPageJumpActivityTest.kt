@@ -12,6 +12,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.EditText
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -90,8 +91,116 @@ class ReaderPageJumpActivityTest {
     assertTrue(composeRule.onAllNodesWithTag("agent_task_drawer").fetchSemanticsNodes().isEmpty())
     composeRule.onNodeWithTag("settings_subpage_back").performClick()
     composeRule.onNodeWithTag("reader_settings_cancel").performClick()
+    composeRule.waitUntil(10_000) {
+      composeRule.onNodeWithTag("agent_task_drawer").isDisplayed()
+    }
     composeRule.onNodeWithTag("agent_task_drawer").assertIsDisplayed()
     composeRule.onNodeWithTag("agent_task_instruction").assertTextContains("Explain the current page")
+  }
+
+  @Test
+  fun agentRunsBehindReaderAndDoesNotOverwriteConcurrentEdits() = exerciseAgentWithConcurrentEdits(false)
+
+  @Test
+  fun editingWhileAgentWriteIsInFlightPreservesTheDraft() = exerciseAgentWithConcurrentEdits(true)
+
+  private fun exerciseAgentWithConcurrentEdits(editDuringWrite: Boolean) {
+    val settingsFile = File(composeRule.activity.noBackupFilesDir, "agent-model-settings.enc")
+    org.junit.Assume.assumeFalse("test requires an unused Agent configuration", settingsFile.exists())
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val requested = java.util.concurrent.CountDownLatch(1)
+    val release = java.util.concurrent.CountDownLatch(1)
+    val server = java.net.ServerSocket(0, 4, java.net.InetAddress.getByName("127.0.0.1"))
+    server.soTimeout = 20_000
+    val serverError = AtomicReference<Throwable?>()
+    val worker = Thread {
+      try {
+        repeat(2) { index ->
+          server.accept().use { socket ->
+            val input = socket.getInputStream()
+            val headers = ByteArrayOutputStream()
+            var matched = 0
+            val end = byteArrayOf(13, 10, 13, 10)
+            while (matched < end.size) {
+              val b = input.read()
+              check(b >= 0)
+              headers.write(b)
+              matched = if (b == end[matched].toInt()) matched + 1 else if (b == 13) 1 else 0
+            }
+            val length = Regex("(?im)^Content-Length: ([0-9]+)")
+              .find(headers.toString("UTF-8"))!!.groupValues[1].toInt()
+            var remaining = length
+            while (remaining > 0) {
+              val consumed = input.read(ByteArray(minOf(remaining, 4096)))
+              check(consumed > 0)
+              remaining -= consumed
+            }
+            if (index == 0) {
+              requested.countDown()
+              check(release.await(45, java.util.concurrent.TimeUnit.SECONDS))
+            }
+            val reply = if (index == 0) {
+              "TOOL write_note page=1 markdown=AgentResult expectedRevision=${PageNotes.revision("First page note")}"
+            } else "DONE"
+            val body = "{\"choices\":[{\"message\":{\"content\":\"$reply\"}}]}".toByteArray()
+            val output = socket.getOutputStream()
+            output.write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+            output.write(body)
+            output.flush()
+          }
+        }
+      } catch (error: Throwable) { serverError.set(error) }
+    }
+    try {
+      agentModelSettingsStore(composeRule.activity.applicationContext).save(
+        AgentModelSettingsDraft("http://127.0.0.1:${server.localPort}/v1", "test"),
+        AgentKeyChange.Replace("test-key"),
+      )
+      worker.start()
+      composeRule.onNodeWithTag("reader_agent_toggle").performClick()
+      composeRule.onNodeWithTag("agent_task_instruction").performTextInput("Update this page")
+      composeRule.onNodeWithTag("agent_task_run").performClick()
+      assertTrue("model request should start", requested.await(15, java.util.concurrent.TimeUnit.SECONDS))
+      composeRule.onNodeWithTag("agent_task_drawer").assertDoesNotExist()
+      composeRule.onNodeWithTag("reader_agent_status", useUnmergedTree = true).assertExists()
+      val screen = if (composeRule.activity.resources.configuration.screenWidthDp >= 600) "tablet" else "phone"
+      saveUiScreenshot("agent-running-$screen.png")
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(10_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_previous_page").performClick()
+      composeRule.waitUntil(10_000) { session.pageIndex.intValue == 0 }
+      if (editDuringWrite) {
+        pauseNextNoteWrite()
+        release.countDown()
+        assertTrue("agent should reach the paused note write", waitForPausedNoteWrite())
+        composeRule.runOnUiThread { session.setNoteDraft("My new edits") }
+        releaseNoteWrite()
+      } else {
+        composeRule.runOnUiThread {
+          session.setNoteDraft("My new edits")
+          release.countDown()
+        }
+      }
+      composeRule.waitUntil(20_000) {
+        worker.state == Thread.State.TERMINATED
+      }
+      serverError.get()?.let { throw AssertionError("fake model failed", it) }
+      composeRule.waitUntil(10_000) { session.noteDraft.value == "My new edits" }
+      composeRule.onNodeWithTag("reader_agent_toggle").performClick()
+      composeRule.waitUntil(10_000) {
+        composeRule.onAllNodesWithTag("agent_task_result").fetchSemanticsNodes().isNotEmpty()
+      }
+      assertEquals("My new edits", session.noteDraft.value)
+      saveUiScreenshot("agent-result-$screen.png")
+    } finally {
+      release.countDown()
+      if (editDuringWrite) releaseNoteWrite()
+      server.close()
+      worker.join(2000)
+      settingsFile.delete()
+    }
   }
 
   @Test
