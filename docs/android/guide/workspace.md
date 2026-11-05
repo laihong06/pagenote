@@ -26,11 +26,28 @@
 
 ## 页面和 Agent 面板
 
-点击页码可打开侧边选页栏。点击顶部 Agent 打开侧栏；点击“关闭”、侧栏外部或系统返回即可收起。Agent 执行期间也可收起面板，回到当前笔记。配置模型和实际发送请求仍由用户决定；截图未发送模型请求。
+点击页码可打开侧边选页栏。点击顶部 Agent 打开侧栏并输入任务，提交后侧栏自动收起，任务在应用内继续执行；可以继续阅读、翻页、编辑和使用笔记格式工具。顶部 Agent 入口显示运行、完成或需处理的状态，点击可重新打开任务及结果。手机用小标记表示状态，点击图标查看详情。点击“关闭”、侧栏外部或系统返回也可收起面板。
+
+Agent 写笔记时与自动保存协调：同页有未保存草稿时不会直接覆盖；如果写入期间出现新的手动输入，草稿和原版本会保留并提示处理冲突。更换项目、退出应用或系统回收进程后，不保证任务继续或恢复。需要用户自行配置模型并联网，实际模型服务尚未在本轮测试。
 
 ![选页侧栏](images/workspace/after-page-drawer.png)
 
 ![Agent 侧栏](images/workspace/after-agent.png)
+
+任务后台执行截图为 Android 14／API 34 ARM64 模拟器运行源码 `2a85919`；平板 2560×1600、320 dpi，手机 1080×1920、420 dpi，浅色主题。使用本机模拟模型响应和自编内容，无真实外部模型请求。上方旧侧栏图运行源码 `debec55`。
+
+![优化前：平板 Agent 侧栏](images/agent-background/before-tablet.png)
+
+![平板：提交后继续阅读，顶部显示运行状态](images/agent-background/running-tablet.png)
+
+![平板：重新打开侧栏查看任务结果与冲突提示](images/agent-background/result-tablet.png)
+
+![优化前：窄屏阅读页，1200×1920、320 dpi](images/agent-background/before-phone.png)
+
+![手机：后台运行状态](images/agent-background/running-phone.png)
+
+![手机：重新打开任务结果](images/agent-background/result-phone.png)
+
 
 ## 窄屏和编辑
 

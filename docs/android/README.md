@@ -23,7 +23,7 @@ PageNote 的 Android 版是 **Kotlin／Jetpack Compose 原生应用**，围绕�
 
 ## Android 截图与验证状态
 
-开发源码采用自适应双栏、应用内浮动笔盒和可关闭 Agent 侧栏，编辑后自动保存。翻页或回书架前等待当前页保存，失败时保留草稿。以下为 Android 14／API 34 平板模拟器实际运行图，示例为自编内容；不是公开 beta.5 APK 的截图。
+开发源码采用自适应双栏、应用内浮动笔盒和可关闭 Agent 侧栏；Agent 任务可在阅读器内后台执行并显示状态，笔记编辑后自动保存。翻页或回书架前等待当前页保存，失败时保留草稿。以下为 Android 14／API 34 平板模拟器实际运行图，示例为自编内容；不是公开 beta.5 APK 的截图。
 
 ![Android 浮动笔盒与双栏阅读](guide/images/workspace/after-reading.png)
 
