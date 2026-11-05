@@ -167,6 +167,12 @@ class ReaderPageJumpActivityTest {
       composeRule.onNodeWithTag("reader_agent_status", useUnmergedTree = true).assertExists()
       val screen = if (composeRule.activity.resources.configuration.screenWidthDp >= 600) "tablet" else "phone"
       saveUiScreenshot("agent-running-$screen.png")
+      if (screen == "tablet") {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+        composeRule.onNodeWithTag("reader_menu_group_format").performScrollTo().performClick()
+        composeRule.onNodeWithTag("reader_menu_command_bold").performScrollTo().assertIsEnabled()
+        composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+      }
       composeRule.onNodeWithTag("reader_next_page").performClick()
       composeRule.waitUntil(10_000) { session.pageIndex.intValue == 1 }
       composeRule.onNodeWithTag("reader_previous_page").performClick()

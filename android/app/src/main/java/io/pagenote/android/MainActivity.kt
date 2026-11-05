@@ -4818,11 +4818,12 @@ private fun ReaderHome(
     return search.rebuild(activeProject, markdownSource, readerSession.renderer.value)
   }
 
-  val menuBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting ||
+  val editorBusy = isOpening || isCreatingProject || isRendering || isSaving || isPenSaving || isImageImporting ||
     isImportingNotes || isExportingNotes || failedPenSave != null || isOcrRunning || isSelectablePageTextLoading ||
-    readerInputLocked || isAgentRunning || isPageTutorRunning || isLoadingProjectAttachments ||
+    readerInputLocked || isPageTutorRunning || isLoadingProjectAttachments ||
     isImportingProjectAttachment || isDeletingProjectAttachment || isOfficeConverting || isOfficeSaving ||
     isExportingMergedPdf
+  val menuBusy = editorBusy || isAgentRunning
   val unavailableReason = context.getString(R.string.reader_menu_unavailable_reason)
   val busyReason = context.getString(R.string.reader_menu_busy)
 
@@ -4853,14 +4854,14 @@ private fun ReaderHome(
     onSelect = onSelect,
   )
 
-  val canFormatMarkdown = markdownEditor?.isEnabled == true && noteWritable && !menuBusy
+  val canFormatMarkdown = markdownEditor?.isEnabled == true && noteWritable && !editorBusy
   val canUndoMarkdown = remember(markdownHistoryRevision, canFormatMarkdown) {
     canFormatMarkdown && markdownHistory.canUndo
   }
   val canRedoMarkdown = remember(markdownHistoryRevision, canFormatMarkdown) {
     canFormatMarkdown && markdownHistory.canRedo
   }
-  val markdownFormatDisabledReason = commandReason(requireProject = true, requireWritable = true)
+  val markdownFormatDisabledReason = commandReason(requireProject = true, requireWritable = true, busy = editorBusy)
     ?: if (!canFormatMarkdown) context.getString(R.string.reader_menu_note_editor_required) else null
   val markdownUndoDisabledReason = markdownFormatDisabledReason
     ?: if (!markdownHistory.canUndo) context.getString(R.string.reader_menu_nothing_to_undo) else null
@@ -4879,7 +4880,7 @@ private fun ReaderHome(
 
   fun applyMarkdownHistory(undo: Boolean) {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val current = editor.markdownSourceText()
     val restored = if (undo) markdownHistory.undo(current) else markdownHistory.redo(current)
     markdownHistoryRevision++
@@ -4897,7 +4898,7 @@ private fun ReaderHome(
 
   fun applyMarkdownInlineFormatting(style: MarkdownInlineStyle) {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val edit = MarkdownInlineFormatting.wrapSelection(
       markdown = editor.markdownSourceText(),
       selectionStart = editor.markdownSelectionStart(),
@@ -4912,7 +4913,7 @@ private fun ReaderHome(
 
   fun applyMarkdownParagraphFormatting(prefix: MarkdownParagraphPrefix) {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val edit = MarkdownParagraphFormatting.prefixLines(
       markdown = editor.markdownSourceText(),
       selectionStart = editor.markdownSelectionStart(),
@@ -4926,7 +4927,7 @@ private fun ReaderHome(
 
   fun applyMarkdownCodeBlockInsertion() {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val edit = MarkdownCodeBlockInsertion.createEdit(
       markdown = editor.markdownSourceText(),
       selectionStart = editor.markdownSelectionStart(),
@@ -4940,7 +4941,7 @@ private fun ReaderHome(
 
   fun applyMarkdownFormulaInsertion() {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val edit = MarkdownFormulaInsertion.createEdit(
       markdown = editor.markdownSourceText(),
       selectionStart = editor.markdownSelectionStart(),
@@ -4953,7 +4954,7 @@ private fun ReaderHome(
 
   fun applyMarkdownTableInsertion() {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val edit = MarkdownTableInsertion.createEdit(
       markdown = editor.markdownSourceText(),
       selectionStart = editor.markdownSelectionStart(),
@@ -4966,7 +4967,7 @@ private fun ReaderHome(
 
   fun applyMarkdownLinkInsertion() {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val edit = MarkdownLinkInsertion.createEdit(
       markdown = editor.markdownSourceText(),
       selectionStart = editor.markdownSelectionStart(),
@@ -4980,7 +4981,7 @@ private fun ReaderHome(
 
   fun applyMarkdownClipboardCommand(cut: Boolean) {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val markdown = editor.markdownSourceText()
     val length = markdown.length
     val start = minOf(editor.markdownSelectionStart(), editor.markdownSelectionEnd()).coerceIn(0, length)
@@ -4999,14 +5000,14 @@ private fun ReaderHome(
 
   fun selectAllMarkdown() {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     editor.requestFocus()
     editor.setMarkdownSourceSelection(0, editor.markdownSourceText().length)
   }
 
   fun pasteMarkdownFromClipboard() {
     val editor = markdownEditor ?: return
-    if (!editor.isEnabled || !noteWritable || menuBusy) return
+    if (!editor.isEnabled || !noteWritable || editorBusy) return
     val clipItem = context.getSystemService(ClipboardManager::class.java)
       ?.primaryClip
       ?.takeIf { it.itemCount > 0 }
@@ -5194,6 +5195,7 @@ private fun ReaderHome(
     canChangePage,
     noteWritable,
     menuBusy,
+    editorBusy,
     markdownEditor,
     showBookshelf,
   ) {
@@ -5220,7 +5222,7 @@ private fun ReaderHome(
           true
         }
         ReaderShortcutAction.SAVE_NOTE -> {
-          if (activeProject == null || !noteWritable || menuBusy) return@handler false
+          if (activeProject == null || !noteWritable || editorBusy) return@handler false
           readerSession.launchSessionTask { noteSaver.saveCurrentNote() }
           true
         }
