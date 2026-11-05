@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Document Android Agent background execution and conflict handling with emulator screenshots. / 补充 Android Agent 应用内后台执行、冲突处理及模拟器截图说明。
+
 - Let Android Agent tasks run behind the reader with a compact status indicator, and protect concurrent note edits from Agent writes. / Android Agent 任务提交后在阅读器内后台执行并显示轻量状态，写入时保护并发编辑的笔记草稿。
 
 - Document the Android full-page settings with tablet and phone emulator screenshots. / 补充 Android 全页设置的平板、手机模拟器截图及操作说明。

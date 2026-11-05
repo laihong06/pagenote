@@ -56,7 +56,16 @@ internal fun ReaderWorkspaceToolbar(
       }
       if (compact) IconButton(onClick = onAgent, modifier = Modifier.testTag("reader_agent_toggle")) {
         BadgedBox(badge = {
-          if (statusLabel != null) Badge(Modifier.testTag("reader_agent_status").semantics { contentDescription = statusLabel })
+          if (statusLabel != null) {
+            val statusModifier = Modifier.testTag("reader_agent_status").semantics { contentDescription = statusLabel }
+            if (agentStatus == AgentTaskStatus.RUNNING) {
+              CircularProgressIndicator(statusModifier.size(12.dp), strokeWidth = 2.dp)
+            } else {
+              Badge(statusModifier, containerColor = if (agentStatus == AgentTaskStatus.NEEDS_ATTENTION) {
+                MaterialTheme.colorScheme.error
+              } else MaterialTheme.colorScheme.primary)
+            }
+          }
         }) {
           Icon(Icons.Outlined.AutoAwesome, stringResource(R.string.agent_task_action))
         }
