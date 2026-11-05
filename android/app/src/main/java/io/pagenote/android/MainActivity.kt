@@ -8395,7 +8395,14 @@ internal fun PdfPageViewport(
   penStyle: PenStyle = PenStyle.DEFAULT,
   modifier: Modifier = Modifier,
 ) {
-  val latestTransform by rememberUpdatedState(transform)
+  val gestureViewport = remember(page, bitmap) { mutableStateOf<PdfViewportTransform?>(null) }
+  var viewportGestureActive by remember(page, bitmap) { mutableStateOf(false) }
+  val latestPage by rememberUpdatedState(page)
+  val latestBitmap by rememberUpdatedState(bitmap)
+  val latestTransform by rememberUpdatedState(gestureViewport.value ?: transform)
+  LaunchedEffect(transform) {
+    if (!viewportGestureActive) gestureViewport.value = null
+  }
   val latestOnTransformChanged by rememberUpdatedState(onTransformChanged)
   val latestOnTextSelectionChanged by rememberUpdatedState(onTextSelectionChanged)
   val latestOnSelectionChanged by rememberUpdatedState(onSelectionChanged)
@@ -8430,13 +8437,18 @@ internal fun PdfPageViewport(
           pageHeightPx = contentHeight.toPx(),
         )
       }
-      LaunchedEffect(page, bounds) { onBoundsChanged(bounds) }
+      val latestBounds by rememberUpdatedState(bounds)
+      LaunchedEffect(page, bounds) {
+        gestureViewport.value = null
+        onBoundsChanged(bounds)
+      }
 
       val pageLayerModifier = Modifier.width(contentWidth).height(contentHeight).graphicsLayer {
-        scaleX = transform.scale
-        scaleY = transform.scale
-        translationX = transform.translationX
-        translationY = transform.translationY
+        val rendered = gestureViewport.value ?: transform
+        scaleX = rendered.scale
+        scaleY = rendered.scale
+        translationX = rendered.translationX
+        translationY = rendered.translationY
       }
       Box(
         modifier = Modifier.fillMaxSize().pointerInput(
@@ -8559,53 +8571,66 @@ internal fun PdfPageViewport(
             } else if (gesturesEnabled || pageSwipesEnabled) {
               var swipeHandled = false
               var multiTouchSeen = false
-              do {
-                val event = awaitPointerEvent()
-                val touchChanges = event.changes.filter {
-                  it.type == PointerType.Touch && it.pressed && it.previousPressed
-                }
-                if (touchChanges.size >= 2) multiTouchSeen = true
-                val pointers = touchChanges.map { change ->
-                  PdfViewportPointer(change.id.value, change.position.x, change.position.y)
-                }
-                val previousPointers = touchChanges.map { change ->
-                  PdfViewportPointer(change.id.value, change.previousPosition.x, change.previousPosition.y)
-                }
-                val gesture = PdfViewportTransform.calculateTwoPointerGesture(previousPointers, pointers)
-                if (gesture != null) {
-                  latestOnTransformChanged(PdfViewportTransform.applyGesture(
-                    current = latestTransform,
-                    viewportWidthPx = bounds.viewportWidthPx,
-                    viewportHeightPx = bounds.viewportHeightPx,
-                    pageWidthPx = bounds.pageWidthPx,
-                    pageHeightPx = bounds.pageHeightPx,
-                    centroidX = gesture.centroidX,
-                    centroidY = gesture.centroidY,
-                    zoomChange = gesture.zoomChange,
-                    panX = gesture.panX,
-                    panY = gesture.panY,
-                  ))
-                  touchChanges.forEach { it.consume() }
-                }
-                if (!swipeHandled && !multiTouchSeen && pageSwipesEnabled && down.type == PointerType.Touch) {
-                  val change = touchChanges.firstOrNull { it.id == down.id }
-                  if (change != null) {
-                    val direction = PdfPageSwipePolicy.direction(
-                      deltaX = change.position.x - down.position.x,
-                      deltaY = change.position.y - down.position.y,
-                      density = density.density,
-                    )
-                    if (direction != null) {
-                      change.consume()
-                      inkCanvasView?.cancelActiveGesture()
-                      latestOnPageSwipe(direction)
-                      swipeHandled = true
-                    }
+              var gestureTransform = latestTransform
+              try {
+                do {
+                  val event = awaitPointerEvent()
+                  val touchChanges = event.changes.filter {
+                    it.type == PointerType.Touch && it.pressed && it.previousPressed
                   }
-                } else if (swipeHandled) {
-                  event.changes.forEach { if (it.pressed) it.consume() }
+                  if (touchChanges.size >= 2 && !multiTouchSeen) {
+                    multiTouchSeen = true
+                    viewportGestureActive = true
+                    inkCanvasView?.cancelActiveGesture()
+                  }
+                  val pointers = touchChanges.map { change ->
+                    PdfViewportPointer(change.id.value, change.position.x, change.position.y)
+                  }
+                  val previousPointers = touchChanges.map { change ->
+                    PdfViewportPointer(change.id.value, change.previousPosition.x, change.previousPosition.y)
+                  }
+                  val gesture = PdfViewportTransform.calculateTwoPointerGesture(previousPointers, pointers)
+                  if (gesture != null) {
+                    gestureTransform = PdfViewportTransform.applyGesture(
+                      current = gestureTransform,
+                      viewportWidthPx = bounds.viewportWidthPx,
+                      viewportHeightPx = bounds.viewportHeightPx,
+                      pageWidthPx = bounds.pageWidthPx,
+                      pageHeightPx = bounds.pageHeightPx,
+                      centroidX = gesture.centroidX,
+                      centroidY = gesture.centroidY,
+                      zoomChange = gesture.zoomChange,
+                      panX = gesture.panX,
+                      panY = gesture.panY,
+                    )
+                    gestureViewport.value = gestureTransform
+                    touchChanges.forEach { it.consume() }
+                  }
+                  if (!swipeHandled && !multiTouchSeen && pageSwipesEnabled && down.type == PointerType.Touch) {
+                    val change = touchChanges.firstOrNull { it.id == down.id }
+                    if (change != null) {
+                      val direction = PdfPageSwipePolicy.direction(
+                        deltaX = change.position.x - down.position.x,
+                        deltaY = change.position.y - down.position.y,
+                        density = density.density,
+                      )
+                      if (direction != null) {
+                        change.consume()
+                        inkCanvasView?.cancelActiveGesture()
+                        latestOnPageSwipe(direction)
+                        swipeHandled = true
+                      }
+                    }
+                  } else if (swipeHandled) {
+                    event.changes.forEach { if (it.pressed) it.consume() }
+                  }
+                } while (event.changes.any { it.pressed })
+              } finally {
+                viewportGestureActive = false
+                if (multiTouchSeen && latestPage == page && latestBitmap === bitmap && latestBounds == bounds) {
+                  latestOnTransformChanged(gestureTransform)
                 }
-              } while (event.changes.any { it.pressed })
+              }
             } else {
               do {
                 val event = awaitPointerEvent()
@@ -8644,12 +8669,13 @@ internal fun PdfPageViewport(
             view.penColor = penStyle.color
             view.penWidth = penStyle.width
             view.inputEnabled = inputEnabled
+            val rendered = gestureViewport.value ?: transform
             view.pageTransform = PenCanvasPageTransform(
               pageWidthPx = bounds.pageWidthPx,
               pageHeightPx = bounds.pageHeightPx,
-              scale = transform.scale,
-              translationX = transform.translationX,
-              translationY = transform.translationY,
+              scale = rendered.scale,
+              translationX = rendered.translationX,
+              translationY = rendered.translationY,
               allowOutsidePage = allowInkOutsidePage,
             )
             view.onStrokeAdded = onStrokeAdded

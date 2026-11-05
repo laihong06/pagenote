@@ -4,13 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 
 /**
- * View-pixel raster of committed strokes — the Kotlin counterpart of the
- * page handle in the Newskyer PaintView kernel. Committed ink renders once
- * into this layer; the owner draws only live ink on top per frame.
- * Rebuilds are lazy: they happen when the view size, the geometry key, or
- * the committed list changes, and skip strokes outside the viewport.
+ * Committed ink uses document-space hardware display lists, so viewport
+ * transforms do not rerasterize samples. Software canvases retain the
+ * view-pixel bitmap fallback used by exports and pixel verification.
  */
 class PenStrokeCache {
+  private val displayList = PenStrokeDisplayList()
   private var bitmap: Bitmap? = null
   private var rasterCanvas: Canvas? = null
   private var committed: List<PenStroke> = emptyList()
@@ -36,6 +35,10 @@ class PenStrokeCache {
 
   fun drawInto(target: Canvas, geometry: PenCanvasGeometry, widthPx: Int, heightPx: Int) {
     if (widthPx <= 0 || heightPx <= 0 || !geometry.isValid) return
+    if (target.isHardwareAccelerated) {
+      displayList.draw(target, committed, geometry)
+      return
+    }
     val cacheKey = CacheKey.from(geometry)
     val current = bitmap
     if (current == null || current.width != widthPx || current.height != heightPx ||
@@ -47,6 +50,7 @@ class PenStrokeCache {
   }
 
   fun clear() {
+    displayList.clear()
     bitmap?.recycle()
     bitmap = null
     rasterCanvas = null

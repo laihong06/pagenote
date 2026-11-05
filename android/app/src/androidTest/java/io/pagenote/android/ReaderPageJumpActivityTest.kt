@@ -240,6 +240,62 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
+  fun rapidPinchWithInkKeepsTheExpectedZoomAndDoesNotAddStrokes() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes, createWorkspacePdf())
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val ink = (0 until 60).map { line ->
+      PenStroke("pen", if (line % 2 == 0) "#185abd" else "#dc3545", 3.0,
+        (0..30).map { point -> PenPoint(100f + point * 24f, 500f + line * 10f + kotlin.math.sin(point.toFloat()) * 4f, 0.7f) })
+    }
+    composeRule.runOnUiThread {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penWritable.value = true
+      session.penStrokes.value = ink
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    if (composeRule.onAllNodesWithTag("reader_menu_collapse").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+    }
+    saveUiScreenshot("pinch-start.png")
+    composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+      val radius = width * 0.12f
+      down(0, center.copy(x = center.x - radius))
+      down(1, center.copy(x = center.x + radius))
+      repeat(12) { i ->
+        val nextRadius = radius * (1f + (i + 1) / 12f)
+        moveTo(0, center.copy(x = center.x - nextRadius), delayMillis = 1)
+        moveTo(1, center.copy(x = center.x + nextRadius), delayMillis = 1)
+      }
+      up(0)
+      up(1)
+    }
+    composeRule.waitForIdle()
+    saveUiScreenshot("pinch-zoomed.png")
+    assertEquals(2f, session.viewportBookmark.value.scale, 0.03f)
+    assertEquals(ink, session.penStrokes.value)
+    assertEquals(0, session.pageIndex.intValue)
+    composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+      val radius = width * 0.24f
+      down(0, center.copy(x = center.x - radius))
+      down(1, center.copy(x = center.x + radius))
+      repeat(12) { i ->
+        val nextRadius = radius * (1f - (i + 1) / 24f)
+        moveTo(0, center.copy(x = center.x - nextRadius), delayMillis = 1)
+        moveTo(1, center.copy(x = center.x + nextRadius), delayMillis = 1)
+      }
+      up(0)
+      up(1)
+    }
+    composeRule.waitForIdle()
+    assertEquals(1f, session.viewportBookmark.value.scale, 0.03f)
+    assertEquals(ink, session.penStrokes.value)
+  }
+
+  @Test
   fun nativePdfShowsNarrowRailAndRealThumbnailDrawer() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
