@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Document the Android full-page settings with tablet and phone emulator screenshots. / 补充 Android 全页设置的平板、手机模拟器截图及操作说明。
+
 - Move Android settings to a full page with a tablet category/detail layout and phone list/detail navigation; keep drafts across categories and activity recreation. Agent model and prompt settings now open within the settings page. / Android 设置改为完整页面：平板使用分类与详情双栏，手机使用列表与详情层级；跨分类和页面重建时保留设置草稿，Agent 模型及提示词配置也在设置页内打开。
 
 - Route missing Agent model configuration through the settings page and restore the current task on return. / Agent 任务缺少模型配置时进入设置页，返回后恢复当前任务。
