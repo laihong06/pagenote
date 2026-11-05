@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -70,6 +71,44 @@ class ReaderPageJumpActivityTest {
       treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
     )
     Unit
+  }
+
+  @Test
+  fun missingAgentModelOpensSettingsPageAndReturnsToTheSameTask() {
+    org.junit.Assume.assumeTrue(composeRule.activity.resources.configuration.screenWidthDp >= 600)
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    attachProjectToReader(project, notes)
+    val store = agentModelSettingsStore(composeRule.activity.applicationContext)
+    val current = store.loadForEditing()
+    org.junit.Assume.assumeFalse("requires a test profile without an API key", current.hasApiKey)
+    composeRule.onNodeWithTag("reader_agent_toggle").performClick()
+    composeRule.onNodeWithTag("agent_task_instruction").performTextInput("Explain the current page")
+    composeRule.onNodeWithTag("agent_task_run").performClick()
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("save_agent_model_settings").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("reader_settings_page").assertIsDisplayed()
+    assertTrue(composeRule.onAllNodesWithTag("agent_task_drawer").fetchSemanticsNodes().isEmpty())
+    composeRule.onNodeWithTag("settings_subpage_back").performClick()
+    composeRule.onNodeWithTag("reader_settings_cancel").performClick()
+    composeRule.onNodeWithTag("agent_task_drawer").assertIsDisplayed()
+    composeRule.onNodeWithTag("agent_task_instruction").assertTextContains("Explain the current page")
+  }
+
+  @Test
+  fun settingsReturnToTheSameReaderPageAndDraft() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    editNativeNote("First page note", "Draft before opening settings")
+    composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    composeRule.onNodeWithTag("reader_menu_group_settings").performScrollTo().performClick()
+    composeRule.onNodeWithTag("reader_menu_command_settings_action").performScrollTo().performClick()
+    composeRule.onNodeWithTag("reader_settings_page").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_settings_cancel").performClick()
+    composeRule.waitUntil(10_000) { composeRule.onAllNodesWithTag("reader_page_status").fetchSemanticsNodes().isNotEmpty() }
+    assertEquals(0, session.pageIndex.intValue)
+    assertEquals("Draft before opening settings", session.noteDraft.value)
+    assertTrue(composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isEmpty())
   }
 
   @Test

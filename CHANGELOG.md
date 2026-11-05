@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Move Android settings to a full page with a tablet category/detail layout and phone list/detail navigation; keep drafts across categories and activity recreation. Agent model and prompt settings now open within the settings page. / Android 设置改为完整页面：平板使用分类与详情双栏，手机使用列表与详情层级；跨分类和页面重建时保留设置草稿，Agent 模型及提示词配置也在设置页内打开。
+
+- Route missing Agent model configuration through the settings page and restore the current task on return. / Agent 任务缺少模型配置时进入设置页，返回后恢复当前任务。
+
 - Organize Android reader commands into expandable groups and split reader settings into focused categories while keeping edits together until saved. / Android 阅读菜单改为按组展开，设置分为通用与外观、阅读与手写、识别与录音、搜索和 Agent，切换分类保留待保存的修改。
 
 - Fix the Android bookshelf header on narrow screens so its search field remains usable and book covers stay visible. / 修复 Android 窄屏书架顶部搜索框被挤没、内容区域被过度占用的问题。

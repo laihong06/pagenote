@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +40,8 @@ import kotlinx.coroutines.withContext
 internal fun AgentPromptSettingsDialog(
   store: AgentPromptSettingsStore,
   onDismiss: () -> Unit,
+  embedded: Boolean = false,
+  onBusyChange: (Boolean) -> Unit = {},
 ) {
   var selectedId by rememberSaveable { mutableStateOf("system") }
   var isModuleMenuExpanded by remember { mutableStateOf(false) }
@@ -78,7 +79,8 @@ internal fun AgentPromptSettingsDialog(
   val selectedTitle = stringResource(selectedModule.titleResource)
   val currentText = drafts[selectedId].orEmpty()
 
-  AlertDialog(
+  SettingsFormShell(
+    embedded = embedded,
     onDismissRequest = { if (!isSaving) onDismiss() },
     title = {
       Text(stringResource(R.string.agent_prompt_settings_title), modifier = Modifier.testTag("agent_prompt_title"))
@@ -161,6 +163,7 @@ internal fun AgentPromptSettingsDialog(
           onClick = {
             scope.launch {
               isSaving = true
+              onBusyChange(true)
               error = null
               status = null
               try {
@@ -174,6 +177,7 @@ internal fun AgentPromptSettingsDialog(
                 error = failure.message?.takeIf(String::isNotBlank) ?: genericError
               } finally {
                 isSaving = false
+                onBusyChange(false)
               }
             }
           },
@@ -184,6 +188,7 @@ internal fun AgentPromptSettingsDialog(
           onClick = {
             scope.launch {
               isSaving = true
+              onBusyChange(true)
               error = null
               status = null
               try {
@@ -197,6 +202,7 @@ internal fun AgentPromptSettingsDialog(
                 else failure.message?.takeIf(String::isNotBlank) ?: genericError
               } finally {
                 isSaving = false
+                onBusyChange(false)
               }
             }
           },

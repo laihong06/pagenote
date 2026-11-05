@@ -1,33 +1,40 @@
 package io.pagenote.android
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +44,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import kotlinx.coroutines.CancellationException
@@ -48,6 +56,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 internal enum class ReaderThemeMode { LIGHT, DARK, PAPER }
+internal enum class SettingsAgentPage { MODEL, PROMPTS }
 
 private enum class ReaderSettingsCategory(val label: Int, val tag: String) {
   APPEARANCE(R.string.settings_category_appearance, "appearance"),
@@ -55,6 +64,14 @@ private enum class ReaderSettingsCategory(val label: Int, val tag: String) {
   RECOGNITION(R.string.settings_category_recognition, "recognition"),
   SEARCH(R.string.settings_category_search, "search"),
   AGENT(R.string.settings_category_agent, "agent"),
+}
+
+private fun ReaderSettingsCategory.icon(): ImageVector = when (this) {
+  ReaderSettingsCategory.APPEARANCE -> Icons.Outlined.Settings
+  ReaderSettingsCategory.READING -> Icons.AutoMirrored.Outlined.MenuBook
+  ReaderSettingsCategory.RECOGNITION -> Icons.Outlined.Mic
+  ReaderSettingsCategory.SEARCH -> Icons.Outlined.Search
+  ReaderSettingsCategory.AGENT -> Icons.Outlined.AutoAwesome
 }
 
 internal sealed interface ReaderSettingsLoadState {
@@ -172,9 +189,8 @@ internal fun ReaderSettingsLoadScreen(
   }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ReaderSettingsDialog(
+internal fun ReaderSettingsScreen(
   settings: ReaderSettings,
   onDismiss: () -> Unit,
   onConfigureAgent: () -> Unit,
@@ -185,556 +201,606 @@ internal fun ReaderSettingsDialog(
   quotaUsageMb: Long = 0L,
   libraryDirectory: String? = null,
   onChangeLibrary: (() -> Unit)? = null,
+  agentPage: SettingsAgentPage? = null,
+  agentBusy: Boolean = false,
+  onCloseAgentPage: () -> Unit = {},
+  agentPageContent: @Composable (SettingsAgentPage) -> Unit = {},
 ) {
-  var draft by remember(settings) { mutableStateOf(settings) }
+  var draft by rememberSaveable(settings) { mutableStateOf(settings) }
   var isSaving by remember { mutableStateOf(false) }
   var saveError by remember { mutableStateOf<String?>(null) }
   var isRebuildingIndex by remember { mutableStateOf(false) }
   var rebuildStatus by remember { mutableStateOf<String?>(null) }
-  var category by remember { mutableStateOf(ReaderSettingsCategory.APPEARANCE) }
-  val categoryScrollState = remember(category) { ScrollState(0) }
+  var category by rememberSaveable { mutableStateOf(if (agentPage != null) ReaderSettingsCategory.AGENT else ReaderSettingsCategory.APPEARANCE) }
+  val categoryScrollState = remember(category, agentPage) { ScrollState(0) }
   val scope = rememberCoroutineScope()
   val genericSaveError = stringResource(R.string.settings_save_failed)
   val inkOutsidePageLabel = stringResource(R.string.ink_outside_page_title)
   val rebuildUnavailable = stringResource(R.string.search_index_rebuild_unavailable)
   val rebuildGenericError = stringResource(R.string.settings_save_failed)
 
-  AlertDialog(
-    onDismissRequest = { if (!isSaving) onDismiss() },
-    title = { Text(stringResource(R.string.reader_settings_title)) },
-    text = {
-      Column(
-        modifier = Modifier.heightIn(max = 560.dp),
+  var detailOpen by rememberSaveable { mutableStateOf(agentPage != null) }
+
+  BoxWithConstraints(
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("reader_settings_page"),
+  ) {
+    val wide = maxWidth >= 600.dp
+    val back: () -> Unit = {
+      if (!isSaving && !agentBusy) {
+        when {
+          agentPage != null -> onCloseAgentPage()
+          !wide && detailOpen -> detailOpen = false
+          else -> onDismiss()
+        }
+      }
+    }
+    BackHandler(enabled = true, onBack = back)
+    Column(Modifier.fillMaxSize()) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
       ) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        IconButton(
+          onClick = back,
+          enabled = !isSaving && !agentBusy,
+          modifier = Modifier.testTag(when {
+            agentPage != null -> "settings_subpage_back"
+            !wide && detailOpen -> "settings_category_back"
+            else -> "reader_settings_cancel"
+          }),
+        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_back)) }
+        Text(
+          stringResource(when {
+            !wide && agentPage == SettingsAgentPage.MODEL -> R.string.agent_model_settings_title
+            !wide && agentPage == SettingsAgentPage.PROMPTS -> R.string.agent_prompt_settings_title
+            !wide && detailOpen -> category.label
+            else -> R.string.reader_settings_title
+          }),
+          modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+          style = MaterialTheme.typography.titleLarge,
+        )
+        if (agentPage == null) FilledTonalButton(
+          modifier = Modifier.testTag("reader_settings_save"),
+          enabled = !isSaving,
+          onClick = {
+            scope.launch {
+              isSaving = true
+              saveError = null
+              try {
+                ReaderSettingsPolicy.validate(draft)
+                onSave(draft)
+                onDismiss()
+              } catch (cancelled: CancellationException) {
+                throw cancelled
+              } catch (error: Exception) {
+                saveError = if (error is IllegalArgumentException) genericSaveError
+                else error.message?.takeIf(String::isNotBlank) ?: genericSaveError
+              } finally {
+                isSaving = false
+              }
+            }
+          },
+        ) { Text(stringResource(if (isSaving) R.string.saving else R.string.save)) }
+      }
+      saveError?.let {
+        Text(it, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).testTag("settings_save_error"),
+          color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+      }
+      HorizontalDivider()
+      val categoryList: @Composable (Modifier) -> Unit = { modifier ->
+        Column(
+          modifier = modifier.verticalScroll(rememberScrollState()).padding(12.dp).testTag("settings_category_list"),
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
           ReaderSettingsCategory.entries.forEach { item ->
-            FilterChip(
-              selected = category == item,
-              onClick = { category = item },
-              enabled = !isSaving,
+            NavigationDrawerItem(
+              selected = wide && category == item,
+              onClick = {
+                if (!isSaving && !agentBusy) {
+                  if (agentPage != null) onCloseAgentPage()
+                  category = item
+                  detailOpen = true
+                }
+              },
               label = { Text(stringResource(item.label)) },
-              modifier = Modifier.testTag("settings_category_${item.tag}"),
+              icon = { Icon(item.icon(), contentDescription = null) },
+              modifier = Modifier.fillMaxWidth().testTag("settings_category_${item.tag}"),
             )
           }
         }
+      }
+      val categoryContent: @Composable (Modifier) -> Unit = { modifier ->
         Column(
-          modifier = Modifier.weight(1f, fill = false).verticalScroll(categoryScrollState),
+          modifier = modifier.verticalScroll(categoryScrollState)
+            .padding(horizontal = 24.dp, vertical = 20.dp).testTag("settings_detail"),
           verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          if (category == ReaderSettingsCategory.APPEARANCE) {
-            if (onChangeLibrary != null) {
-              Text(stringResource(R.string.bookshelf_folder), style = MaterialTheme.typography.titleSmall)
-              Text(libraryDirectory ?: stringResource(R.string.bookshelf_unbound), maxLines = 2)
-              TextButton(onClick = onChangeLibrary, enabled = !isSaving, modifier = Modifier.testTag("settings_library_folder")) {
-                Text(stringResource(if (libraryDirectory == null) R.string.bookshelf_bind else R.string.bookshelf_change))
+          if (agentPage != null) {
+            agentPageContent(agentPage)
+          } else {
+            if (wide) Text(stringResource(category.label), style = MaterialTheme.typography.headlineSmall)
+            if (category == ReaderSettingsCategory.APPEARANCE) {
+              if (onChangeLibrary != null) {
+                Text(stringResource(R.string.bookshelf_folder), style = MaterialTheme.typography.titleSmall)
+                Text(libraryDirectory ?: stringResource(R.string.bookshelf_unbound), maxLines = 2)
+                TextButton(onClick = onChangeLibrary, enabled = !isSaving, modifier = Modifier.testTag("settings_library_folder")) {
+                  Text(stringResource(if (libraryDirectory == null) R.string.bookshelf_bind else R.string.bookshelf_change))
+                }
               }
-            }
-            Text(stringResource(R.string.reader_theme), style = MaterialTheme.typography.titleSmall)
-            listOf(
-              "system" to R.string.theme_system,
-              "light" to R.string.theme_light,
-              "dark" to R.string.theme_dark,
-              "paper" to R.string.theme_paper,
-            ).forEach { (value, label) ->
-              SettingsChoice(
-                label = stringResource(label),
-                selected = draft.theme == value,
-                enabled = !isSaving,
-                onSelect = { draft = draft.copy(theme = value) },
-              )
-            }
-
-            Text(
-              stringResource(R.string.markdown_theme_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            listOf(
-              "classic" to R.string.markdown_theme_classic,
-              "paper" to R.string.markdown_theme_paper,
-            ).forEach { (value, label) ->
-              SettingsChoice(
-                label = stringResource(label),
-                selected = draft.markdownTheme == value,
-                enabled = !isSaving,
-                testTag = "markdown_theme_$value",
-                onSelect = { draft = draft.copy(markdownTheme = value) },
-              )
-            }
-
-            Text(
-              stringResource(R.string.note_background_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            listOf(
-              "plain" to R.string.note_background_plain,
-              "four-line" to R.string.note_background_four_line,
-              "grid" to R.string.note_background_grid,
-              "dot" to R.string.note_background_dot,
-              "restricted-margin" to R.string.note_background_restricted_margin,
-            ).forEach { (value, label) ->
-              SettingsChoice(
-                label = stringResource(label),
-                selected = draft.noteBackground == value,
-                enabled = !isSaving,
-                testTag = "note_background_$value",
-                onSelect = { draft = draft.copy(noteBackground = value) },
-              )
-            }
-
-            Text(
-              stringResource(R.string.reader_language),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            listOf(
-              "system" to R.string.language_system,
-              "zh-CN" to R.string.language_chinese,
-              "en-US" to R.string.language_english,
-            ).forEach { (value, label) ->
-              SettingsChoice(
-                label = stringResource(label),
-                selected = draft.language == value,
-                enabled = !isSaving,
-                onSelect = { draft = draft.copy(language = value) },
-              )
-            }
-
-          }
-          if (category == ReaderSettingsCategory.RECOGNITION) {
-            Text(
-              stringResource(R.string.ocr_settings_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-              stringResource(R.string.ocr_language_summary),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            listOf(
-              "system" to R.string.language_system,
-              "zh" to R.string.ocr_language_chinese,
-              "en" to R.string.ocr_language_english,
-            ).forEach { (value, label) ->
-              SettingsChoice(
-                label = stringResource(label),
-                selected = draft.ocrLanguage == value,
-                enabled = !isSaving,
-                testTag = "ocr_language_$value",
-                onSelect = { draft = draft.copy(ocrLanguage = value) },
-              )
-            }
-            Text(
-              stringResource(R.string.latex_ocr_model_title),
-              modifier = Modifier.padding(top = 4.dp),
-              style = MaterialTheme.typography.bodyMedium,
-            )
-            io.pagenote.feature.ocr.LatexModelCatalog.ENTRIES.forEach { entry ->
-              SettingsChoice(
-                label = "${entry.id} (${entry.license})",
-                selected = draft.latexOcrModel == entry.id,
-                enabled = !isSaving,
-                testTag = "latex_ocr_model_${entry.id}",
-                onSelect = { draft = draft.copy(latexOcrModel = entry.id) },
-              )
-            }
-
-          }
-          if (category == ReaderSettingsCategory.READING) {
-            Text(
-              stringResource(R.string.reader_split_ratio),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-              stringResource(R.string.reader_split_summary, draft.leftPercent, 100 - draft.leftPercent),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Slider(
-              value = draft.leftPercent.toFloat(),
-              onValueChange = { draft = draft.copy(leftPercent = it.roundToInt()) },
-              valueRange = 20f..80f,
-              enabled = !isSaving,
-              modifier = Modifier.fillMaxWidth(),
-            )
-
-            Text(
-              stringResource(R.string.prepare_ahead_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-              stringResource(R.string.prepare_ahead_summary, draft.prepareAheadPages),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Slider(
-              value = draft.prepareAheadPages.toFloat(),
-              onValueChange = { draft = draft.copy(prepareAheadPages = it.roundToInt()) },
-              valueRange = 0f..10f,
-              steps = 9,
-              enabled = !isSaving,
-              modifier = Modifier.fillMaxWidth().testTag("prepare_ahead_slider"),
-            )
-
-            Row(
-              modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(stringResource(R.string.note_animation_title))
-                Text(
-                  stringResource(R.string.note_animation_description),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              Text(stringResource(R.string.reader_theme), style = MaterialTheme.typography.titleSmall)
+              listOf(
+                "system" to R.string.theme_system,
+                "light" to R.string.theme_light,
+                "dark" to R.string.theme_dark,
+                "paper" to R.string.theme_paper,
+              ).forEach { (value, label) ->
+                SettingsChoice(
+                  label = stringResource(label),
+                  selected = draft.theme == value,
+                  enabled = !isSaving,
+                  onSelect = { draft = draft.copy(theme = value) },
                 )
               }
-              Switch(
-                checked = draft.noteAnimation,
-                onCheckedChange = { draft = draft.copy(noteAnimation = it) },
-                enabled = !isSaving,
-              )
-            }
 
-            Row(
-              modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(stringResource(R.string.ink_outside_page_title))
-                Text(
-                  stringResource(R.string.ink_outside_page_description),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+              Text(
+                stringResource(R.string.markdown_theme_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              listOf(
+                "classic" to R.string.markdown_theme_classic,
+                "paper" to R.string.markdown_theme_paper,
+              ).forEach { (value, label) ->
+                SettingsChoice(
+                  label = stringResource(label),
+                  selected = draft.markdownTheme == value,
+                  enabled = !isSaving,
+                  testTag = "markdown_theme_$value",
+                  onSelect = { draft = draft.copy(markdownTheme = value) },
                 )
               }
-              Switch(
-                checked = draft.allowInkOutsidePage,
-                onCheckedChange = { draft = draft.copy(allowInkOutsidePage = it) },
+
+              Text(
+                stringResource(R.string.note_background_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              listOf(
+                "plain" to R.string.note_background_plain,
+                "four-line" to R.string.note_background_four_line,
+                "grid" to R.string.note_background_grid,
+                "dot" to R.string.note_background_dot,
+                "restricted-margin" to R.string.note_background_restricted_margin,
+              ).forEach { (value, label) ->
+                SettingsChoice(
+                  label = stringResource(label),
+                  selected = draft.noteBackground == value,
+                  enabled = !isSaving,
+                  testTag = "note_background_$value",
+                  onSelect = { draft = draft.copy(noteBackground = value) },
+                )
+              }
+
+              Text(
+                stringResource(R.string.reader_language),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              listOf(
+                "system" to R.string.language_system,
+                "zh-CN" to R.string.language_chinese,
+                "en-US" to R.string.language_english,
+              ).forEach { (value, label) ->
+                SettingsChoice(
+                  label = stringResource(label),
+                  selected = draft.language == value,
+                  enabled = !isSaving,
+                  onSelect = { draft = draft.copy(language = value) },
+                )
+              }
+
+            }
+            if (category == ReaderSettingsCategory.RECOGNITION) {
+              Text(
+                stringResource(R.string.ocr_settings_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                stringResource(R.string.ocr_language_summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              listOf(
+                "system" to R.string.language_system,
+                "zh" to R.string.ocr_language_chinese,
+                "en" to R.string.ocr_language_english,
+              ).forEach { (value, label) ->
+                SettingsChoice(
+                  label = stringResource(label),
+                  selected = draft.ocrLanguage == value,
+                  enabled = !isSaving,
+                  testTag = "ocr_language_$value",
+                  onSelect = { draft = draft.copy(ocrLanguage = value) },
+                )
+              }
+              Text(
+                stringResource(R.string.latex_ocr_model_title),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+              )
+              io.pagenote.feature.ocr.LatexModelCatalog.ENTRIES.forEach { entry ->
+                SettingsChoice(
+                  label = "${entry.id} (${entry.license})",
+                  selected = draft.latexOcrModel == entry.id,
+                  enabled = !isSaving,
+                  testTag = "latex_ocr_model_${entry.id}",
+                  onSelect = { draft = draft.copy(latexOcrModel = entry.id) },
+                )
+              }
+
+            }
+            if (category == ReaderSettingsCategory.READING) {
+              Text(
+                stringResource(R.string.reader_split_ratio),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                stringResource(R.string.reader_split_summary, draft.leftPercent, 100 - draft.leftPercent),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              Slider(
+                value = draft.leftPercent.toFloat(),
+                onValueChange = { draft = draft.copy(leftPercent = it.roundToInt()) },
+                valueRange = 20f..80f,
                 enabled = !isSaving,
-                modifier = Modifier
-                  .testTag("allow_ink_outside_page_switch")
-                  .semantics {
-                    contentDescription = inkOutsidePageLabel
+                modifier = Modifier.fillMaxWidth(),
+              )
+
+              Text(
+                stringResource(R.string.prepare_ahead_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                stringResource(R.string.prepare_ahead_summary, draft.prepareAheadPages),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              Slider(
+                value = draft.prepareAheadPages.toFloat(),
+                onValueChange = { draft = draft.copy(prepareAheadPages = it.roundToInt()) },
+                valueRange = 0f..10f,
+                steps = 9,
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth().testTag("prepare_ahead_slider"),
+              )
+
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                  Text(stringResource(R.string.note_animation_title))
+                  Text(
+                    stringResource(R.string.note_animation_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+                Switch(
+                  checked = draft.noteAnimation,
+                  onCheckedChange = { draft = draft.copy(noteAnimation = it) },
+                  enabled = !isSaving,
+                )
+              }
+
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                  Text(stringResource(R.string.ink_outside_page_title))
+                  Text(
+                    stringResource(R.string.ink_outside_page_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+                Switch(
+                  checked = draft.allowInkOutsidePage,
+                  onCheckedChange = { draft = draft.copy(allowInkOutsidePage = it) },
+                  enabled = !isSaving,
+                  modifier = Modifier
+                    .testTag("allow_ink_outside_page_switch")
+                    .semantics {
+                      contentDescription = inkOutsidePageLabel
+                    },
+                )
+              }
+
+            }
+            if (category == ReaderSettingsCategory.SEARCH) {
+              // 搜索索引范围 / 重建（移植批次 7）。
+              Text(
+                stringResource(R.string.search_index_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                stringResource(R.string.search_index_summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              listOf(
+                R.string.search_kind_source to "search_index_source",
+                R.string.search_kind_note to "search_index_notes",
+                R.string.search_kind_ocr to "search_index_ocr",
+                R.string.search_kind_transcript to "search_index_transcripts",
+              ).forEach { (labelRes, tag) ->
+                val checked = when (tag) {
+                  "search_index_source" -> draft.searchIndexSource
+                  "search_index_notes" -> draft.searchIndexNotes
+                  "search_index_ocr" -> draft.searchIndexOcr
+                  else -> draft.searchIndexTranscripts
+                }
+                SearchIndexScopeCheck(
+                  label = stringResource(labelRes),
+                  checked = checked,
+                  enabled = !isSaving,
+                  testTag = tag,
+                  onCheckedChange = { next ->
+                    draft = when (tag) {
+                      "search_index_source" -> draft.copy(searchIndexSource = next)
+                      "search_index_notes" -> draft.copy(searchIndexNotes = next)
+                      "search_index_ocr" -> draft.copy(searchIndexOcr = next)
+                      else -> draft.copy(searchIndexTranscripts = next)
+                    }
                   },
-              )
-            }
-
-          }
-          if (category == ReaderSettingsCategory.SEARCH) {
-            // 搜索索引范围 / 重建（移植批次 7）。
-            Text(
-              stringResource(R.string.search_index_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-              stringResource(R.string.search_index_summary),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            listOf(
-              R.string.search_kind_source to "search_index_source",
-              R.string.search_kind_note to "search_index_notes",
-              R.string.search_kind_ocr to "search_index_ocr",
-              R.string.search_kind_transcript to "search_index_transcripts",
-            ).forEach { (labelRes, tag) ->
-              val checked = when (tag) {
-                "search_index_source" -> draft.searchIndexSource
-                "search_index_notes" -> draft.searchIndexNotes
-                "search_index_ocr" -> draft.searchIndexOcr
-                else -> draft.searchIndexTranscripts
+                )
               }
-              SearchIndexScopeCheck(
-                label = stringResource(labelRes),
-                checked = checked,
-                enabled = !isSaving,
-                testTag = tag,
-                onCheckedChange = { next ->
-                  draft = when (tag) {
-                    "search_index_source" -> draft.copy(searchIndexSource = next)
-                    "search_index_notes" -> draft.copy(searchIndexNotes = next)
-                    "search_index_ocr" -> draft.copy(searchIndexOcr = next)
-                    else -> draft.copy(searchIndexTranscripts = next)
+              if (onRebuildIndex != null) {
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Text(
+                    text = rebuildStatus ?: stringResource(R.string.search_index_rebuild_summary),
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                  TextButton(
+                    modifier = Modifier.testTag("search_index_rebuild"),
+                    enabled = !isSaving && !isRebuildingIndex,
+                    onClick = {
+                      scope.launch {
+                        isRebuildingIndex = true
+                        rebuildStatus = null
+                        try {
+                          rebuildStatus = onRebuildIndex() ?: rebuildUnavailable
+                        } catch (cancelled: CancellationException) {
+                          throw cancelled
+                        } catch (error: Exception) {
+                          rebuildStatus = error.message?.takeIf(String::isNotBlank) ?: rebuildGenericError
+                        } finally {
+                          isRebuildingIndex = false
+                        }
+                      }
+                    },
+                  ) {
+                    Text(
+                      stringResource(
+                        if (isRebuildingIndex) R.string.search_index_rebuilding
+                        else R.string.search_index_rebuild,
+                      ),
+                    )
                   }
-                },
-              )
+                }
+              }
+
             }
-            if (onRebuildIndex != null) {
+            if (category == ReaderSettingsCategory.RECOGNITION) {
+              // 录音与离线转写（移植批次 8）。
+              Text(
+                stringResource(R.string.audio_asr_settings_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                stringResource(R.string.audio_asr_model_title),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+              )
+              io.pagenote.feature.audio.AsrModelCatalog.ENTRIES.forEach { entry ->
+                SettingsChoice(
+                  label = "${entry.displayName} (${entry.license})",
+                  selected = draft.asrModel == entry.id,
+                  enabled = !isSaving,
+                  testTag = "asr_model_${entry.id}",
+                  onSelect = { draft = draft.copy(asrModel = entry.id) },
+                )
+              }
+              Text(
+                stringResource(R.string.audio_asr_language_title),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+              )
+              listOf(
+                "system" to R.string.language_system,
+                "zh" to R.string.ocr_language_chinese,
+                "en" to R.string.ocr_language_english,
+              ).forEach { (value, label) ->
+                SettingsChoice(
+                  label = stringResource(label),
+                  selected = draft.asrLanguage == value,
+                  enabled = !isSaving,
+                  testTag = "asr_language_$value",
+                  onSelect = { draft = draft.copy(asrLanguage = value) },
+                )
+              }
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                  Text(stringResource(R.string.audio_asr_auto_transcribe_title))
+                  Text(
+                    stringResource(R.string.audio_asr_auto_transcribe_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+                Switch(
+                  checked = draft.asrAutoTranscribe,
+                  onCheckedChange = { draft = draft.copy(asrAutoTranscribe = it) },
+                  enabled = !isSaving,
+                  modifier = Modifier.testTag("asr_auto_transcribe_switch"),
+                )
+              }
+              Text(
+                stringResource(R.string.audio_quota_title),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+              )
+              Text(
+                stringResource(
+                  R.string.audio_quota_summary,
+                  draft.audioQuotaMb,
+                  AudioQuotaUsageLabel.formatMb(quotaUsageMb),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              Slider(
+                value = draft.audioQuotaMb.toFloat(),
+                onValueChange = { draft = draft.copy(audioQuotaMb = (it.roundToInt() / 25) * 25) },
+                valueRange = io.pagenote.feature.audio.AudioQuotaPolicy.MIN_MB.toFloat()..
+                  io.pagenote.feature.audio.AudioQuotaPolicy.MAX_MB.toFloat(),
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth().testTag("audio_quota_slider"),
+              )
+
+            }
+            if (category == ReaderSettingsCategory.READING) {
+              // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24，设置项 ⚙️）。
+              Text(
+                stringResource(R.string.night_filter_title),
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+              )
+              Text(
+                stringResource(R.string.night_filter_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
               Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
               ) {
-                Text(
-                  text = rebuildStatus ?: stringResource(R.string.search_index_rebuild_summary),
-                  modifier = Modifier.weight(1f).padding(end = 12.dp),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text(stringResource(R.string.night_filter_enable))
+                Switch(
+                  checked = draft.nightFilterEnabled,
+                  onCheckedChange = { draft = draft.copy(nightFilterEnabled = it) },
+                  enabled = !isSaving,
+                  modifier = Modifier.testTag("night_filter_switch"),
                 )
-                TextButton(
-                  modifier = Modifier.testTag("search_index_rebuild"),
-                  enabled = !isSaving && !isRebuildingIndex,
-                  onClick = {
-                    scope.launch {
-                      isRebuildingIndex = true
-                      rebuildStatus = null
-                      try {
-                        rebuildStatus = onRebuildIndex() ?: rebuildUnavailable
-                      } catch (cancelled: CancellationException) {
-                        throw cancelled
-                      } catch (error: Exception) {
-                        rebuildStatus = error.message?.takeIf(String::isNotBlank) ?: rebuildGenericError
-                      } finally {
-                        isRebuildingIndex = false
+              }
+              Text(
+                stringResource(R.string.night_filter_strength_summary, draft.nightFilterStrength),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+              Slider(
+                value = draft.nightFilterStrength.toFloat(),
+                onValueChange = { draft = draft.copy(nightFilterStrength = it.roundToInt()) },
+                valueRange = NightFilterPolicy.MIN_STRENGTH.toFloat()..NightFilterPolicy.MAX_STRENGTH.toFloat(),
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth().testTag("night_filter_strength_slider"),
+              )
+
+            }
+            if (category == ReaderSettingsCategory.AGENT) {
+              TextButton(
+                modifier = Modifier.fillMaxWidth().testTag(
+                  if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",
+                ),
+                enabled = !isSaving,
+                onClick = {
+                  scope.launch {
+                    isSaving = true
+                    saveError = null
+                    try {
+                      ReaderSettingsPolicy.validate(draft)
+                      onSave(draft)
+                      onConfigureAgent()
+                    } catch (cancelled: CancellationException) {
+                      throw cancelled
+                    } catch (error: Exception) {
+                      saveError = if (error is IllegalArgumentException) {
+                        genericSaveError
+                      } else {
+                        error.message?.takeIf(String::isNotBlank) ?: genericSaveError
                       }
+                    } finally {
+                      isSaving = false
                     }
-                  },
-                ) {
-                  Text(
-                    stringResource(
-                      if (isRebuildingIndex) R.string.search_index_rebuilding
-                      else R.string.search_index_rebuild,
-                    ),
-                  )
-                }
-              }
-            }
-
-          }
-          if (category == ReaderSettingsCategory.RECOGNITION) {
-            // 录音与离线转写（移植批次 8）。
-            Text(
-              stringResource(R.string.audio_asr_settings_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-              stringResource(R.string.audio_asr_model_title),
-              modifier = Modifier.padding(top = 4.dp),
-              style = MaterialTheme.typography.bodyMedium,
-            )
-            io.pagenote.feature.audio.AsrModelCatalog.ENTRIES.forEach { entry ->
-              SettingsChoice(
-                label = "${entry.displayName} (${entry.license})",
-                selected = draft.asrModel == entry.id,
-                enabled = !isSaving,
-                testTag = "asr_model_${entry.id}",
-                onSelect = { draft = draft.copy(asrModel = entry.id) },
-              )
-            }
-            Text(
-              stringResource(R.string.audio_asr_language_title),
-              modifier = Modifier.padding(top = 4.dp),
-              style = MaterialTheme.typography.bodyMedium,
-            )
-            listOf(
-              "system" to R.string.language_system,
-              "zh" to R.string.ocr_language_chinese,
-              "en" to R.string.ocr_language_english,
-            ).forEach { (value, label) ->
-              SettingsChoice(
-                label = stringResource(label),
-                selected = draft.asrLanguage == value,
-                enabled = !isSaving,
-                testTag = "asr_language_$value",
-                onSelect = { draft = draft.copy(asrLanguage = value) },
-              )
-            }
-            Row(
-              modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(stringResource(R.string.audio_asr_auto_transcribe_title))
-                Text(
-                  stringResource(R.string.audio_asr_auto_transcribe_description),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-              Switch(
-                checked = draft.asrAutoTranscribe,
-                onCheckedChange = { draft = draft.copy(asrAutoTranscribe = it) },
-                enabled = !isSaving,
-                modifier = Modifier.testTag("asr_auto_transcribe_switch"),
-              )
-            }
-            Text(
-              stringResource(R.string.audio_quota_title),
-              modifier = Modifier.padding(top = 4.dp),
-              style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-              stringResource(
-                R.string.audio_quota_summary,
-                draft.audioQuotaMb,
-                AudioQuotaUsageLabel.formatMb(quotaUsageMb),
-              ),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Slider(
-              value = draft.audioQuotaMb.toFloat(),
-              onValueChange = { draft = draft.copy(audioQuotaMb = (it.roundToInt() / 25) * 25) },
-              valueRange = io.pagenote.feature.audio.AudioQuotaPolicy.MIN_MB.toFloat()..
-                io.pagenote.feature.audio.AudioQuotaPolicy.MAX_MB.toFloat(),
-              enabled = !isSaving,
-              modifier = Modifier.fillMaxWidth().testTag("audio_quota_slider"),
-            )
-
-          }
-          if (category == ReaderSettingsCategory.READING) {
-            // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24，设置项 ⚙️）。
-            Text(
-              stringResource(R.string.night_filter_title),
-              modifier = Modifier.padding(top = 8.dp),
-              style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-              stringResource(R.string.night_filter_description),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Text(stringResource(R.string.night_filter_enable))
-              Switch(
-                checked = draft.nightFilterEnabled,
-                onCheckedChange = { draft = draft.copy(nightFilterEnabled = it) },
-                enabled = !isSaving,
-                modifier = Modifier.testTag("night_filter_switch"),
-              )
-            }
-            Text(
-              stringResource(R.string.night_filter_strength_summary, draft.nightFilterStrength),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Slider(
-              value = draft.nightFilterStrength.toFloat(),
-              onValueChange = { draft = draft.copy(nightFilterStrength = it.roundToInt()) },
-              valueRange = NightFilterPolicy.MIN_STRENGTH.toFloat()..NightFilterPolicy.MAX_STRENGTH.toFloat(),
-              enabled = !isSaving,
-              modifier = Modifier.fillMaxWidth().testTag("night_filter_strength_slider"),
-            )
-
-          }
-          if (category == ReaderSettingsCategory.AGENT) {
-            TextButton(
-              modifier = Modifier.fillMaxWidth().testTag(
-                if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",
-              ),
-              enabled = !isSaving,
-              onClick = {
-                scope.launch {
-                  isSaving = true
-                  saveError = null
-                  try {
-                    ReaderSettingsPolicy.validate(draft)
-                    onSave(draft)
-                    onDismiss()
-                    onConfigureAgent()
-                  } catch (cancelled: CancellationException) {
-                    throw cancelled
-                  } catch (error: Exception) {
-                    saveError = if (error is IllegalArgumentException) {
-                      genericSaveError
-                    } else {
-                      error.message?.takeIf(String::isNotBlank) ?: genericSaveError
-                    }
-                  } finally {
-                    isSaving = false
                   }
-                }
-              },
-            ) { Text(stringResource(R.string.agent_model_settings_action)) }
+                },
+              ) { Text(stringResource(R.string.agent_model_settings_action)) }
 
-            TextButton(
-              modifier = Modifier.fillMaxWidth().testTag("configure_agent_prompts"),
-              enabled = !isSaving,
-              onClick = {
-                scope.launch {
-                  isSaving = true
-                  saveError = null
-                  try {
-                    ReaderSettingsPolicy.validate(draft)
-                    onSave(draft)
-                    onDismiss()
-                    onConfigurePrompts()
-                  } catch (cancelled: CancellationException) {
-                    throw cancelled
-                  } catch (error: Exception) {
-                    saveError = if (error is IllegalArgumentException) {
-                      genericSaveError
-                    } else {
-                      error.message?.takeIf(String::isNotBlank) ?: genericSaveError
+              TextButton(
+                modifier = Modifier.fillMaxWidth().testTag("configure_agent_prompts"),
+                enabled = !isSaving,
+                onClick = {
+                  scope.launch {
+                    isSaving = true
+                    saveError = null
+                    try {
+                      ReaderSettingsPolicy.validate(draft)
+                      onSave(draft)
+                      onConfigurePrompts()
+                    } catch (cancelled: CancellationException) {
+                      throw cancelled
+                    } catch (error: Exception) {
+                      saveError = if (error is IllegalArgumentException) {
+                        genericSaveError
+                      } else {
+                        error.message?.takeIf(String::isNotBlank) ?: genericSaveError
+                      }
+                    } finally {
+                      isSaving = false
                     }
-                  } finally {
-                    isSaving = false
                   }
-                }
-              },
-            ) { Text(stringResource(R.string.agent_prompt_settings_action)) }
+                },
+              ) { Text(stringResource(R.string.agent_prompt_settings_action)) }
 
-          }
-          saveError?.let {
-            Text(
-              it,
-              modifier = Modifier.testTag("settings_save_error"),
-              color = MaterialTheme.colorScheme.error,
-              style = MaterialTheme.typography.bodySmall,
-            )
+            }
           }
         }
       }
-    },
-    confirmButton = {
-      TextButton(
-        modifier = Modifier.testTag("reader_settings_save"),
-        enabled = !isSaving,
-        onClick = {
-          scope.launch {
-            isSaving = true
-            saveError = null
-            try {
-              ReaderSettingsPolicy.validate(draft)
-              onSave(draft)
-              onDismiss()
-            } catch (cancelled: CancellationException) {
-              throw cancelled
-            } catch (error: Exception) {
-              saveError = if (error is IllegalArgumentException) {
-                genericSaveError
-              } else {
-                error.message?.takeIf(String::isNotBlank) ?: genericSaveError
-              }
-            } finally {
-              isSaving = false
-            }
+      if (wide) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+          categoryList(Modifier.width(256.dp).fillMaxHeight())
+          VerticalDivider()
+          Box(Modifier.weight(1f).fillMaxHeight()) {
+            categoryContent(Modifier.widthIn(max = 840.dp).fillMaxWidth().fillMaxHeight())
           }
-        },
-      ) { Text(stringResource(if (isSaving) R.string.saving else R.string.save)) }
-    },
-    dismissButton = {
-      TextButton(
-        modifier = Modifier.testTag("reader_settings_cancel"),
-        onClick = onDismiss,
-        enabled = !isSaving,
-      ) {
-        Text(stringResource(R.string.cancel))
+        }
+      } else if (detailOpen) {
+        categoryContent(Modifier.weight(1f).fillMaxWidth())
+      } else {
+        categoryList(Modifier.weight(1f).fillMaxWidth())
       }
-    },
-  )
+    }
+  }
 }
 
 @Composable

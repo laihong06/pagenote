@@ -708,7 +708,9 @@ private fun ReaderHome(
   var isImageImporting by remember { mutableStateOf(false) }
   var pendingMarkdownImageInsertion by remember { mutableStateOf<PendingMarkdownImageInsertion?>(null) }
   var pendingPdfImageInsertion by remember { mutableStateOf<PendingPdfImageInsertion?>(null) }
-  var showSettings by remember { mutableStateOf(false) }
+  var showSettings by rememberSaveable { mutableStateOf(false) }
+  var settingsAgentPage by rememberSaveable { mutableStateOf<SettingsAgentPage?>(null) }
+  var settingsAgentBusy by remember { mutableStateOf(false) }
   val notePassphraseHasher = remember { Pbkdf2NotePassphraseHasher() }
   var projectNoteSettings by remember { mutableStateOf(ProjectNoteSettings.DEFAULT) }
   var notePassphraseUnlock by remember { mutableStateOf<CharArray?>(null) }
@@ -744,8 +746,6 @@ private fun ReaderHome(
   var pendingProjectAttachmentImport by remember { mutableStateOf<Pair<String, Uri>?>(null) }
   var menuDrawerOpen by rememberSaveable { mutableStateOf(false) }
   var menuSidebarExpanded by rememberSaveable { mutableStateOf(false) }
-  var showAgentModelSettings by remember { mutableStateOf(false) }
-  var showAgentPromptSettings by remember { mutableStateOf(false) }
   var showPageTutor by remember { mutableStateOf(false) }
   var pageTutorRegionContext by remember { mutableStateOf<PageTutorRegionContext?>(null) }
   var pageTutorInstruction by remember {
@@ -2813,7 +2813,8 @@ private fun ReaderHome(
         }
       } catch (missing: MissingModelConfigException) {
         pageTutorError = context.getString(R.string.page_tutor_model_missing)
-        showAgentModelSettings = true
+        settingsAgentPage = SettingsAgentPage.MODEL
+        showSettings = true
       } catch (timeout: TimeoutCancellationException) {
         pageTutorError = context.getString(R.string.page_tutor_timeout)
       } catch (cancelled: CancellationException) {
@@ -3028,7 +3029,8 @@ private fun ReaderHome(
         }
       } catch (missing: MissingModelConfigException) {
         agentError = context.getString(R.string.page_tutor_model_missing)
-        showAgentModelSettings = true
+        settingsAgentPage = SettingsAgentPage.MODEL
+        showSettings = true
       } catch (timeout: TimeoutCancellationException) {
         agentError = context.getString(R.string.page_tutor_timeout)
       } catch (cancelled: CancellationException) {
@@ -3113,7 +3115,8 @@ private fun ReaderHome(
         }
       } catch (missing: MissingModelConfigException) {
         agentError = context.getString(R.string.page_tutor_model_missing)
-        showAgentModelSettings = true
+        settingsAgentPage = SettingsAgentPage.MODEL
+        showSettings = true
       } catch (timeout: TimeoutCancellationException) {
         agentError = context.getString(R.string.page_tutor_timeout)
       } catch (cancelled: CancellationException) {
@@ -5193,7 +5196,7 @@ private fun ReaderHome(
       }
     }
   }
-  BackHandler(enabled = !showBookshelf) { returnToBookshelf() }
+  BackHandler(enabled = !showBookshelf && !showSettings) { returnToBookshelf() }
   val canReadDocument = activeProject != null && (activeRenderer != null || activeMarkdown != null)
   val canExportNotes = activeProject != null && !menuBusy
   val canManageNoteSettings = activeProject != null && noteWritable && !menuBusy
@@ -6099,9 +6102,10 @@ private fun ReaderHome(
       ReaderMenuGroup.SETTINGS,
       R.string.reader_menu_group_settings,
       listOf(
-        actionCommand("settings_action", R.string.settings_action, true) { showSettings = true },
+        actionCommand("settings_action", R.string.settings_action, true) { settingsAgentPage = null; showSettings = true },
         actionCommand("model_settings", R.string.agent_model_settings_action, true) {
-          showAgentModelSettings = true
+          settingsAgentPage = SettingsAgentPage.MODEL
+          showSettings = true
         },
         // 批次 12：悬浮窗（差距清单 #24）——未授权先引导系统设置页，已授权
         // 启动/停止悬浮窗服务（悬浮球 + 悬浮笔记/剪贴板/常用语/计时器面板）。
@@ -6163,7 +6167,34 @@ private fun ReaderHome(
     LaunchedEffect(menuLayout) {
       if (menuLayout != ReaderMenuLayout.COMPACT_DRAWER) menuDrawerOpen = false
     }
-    if (showBookshelf) {
+    if (showSettings) {
+      ReaderSettingsScreen(
+        settings = settings,
+        libraryDirectory = bookshelf.preferences?.name?.takeIf { libraryTree != null },
+        onChangeLibrary = { errorMessage = null; bookshelf.chooseDirectory() },
+        onDismiss = { showSettings = false; settingsAgentPage = null },
+        onConfigureAgent = { settingsAgentPage = SettingsAgentPage.MODEL },
+        onConfigurePrompts = { settingsAgentPage = SettingsAgentPage.PROMPTS },
+        onSave = settingsStore::save,
+        onRebuildIndex = { rebuildSearchIndex() },
+        quotaUsageMb = audioController.quotaUsageBytes / (1024L * 1024L),
+        agentPage = settingsAgentPage,
+        agentBusy = settingsAgentBusy,
+        onCloseAgentPage = { settingsAgentPage = null },
+        agentPageContent = { agentPage ->
+          when (agentPage) {
+            SettingsAgentPage.MODEL -> AgentModelSettingsDialog(
+              store = modelSettingsStore, translationStore = translationProviderStore, embedded = true,
+              onDismiss = { settingsAgentPage = null }, onBusyChange = { settingsAgentBusy = it },
+            )
+            SettingsAgentPage.PROMPTS -> AgentPromptSettingsDialog(
+              store = promptSettingsStore, embedded = true,
+              onDismiss = { settingsAgentPage = null }, onBusyChange = { settingsAgentBusy = it },
+            )
+          }
+        },
+      )
+    } else if (showBookshelf) {
       BookshelfScreen(
         preferences = bookshelf.preferences, books = bookshelf.books, scanning = bookshelf.scanning,
         error = errorMessage ?: bookshelf.error, warnings = bookshelf.warnings, busy = !canOpenProject,
@@ -6174,7 +6205,7 @@ private fun ReaderHome(
         onImport = { chooseNewProjectDocument(openAfterSelection = true) },
         onExternal = { projectPicker.launch(null) },
         onRain = { showRainClassroom = true },
-        onSettings = { showSettings = true },
+        onSettings = { settingsAgentPage = null; showSettings = true },
         onOpen = { book -> readerSession.launchSessionTask {
           if (hasUnsavedChanges && !noteSaver.saveCurrentNote()) return@launchSessionTask
           openProjectTree(book.target)
@@ -6857,25 +6888,6 @@ private fun ReaderHome(
       )
     }
   }
-  if (showSettings) {
-    ReaderSettingsDialog(
-      settings = settings,
-      libraryDirectory = bookshelf.preferences?.name?.takeIf { libraryTree != null },
-      onChangeLibrary = { errorMessage = null; bookshelf.chooseDirectory() },
-      onDismiss = { showSettings = false },
-      onConfigureAgent = {
-        showSettings = false
-        showAgentModelSettings = true
-      },
-      onConfigurePrompts = {
-        showSettings = false
-        showAgentPromptSettings = true
-      },
-      onSave = settingsStore::save,
-      onRebuildIndex = { rebuildSearchIndex() },
-      quotaUsageMb = audioController.quotaUsageBytes / (1024L * 1024L),
-    )
-  }
   // 音频胶囊转写列表 + 录音模态（移植批次 8；宿主在 AudioWiring）。
   AudioSessionDialogs(
     controller = audioController,
@@ -6889,7 +6901,7 @@ private fun ReaderHome(
       onApply = { size -> settingsStore.save(settings.copy(noteFontSize = size)) },
     )
   }
-  if (showPageTutor && project != null && (renderer != null || markdownSource != null)) {
+  if (showPageTutor && !showSettings && project != null && (renderer != null || markdownSource != null)) {
     PageTutorDialog(
       page = pageIndex + 1,
       focus = pageTutorRegionContext?.focus,
@@ -6912,7 +6924,7 @@ private fun ReaderHome(
       },
     )
   }
-  if (showAgentTask && project != null && (renderer != null || markdownSource != null)) {
+  if (showAgentTask && !showSettings && project != null && (renderer != null || markdownSource != null)) {
     AgentTaskDialog(
       page = pageIndex + 1,
       instruction = agentInstruction,
@@ -6925,19 +6937,6 @@ private fun ReaderHome(
       onPageRangeChange = { agentPageRange = it },
       onRun = { instruction, range -> runAgentBatch(instruction, range) },
       onDismiss = { showAgentTask = false },
-    )
-  }
-  if (showAgentModelSettings) {
-    AgentModelSettingsDialog(
-      store = modelSettingsStore,
-      translationStore = translationProviderStore,
-      onDismiss = { showAgentModelSettings = false },
-    )
-  }
-  if (showAgentPromptSettings) {
-    AgentPromptSettingsDialog(
-      store = promptSettingsStore,
-      onDismiss = { showAgentPromptSettings = false },
     )
   }
   if (showRecentProjectsDialog) {
@@ -7200,7 +7199,7 @@ private fun ReaderHome(
     )
   }
   // 批次 10：选区 AI 动作（语气/翻译/总结）——执行与插回都经由 ReaderHome 的回调。
-  aiSelectionTask?.let { task ->
+  aiSelectionTask?.takeUnless { showSettings }?.let { task ->
     AiSelectionActionDialog(
       task = task,
       run = { action, capturedTask ->
@@ -7208,7 +7207,8 @@ private fun ReaderHome(
         if (outcome is AiSelectionRunResult.Success) {
           aiSelectionReviewId = outcome.reviewId
         } else if (outcome == AiSelectionRunResult.MissingConfig) {
-          showAgentModelSettings = true
+          settingsAgentPage = SettingsAgentPage.MODEL
+          showSettings = true
         }
         outcome
       },

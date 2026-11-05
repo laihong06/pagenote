@@ -76,6 +76,9 @@ class BookshelfFlowTest {
       compose.onNodeWithTag("bookshelf_search").performTextInput("not-found")
       compose.onNodeWithTag("bookshelf_book_Shelf notebook").assertDoesNotExist()
       compose.onNodeWithTag("bookshelf_search").performTextClearance()
+      if (compose.onAllNodesWithTag("bookshelf_view").fetchSemanticsNodes().isEmpty()) {
+        compose.onNodeWithTag("bookshelf_more").performClick()
+      }
       compose.onNodeWithTag("bookshelf_view").performClick()
       waitTag("bookshelf_list")
       waitTag("bookshelf_book_Shelf notebook")
@@ -91,7 +94,13 @@ class BookshelfFlowTest {
       assertEquals("Custom title", metadata.title)
       assertEquals("rose", metadata.paper)
       compose.onNodeWithTag("bookshelf_settings").performClick()
+      if (compose.onAllNodesWithTag("settings_library_folder").fetchSemanticsNodes().isEmpty()) {
+        compose.onNodeWithTag("settings_category_appearance").performClick()
+      }
       compose.onNodeWithTag("settings_library_folder").assertIsDisplayed()
+      if (compose.onAllNodesWithTag("settings_category_back").fetchSemanticsNodes().isNotEmpty()) {
+        compose.onNodeWithTag("settings_category_back").performClick()
+      }
       compose.onNodeWithTag("reader_settings_cancel").performClick()
     } finally {
       store.bind(previous.tree, previous.name)
