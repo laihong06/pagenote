@@ -24,6 +24,25 @@ class PdfAnnotationOverlayTest {
   val composeRule = createComposeRule()
 
   @Test
+  fun storedTriangleDrawsTriangleRatherThanBoundingRectangle() {
+    val items = PdfAnnotationOverlayItem.fromPage(Json.parseToJsonElement("""
+      [{"type":"rect","shape":"triangle","color":"#00ff00","width":15,"points":[[100,100],[900,900]]}]
+    """))
+    composeRule.setContent {
+      Box(Modifier.size(300.dp)) { PdfAnnotationOverlay(items = items) }
+    }
+    val pixels = composeRule.onNodeWithTag("pdf_annotation_overlay").captureToImage().toPixelMap()
+    val scale = pixels.width / 1000f
+    val green = Color(0xFF00FF00)
+    assertColorNear(pixels, 500f * scale, 100f * scale, green)
+    val cornerX = (100f * scale).toInt()
+    val cornerY = (100f * scale).toInt()
+    assertTrue("triangle must not draw rectangle top-left corner", (-3..3).none { dy ->
+      (-3..3).any { dx -> pixels[cornerX + dx, cornerY + dy] == green }
+    })
+  }
+
+  @Test
   fun rectangleUsesPageWidthScaleForVerticalCoordinates() {
     composeRule.setContent {
       Box(Modifier.size(width = 100.dp, height = 200.dp)) {

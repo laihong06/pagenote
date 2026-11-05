@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.platform.testTag
 import io.pagenote.feature.annotations.TextFontCatalog
+import io.pagenote.feature.pen.ShapeCatalog
+import io.pagenote.feature.pen.ShapePoint
+import io.pagenote.feature.pen.ShapeStrokeStyle
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -46,6 +50,7 @@ data class PdfAnnotationOverlayItem(
   val fontId: String? = null,
   val fontSize: Double? = null,
   val align: String? = null,
+  val shapeKind: String? = null,
 ) {
   companion object {
     private val colorPattern = Regex("^#[a-fA-F0-9]{6}$")
@@ -138,6 +143,8 @@ data class PdfAnnotationOverlayItem(
       } else {
         null
       }
+      val shapeKind = item["shape"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        ?.takeIf { ShapeCatalog.byId(it)?.baseType == type }
       return PdfAnnotationOverlayItem(
         type = type,
         points = normalizedPoints,
@@ -150,6 +157,7 @@ data class PdfAnnotationOverlayItem(
         fontId = fontId,
         fontSize = fontSize,
         align = align,
+        shapeKind = shapeKind,
       )
     }
 
@@ -184,6 +192,27 @@ internal fun PdfAnnotationOverlay(
         cap = StrokeCap.Round,
         join = StrokeJoin.Round,
       )
+      val catalogKind = item.shapeKind?.let(ShapeCatalog::byId)
+      if (catalogKind != null && item.points.size >= 2) {
+        val first = item.points[0]
+        val second = item.points[1]
+        val outline = ShapeCatalog.outline(
+          catalogKind, ShapePoint(first.first.toFloat(), first.second.toFloat()),
+          ShapePoint(second.first.toFloat(), second.second.toFloat()),
+        )
+        if (outline.isNotEmpty()) {
+          val path = Path().apply {
+            moveTo(outline.first().x * pageWidthScale, outline.first().y * pageWidthScale)
+            outline.drop(1).forEach { lineTo(it.x * pageWidthScale, it.y * pageWidthScale) }
+          }
+          val effect = if (catalogKind.strokeStyle == ShapeStrokeStyle.DASHED) {
+            PathEffect.dashPathEffect(floatArrayOf(strokeWidth * 4f, strokeWidth * 3f))
+          } else null
+          drawPath(path, color, style = Stroke(width = strokeWidth, cap = StrokeCap.Round,
+            join = StrokeJoin.Round, pathEffect = effect))
+        }
+        return@forEach
+      }
       when (item.type) {
         "image" -> {
           val first = item.points[0]

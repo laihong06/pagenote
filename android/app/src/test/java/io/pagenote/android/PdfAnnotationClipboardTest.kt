@@ -15,6 +15,15 @@ class PdfAnnotationClipboardTest {
   private val json = Json
 
   @Test
+  fun recognizedTriangleIsSelectedByItsVisibleEdges() {
+    val page = json.parseToJsonElement("""
+      [{"type":"rect","shape":"triangle","color":"#123456","width":2,"points":[[100,100],[900,900]]}]
+    """) as JsonArray
+    assertEquals(0, PdfAnnotationClipboard.hitTest(page, 300.0, 500.0, 5.0))
+    assertNull(PdfAnnotationClipboard.hitTest(page, 100.0, 100.0, 5.0))
+  }
+
+  @Test
   fun htmlOverlayItemsAreVisibleWithoutChangingSourceIndexes() {
     val items = PdfAnnotationOverlayItem.fromPage(json.parseToJsonElement("""
       [

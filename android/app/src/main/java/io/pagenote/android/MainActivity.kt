@@ -1140,15 +1140,18 @@ private fun ReaderHome(
     }
   }
 
-  fun applyPenStroke(stroke: PenStroke) {
+  fun applyPenStrokeToPage(stroke: PenStroke, targetPage: Int) {
     if (isRainApplyingPage) return
-    val targetPage = pageIndex + 1
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
-    selectedPenIndex = null
-    penStrokes = updated
+    if (pageIndex + 1 == targetPage) {
+      selectedPenIndex = null
+      penStrokes = updated
+    }
     readerSession.launchSessionTask { savePenPage(targetPage, updated) }
   }
+
+  fun applyPenStroke(stroke: PenStroke) = applyPenStrokeToPage(stroke, pageIndex + 1)
 
   fun erasePenStroke(index: Int) {
     val targetPage = pageIndex + 1
@@ -1222,6 +1225,7 @@ private fun ReaderHome(
     appendItem: JsonElement? = null,
     transformLatest: ((JsonArray) -> JsonArray?)? = null,
     onFailure: (() -> Unit)? = null,
+    onComplete: (() -> Unit)? = null,
   ) {
     val targetProject = project ?: return
     val targetProjectId = targetProject.manifest.id
@@ -1308,6 +1312,7 @@ private fun ReaderHome(
         }
         penStatus = context.getString(R.string.pen_annotation_save_failed, error.message ?: "")
       } finally {
+        onComplete?.invoke()
         isAnnotationSaving = false
       }
     }
@@ -1373,7 +1378,9 @@ private fun ReaderHome(
   }
 
   fun applyRecognizedShape(shape: PenRecognizedShape, sourceStroke: PenStroke): Boolean {
-    if (project == null || !penWritable) return false
+    val targetProject = project ?: return false
+    if (!penWritable || isAnnotationSaving) return false
+    val targetPage = pageIndex + 1
     val draft = PdfAnnotationVectorDraft.fromRecognizedShape(
       shape = shape,
       color = sourceStroke.color,
@@ -1381,13 +1388,20 @@ private fun ReaderHome(
     ) ?: return false
     val before = annotationPageItems
     val item = draft.toItem().toJsonElement()
+    val pendingPreview = targetPage to draft.toOverlayItem()
+    annotationPreview = pendingPreview
     persistNativeAnnotationPage(
-      targetPage = pageIndex + 1,
+      targetPage = targetPage,
       before = before,
       after = JsonArray(before + item),
       selectedAfter = before.size,
       appendItem = item,
-      onFailure = { applyPenStroke(sourceStroke) },
+      onFailure = {
+        if (project === targetProject) applyPenStrokeToPage(sourceStroke, targetPage)
+      },
+      onComplete = {
+        if (annotationPreview == pendingPreview) annotationPreview = null
+      },
     )
     return true
   }
@@ -6397,7 +6411,7 @@ private fun ReaderHome(
                 strokes = penStrokes,
                 tool = penTool,
                 inputEnabled = (!isLayoutPreview || !previewHandMode) && (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
-                  annotationDrawTool == null && !isAnnotationSaving,
+                  annotationDrawTool == null && (!isAnnotationSaving || penTool in setOf(PenCanvasTool.PEN, PenCanvasTool.BALLPOINT, PenCanvasTool.HIGHLIGHTER)),
                 onStrokeAdded = ::applyPenStroke,
                 onShapeRecognized = ::applyRecognizedShape,
                 onStrokeErased = ::erasePenStroke,
@@ -6542,7 +6556,7 @@ private fun ReaderHome(
                   strokes = penStrokes,
                   tool = penTool,
                   inputEnabled = (!isLayoutPreview || !previewHandMode) && (penWritable || penTool == PenCanvasTool.SELECT) && !readerInputLocked && !annotateMode &&
-                    annotationDrawTool == null && !isAnnotationSaving,
+                    annotationDrawTool == null && (!isAnnotationSaving || penTool in setOf(PenCanvasTool.PEN, PenCanvasTool.BALLPOINT, PenCanvasTool.HIGHLIGHTER)),
                   onStrokeAdded = ::applyPenStroke,
                   onShapeRecognized = ::applyRecognizedShape,
                   onStrokeErased = ::erasePenStroke,

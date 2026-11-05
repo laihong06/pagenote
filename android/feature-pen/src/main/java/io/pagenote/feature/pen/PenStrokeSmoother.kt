@@ -17,6 +17,29 @@ object PenStrokeSmoother {
     val width: Float,
   )
 
+  /** Emits the same curves without allocating a segment object for each point. */
+  inline fun forEachSegment(
+    points: List<PenPoint>,
+    baseWidth: Float,
+    draw: (Float, Float, Float, Float, Float, Float, Float) -> Unit,
+  ) {
+    if (points.size < 3) return
+    var startX = points.first().x
+    var startY = points.first().y
+    for (index in 1 until points.size - 1) {
+      val control = points[index]
+      val next = points[index + 1]
+      val endX = (control.x + next.x) / 2f
+      val endY = (control.y + next.y) / 2f
+      draw(startX, startY, control.x, control.y, endX, endY, baseWidth * (control.pressure + next.pressure) / 2f)
+      startX = endX
+      startY = endY
+    }
+    val previous = points[points.size - 2]
+    val last = points.last()
+    draw(startX, startY, previous.x, previous.y, last.x, last.y, baseWidth * (previous.pressure + last.pressure) / 2f)
+  }
+
   fun segments(points: List<PenPoint>, baseWidth: Float): List<Segment> {
     if (points.size < 3) return emptyList()
     val result = ArrayList<Segment>(points.size - 1)

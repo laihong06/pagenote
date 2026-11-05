@@ -72,6 +72,32 @@ object PenStrokePainter {
     }
   }
 
+  fun drawRecognizedShape(
+    canvas: Canvas,
+    shape: PenRecognizedShape,
+    color: String,
+    width: Double,
+    geometry: PenCanvasGeometry,
+  ) {
+    val kind = shape.shapeKind?.let(ShapeCatalog::byId)
+    if (kind == null) {
+      drawStroke(canvas, PenStroke(shape.type, color, width, listOf(shape.first, shape.second)), geometry)
+      return
+    }
+    val outline = ShapeCatalog.outline(
+      kind, ShapePoint(shape.first.x, shape.first.y), ShapePoint(shape.second.x, shape.second.y),
+    )
+    if (outline.isEmpty()) return
+    strokePaint.color = runCatching { Color.parseColor(color) }.getOrDefault(Color.BLACK)
+    strokePaint.style = Paint.Style.STROKE
+    strokePaint.strokeWidth = width.toFloat()
+    val path = Path().apply {
+      moveTo(outline.first().x, outline.first().y)
+      outline.drop(1).forEach { lineTo(it.x, it.y) }
+    }
+    canvas.drawPath(path, strokePaint)
+  }
+
   fun drawHighlight(
     canvas: Canvas,
     points: List<PenPoint>,
@@ -111,11 +137,11 @@ object PenStrokePainter {
       canvas.drawLine(previous.x, previous.y, current.x, current.y, strokePaint)
       return
     }
-    PenStrokeSmoother.segments(points, width).forEach { segment ->
-      strokePaint.strokeWidth = segment.width
+    PenStrokeSmoother.forEachSegment(points, width) { startX, startY, controlX, controlY, endX, endY, segmentWidth ->
+      strokePaint.strokeWidth = segmentWidth
       scratchPath.rewind()
-      scratchPath.moveTo(segment.startX, segment.startY)
-      scratchPath.quadTo(segment.controlX, segment.controlY, segment.endX, segment.endY)
+      scratchPath.moveTo(startX, startY)
+      scratchPath.quadTo(controlX, controlY, endX, endY)
       canvas.drawPath(scratchPath, strokePaint)
     }
   }
