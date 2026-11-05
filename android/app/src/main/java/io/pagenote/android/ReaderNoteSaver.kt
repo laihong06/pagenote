@@ -68,15 +68,18 @@ internal class ReaderNoteSaver(
                 val now = SystemClock.elapsedRealtime()
                 val previousSnapshot = lastHistorySnapshot[historyKey]
                 if (previousSnapshot == null || now - previousSnapshot >= 60_000L) {
-                  val captured = withContext(Dispatchers.IO) {
-                    runCatching {
-                      NoteHistoryMirror.snapshotPage(
-                        context.filesDir, activeProject.manifest.id, targetPage,
-                        NotePage.pageAt(result.markdown, targetPage),
-                      )
-                    }.isSuccess
+                  lastHistorySnapshot[historyKey] = now
+                  val historyText = NotePage.pageAt(result.markdown, targetPage)
+                  session.launchSessionTask {
+                    val captured = withContext(Dispatchers.IO) {
+                      runCatching {
+                        NoteHistoryMirror.snapshotPage(
+                          context.filesDir, activeProject.manifest.id, targetPage, historyText,
+                        )
+                      }.isSuccess
+                    }
+                    if (!captured && lastHistorySnapshot[historyKey] == now) lastHistorySnapshot.remove(historyKey)
                   }
-                  if (captured) lastHistorySnapshot[historyKey] = now
                 }
                 search.indexSavedNotePage(activeProject.manifest.id, targetPage, draftToSave, result.pageRevision)
                 true

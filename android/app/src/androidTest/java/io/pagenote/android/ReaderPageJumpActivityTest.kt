@@ -34,6 +34,7 @@ import io.pagenote.feature.pen.PenPageStore
 import io.pagenote.feature.pen.PenPoint
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
+import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.PageNoteConflictException
 import io.pagenote.feature.notes.NotePage
@@ -358,6 +359,92 @@ class ReaderPageJumpActivityTest {
       composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isNotEmpty()
     }
     assertEquals("Latest version before returning home", NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1))
+  }
+
+  @Test
+  fun rapidInkSavesAreCoalescedAndHomeWaitsForTheLatestStroke() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnUiThread {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penStore.value = ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri)
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_PAUSE_NEXT_PEN_WRITE, null, null)
+    fun addStroke(index: Int) {
+      composeRule.runOnUiThread {
+        val canvas = checkNotNull(findPenCanvas(composeRule.activity.window.decorView))
+        checkNotNull(canvas.onStrokeAdded).invoke(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(index.toFloat(), 20f, 1f))))
+      }
+    }
+    addStroke(1)
+    try {
+      composeRule.waitUntil(10_000) {
+        testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CHECK_PEN_WRITE, null, null)?.getBoolean("started") == true
+      }
+      (2..8).forEach(::addStroke)
+      composeRule.onNodeWithTag("reader_bookshelf").assertIsEnabled().performClick()
+      assertTrue(composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isEmpty())
+    } finally {
+      testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_RELEASE_PEN_WRITE, null, null)
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isNotEmpty() }
+    val writes = testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_GET_PEN_WRITE_COUNT, null, null)!!.getInt(ExistingProjectSafTestProvider.EXTRA_COUNT)
+    assertEquals("only the first and latest snapshots need writing", 2, writes)
+    assertEquals(8, ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri).readPage(PenSide.DOCUMENT, 1).size)
+  }
+
+  @Test
+  fun failedPendingInkWriteKeepsTheCurrentPageAndStroke() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnUiThread {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penStore.value = ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri)
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_PAUSE_NEXT_PEN_WRITE, null, null)
+    testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CONFIGURE_ANNOTATION_WRITE_FAILURE, null,
+      Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, 1) })
+    composeRule.runOnUiThread {
+      val canvas = checkNotNull(findPenCanvas(composeRule.activity.window.decorView))
+      checkNotNull(canvas.onStrokeAdded).invoke(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(10f, 20f, 1f))))
+    }
+    try {
+      composeRule.waitUntil(10_000) {
+        testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CHECK_PEN_WRITE, null, null)?.getBoolean("started") == true
+      }
+      composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+      assertEquals(0, session.pageIndex.intValue)
+    } finally {
+      testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_RELEASE_PEN_WRITE, null, null)
+    }
+    composeRule.waitUntil(15_000) { session.failedPenSave.value != null && !session.isNavigating.value }
+    assertEquals(0, session.pageIndex.intValue)
+    assertEquals(1, session.penStrokes.value.size)
+    assertTrue(session.penStatus.value != null)
+  }
+
+  private fun findPenCanvas(view: View): PenCanvasView? {
+    if (view is PenCanvasView) return view
+    if (view is ViewGroup) for (index in 0 until view.childCount) {
+      findPenCanvas(view.getChildAt(index))?.let { return it }
+    }
+    return null
   }
 
   @Test

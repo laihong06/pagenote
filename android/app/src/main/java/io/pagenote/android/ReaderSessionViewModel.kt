@@ -55,6 +55,10 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   val errorMessage: MutableState<String?> = mutableStateOf(null)
 
   val penSaveMutex = Mutex()
+  private val penSaveVersions = mutableMapOf<Int, Long>()
+  internal fun nextPenSaveVersion(page: Int): Long =
+    ((penSaveVersions[page] ?: 0L) + 1L).also { penSaveVersions[page] = it }
+  internal fun isLatestPenSave(page: Int, version: Long): Boolean = penSaveVersions[page] == version
   internal val noteSaveCoordinator = NoteSaveCoordinator()
   internal val navigationMutex = Mutex()
   internal val isNoteSaving = mutableStateOf(false)

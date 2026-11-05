@@ -1110,22 +1110,28 @@ private fun ReaderHome(
       return
     }
     val snapshot = strokes.toList()
+    val version = readerSession.nextPenSaveVersion(targetPage)
     pendingPenSaves += 1
     try {
       penSaveMutex.withLock {
-        withContext(Dispatchers.IO) {
-          store.writePage(PenSide.DOCUMENT, targetPage, snapshot)
+        if (!readerSession.isLatestPenSave(targetPage, version)) return@withLock
+        try {
+          withContext(Dispatchers.IO) {
+            store.writePage(PenSide.DOCUMENT, targetPage, snapshot)
+          }
+          if (failedPenSave?.first == targetPage) failedPenSave = null
+          lastEditWasAnnotation[targetPage] = false
+          penStatus = store.lastRetainedRecoveryCopyName?.let {
+            context.getString(R.string.pen_saved_recovery_copy, it)
+          }
+        } catch (error: Exception) {
+          if (error is CancellationException) throw error
+          if (readerSession.isLatestPenSave(targetPage, version)) {
+            failedPenSave = targetPage to snapshot
+            penStatus = context.getString(R.string.pen_not_saved, error.message ?: "")
+          }
         }
       }
-      if (failedPenSave?.first == targetPage) failedPenSave = null
-      lastEditWasAnnotation[targetPage] = false
-      penStatus = store.lastRetainedRecoveryCopyName?.let {
-        context.getString(R.string.pen_saved_recovery_copy, it)
-      }
-    } catch (error: Exception) {
-      if (error is CancellationException) throw error
-      failedPenSave = targetPage to snapshot
-      penStatus = context.getString(R.string.pen_not_saved, error.message ?: "")
     } finally {
       pendingPenSaves -= 1
     }
@@ -2100,6 +2106,8 @@ private fun ReaderHome(
     isNavigating = true
     try {
       if (!noteSaver.flushBeforeNavigation()) return@withLock false
+      penSaveMutex.withLock { }
+      if (failedPenSave != null) return@withLock false
       readerSession.clearCurrentDraftRecovery()
       noteStatus = null
       showOcrResult = false
@@ -5153,7 +5161,7 @@ private fun ReaderHome(
   fun menuSection(group: ReaderMenuGroup, labelRes: Int, commands: List<ReaderMenuCommand>) =
     ReaderMenuSection(group, context.getString(labelRes), commands)
 
-  val canNavigateHome = !isOpening && !isCreatingProject && (!isSaving || isNoteSaving) && !isNavigating && !isPenSaving && !isImageImporting &&
+  val canNavigateHome = !isOpening && !isCreatingProject && (!isSaving || isNoteSaving) && !isNavigating && !isImageImporting &&
     !rainCaptureLocked && !isRainImporting &&
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
     !isImportingNotes && !isExportingNotes &&
@@ -5190,7 +5198,7 @@ private fun ReaderHome(
   val canExportNotes = activeProject != null && !menuBusy
   val canManageNoteSettings = activeProject != null && noteWritable && !menuBusy
   val canUsePdf = canReadDocument && !isMarkdownReading
-  val canChangePage = canReadDocument && !isRendering && (!isSaving || isNoteSaving) && !isNavigating && !isPenSaving && !isImageImporting &&
+  val canChangePage = canReadDocument && !isRendering && (!isSaving || isNoteSaving) && !isNavigating && !isImageImporting &&
     !isImportingProjectAttachment && !isDeletingProjectAttachment && !isLoadingProjectAttachments &&
     !isImportingNotes && !isExportingNotes &&
     failedPenSave == null && !isOcrRunning && !readerInputLocked
@@ -5261,8 +5269,8 @@ private fun ReaderHome(
       if (activity.readerShortcutHandler === handler) activity.readerShortcutHandler = null
     }
   }
-  val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving
-  val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving
+  val canUsePen = canUsePdf && penWritable && !readerInputLocked && !isAnnotationSaving && !isNavigating
+  val canSelectPen = canUsePdf && !readerInputLocked && !isAnnotationSaving && !isNavigating
   // 画布音频胶囊（移植批次 8）：选中工具下当前页有胶囊时才接管点按。
   val audioCapsulesOnPage = audioController.index.forPage(pageIndex + 1)
   val audioCapsuleTapEnabled = audioCapsulesOnPage.isNotEmpty() &&
