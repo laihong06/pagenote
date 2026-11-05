@@ -4,6 +4,8 @@
 
 - Reduce Android writing delays by coalescing queued pen snapshots and moving note-history snapshots off the save path. Page changes and returning to the bookshelf wait for the latest pen and note writes, retaining the current page on failure. / 优化 Android 连续书写保存：合并排队的旧笔迹快照，历史记录改为后台生成；翻页和回书架仍等待最新笔迹与笔记写入，失败时留在当前页。
 
+- Add an Android emulator screenshot showing the navigation entry during an in-progress ink save. / 补充 Android 手写保存期间的导航入口模拟器截图。
+
 - Redesign the Android notebook workspace with an in-app draggable pen palette, closable Agent side panel, compact adaptive reading panes and quieter automatic saving. Serialize pending edits before page or bookshelf navigation and keep failed drafts recoverable. / Android 阅读工作区改为可拖动悬浮笔盒、可关闭 Agent 侧栏与自适应原文／笔记布局；后台静默自动保存，翻页和回书架前等待最新草稿落盘，失败时保留草稿与重试入口。
 
 - Allow users to copy an unsaved Android note draft before explicitly reloading after a conflict, without overwriting edits made during reload. / Android 笔记冲突时可选择先复制草稿再重载，重载期间的新编辑不会被覆盖。

@@ -42,6 +42,12 @@
       "sha256": "3bcf477a061689c959e931ad541157bf6ff47020865d19458ad69a3808dfa652",
       "width": 2560,
       "height": 1600
+    },
+    "saving-ink-pending.png": {
+      "sha256": "41576006c2c0084edfec586c565c00d055a1a147d19cb44af8b4de1a51e252ae",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "a1b73130f66a33abbf612250429e6d6910514146"
     }
   }
 }

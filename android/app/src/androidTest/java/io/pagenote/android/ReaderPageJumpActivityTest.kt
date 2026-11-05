@@ -381,7 +381,10 @@ class ReaderPageJumpActivityTest {
     fun addStroke(index: Int) {
       composeRule.runOnUiThread {
         val canvas = checkNotNull(findPenCanvas(composeRule.activity.window.decorView))
-        checkNotNull(canvas.onStrokeAdded).invoke(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(index.toFloat(), 20f, 1f))))
+        val x = 200f + index * 45f
+        val y = 300f + index * 30f
+        checkNotNull(canvas.onStrokeAdded).invoke(PenStroke("pen", "#185abd", 4.0,
+          listOf(PenPoint(x, y, 1f), PenPoint(x + 35f, y + 15f, 1f))))
       }
     }
     addStroke(1)
@@ -390,6 +393,8 @@ class ReaderPageJumpActivityTest {
         testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CHECK_PEN_WRITE, null, null)?.getBoolean("started") == true
       }
       (2..8).forEach(::addStroke)
+      android.os.SystemClock.sleep(2_500) // Allow the system clipboard notice from fixture setup to clear.
+      saveUiScreenshot("saving-ink-pending.png")
       composeRule.onNodeWithTag("reader_bookshelf").assertIsEnabled().performClick()
       assertTrue(composeRule.onAllNodesWithTag("bookshelf_home").fetchSemanticsNodes().isEmpty())
     } finally {
