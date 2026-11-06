@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+
 - Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
 
 - 同步共享集成线 6388245 到 Windows 测试线，包含已在 Windows CI 和本地打包验证的原生 Markdown S 与 AI 表达路由；本分支根 README 改为 Windows 专属入口，不修改已发布版本或下载。
