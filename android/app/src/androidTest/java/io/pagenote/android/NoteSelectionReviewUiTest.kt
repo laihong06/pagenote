@@ -158,6 +158,7 @@ class NoteSelectionReviewUiTest {
       }
     }
 
+    composeRule.onNodeWithTag("reader_menu_group_word_editing").performClick()
     composeRule.waitUntil(timeoutMillis = 5_000) {
       composeRule.onAllNodesWithTag("reader_menu_command_selection_to_annotation")
         .fetchSemanticsNodes().isNotEmpty()
@@ -258,6 +259,7 @@ class NoteSelectionReviewUiTest {
     }
 
     composeRule.setContent { showDisabledReason(disabledReason) }
+    composeRule.onNodeWithTag("reader_menu_group_word_editing").performClick()
     composeRule.onNodeWithText(disabledReason).assertIsDisplayed()
   }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
 - Document Android dense-ink rendering measurements and before/after emulator screenshots. / 补充 Android 密集笔迹绘制的模拟器对照数据与改前改后截图。
 
 - Improve Android handwriting and zoom performance on ink-heavy pages by batching freehand drawing while preserving pressure-sensitive strokes. / 优化 Android 密集笔迹页面的书写和缩放流畅度，合并手写绘制命令并保留压感变化。

@@ -136,9 +136,7 @@ class NoteSelectionReviewActivityTest {
 
   private fun invokeSelectionReview() {
     val commandTag = "reader_menu_command_selection_to_annotation"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-    }
+    revealReaderMenuCommand(composeRule, "word_editing", "selection_to_annotation")
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
     }

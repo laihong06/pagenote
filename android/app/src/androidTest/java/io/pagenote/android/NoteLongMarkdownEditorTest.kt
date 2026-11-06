@@ -14,7 +14,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
@@ -93,7 +92,6 @@ class NoteLongMarkdownEditorTest {
     assertTrue("editing the long token took ${editElapsedMs}ms", editElapsedMs < 5_000)
     assertEquals(edited, editor.markdownSourceText())
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     try {
       composeRule.waitUntil(timeoutMillis = 10_000) {
         NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == edited
@@ -136,7 +134,6 @@ class NoteLongMarkdownEditorTest {
         editor.text.toString().contains("\u200e")
     }
     assertEquals(pasted.length, editor.markdownSourceOffset(editor.selectionStart))
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == pasted
     }
@@ -214,7 +211,6 @@ class NoteLongMarkdownEditorTest {
     val edited = longNote.replaceRange(8, 8, " edited")
     InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.text.insert(8, " edited") }
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == edited }
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 31) == edited
     }
@@ -326,7 +322,6 @@ class NoteLongMarkdownEditorTest {
       val edited = longNote.replaceRange(8, 8, " edited")
       InstrumentationRegistry.getInstrumentation().runOnMainSync { editor.text.insert(8, " edited") }
       composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == edited }
-      composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
       composeRule.waitUntil(timeoutMillis = 10_000) {
         NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 31) == edited
       }
