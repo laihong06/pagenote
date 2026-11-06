@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Add real Windows screenshots for the native Markdown S focus-mode enter/exit interaction, with CI runtime provenance; the integrated Windows, macOS, Android, and platform-metadata checks pass in run 42270603065. / 补充 Windows 原生 Markdown S 专注模式进入／退出的实际运行截图和 CI 来源记录；集成 Windows、macOS、Android 与平台元数据检查在 run 42270603065 全部通过。
+
 - Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
 
 - Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。

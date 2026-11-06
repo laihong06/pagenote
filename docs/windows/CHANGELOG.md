@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+补充原生 Markdown S 专注模式的 Windows CI 运行截图，记录全屏与返回笔记状态及对应运行提交；本轮 Windows、macOS、Android 和平台元数据 CI 全部通过。源码尚未发布。
+
 共享 Markdown S 全屏退出会等待 macOS 原生窗口切换完成；超时提示可重试，Windows 行为保持现状。
 
 旧预览生命周期测试在最小化前主动显示并聚焦窗口，保留最小化后停止预览的原有断言。

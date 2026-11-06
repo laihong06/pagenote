@@ -1,0 +1,28 @@
+{
+  "platform": "windows",
+  "os": "Windows 10.0.26100",
+  "architecture": "x64",
+  "theme": "light",
+  "version": "1.1.0-beta.5-dev.2",
+  "prHeadCommit": "3173dedd7e1324755dd36a9a4af686303e5f57d2",
+  "runtimeCommit": "6ed3edcabbb7876759271a654d16f6f32ebe9c28",
+  "runtimeCommitDescription": "PR head 3173ded integrated with windows/beta base 72ffc42c8fb6e9c397fd62e705ff7a3a1d6a70f7",
+  "workflowRun": "https://github.com/laihong06/pagenote/actions/runs/42270603065",
+  "capturedAt": "2026-11-06T18:27:53.653Z",
+  "sample": "synthetic, no account or network AI request",
+  "captures": {
+    "fullscreen-active.png": {
+      "viewport": "1024x768",
+      "density": 1,
+      "fullscreen": true,
+      "state": "专注作品 entered fullscreen; return button visible"
+    },
+    "returned-to-note.png": {
+      "viewport": "1424x894",
+      "density": 1,
+      "fullscreen": false,
+      "state": "returned to the reader and note panes"
+    }
+  },
+  "interaction": "The CI capture exercised entering focus mode, toggling a gene, exiting to the note, and changing the sampling position; it then checked that the modified state was persisted in the same Markdown source file."
+}

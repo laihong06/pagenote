@@ -9,6 +9,14 @@
 5. 关闭并重新打开项目，组件参数和状态继续保留。可展开“Markdown 数据”查看当前持久化数据。
 6. 通过原有“导入笔记”选择提供的遗传算法实验室 HTML，可转换为原生模板；自定义网页尚不支持通用转换。
 
+## 专注模式的 Windows 运行记录
+
+在示例组件上点击“专注作品”进入全屏，再点击“返回笔记”回到阅读与笔记双栏。CI 操作随后继续点击基因并修改采样位置，确认状态写回原 Markdown 文件；完整测试和运行来源见 [采集记录](images/fullscreen-transition/provenance.json)。下图是同一组顺序操作的全屏和退出后截图。
+
+![Windows 原生 Markdown S 专注模式全屏](images/fullscreen-transition/fullscreen-active.png)
+
+![Windows 退出专注模式后返回笔记](images/fullscreen-transition/returned-to-note.png)
+
 示例：[原生 Markdown](../../../../examples/markdown-s-native.md)。所有示例和临时配置位于仓库 tmp 内，不覆盖已有笔记。
 
 ![原生 SVG](images/markdown-native/native-svg.png)
