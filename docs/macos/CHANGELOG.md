@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+稳定旧版 Markdown S 预览最小化测试，等待 macOS 窗口实际最小化；运行行为不变。
+
 修复共享桌面笔迹自动保存失败后的重试，保留未写入页面与期间的新笔迹，文档切换等待保存结果；Mac 运行验证见对应 PR。
 
 Mac README 单独说明 Apple Silicon、原生设置／Office 桥接和未验证范围；稳定线配置改为 null，避免链接尚未建立的 macos/main。此次仅文档与维护元数据，不改变程序或发布包。
