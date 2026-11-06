@@ -1,0 +1,114 @@
+diff --git a/android/app/src/androidTest/java/io/pagenote/android/ReaderPageJumpActivityTest.kt b/android/app/src/androidTest/java/io/pagenote/android/ReaderPageJumpActivityTest.kt
+index 2169fd5..daa02d7 100644
+--- a/android/app/src/androidTest/java/io/pagenote/android/ReaderPageJumpActivityTest.kt
++++ b/android/app/src/androidTest/java/io/pagenote/android/ReaderPageJumpActivityTest.kt
+@@ -241,0 +242,109 @@ class ReaderPageJumpActivityTest {
++  @Test
++  fun temporaryFrameProfile() {
++    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
++    val project = installProject(notes, createWorkspacePdf())
++    val session = attachProjectToReader(project, notes)
++    val instrumentation = InstrumentationRegistry.getInstrumentation()
++    val context = instrumentation.targetContext
++    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
++    val ink = (0 until 600).map { line ->
++      PenStroke("pen", "#185abd", 3.0,
++        (0..30).map { point -> PenPoint(80f + (line % 20) * 40f + point * 1.1f,
++          80f + (line / 20) * 26f + kotlin.math.sin(point * 0.25f) * 3f,
++          0.55f + kotlin.math.sin(point * 0.15f) * 0.3f) })
++    }
++    composeRule.runOnUiThread {
++      session.markdownSource.value = null
++      session.replaceRenderer(renderer)
++      session.penWritable.value = true
++      session.penPageStore.value = PenPageStore().apply { ink.forEach { addStroke(PenSide.DOCUMENT, 1, it) } }
++      session.penStrokes.value = ink
++      session.penTool.value = io.pagenote.feature.pen.PenCanvasTool.PEN
++    }
++    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
++    composeRule.waitForIdle()
++    android.os.SystemClock.sleep(1500)
++    val bounds = composeRule.onNodeWithTag("pdf_page_viewport").fetchSemanticsNode().boundsInWindow
++    val cx = bounds.center.x
++    val cy = bounds.center.y
++    val output = File(context.getExternalFilesDir(null), "frame-profile").apply { mkdirs() }
++    fun shell(command: String): String = android.os.ParcelFileDescriptor.AutoCloseInputStream(
++      instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
++    fun reset() { shell("dumpsys gfxinfo ${context.packageName} reset") }
++    fun capture(name: String) {
++      File(output, "$name.txt").writeText(shell("dumpsys gfxinfo ${context.packageName} framestats"))
++      val layers = shell("dumpsys SurfaceFlinger --list")
++      File(output, "$name-layers.txt").writeText(layers)
++      val layer = layers.lineSequence().firstOrNull { it.startsWith("${context.packageName}/") }
++      if (layer != null) File(output, "$name-present.txt").writeText(shell("dumpsys SurfaceFlinger --latency $layer"))
++      shell("mkdir -p /sdcard/Download/pagenote-frame-profile")
++      shell("cp ${output.absolutePath}/$name.txt /sdcard/Download/pagenote-frame-profile/$name.txt")
++      shell("cp ${output.absolutePath}/$name-layers.txt /sdcard/Download/pagenote-frame-profile/$name-layers.txt")
++      if (layer != null) shell("cp ${output.absolutePath}/$name-present.txt /sdcard/Download/pagenote-frame-profile/$name-present.txt")
++    }
++    val penView = checkNotNull(findPenCanvas(composeRule.activity.window.decorView))
++    val penLocation = IntArray(2).also { penView.getLocationOnScreen(it) }
++    val screenshot = instrumentation.uiAutomation.takeScreenshot()
++    File(output, "screen.png").outputStream().use { screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
++    screenshot.recycle()
++    shell("mkdir -p /sdcard/Download/pagenote-frame-profile")
++    shell("cp ${output.absolutePath}/screen.png /sdcard/Download/pagenote-frame-profile/screen.png")
++    val moveTimes = mutableListOf<Long>()
++    fun send(down: Long, action: Int, positions: List<Pair<Float, Float>>, stylus: Boolean = false) {
++      if (stylus && action == android.view.MotionEvent.ACTION_MOVE) moveTimes.add(android.os.SystemClock.uptimeMillis())
++      val properties = positions.indices.map { i -> android.view.MotionEvent.PointerProperties().apply {
++        id = i; toolType = if (stylus) android.view.MotionEvent.TOOL_TYPE_STYLUS else android.view.MotionEvent.TOOL_TYPE_FINGER
++      } }.toTypedArray()
++      val coords = positions.map { (px, py) -> android.view.MotionEvent.PointerCoords().apply {
++        x = px; y = py; pressure = if (stylus) 0.55f + kotlin.math.sin(px * 0.03f) * 0.3f else 0.7f; size = 0.02f
++      } }.toTypedArray()
++      val event = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), action, positions.size,
++        properties, coords, 0, 0, 1f, 1f, 0, 0,
++        if (stylus) android.view.InputDevice.SOURCE_STYLUS else android.view.InputDevice.SOURCE_TOUCHSCREEN, 0)
++      try { check(instrumentation.uiAutomation.injectInputEvent(event, true)) } finally { event.recycle() }
++    }
++    reset()
++    var down = android.os.SystemClock.uptimeMillis()
++    val radius = bounds.width * 0.12f
++    send(down, android.view.MotionEvent.ACTION_DOWN, listOf(cx - radius to cy))
++    send(down, android.view.MotionEvent.ACTION_POINTER_DOWN or (1 shl android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT), listOf(cx - radius to cy, cx + radius to cy))
++    repeat(360) { i ->
++      val r = radius * (1.4f - 0.4f * kotlin.math.cos(i * 2f * Math.PI.toFloat() / 120f))
++      send(down, android.view.MotionEvent.ACTION_MOVE, listOf(cx - r to cy, cx + r to cy))
++      android.os.SystemClock.sleep(16)
++    }
++    send(down, android.view.MotionEvent.ACTION_POINTER_UP or (1 shl android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT), listOf(cx - radius to cy, cx + radius to cy))
++    send(down, android.view.MotionEvent.ACTION_UP, listOf(cx - radius to cy))
++    android.os.SystemClock.sleep(500)
++    capture("zoom")
++    listOf("baseline").forEach { mode ->
++      composeRule.runOnUiThread {
++        session.penPageStore.value = PenPageStore().apply { ink.forEach { addStroke(PenSide.DOCUMENT, 1, it) } }
++        session.penStrokes.value = ink
++      }
++      android.os.SystemClock.sleep(800)
++      reset()
++      moveTimes.clear()
++      repeat(8) { stroke ->
++        down = android.os.SystemClock.uptimeMillis()
++        val y = cy - bounds.height * 0.22f + stroke * bounds.height * 0.045f
++        send(down, android.view.MotionEvent.ACTION_DOWN, listOf(cx - bounds.width * 0.18f to y), true)
++        repeat(90) { i ->
++          val x = cx - bounds.width * 0.18f + bounds.width * 0.36f * i / 89f
++          send(down, android.view.MotionEvent.ACTION_MOVE, listOf(x to (y + kotlin.math.sin(i * 0.15f) * 8f)), true)
++          android.os.SystemClock.sleep(8)
++        }
++        send(down, android.view.MotionEvent.ACTION_UP, listOf(cx + bounds.width * 0.18f to y), true)
++      }
++      android.os.SystemClock.sleep(500)
++      capture("writing_$mode")
++      val input = File(output, "input_$mode.txt")
++      input.writeText("count=${moveTimes.size} start=${moveTimes.first()} end=${moveTimes.last()}\n")
++      shell("cp ${input.absolutePath} /sdcard/Download/pagenote-frame-profile/input_$mode.txt")
++      assertEquals("stylus input should add eight strokes in $mode", ink.size + 8, session.penStrokes.value.size)
++    }
++    File(output, "metadata.txt").writeText("bounds=$bounds strokes=${session.penStrokes.value.size} zoom=${session.viewportBookmark.value.scale} penLocation=${penLocation.toList()} penSize=${penView.width}x${penView.height} enabled=${penView.inputEnabled} tool=${penView.selectedTool}\n")
++    shell("cp ${output.absolutePath}/metadata.txt /sdcard/Download/pagenote-frame-profile/metadata.txt")
++    assertTrue("stylus input should add strokes", session.penStrokes.value.size > ink.size)
++  }
++
