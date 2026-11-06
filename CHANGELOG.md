@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
+
 - Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
 
 - Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
