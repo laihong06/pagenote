@@ -315,6 +315,35 @@ if (!app.requestSingleInstanceLock()) {
       };
       win.on('minimize', suspendPreviews);
       win.on('hide', suspendPreviews);
+      // Chromium exposes element fullscreen before macOS finishes its native
+      // window transition. Wait for that transition before allowing a fast exit.
+      let fullscreenEntry = Promise.resolve();
+      win.on('enter-html-full-screen', () => {
+        if (process.platform !== 'darwin' || win.isFullScreen()) {
+          fullscreenEntry = Promise.resolve();
+          return;
+        }
+        fullscreenEntry = new Promise((resolve) => {
+          const target = win;
+          const finish = (ready) => {
+            clearTimeout(timeout);
+            target.removeListener('enter-full-screen', entered);
+            target.removeListener('closed', closed);
+            resolve(ready);
+          };
+          const entered = () => finish(true);
+          const closed = () => finish(false);
+          const timeout = setTimeout(() => finish(false), 5000);
+          target.once('enter-full-screen', entered);
+          target.once('closed', closed);
+        });
+      });
+      ipcMain.handle('pagenote:wait-fullscreen-entry', async (event) => {
+        if (!win || event.sender !== win.webContents)
+          throw Error('Invalid fullscreen request');
+        if ((await fullscreenEntry) === false)
+          throw Error('Fullscreen transition did not complete');
+      });
       nativeTheme.on('updated', () => {
         if (!win.isDestroyed())
           win.setBackgroundColor(

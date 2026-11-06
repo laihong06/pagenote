@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Fix rapid exit from native Markdown S fullscreen while macOS is still entering fullscreen; keep retries available when the native transition fails. / 修复 macOS 原生全屏进入过程中立即退出可能卡住的问题；切换失败后仍可重试。
+
 - Stabilize the desktop legacy Markdown S preview lifecycle test by focusing its window before checking minimize behavior. / 稳定桌面旧版 Markdown S 预览生命周期测试，在检查最小化前确保窗口可见并获得焦点。
 - Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
 
