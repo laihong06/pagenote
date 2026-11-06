@@ -2817,7 +2817,7 @@ SOFTWARE.
 
 
 ------------------------------
-body-parser@2.3.0
+body-parser@2.4.0
 Declared license: MIT
 
 (The MIT License)
@@ -6889,7 +6889,7 @@ SOFTWARE.
 
 
 ------------------------------
-multer@2.4.0
+multer@2.5.0
 Declared license: MIT
 
 Copyright (c) 2014 Hage Yaapa <[http://www.hacksparrow.com](http://www.hacksparrow.com)>
@@ -7526,7 +7526,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ------------------------------
-qs@6.16.0
+qs@6.17.1
 Declared license: BSD-3-Clause
 
 BSD 3-Clause License
