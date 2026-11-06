@@ -5,6 +5,8 @@ import 'katex/dist/katex.min.css';
 import * as pdfjs from 'pdfjs-dist';
 import worker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { renderMarkdown, validateNote } from './markdown.js';
+import { replaceNativeState } from './markdown-native';
+import { importNativeLesson } from './markdown-native-import';
 import { createAnnotations } from './annotations.js';
 import { setupMarkdownTools, htmlToMarkdown } from './editing.js';
 import { createReviews } from './reviews.js';
@@ -180,6 +182,11 @@ let doc = null,
   saving = Promise.resolve(),
   dirty = null,
   aiEditing = false;
+let nativeSourceDirty = null,
+  nativeSourceTimer,
+  nativeSourceSaving = Promise.resolve();
+const sourceViewRevisions = new WeakMap();
+let sourceMarkdown = '';
 let wordActive = false,
   wordBusy = false,
   wordFinishing = false,
@@ -301,7 +308,104 @@ function editChanged(fromRich = false) {
     500,
   );
 }
+$('preview').addEventListener('markdown-s-native-change', (event) => {
+  if (!doc || aiEditing || wordBusy) {
+    event.preventDefault();
+    return;
+  }
+  try {
+    $('editor').value = replaceNativeState(
+      $('editor').value,
+      event.detail.id,
+      event.detail.state,
+      event.detail.previous,
+    );
+    rich?.acceptExternal($('editor').value);
+    editChanged(true);
+  } catch (error) {
+    event.preventDefault();
+    toast(error.message);
+  }
+});
+async function flushNativeSource() {
+  clearTimeout(nativeSourceTimer);
+  if (!nativeSourceDirty) {
+    await nativeSourceSaving;
+    return;
+  }
+  const snapshot = nativeSourceDirty;
+  nativeSourceDirty = null;
+  const key = 'page-notes-native-source:' + snapshot.id;
+  nativeSourceSaving = nativeSourceSaving
+    .catch(() => {})
+    .then(async () => {
+      try {
+        const updated = await request(
+          '/api/documents/' + snapshot.id + '/markdown',
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ markdown: snapshot.text }),
+          },
+        );
+        if (doc?.id === snapshot.id) doc = updated;
+        if (localStorage.getItem(key) === snapshot.text)
+          localStorage.removeItem(key);
+        $('saveStatus').textContent = '已保存到本地';
+      } catch (error) {
+        if (!nativeSourceDirty) nativeSourceDirty = snapshot;
+        $('saveStatus').textContent = '源文档保存失败 · 已保留恢复副本';
+        throw error;
+      }
+    });
+  await nativeSourceSaving;
+}
+$('paper').addEventListener('markdown-s-native-change', (event) => {
+  if (!doc || doc.kind !== 'markdown' || aiEditing || wordBusy) {
+    event.preventDefault();
+    return;
+  }
+  try {
+    const index = pageSheets.findIndex((sheet) => sheet.contains(event.target));
+    if (index < 0) throw Error('无法定位源文档组件');
+    const nextPage = replaceNativeState(
+      mdPages[index],
+      event.detail.id,
+      event.detail.state,
+      event.detail.previous,
+    );
+    const nextSource = replaceNativeState(
+      sourceMarkdown,
+      event.detail.id,
+      event.detail.state,
+      event.detail.previous,
+    );
+    mdPages[index] = nextPage;
+    sourceMarkdown = nextSource;
+    sourceViewRevisions.set(
+      pageSheets[index].firstElementChild,
+      mdPages[index],
+    );
+    nativeSourceDirty = { id: doc.id, text: sourceMarkdown };
+    try {
+      localStorage.setItem(
+        'page-notes-native-source:' + doc.id,
+        nativeSourceDirty.text,
+      );
+    } catch {}
+    $('saveStatus').textContent = '源文档等待保存…';
+    clearTimeout(nativeSourceTimer);
+    nativeSourceTimer = setTimeout(
+      () => flushNativeSource().catch((error) => toast(error.message)),
+      500,
+    );
+  } catch (error) {
+    event.preventDefault();
+    toast(error.message);
+  }
+});
 async function flush(finishDraft = true) {
+  await flushNativeSource();
   await annotations.flush(finishDraft);
   clearTimeout(saveTimer);
   if (!dirty) {
@@ -480,7 +584,10 @@ async function paintSheet(index) {
   const child = sheet.firstElementChild;
   if (doc.kind === 'markdown') {
     sheet.dataset.painted = '1';
-    renderMarkdown(mdPages[index], child);
+    if (sourceViewRevisions.get(child) !== mdPages[index]) {
+      renderMarkdown(mdPages[index], child);
+      sourceViewRevisions.set(child, mdPages[index]);
+    }
     return;
   }
   const source = pdf;
@@ -599,10 +706,11 @@ async function endMarkdownDocument() {
     root.contentEditable = 'false';
     root.oninput = null;
   }
+  sourceMarkdown = mdPages.join('\n\n---\n\n');
   doc = await request('/api/documents/' + doc.id + '/markdown', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ markdown: mdPages.join('\n\n---\n\n') }),
+    body: JSON.stringify({ markdown: sourceMarkdown }),
   });
   documentMarkdownEditing = false;
   document.body.classList.remove('document-markdown-editing');
@@ -661,7 +769,10 @@ async function renderPage(anchor = null) {
     } else {
       sheet.style.width = availableW + 'px';
       child.className = 'prose markdown-page';
-      renderMarkdown(mdPages[i], child);
+      if (sourceViewRevisions.get(child) !== mdPages[i]) {
+        renderMarkdown(mdPages[i], child);
+        sourceViewRevisions.set(child, mdPages[i]);
+      }
       sheet.dataset.painted = '1';
     }
     sheet.style.zoom = zoom;
@@ -774,10 +885,18 @@ async function performOpenDocument(meta, fromWord = false) {
         standardFontDataUrl: '/pdf-assets/standard_fonts/',
         wasmUrl: '/pdf-assets/wasm/',
       }).promise;
-    else
-      newPages = (await (await fetch(meta.url)).text()).split(
+    else {
+      sourceMarkdown = await (await fetch(meta.url)).text();
+      const recovered = localStorage.getItem(
+        'page-notes-native-source:' + meta.id,
+      );
+      if (recovered !== null) sourceMarkdown = recovered;
+      newPages = sourceMarkdown.split(
         /\n\s*(?:---|<!--\s*pagebreak\s*-->)\s*\r?\n/g,
       );
+      if (recovered !== null)
+        nativeSourceDirty = { id: meta.id, text: sourceMarkdown };
+    }
     const newNotes = await request(`/api/documents/${meta.id}/notes`);
     scrollSuspended = true;
     readingGestures?.cancel();
@@ -1012,7 +1131,8 @@ $('documentEditButton').onclick = safely(async () => {
     const root = currentSheet().querySelector('.markdown-page');
     root.contentEditable = 'true';
     root.focus();
-    root.oninput = () => {
+    root.oninput = (event) => {
+      if (event.target.closest('.markdown-s-native')) return;
       mdPages[page - 1] = htmlToMarkdown(root.innerHTML);
     };
     $('documentEditButton').textContent = '完成编辑';
@@ -1230,7 +1350,12 @@ $('noteInput').onchange = safely(async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const text = await file.text();
-  if (/\.json$/i.test(file.name)) {
+  if (/\.html?$/i.test(file.name)) {
+    const lesson = importNativeLesson(text, file.name);
+    insertText(lesson.markdown);
+    await flush();
+    toast('已转换为原生 Markdown 组件；交互修改将自动保存当前笔记。');
+  } else if (/\.json$/i.test(file.name)) {
     const backup = JSON.parse(text);
     if (!backup.notes || typeof backup.notes !== 'object')
       throw Error('不是有效的pagenote笔记备份');
@@ -2187,7 +2312,11 @@ $('splitter').onkeydown = (e) => {
 let resizeTimer;
 const resized = () => {
   clearTimeout(resizeTimer);
+  if (document.fullscreenElement?.classList.contains('markdown-s-native'))
+    return;
   resizeTimer = setTimeout(() => {
+    if (document.fullscreenElement?.classList.contains('markdown-s-native'))
+      return;
     if (
       annotations.drawing ||
       readingGestures.active ||
@@ -2203,6 +2332,9 @@ const resized = () => {
   }, 160);
 };
 window.addEventListener('resize', resized);
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) resized();
+});
 if (!new URLSearchParams(location.search).has('capture')) {
   let viewportWidth = $('documentScroll').offsetWidth,
     viewportHeight = $('documentScroll').offsetHeight;

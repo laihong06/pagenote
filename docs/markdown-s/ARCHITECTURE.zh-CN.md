@@ -1,5 +1,7 @@
 # Markdown S v1 架构与格式规范
 
+产品要求已修正：主体验使用 [原生 Markdown S 渲染与保存](NATIVE-MARKDOWN.zh-CN.md)，不以 iframe／独立 HTML 页面交付。本文的脚本沙盒约束仅适用于历史可执行 HTML 增强块，不要求原生数据组件放进沙盒。
+
 状态：目标设计。实现进度见[入口](README.md)，开发任务见[实施指导](IMPLEMENTATION.zh-CN.md)，是否完成由[验收记录](ACCEPTANCE.zh-CN.md)证明。
 
 ## 1. 设计原则
