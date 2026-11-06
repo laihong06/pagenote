@@ -7,7 +7,6 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -69,7 +68,7 @@ class RecentProjectsStoreTest {
     try {
       RecentProjectsStore(newDataStore(file, firstScope)).record(entry(rootDocumentId = "root-a"))
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -79,7 +78,7 @@ class RecentProjectsStoreTest {
         RecentProjectsStore(newDataStore(file, secondScope)).recentProjects.first(),
       )
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -96,7 +95,7 @@ class RecentProjectsStoreTest {
       }
       assertTrue(RecentProjectsStore(dataStore).recentProjects.first().isEmpty())
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 
@@ -107,7 +106,7 @@ class RecentProjectsStoreTest {
       RecentProjectsStore(newDataStore(File(temporaryFolder.root, "invalid.preferences_pb"), scope))
         .record(entry(accessTreeUri = "file:///tmp/project", rootDocumentId = "root"))
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 

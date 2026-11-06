@@ -1,0 +1,47 @@
+[
+  {
+    "sha": "1c0fb0e08a6e79b00055aa0d78aee8ac9a2be1e5",
+    "branch": "codex/finish-platform-management",
+    "archiveTag": "archive/2026-10-30/codex/finish-platform-management"
+  },
+  {
+    "sha": "ddc0384bde7d1cc4f2cf538e349a9c6501bc0ba3",
+    "branch": "codex/markdown-s-preview",
+    "archiveTag": "archive/2026-10-30/codex/markdown-s-preview"
+  },
+  {
+    "sha": "01314720f197a1204d6b439ede48847fcd80796a",
+    "branch": "codex/markdown-s-visual-lab",
+    "archiveTag": "archive/2026-10-30/codex/markdown-s-visual-lab"
+  },
+  {
+    "sha": "9990f82ce34ebb6c422356febdd0dc4b48e8a88f",
+    "branch": "codex/platform-integration-20261030",
+    "archiveTag": "archive/2026-10-30/codex/platform-integration-20261030"
+  },
+  {
+    "sha": "79cca35d327f589429f47cc507f803272a4db65b",
+    "branch": "codex/pr-submission-standard",
+    "archiveTag": "archive/2026-10-30/codex/pr-submission-standard"
+  },
+  {
+    "sha": "09eff14059ef4ceaf9017c8ed0fb4e5e61dd9faf",
+    "branch": "docs/noncommercial-license",
+    "archiveTag": "archive/2026-10-30/docs/noncommercial-license"
+  },
+  {
+    "sha": "c6aaf260b572e44a2a6a15b1f0526637bfefa7c5",
+    "branch": "docs/stable-channel-readme",
+    "archiveTag": "archive/2026-10-30/docs/stable-channel-readme"
+  },
+  {
+    "sha": "00c47812ed0a920097d773b3f9380a9ff64c5eaf",
+    "branch": "docs/stable-noncommercial",
+    "archiveTag": "archive/2026-10-30/docs/stable-noncommercial"
+  },
+  {
+    "sha": "e084e4e265104676523e34df4fac853b72b6604e",
+    "branch": "fix/stable-mermaid-footer",
+    "archiveTag": "archive/2026-10-30/fix/stable-mermaid-footer"
+  }
+]

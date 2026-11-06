@@ -4,7 +4,8 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 
 | 项目 | 状态与后续处理 |
 |---|---|
-| Windows 主机上的 Android JVM DataStore 测试 | 2026-10-23 布局预览验收中，345 项应用 JVM 测试通过 342 项；`AgentPromptCustomizationTest` 两项及 `RecentProjectsStoreTest` 一项在 DataStore 覆盖重命名时失败，切换 D 盘临时目录仍复现。此为主机 JVM 测试结果，尚未证实为 Android 运行时缺陷；独立记录，预览版不宣称全部测试通过。5 项工具栏 Android 14 模拟器测试通过。 |
+| Markdown S 原生作品实验 | 已实现遗传算法模板及声明式数据保存，不是任意 HTML／JS 自动转换器。Windows 源码运行交互和项目重开已验证；本轮 Mac 实机、生产安装包、长期 CPU／内存／显存及全部触摸场景未验收。旧沙盒仅保留兼容，不等同原生组件能力。 |
+| Windows 主机上的 Android JVM DataStore 测试 | 2026-10-23 布局预览验收中，345 项应用 JVM 测试通过 342 项；`AgentPromptCustomizationTest` 两项及 `RecentProjectsStoreTest` 一项在 DataStore 重开文件时失败，切换 D 盘临时目录仍复现。2026-11-06 的 Linux CI 也在相同的 DataStore 活跃文件检查处失败；相关测试现等待旧作用域完全关闭后再重开，本机相关测试通过，Linux CI 及 Windows 主机仍需复测。此前 5 项工具栏 Android 14 模拟器测试通过。 |
 | 历史长测约 54 分钟时窗口关闭 | 原因未明；重开后已保存内容恢复。历史中断不记作一小时通过，保留后续排查。 |
 | Mac 全流程与环境覆盖 | 贡献者报告部分实机测试，维护者未独立复验全部 Mac 环境；继续测试版。 |
 | Mac 新增设置、主题与触控板手势 | 贡献者在 Apple Silicon 本机及 arm64 包验证自动化流程；物理触控板手工验收、Intel Mac 包和新增共享界面的 Windows 实机复验尚未单独记录，保持测试版。 |
