@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
 - 同步共享 beta 的桌面运行代码及 AI／原生 Markdown S；macOS 的界面截图、交互和安装包仍需独立验收，未发布新版本。
 
 - macOS 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
