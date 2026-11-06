@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
 - Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
 
 - Document Android dense-ink rendering measurements and before/after emulator screenshots. / 补充 Android 密集笔迹绘制的模拟器对照数据与改前改后截图。
