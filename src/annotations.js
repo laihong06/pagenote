@@ -66,12 +66,15 @@ export function createAnnotations({
   async function flush(finishDraft = true) {
     if (finishDraft) finish();
     clearTimeout(timer);
-    const snapshots = [...dirty.values()];
-    dirty.clear();
     const job = saving
       .catch(() => {})
       .then(async () => {
-        for (const snapshot of snapshots) {
+        // Collect only after the preceding save has settled: it may have
+        // returned failed pages to the queue while this flush was waiting.
+        const snapshots = [...dirty.values()];
+        dirty.clear();
+        for (let index = 0; index < snapshots.length; index++) {
+          const snapshot = snapshots[index];
           try {
             await request(
               `/api/documents/${snapshot.id}/annotations/${snapshot.side}/${snapshot.page}`,
@@ -85,11 +88,13 @@ export function createAnnotations({
             if (localStorage.getItem(k) === JSON.stringify(snapshot.items))
               localStorage.removeItem(k);
           } catch (e) {
-            if (
-              id === snapshot.id &&
-              !dirty.has(key(snapshot.side, snapshot.page))
-            )
-              dirty.set(key(snapshot.side, snapshot.page), snapshot);
+            // Preserve the failed page and pages not attempted yet, unless a
+            // newer edit for that page is already waiting to be written.
+            for (const pending of snapshots.slice(index)) {
+              const pendingKey = key(pending.side, pending.page);
+              if (id === pending.id && !dirty.has(pendingKey))
+                dirty.set(pendingKey, pending);
+            }
             onSaveStatus('批注保存失败 · 已保留本地恢复副本');
             throw e;
           }
