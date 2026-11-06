@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
+
 - Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
 
 - Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
