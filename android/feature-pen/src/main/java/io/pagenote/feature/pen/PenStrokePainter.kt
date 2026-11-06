@@ -121,6 +121,8 @@ object PenStrokePainter {
   }
 
   private val scratchPath = Path()
+  private val scratchOutline = Path()
+  private val scratchBatch = Path()
 
   fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float) {
     strokePaint.style = Paint.Style.STROKE
@@ -137,12 +139,58 @@ object PenStrokePainter {
       canvas.drawLine(previous.x, previous.y, current.x, current.y, strokePaint)
       return
     }
+    // Consecutive segments with the same pressure share a stroked path. For
+    // pressure changes, combine the exact stroked outlines into bounded fill
+    // batches so the renderer does not need one command per input sample.
+    scratchPath.rewind()
+    scratchBatch.rewind()
+    var pathWidth = 0f
+    var hasPath = false
+    var varyingWidth = false
+    var batchedRuns = 0
+    fun drawBatch() {
+      if (batchedRuns == 0) return
+      strokePaint.style = Paint.Style.FILL
+      canvas.drawPath(scratchBatch, strokePaint)
+      strokePaint.style = Paint.Style.STROKE
+      scratchBatch.rewind()
+      batchedRuns = 0
+    }
+    fun appendRun() {
+      strokePaint.strokeWidth = pathWidth
+      scratchOutline.rewind()
+      if (strokePaint.getFillPath(scratchPath, scratchOutline)) {
+        scratchBatch.addPath(scratchOutline)
+        batchedRuns++
+        if (batchedRuns >= 64) drawBatch()
+      } else {
+        // A zero-width stroke is an Android hairline, which has no fill path.
+        drawBatch()
+        canvas.drawPath(scratchPath, strokePaint)
+      }
+    }
     PenStrokeSmoother.forEachSegment(points, width) { startX, startY, controlX, controlY, endX, endY, segmentWidth ->
-      strokePaint.strokeWidth = segmentWidth
-      scratchPath.rewind()
-      scratchPath.moveTo(startX, startY)
+      if (hasPath && segmentWidth != pathWidth) {
+        varyingWidth = true
+        appendRun()
+        scratchPath.rewind()
+        hasPath = false
+      }
+      if (!hasPath) {
+        scratchPath.moveTo(startX, startY)
+        pathWidth = segmentWidth
+        hasPath = true
+      }
       scratchPath.quadTo(controlX, controlY, endX, endY)
-      canvas.drawPath(scratchPath, strokePaint)
+    }
+    if (hasPath) {
+      if (varyingWidth) {
+        appendRun()
+        drawBatch()
+      } else {
+        strokePaint.strokeWidth = pathWidth
+        canvas.drawPath(scratchPath, strokePaint)
+      }
     }
   }
 
