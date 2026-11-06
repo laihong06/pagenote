@@ -6,6 +6,8 @@
 
 - macOS 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
+- Make the legacy preview lifecycle test focus its window before checking macOS minimize behavior. / 旧预览生命周期测试在检查 macOS 最小化前先确保应用窗口可见并获得焦点。
+
 - Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
 
 - Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
