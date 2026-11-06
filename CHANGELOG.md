@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
 - Fix rapid exit from native Markdown S fullscreen while macOS is still entering fullscreen; keep retries available when the native transition fails. / 修复 macOS 原生全屏进入过程中立即退出可能卡住的问题；切换失败后仍可重试。
 
 - Stabilize the desktop legacy Markdown S preview lifecycle test by focusing its window before checking minimize behavior. / 稳定桌面旧版 Markdown S 预览生命周期测试，在检查最小化前确保窗口可见并获得焦点。
