@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
 - Make the legacy preview lifecycle test focus its window before checking macOS minimize behavior. / 旧预览生命周期测试在检查 macOS 最小化前先确保应用窗口可见并获得焦点。
 
 - Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
