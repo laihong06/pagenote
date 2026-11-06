@@ -307,6 +307,16 @@ try {
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].minimize(),
   );
+  // macOS can finish minimizing after the request returns. Verify the real
+  // state rather than racing the window server's minimize animation.
+  const minimizeDeadline = Date.now() + 5000;
+  while (
+    !(await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isMinimized(),
+    )) &&
+    Date.now() < minimizeDeadline
+  )
+    await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].isMinimized(),
