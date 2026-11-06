@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktopSettings', {
   open: (pane) => ipcRenderer.invoke('pagenote:settings-open', pane),
   sync: () => ipcRenderer.send('pagenote:settings-sync'),
+  waitForFullscreenEntry: () =>
+    ipcRenderer.invoke('pagenote:wait-fullscreen-entry'),
   chooseRainImportDirectory: () =>
     ipcRenderer.invoke('pagenote:rain-import-directory'),
   chooseBookshelfDirectory: () =>

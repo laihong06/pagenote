@@ -6,6 +6,10 @@
 
 - macOS 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
+- Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
+
+- Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
+
 - Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
 
 - Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
