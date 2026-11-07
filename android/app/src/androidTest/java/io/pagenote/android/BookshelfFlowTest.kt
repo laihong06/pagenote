@@ -16,6 +16,30 @@ import java.util.UUID
 class BookshelfFlowTest {
   @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+  @Test fun narrowBookshelfKeepsSearchUsableAndLeavesSpaceForBooks() {
+    org.junit.Assume.assumeTrue(compose.activity.resources.configuration.screenWidthDp < 600)
+    val store = BookshelfStore(compose.activity)
+    val previous = runBlocking { store.preferences.first() }
+    try {
+      waitTag("bookshelf_home")
+      val search = compose.onNodeWithTag("bookshelf_search").fetchSemanticsNode().boundsInRoot
+      val density = compose.activity.resources.displayMetrics.density
+      assertTrue("search field must have usable width, was ${search.width / density} dp", search.width / density >= 140f)
+      assertTrue("search field must not stretch vertically, was ${search.height / density} dp", search.height / density < 100f)
+      val title = compose.onNodeWithText(compose.activity.getString(R.string.bookshelf_title)).fetchSemanticsNode().boundsInRoot
+      assertTrue("bookshelf title needs enough room, was ${title.width / density} dp", title.width / density >= 120f)
+      compose.onNodeWithTag("bookshelf_more").performClick()
+      compose.onNodeWithTag("bookshelf_view").assertIsDisplayed()
+      compose.onNodeWithTag("bookshelf_refresh").assertIsDisplayed()
+      compose.onNodeWithTag("bookshelf_view").performClick()
+      compose.waitUntil(5_000) { runBlocking { store.preferences.first().view != previous.view } }
+      compose.onNodeWithTag("bookshelf_more").performClick()
+      compose.onNodeWithTag("bookshelf_refresh").assertIsDisplayed()
+    } finally {
+      runBlocking { store.presentation(previous.sort, previous.view) }
+    }
+  }
+
   @Test fun boundRootCreatesDiscoversCustomizesAndSavesOnReturn(): Unit = runBlocking {
     val activity = compose.activity
     val resolver = activity.contentResolver
@@ -52,6 +76,9 @@ class BookshelfFlowTest {
       compose.onNodeWithTag("bookshelf_search").performTextInput("not-found")
       compose.onNodeWithTag("bookshelf_book_Shelf notebook").assertDoesNotExist()
       compose.onNodeWithTag("bookshelf_search").performTextClearance()
+      if (compose.onAllNodesWithTag("bookshelf_view").fetchSemanticsNodes().isEmpty()) {
+        compose.onNodeWithTag("bookshelf_more").performClick()
+      }
       compose.onNodeWithTag("bookshelf_view").performClick()
       waitTag("bookshelf_list")
       waitTag("bookshelf_book_Shelf notebook")
@@ -67,7 +94,13 @@ class BookshelfFlowTest {
       assertEquals("Custom title", metadata.title)
       assertEquals("rose", metadata.paper)
       compose.onNodeWithTag("bookshelf_settings").performClick()
+      if (compose.onAllNodesWithTag("settings_library_folder").fetchSemanticsNodes().isEmpty()) {
+        compose.onNodeWithTag("settings_category_appearance").performClick()
+      }
       compose.onNodeWithTag("settings_library_folder").assertIsDisplayed()
+      if (compose.onAllNodesWithTag("settings_category_back").fetchSemanticsNodes().isNotEmpty()) {
+        compose.onNodeWithTag("settings_category_back").performClick()
+      }
       compose.onNodeWithTag("reader_settings_cancel").performClick()
     } finally {
       store.bind(previous.tree, previous.name)

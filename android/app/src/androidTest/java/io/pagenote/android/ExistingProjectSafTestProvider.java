@@ -53,6 +53,10 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   public static final String METHOD_WAIT_NOTE_WRITE = "waitNoteWrite";
   public static final String METHOD_RELEASE_NOTE_WRITE = "releaseNoteWrite";
   public static final String METHOD_CHECK_NOTE_WRITE = "checkNoteWrite";
+  public static final String METHOD_PAUSE_NEXT_PEN_WRITE = "pauseNextPenWrite";
+  public static final String METHOD_CHECK_PEN_WRITE = "checkPenWrite";
+  public static final String METHOD_RELEASE_PEN_WRITE = "releasePenWrite";
+  public static final String METHOD_GET_PEN_WRITE_COUNT = "getPenWriteCount";
   public static final String METHOD_GRANT_PERSISTABLE_READ = "grantPersistableRead";
   private static final String METHOD_FIND_DOCUMENT_PATH = "android:findDocumentPath";
   private static final String METHOD_CREATE_DOCUMENT = "android:createDocument";
@@ -79,6 +83,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private static final String ANNOTATIONS_FILE = "annotations.json";
   private static final String ASSETS_DIRECTORY = "assets";
   private int reviewWriteCount;
+  private volatile int penWriteCount;
   private int reviewWriteFailuresRemaining;
   private int annotationWriteFailuresRemaining;
   private int childQueryFailuresRemaining;
@@ -90,6 +95,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
   private boolean assetsDirectoryCreated;
   private static volatile ReviewReadPause reviewReadPause;
   private static volatile NoteWritePause noteWritePause;
+  private static volatile NoteWritePause penWritePause;
 
   private static final class ReviewReadPause {
     final AtomicBoolean claimed = new AtomicBoolean();
@@ -137,6 +143,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
               ).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
         reviewWriteCount = 0;
+        penWriteCount = 0;
         reviewWriteFailuresRemaining = 0;
         annotationWriteFailuresRemaining = 0;
         childQueryFailuresRemaining = 0;
@@ -145,6 +152,7 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         imageWriteFailuresRemaining = 0;
         releaseReviewReadPause();
         releaseNoteWritePause();
+        releasePenWritePause();
         return Bundle.EMPTY;
       }
       if (METHOD_GRANT_PERSISTABLE_READ.equals(method)) {
@@ -285,6 +293,25 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         noteWritePause = new NoteWritePause();
         return Bundle.EMPTY;
       }
+      if (METHOD_PAUSE_NEXT_PEN_WRITE.equals(method)) {
+        penWritePause = new NoteWritePause();
+        return Bundle.EMPTY;
+      }
+      if (METHOD_CHECK_PEN_WRITE.equals(method)) {
+        NoteWritePause pause = penWritePause;
+        Bundle result = new Bundle();
+        result.putBoolean("started", pause != null && pause.writeStarted.getCount() == 0);
+        return result;
+      }
+      if (METHOD_RELEASE_PEN_WRITE.equals(method)) {
+        releasePenWritePause();
+        return Bundle.EMPTY;
+      }
+      if (METHOD_GET_PEN_WRITE_COUNT.equals(method)) {
+        Bundle result = new Bundle();
+        result.putInt(EXTRA_COUNT, penWriteCount);
+        return result;
+      }
       if (METHOD_WAIT_NOTE_WRITE.equals(method)) {
         NoteWritePause pause = noteWritePause;
         boolean started = false;
@@ -403,9 +430,22 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
         failAfterPartialTruncate(file, "review JSON");
       }
     }
-    if (ANNOTATIONS_ID.equals(documentId) && mode.contains("w") && annotationWriteFailuresRemaining > 0) {
-      annotationWriteFailuresRemaining--;
-      failAfterPartialTruncate(file, "annotation JSON");
+    if (ANNOTATIONS_ID.equals(documentId) && mode.contains("w")) {
+      penWriteCount++;
+      NoteWritePause pause = penWritePause;
+      if (pause != null && pause.claimed.compareAndSet(false, true)) {
+        pause.writeStarted.countDown();
+        try {
+          if (!pause.release.await(10, TimeUnit.SECONDS)) throw new FileNotFoundException("timed out waiting to release pen write");
+        } catch (InterruptedException error) {
+          Thread.currentThread().interrupt();
+          throw new FileNotFoundException("interrupted while waiting to release pen write");
+        }
+      }
+      if (annotationWriteFailuresRemaining > 0) {
+        annotationWriteFailuresRemaining--;
+        failAfterPartialTruncate(file, "annotation JSON");
+      }
     }
     if (imageFiles.containsKey(documentId) && mode.contains("w") && imageWriteFailuresRemaining > 0) {
       imageWriteFailuresRemaining--;
@@ -492,6 +532,12 @@ public final class ExistingProjectSafTestProvider extends ContentProvider {
     NoteWritePause pause = noteWritePause;
     if (pause != null) pause.release.countDown();
     noteWritePause = null;
+  }
+
+  private static void releasePenWritePause() {
+    NoteWritePause pause = penWritePause;
+    if (pause != null) pause.release.countDown();
+    penWritePause = null;
   }
 
   private void writeOversizedReviews(long size) throws IOException {

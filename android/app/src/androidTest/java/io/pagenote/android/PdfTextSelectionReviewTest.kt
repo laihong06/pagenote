@@ -250,9 +250,7 @@ class PdfTextSelectionReviewTest {
 
   private fun selectPdfText(quote: String, pageText: PdfPageText): PdfTextSelection {
     val commandTag = "reader_menu_command_pdf_text_selection"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-    }
+    revealReaderMenuCommand(composeRule, "ai_annotations", "pdf_text_selection")
     composeRule.waitUntil(timeoutMillis = 10_000) {
       runCatching { composeRule.onNodeWithTag(commandTag).assertIsEnabled() }.isSuccess
     }

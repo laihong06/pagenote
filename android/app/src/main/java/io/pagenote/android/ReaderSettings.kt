@@ -40,7 +40,7 @@ data class ReaderSettings(
   val nightFilterEnabled: Boolean = false,
   /** 护眼/夜览滤镜强度（0..100；颜色映射见 [NightFilterPolicy.overlayArgb]）。 */
   val nightFilterStrength: Int = NightFilterPolicy.DEFAULT_STRENGTH,
-) {
+) : java.io.Serializable {
   /**
    * 批次 7：设置 → 搜索索引范围（原始值；sanitize 由 [ReaderSettingsPolicy]
    * 在加载路径统一处理，validate 据此拒绝全关草稿）。

@@ -2,6 +2,7 @@ package io.pagenote.android
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -26,7 +27,7 @@ class ReaderSettingsMarkdownThemeTest {
     val saved = AtomicReference<ReaderSettings?>()
     composeRule.setContent {
       MaterialTheme {
-        ReaderSettingsDialog(
+        ReaderSettingsScreen(
           settings = ReaderSettings(theme = "dark"),
           onDismiss = {},
           onConfigureAgent = {},
@@ -35,6 +36,7 @@ class ReaderSettingsMarkdownThemeTest {
       }
     }
 
+    showAppearanceIfNeeded()
     composeRule.onNodeWithTag("markdown_theme_paper").performScrollTo().performClick()
     composeRule.onNodeWithTag("reader_settings_save").performClick()
     composeRule.waitUntil(5_000) { saved.get() != null }
@@ -49,7 +51,7 @@ class ReaderSettingsMarkdownThemeTest {
     val dismissed = AtomicBoolean(false)
     composeRule.setContent {
       MaterialTheme {
-        ReaderSettingsDialog(
+        ReaderSettingsScreen(
           settings = ReaderSettings(),
           onDismiss = { dismissed.set(true) },
           onConfigureAgent = {},
@@ -58,10 +60,20 @@ class ReaderSettingsMarkdownThemeTest {
       }
     }
 
+    showAppearanceIfNeeded()
     composeRule.onNodeWithTag("markdown_theme_paper").performScrollTo().performClick()
+    if (composeRule.onAllNodesWithTag("settings_category_back").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("settings_category_back").performClick()
+    }
     composeRule.onNodeWithTag("reader_settings_cancel").performClick()
     composeRule.waitUntil(5_000) { dismissed.get() }
 
     assertFalse("cancel must not persist the draft", saved.get() != null)
+  }
+
+  private fun showAppearanceIfNeeded() {
+    if (composeRule.onAllNodesWithTag("settings_detail").fetchSemanticsNodes().isEmpty()) {
+      composeRule.onNodeWithTag("settings_category_appearance").performClick()
+    }
   }
 }

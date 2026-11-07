@@ -2,6 +2,54 @@
 
 ## Unreleased / 尚未发布
 
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
+- Document Android dense-ink rendering measurements and before/after emulator screenshots. / 补充 Android 密集笔迹绘制的模拟器对照数据与改前改后截图。
+
+- Improve Android handwriting and zoom performance on ink-heavy pages by batching freehand drawing while preserving pressure-sensitive strokes. / 优化 Android 密集笔迹页面的书写和缩放流畅度，合并手写绘制命令并保留压感变化。
+
+- Add Android pinch-zoom comparison screenshots and describe the verified gesture behavior. / 补充 Android 双指缩放的改前改后截图与已验证交互说明。
+
+- Improve Android pinch zoom by accumulating all gesture deltas locally and reusing hardware ink commands across zoom and pan. / 修复 Android 连续缩放增量丢失，缩放过程本地更新，并复用硬件笔迹绘制记录以减少卡顿。
+
+- Document Android handwriting and hold-to-shape behavior with before/after emulator images. / 补充 Android 手写与停笔识别的改前改后模拟器截图和说明。
+
+- Reduce Android stylus input and drawing overhead, keep writing while recognized shapes save, and improve hold-to-shape recognition and rendering. / 优化 Android 手写输入与绘制，图形保存时可继续书写；改进停笔识别及图形保存后的显示和选中。
+
+- Keep Android note formatting available while an Agent task runs. / Agent 后台执行时仍可使用 Android 笔记格式工具。
+
+- Document Android Agent background execution and conflict handling with emulator screenshots. / 补充 Android Agent 应用内后台执行、冲突处理及模拟器截图说明。
+
+- Let Android Agent tasks run behind the reader with a compact status indicator, and protect concurrent note edits from Agent writes. / Android Agent 任务提交后在阅读器内后台执行并显示轻量状态，写入时保护并发编辑的笔记草稿。
+
+- Document the Android full-page settings with tablet and phone emulator screenshots. / 补充 Android 全页设置的平板、手机模拟器截图及操作说明。
+
+- Move Android settings to a full page with a tablet category/detail layout and phone list/detail navigation; keep drafts across categories and activity recreation. Agent model and prompt settings now open within the settings page. / Android 设置改为完整页面：平板使用分类与详情双栏，手机使用列表与详情层级；跨分类和页面重建时保留设置草稿，Agent 模型及提示词配置也在设置页内打开。
+
+- Route missing Agent model configuration through the settings page and restore the current task on return. / Agent 任务缺少模型配置时进入设置页，返回后恢复当前任务。
+
+- Organize Android reader commands into expandable groups and split reader settings into focused categories while keeping edits together until saved. / Android 阅读菜单改为按组展开，设置分为通用与外观、阅读与手写、识别与录音、搜索和 Agent，切换分类保留待保存的修改。
+
+- Fix the Android bookshelf header on narrow screens so its search field remains usable and book covers stay visible. / 修复 Android 窄屏书架顶部搜索框被挤没、内容区域被过度占用的问题。
+
+- Keep the narrow bookshelf title readable by moving view and refresh actions into its More menu. / 窄屏书架将视图切换和刷新移入“更多”，为标题留出空间。
+
+- Document Android menu and settings categories with before/after emulator screenshots. / 补充 Android 菜单、设置分类及窄屏书架的模拟器改前改后截图和教程。
+
+- Reduce Android writing delays by coalescing queued pen snapshots and moving note-history snapshots off the save path. Page changes and returning to the bookshelf wait for the latest pen and note writes, retaining the current page on failure. / 优化 Android 连续书写保存：合并排队的旧笔迹快照，历史记录改为后台生成；翻页和回书架仍等待最新笔迹与笔记写入，失败时留在当前页。
+
+- Add an Android emulator screenshot showing the navigation entry during an in-progress ink save. / 补充 Android 手写保存期间的导航入口模拟器截图。
+
+- Redesign the Android notebook workspace with an in-app draggable pen palette, closable Agent side panel, compact adaptive reading panes and quieter automatic saving. Serialize pending edits before page or bookshelf navigation and keep failed drafts recoverable. / Android 阅读工作区改为可拖动悬浮笔盒、可关闭 Agent 侧栏与自适应原文／笔记布局；后台静默自动保存，翻页和回书架前等待最新草稿落盘，失败时保留草稿与重试入口。
+
+- Allow users to copy an unsaved Android note draft before explicitly reloading after a conflict, without overwriting edits made during reload. / Android 笔记冲突时可选择先复制草稿再重载，重载期间的新编辑不会被覆盖。
+
+- Document the Android notebook workspace with before/after emulator screenshots and interaction steps. / 补充 Android 笔记工作区教程、模拟器改前改后截图及操作步骤。
+
+- Draft the Android notebook-first workspace redesign: adaptive source/note panes, in-app floating pen palette, closable agent drawer, and silent autosave/navigation safety. Design documentation only; no runtime or release changes. / 补充 Android 笔记软件式工作区设计：自适应原文／笔记布局、应用内浮动笔盒、可关闭的 Agent 侧栏与静默自动保存；仅设计稿，不改程序或制品。
+
 - Android 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。

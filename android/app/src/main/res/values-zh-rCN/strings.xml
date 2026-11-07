@@ -1,4 +1,12 @@
 <resources>
+  <string name="settings_back">返回</string>
+  <string name="settings_category_appearance">通用外观</string>
+  <string name="settings_category_reading">阅读手写</string>
+  <string name="settings_category_recognition">识别录音</string>
+  <string name="settings_category_search">搜索</string>
+  <string name="settings_category_agent">Agent</string>
+  <string name="reader_menu_group_expanded">已展开</string>
+  <string name="reader_menu_group_collapsed">已收起</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">阅读设置</string>
   <string name="reader_settings_loading">正在读取阅读设置…</string>
@@ -587,6 +595,10 @@
   <string name="note_write_recovery_failed">保存和恢复均失败。恢复副本仍保留：%1$s</string>
   <string name="note_save_failed">笔记保存失败：%1$s</string>
   <string name="note_reload_failed">重新载入笔记失败：%1$s</string>
+  <string name="note_reload_changed">重新载入失败：页面或草稿已发生变化。草稿已保留。</string>
+  <string name="note_copy_reload">复制草稿并重载</string>
+  <string name="note_copy_reload_explanation">先将当前草稿复制到剪贴板，再载入项目中的版本。如需保留修改，可将草稿粘贴回来。</string>
+  <string name="note_copy_failed">无法复制草稿，草稿仍保留在当前页面。</string>
   <string name="note_reloaded">已重新载入</string>
   <string name="note_recovery_restored">已从本机恢复此页未保存的草稿。</string>
   <string name="note_recovery_conflict">已恢复草稿，但项目笔记后来发生了变化。草稿仍保存在本机；保存前请先重新载入。</string>
@@ -605,6 +617,11 @@
   <string name="ocr_block_confidence">置信度 %1$d%% · 位置 x=%2$d‰ y=%3$d‰ 宽=%4$d‰ 高=%5$d‰</string>
   <string name="close">关闭</string>
   <string name="note_edit">编辑</string>
+  <string name="agent_status_running">进行中</string>
+  <string name="agent_status_done">已完成</string>
+  <string name="agent_status_attention">需处理</string>
+  <string name="agent_task_write_incomplete">Agent 未能写入笔记修改。</string>
+  <string name="agent_task_note_conflict">Agent 修改了或尝试修改你正在编辑的页面。草稿已保留，请先处理冲突再重新载入。</string>
   <string name="agent_task_title">Agent 任务：第 %1$d 页</string>
   <string name="agent_task_instruction">任务指令</string>
   <string name="agent_task_run">执行任务</string>
@@ -832,4 +849,9 @@
   <string name="preview_ai">AI</string>
   <string name="preview_more">更多</string>
   <string name="preview_done">完成</string>
+  <string name="floating_pen_drag">拖动笔盒</string>
+  <string name="floating_pen_collapse">收起笔盒</string>
+  <string name="floating_pen_expand">打开笔盒</string>
+  <string name="reader_source_pane">原文</string>
+  <string name="reader_note_pane">笔记</string>
 </resources>

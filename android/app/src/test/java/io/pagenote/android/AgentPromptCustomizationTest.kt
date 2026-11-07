@@ -7,7 +7,6 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -47,7 +46,7 @@ class AgentPromptCustomizationTest {
       first.save("learning", "custom learning")
       first.save("output", "custom output")
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -57,7 +56,7 @@ class AgentPromptCustomizationTest {
       assertEquals("custom output", second.read("output"))
       assertEquals(defaults.getValue("tag-edit"), second.read("tag-edit"))
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -75,7 +74,7 @@ class AgentPromptCustomizationTest {
       assertRejected { store.read("unknown") }
       assertEquals("last valid", store.read("system"))
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 
@@ -92,7 +91,7 @@ class AgentPromptCustomizationTest {
       assertEquals(defaults.getValue("system"), store.read("system"))
       assertEquals("custom learner", store.read("learner"))
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 

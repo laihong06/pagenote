@@ -1,0 +1,28 @@
+{
+  "environment": "Android 14 API 34 ARM64 Pixel Tablet emulator, 2560x1600, 320dpi, light theme",
+  "sample": "60 synthetic ink strokes; identical simulated pinch targeting 2x",
+  "before_test": "New acceptance test deliberately run on the previous APK; observed 1.021x and failed as expected.",
+  "images": [
+    {
+      "file": "after.png",
+      "width": 2560,
+      "height": 1600,
+      "sha256": "a13ffc8ebeb98467c976f3c91d9b10ee289e72d01dbb9ba73796d4ec538f589a",
+      "runtime_commit": "5fce8429f60888084e51c933eee90303d75f9d4f"
+    },
+    {
+      "file": "before.png",
+      "width": 2560,
+      "height": 1600,
+      "sha256": "f3ed2997976a00b2abaca3873bf439455358335927fd7dc2ddb00d8a6cf10649",
+      "runtime_commit": "5f219c619d7d19864aa7fec522d5cc5c62004235"
+    },
+    {
+      "file": "start.png",
+      "width": 2560,
+      "height": 1600,
+      "sha256": "3623b990a3913741144f6493cb41b7952e291bcf3f45cde19990e0dba8a568b8",
+      "runtime_commit": "5fce8429f60888084e51c933eee90303d75f9d4f"
+    }
+  ]
+}

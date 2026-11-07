@@ -1,25 +1,19 @@
 package io.pagenote.android
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.pagenote.agent.AgentEvent
 import io.pagenote.agent.SerialPages
@@ -38,16 +32,24 @@ internal fun AgentTaskDialog(
   onRun: (String, String) -> Unit,
   onDismiss: () -> Unit,
 ) {
-  AlertDialog(
-    onDismissRequest = { if (!isRunning) onDismiss() },
-    properties = DialogProperties(
-      dismissOnBackPress = !isRunning,
-      dismissOnClickOutside = !isRunning,
-    ),
-    title = { Text(stringResource(R.string.agent_task_title, page)) },
-    text = {
+  Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("agent_task_host")) {
+      Box(Modifier.fillMaxSize().clickable(onClick = onDismiss).testTag("agent_task_scrim"))
+      Surface(
+        modifier = Modifier.align(Alignment.CenterEnd).width(minOf(400.dp, maxWidth - 44.dp))
+          .fillMaxHeight().pointerInput(Unit) { detectTapGestures {} }.testTag("agent_task_drawer"),
+        tonalElevation = 2.dp,
+        shadowElevation = 10.dp,
+      ) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.agent_task_title, page), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("agent_task_dismiss")) {
+              Text(stringResource(R.string.close))
+            }
+          }
       Column(
-        modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp)
+        modifier = Modifier.weight(1f).fillMaxWidth()
           .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
@@ -127,24 +129,14 @@ internal fun AgentTaskDialog(
           null -> Unit
         }
       }
-    },
-    confirmButton = {
-      Button(
-        modifier = Modifier.testTag("agent_task_run"),
-        enabled = !isRunning && instruction.isNotBlank(),
-        onClick = { onRun(instruction, pageRange) },
-      ) {
-        Text(stringResource(R.string.agent_task_run))
+          Spacer(Modifier.height(12.dp))
+          Button(
+            modifier = Modifier.testTag("agent_task_run"),
+            enabled = !isRunning && instruction.isNotBlank(),
+            onClick = { onRun(instruction, pageRange); onDismiss() },
+          ) { Text(stringResource(R.string.agent_task_run)) }
+        }
       }
-    },
-    dismissButton = {
-      TextButton(
-        modifier = Modifier.testTag("agent_task_dismiss"),
-        enabled = !isRunning,
-        onClick = onDismiss,
-      ) {
-        Text(stringResource(R.string.close))
-      }
-    },
-  )
+    }
+  }
 }

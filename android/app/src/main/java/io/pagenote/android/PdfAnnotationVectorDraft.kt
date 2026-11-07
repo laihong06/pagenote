@@ -68,6 +68,7 @@ internal class PdfAnnotationVectorDraft private constructor(
     color = color,
     width = width,
     text = null,
+    shapeKind = shapeKind,
   )
 
   companion object {
@@ -113,6 +114,7 @@ internal class PdfAnnotationVectorDraft private constructor(
       second = shape.second.x.toDouble() to shape.second.y.toDouble(),
       color = color,
       width = width,
+      shapeKind = shape.shapeKind,
     )
   }
 }

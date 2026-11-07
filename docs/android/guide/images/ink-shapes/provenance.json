@@ -1,0 +1,27 @@
+{
+  "environment": "Android 14 API 34 ARM64 Pixel Tablet emulator, 2560x1600, 320dpi, light theme; synthetic stylus input",
+  "before_test": "The new triangle acceptance test was intentionally run against the previous APK; expected failure confirms that no recognized triangle was produced.",
+  "images": [
+    {
+      "file": "before.png",
+      "sha256": "6b6589755ba6511949755abfa3bc54031dc79b0feb15c1c644629dd83a6474b3",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "2a859192535a3f65ab2bda26a19e0fa893507989"
+    },
+    {
+      "file": "preview.png",
+      "sha256": "37327235efa3455d10e695de3f4ab44e1da7b6a8b394e5099a49fbfd0e6f763c",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "5f219c619d7d19864aa7fec522d5cc5c62004235"
+    },
+    {
+      "file": "saved.png",
+      "sha256": "8aaf7bc5de5fcc2f1aa55c65553e099078419787886b416dbbf4faf35675da7c",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "5f219c619d7d19864aa7fec522d5cc5c62004235"
+    }
+  ]
+}

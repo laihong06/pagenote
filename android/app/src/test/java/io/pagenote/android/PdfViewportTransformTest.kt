@@ -209,6 +209,19 @@ class PdfViewportTransformTest {
   }
 
   @Test
+  fun simultaneousZoomAndPanKeepsThePreviousCentroidUnderTheNewOne() {
+    val result = PdfViewportTransform.applyGesture(
+      current = PdfViewportTransform(2f, 0f, 0f),
+      viewportWidthPx = 1000f, viewportHeightPx = 1000f,
+      pageWidthPx = 1000f, pageHeightPx = 1000f,
+      centroidX = 620f, centroidY = 540f, zoomChange = 1.2f, panX = 20f, panY = 40f,
+    )
+    assertEquals(2.4f, result.scale, 0.0001f)
+    assertEquals(0f, result.translationX, 0.0001f)
+    assertEquals(40f, result.translationY, 0.0001f)
+  }
+
+  @Test
   fun panIsClampedToScaledPageEdges() {
     val panned = PdfViewportTransform.applyGesture(
       current = PdfViewportTransform(scale = 2f, translationX = 90f, translationY = -180f),

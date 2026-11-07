@@ -72,6 +72,32 @@ object PenStrokePainter {
     }
   }
 
+  fun drawRecognizedShape(
+    canvas: Canvas,
+    shape: PenRecognizedShape,
+    color: String,
+    width: Double,
+    geometry: PenCanvasGeometry,
+  ) {
+    val kind = shape.shapeKind?.let(ShapeCatalog::byId)
+    if (kind == null) {
+      drawStroke(canvas, PenStroke(shape.type, color, width, listOf(shape.first, shape.second)), geometry)
+      return
+    }
+    val outline = ShapeCatalog.outline(
+      kind, ShapePoint(shape.first.x, shape.first.y), ShapePoint(shape.second.x, shape.second.y),
+    )
+    if (outline.isEmpty()) return
+    strokePaint.color = runCatching { Color.parseColor(color) }.getOrDefault(Color.BLACK)
+    strokePaint.style = Paint.Style.STROKE
+    strokePaint.strokeWidth = width.toFloat()
+    val path = Path().apply {
+      moveTo(outline.first().x, outline.first().y)
+      outline.drop(1).forEach { lineTo(it.x, it.y) }
+    }
+    canvas.drawPath(path, strokePaint)
+  }
+
   fun drawHighlight(
     canvas: Canvas,
     points: List<PenPoint>,
@@ -95,6 +121,8 @@ object PenStrokePainter {
   }
 
   private val scratchPath = Path()
+  private val scratchOutline = Path()
+  private val scratchBatch = Path()
 
   fun drawFreehand(canvas: Canvas, points: List<PenPoint>, width: Float) {
     strokePaint.style = Paint.Style.STROKE
@@ -111,12 +139,58 @@ object PenStrokePainter {
       canvas.drawLine(previous.x, previous.y, current.x, current.y, strokePaint)
       return
     }
-    PenStrokeSmoother.segments(points, width).forEach { segment ->
-      strokePaint.strokeWidth = segment.width
-      scratchPath.rewind()
-      scratchPath.moveTo(segment.startX, segment.startY)
-      scratchPath.quadTo(segment.controlX, segment.controlY, segment.endX, segment.endY)
-      canvas.drawPath(scratchPath, strokePaint)
+    // Consecutive segments with the same pressure share a stroked path. For
+    // pressure changes, combine the exact stroked outlines into bounded fill
+    // batches so the renderer does not need one command per input sample.
+    scratchPath.rewind()
+    scratchBatch.rewind()
+    var pathWidth = 0f
+    var hasPath = false
+    var varyingWidth = false
+    var batchedRuns = 0
+    fun drawBatch() {
+      if (batchedRuns == 0) return
+      strokePaint.style = Paint.Style.FILL
+      canvas.drawPath(scratchBatch, strokePaint)
+      strokePaint.style = Paint.Style.STROKE
+      scratchBatch.rewind()
+      batchedRuns = 0
+    }
+    fun appendRun() {
+      strokePaint.strokeWidth = pathWidth
+      scratchOutline.rewind()
+      if (strokePaint.getFillPath(scratchPath, scratchOutline)) {
+        scratchBatch.addPath(scratchOutline)
+        batchedRuns++
+        if (batchedRuns >= 64) drawBatch()
+      } else {
+        // A zero-width stroke is an Android hairline, which has no fill path.
+        drawBatch()
+        canvas.drawPath(scratchPath, strokePaint)
+      }
+    }
+    PenStrokeSmoother.forEachSegment(points, width) { startX, startY, controlX, controlY, endX, endY, segmentWidth ->
+      if (hasPath && segmentWidth != pathWidth) {
+        varyingWidth = true
+        appendRun()
+        scratchPath.rewind()
+        hasPath = false
+      }
+      if (!hasPath) {
+        scratchPath.moveTo(startX, startY)
+        pathWidth = segmentWidth
+        hasPath = true
+      }
+      scratchPath.quadTo(controlX, controlY, endX, endY)
+    }
+    if (hasPath) {
+      if (varyingWidth) {
+        appendRun()
+        drawBatch()
+      } else {
+        strokePaint.strokeWidth = pathWidth
+        canvas.drawPath(scratchPath, strokePaint)
+      }
     }
   }
 

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TextFields
@@ -140,7 +142,7 @@ internal fun ReaderAdaptiveMenu(
     ReaderPreviewToolbar(groups, onPreviewHand, onPreviewTool, onPreviewEdit, content)
     return
   }
-  val menuColorScheme = desktopReaderMenuColorScheme(MaterialTheme.colorScheme)
+  val menuColorScheme = MaterialTheme.colorScheme
 
   if (layout == ReaderMenuLayout.COMPACT_DRAWER) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -302,6 +304,9 @@ private fun MenuGroupList(
   title: String?,
   onCommandSelected: () -> Unit = {},
 ) {
+  var openGroup by remember { mutableStateOf<ReaderMenuGroup?>(null) }
+  val expandedLabel = stringResource(R.string.reader_menu_group_expanded)
+  val collapsedLabel = stringResource(R.string.reader_menu_group_collapsed)
   Column(
     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
   ) {
@@ -317,17 +322,24 @@ private fun MenuGroupList(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
         verticalArrangement = Arrangement.spacedBy(1.dp),
       ) {
-        Text(
-          text = section.label,
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, top = 8.dp, bottom = 2.dp)
-            .testTag(groupTag(section.group)),
-          style = MaterialTheme.typography.titleSmall,
-          color = MaterialTheme.colorScheme.primary,
-        )
-        section.commands.forEach { command ->
-          MenuTextCommand(command, onCommandSelected)
+        val isOpen = openGroup == section.group
+        TextButton(
+          onClick = { openGroup = if (isOpen) null else section.group },
+          modifier = Modifier.fillMaxWidth().testTag(groupTag(section.group))
+            .semantics { stateDescription = if (isOpen) expandedLabel else collapsedLabel },
+        ) {
+          Icon(section.group.icon(), contentDescription = null)
+          Text(
+            text = section.label,
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
+            style = MaterialTheme.typography.titleSmall,
+          )
+          Icon(if (isOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null)
+        }
+        if (isOpen) {
+          section.commands.forEach { command ->
+            MenuTextCommand(command, onCommandSelected)
+          }
         }
       }
       if (index < groups.lastIndex) {
