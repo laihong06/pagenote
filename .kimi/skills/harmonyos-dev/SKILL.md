@@ -120,7 +120,19 @@ harmonyos/
 - **CodeGraph**（`@colbymchenry/codegraph`，代码知识图谱）也已为本项目启用：索引在 `.codegraph/`（不入库，重建用 `codegraph init .`），MCP 与 deveco-mcp 并列配置在 `.mcp.json`（`codegraph serve --mcp`），覆盖 src/ 与 harmonyos/ 的符号查询、调用链与影响面分析。会话重启后两个 MCP 同时生效。
 - 分工：官方技能管 ArkTS/ArkUI 语法与框架用法；本技能继续管本机离线构建与 PageNote 共享契约。
 
-## 9. 测试与验证纪律（项目要求）
+## 9. 单元测试（Local Test）
+
+- 测试文件：`entry/src/test/List.test.ets`（hypium，`import { describe, it, expect } from '@ohos/hypium'`，**不是** @kit.TestKit——它不导出 it/expect）。
+- 运行：先 `cd harmonyos/entry && ohpm install @ohos/hypium`（一次），再 `hvigor test`（环境变量同 assembleHap）。报告在 `entry/.test/default/outputs/test/reports/`。
+- 宿主环境限制：**Local Test 在宿主 Node 环境跑，fileIo 不支持任意目录写入**（mkdir 即报 No such file or directory）——涉及 ProjectStore/文件系统的用例不能单测，改用设备实测。
+- 宿主/设备行为差异实例：`TextEncoder.encodeInto('')` 宿主返回空数组、**设备端返回 undefined**——纯逻辑单测不能替代设备验证。
+
+## 10. 静态检查（CodeGenie MCP）
+
+- 本机 npm 全局 `@deveco/deveco-code` 提供 `npx -y @deveco-codegenie/mcp@beta`（stdio MCP，工具含 check_ets_files / build_project / perform_ui_action 等）；LSP 首次调用需预热，同进程内重试。
+- 全量检查目标：deprecatedSymbol（6387）与 unusedSymbol（6133）诊断清零；addTryCatch 等风格类提示不做强制。
+
+## 11. 测试与验证纪律（项目要求）
 
 - 不宣称未执行的验证。模拟器/真机截图只能来自鸿蒙端实际运行。
 - 每次推送必须更新根 `CHANGELOG.md`（Unreleased 段）。

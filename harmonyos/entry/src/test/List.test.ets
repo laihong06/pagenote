@@ -2,7 +2,7 @@ import { describe, it, expect } from '@ohos/hypium';
 import { PageNotes } from '../main/ets/core/PageNotes';
 import { ProjectManifestCodec, ProjectManifest } from '../main/ets/core/ProjectManifest';
 import { NoteTransfer } from '../main/ets/core/NoteTransfer';
-import { ReviewScheduler } from '../main/ets/core/Flashcards';
+import { ReviewScheduler, FlashcardStore, FlashcardItem } from '../main/ets/core/Flashcards';
 import { normalizeHistoryLessons, rainObjectData, normalizeCurrentLessons } from '../main/ets/core/RainProtocol';
 
 /**
@@ -134,6 +134,37 @@ export default function coreTest(): void {
       const lessons = normalizeCurrentLessons(payload);
       expect(lessons.length).assertEqual(2);
       expect(lessons[1].lessonId).assertEqual('2');
+    });
+
+    // 注：Local Test 宿主环境的 fileIo 不支持任意目录写入（mkdir 即报 No such file or directory），
+    // ProjectStore.saveNote 的 revision 校验链改为设备实测覆盖（空页保存修复验证）。
+
+    it('flashcardDueFiltering', 0, () => {
+      const now = 1000000;
+      const makeCard = (id: string, dueAt: number): FlashcardItem => {
+        return {
+          id: id, page: 1, sourceKind: 'note_paragraph', front: id, back: '',
+          sourceQuote: '', anchorStart: 0, anchorEnd: 0, revision: '',
+          tags: [], createdAt: now, dueAt: dueAt,
+          intervalDays: 0, easeX1000: 2500, reps: 0, lapses: 0
+        };
+      };
+      const cards: FlashcardItem[] = [
+        makeCard('future', now + 100000),
+        makeCard('due-late', now - 100),
+        makeCard('due-early', now - 500)
+      ];
+      const due = FlashcardStore.dueCards(cards, now);
+      expect(due.length).assertEqual(2);
+      expect(due[0].id).assertEqual('due-early');
+      expect(due[1].id).assertEqual('due-late');
+    });
+
+    it('noteTransferIsBackupJson', 0, () => {
+      expect(NoteTransfer.isBackupJson('{"version":1,"document":"x","pages":1,"notes":{"1":"a"}}')).assertTrue();
+      expect(NoteTransfer.isBackupJson('# 普通 markdown')).assertFalse();
+      expect(NoteTransfer.isBackupJson('{"foo":1}')).assertFalse();
+      expect(NoteTransfer.isBackupJson('{"notes":[1,2]}')).assertFalse();
     });
   });
 }
