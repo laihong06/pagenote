@@ -31,6 +31,8 @@ struct BookshelfPage {
   @State rainCurrentLessons: RainCurrentLesson[] = [];
   @State rainLiveStatus: string = '';
   @State rainLiveText: string = '';
+  // 系统横向断点（EntryAbility 在 loadContent 回调内注册并持续更新）
+  @StorageProp('currentWidthBreakpoint') widthBp: WidthBreakpoint = WidthBreakpoint.WIDTH_LG;
 
   private rainClient: RainClient | null = null;
   private liveProjectDir: string | null = null;
@@ -358,6 +360,9 @@ struct BookshelfPage {
       .width('100%')
       .padding(16)
       .alignItems(VerticalAlign.Center)
+      .backgroundColor('#FAFAFA')
+      // 标题栏背景延伸至状态栏区域，避免沉浸式下出现色带
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       // 同节点多 bindSheet 会全部失效，雨课堂面板挂到标题栏节点
       .bindSheet($$this.showRain, this.rainBuilder(), {
         height: SheetSize.LARGE,
@@ -406,6 +411,7 @@ struct BookshelfPage {
               .padding(16)
               .alignItems(VerticalAlign.Center)
             }
+            .hoverEffect(HoverEffect.Highlight)
             .onClick(() => {
               this.getUIContext().getRouter().pushUrl({ url: 'pages/ReaderPage', params: { dir: item.dir } });
             })
@@ -413,6 +419,9 @@ struct BookshelfPage {
         }
         .layoutWeight(1)
         .width('100%')
+        // 重复布局：书架列数随横向断点递增（基线 1 列 → md 2 列 → lg/xl 3 列）
+        .lanes(this.widthBp >= WidthBreakpoint.WIDTH_LG ? 3 :
+          this.widthBp >= WidthBreakpoint.WIDTH_MD ? 2 : 1)
         .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
       }
     }
@@ -591,6 +600,7 @@ struct BookshelfPage {
                 .alignItems(HorizontalAlign.Start)
                 .padding(12)
               }
+              .hoverEffect(HoverEffect.Highlight)
               .onClick(() => {
                 this.selectRainCourse(course);
               })
@@ -647,6 +657,7 @@ struct BookshelfPage {
                 .width('100%')
                 .padding(12)
               }
+              .hoverEffect(HoverEffect.Highlight)
             }, (lesson: RainLesson) => `${lesson.presentationId}-${lesson.lessonId ?? ''}`)
           }
           .width('100%')

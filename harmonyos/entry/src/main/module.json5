@@ -21,6 +21,7 @@
         "startWindowIcon": "$media:app_icon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "supportWindowMode": ["fullscreen", "split"],
         "skills": [
           {
             "entities": [

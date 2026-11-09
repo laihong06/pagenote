@@ -814,6 +814,9 @@ struct ReaderPage {
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .backgroundColor('#FAFAFA')
+      // 工具栏背景延伸至状态栏区域
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       // 同一节点挂多个 bindSheet 会导致全部失效（API 24 实测），每个 sheet 挂不同节点
       .bindSheet($$this.showSearch, this.searchBuilder(), {
         height: SheetSize.LARGE,
@@ -968,6 +971,13 @@ struct ReaderPage {
     .width('100%')
     .height('100%')
     .backgroundColor('#FAFAFA')
+    // 2in1/外接键盘快捷键：Ctrl+S 保存当前页，Ctrl+F 打开搜索
+    .keyboardShortcut('S', [ModifierKey.CTRL], () => {
+      this.saveCurrentPage().catch(() => {});
+    })
+    .keyboardShortcut('F', [ModifierKey.CTRL], () => {
+      this.openSearch();
+    })
     .onAreaChange((oldValue: Area, newValue: Area) => {
       this.isLandscape = Number(newValue.width) >= Number(newValue.height);
     })

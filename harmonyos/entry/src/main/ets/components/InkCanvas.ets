@@ -25,6 +25,9 @@ export struct InkCanvas {
   private current: number[][] = [];
   private shapeStart: number[] | null = null;
   private shapeEnd: number[] | null = null;
+  // 手写笔压感：一次笔迹中记录最大压力，抬笔时按压力调制线宽（不改变存储契约，width 仍是数值）
+  private strokeIsPen: boolean = false;
+  private strokeMaxPressure: number = 0;
 
   private onItemsChange(): void {
     this.repaint();
@@ -166,6 +169,8 @@ export struct InkCanvas {
         const x = Math.max(0, (touch.x) * this.scaleX());
         const y = Math.max(0, (touch.y) * this.scaleX());
         if (event.type === TouchType.Down) {
+          this.strokeIsPen = event.sourceTool === SourceTool.Pen;
+          this.strokeMaxPressure = touch.pressure ?? 0;
           if (this.tool === 'text') {
             this.onTextTap(x, y);
             return;
@@ -189,6 +194,12 @@ export struct InkCanvas {
             return;
           }
           if (this.current.length > 0) {
+            if (this.strokeIsPen) {
+              const p = touch.pressure ?? 0;
+              if (p > this.strokeMaxPressure) {
+                this.strokeMaxPressure = p;
+              }
+            }
             this.current.push([x, y]);
             this.repaint();
           }
@@ -199,7 +210,20 @@ export struct InkCanvas {
             return;
           }
           if (this.current.length > 0) {
+            // 手写笔：按本次笔迹最大压力调制线宽（0.6x~1.6x），手指/鼠标不调制
+            if (this.strokeIsPen && this.strokeMaxPressure > 0 && this.items.length > 0) {
+              const last = this.items[this.items.length - 1];
+              const factor = 0.6 + this.strokeMaxPressure;
+              const adjusted: AnnotationItem = {
+                type: last.type, color: last.color,
+                width: Math.min(this.penWidth * 1.6, Math.max(1, Math.round(this.penWidth * factor))),
+                points: last.points
+              };
+              this.items = [...this.items.slice(0, this.items.length - 1), adjusted];
+            }
             this.current = [];
+            this.strokeIsPen = false;
+            this.strokeMaxPressure = 0;
             this.onChange(this.items);
           }
         }

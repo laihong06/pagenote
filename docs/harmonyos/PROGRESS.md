@@ -199,8 +199,19 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - `invalidInitOfList`（6 处）：提示 List 显式初始化宽高；我们的 List 均在 layoutWeight 分配下工作（弹层/分栏内剩余空间），显式 height('100%') 会与 layoutWeight 冲突导致溢出，保持现状。
 - `colorConsistentWarning`（2 处）：建议用分层色资源；当前配色与桌面版一致，主题化属后续设计决策，不随工程修复混入。
 
+## 鸿蒙原生 UI 特性批（2026-11-09，已提交）
+
+按 DevEco 一多/交互/沉浸式技能与多设备适配规格（SPEC）落地的第一批原生 UI 特性：
+
+- **系统断点基建**：EntryAbility 在 loadContent 回调内注册 `currentWidthBreakpoint` / `screenWidthVp` / `screenHeightVp` 到 AppStorage，windowSizeChange 持续更新，onWindowStageDestroy 注销（遵守断点技能前置条件一/二）
+- **书架重复布局**（RESP-01）：List lanes 按断点 sm 1 列 / md 2 列 / lg+xl 3 列；模拟器横屏实测三列并排（截图 emulator-26-bookshelf-grid）
+- **悬停反馈**（INPUT-01）：书架卡片、雨课堂课程/课堂行加 hoverEffect(Highlight)，面向平板外接鼠标/手写笔悬停
+- **沉浸式**（方案 B 组件级）：书架标题栏、阅读页工具栏 expandSafeArea([SYSTEM],[TOP])，背景延伸至状态栏区域
+- **键盘快捷键**（INPUT-03，2in1）：阅读页 Ctrl+S 保存当前页、Ctrl+F 打开搜索；模拟器 keyEvent 注入实测（Ctrl+F 唤出搜索 sheet，Ctrl+S 后布局树出现"内容未变化"状态文本）
+- **手写笔压感**（INPUT-04）：InkCanvas 笔/荧光笔迹按一次笔迹的最大压力调制线宽（0.6x~1.6x，仅 sourceTool=Pen 时生效，手指/鼠标保持原宽）；存储仍是契约 width 数值，跨端互通无损；模拟器无笔，压力曲线本身未验证（编译+逻辑确认）
+- **分屏声明**（SPEC-10 P0）：module.json5 声明 supportWindowMode fullscreen+split
+
 ## 已知边界
 
-- 未做模拟器/真机运行验证；PDF Kit、文件选择器、AI 调用、批注层、公式与图片渲染均为编译期确认
-- router/showToast 等有 deprecated 警告（功能正常，后续可迁 Navigation API）
-- 桌面级功能（OCR、Office 转换、mermaid、Markdown S、行内公式）未在鸿蒙端计划内承诺
+- 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行
+- 桌面级功能（OCR、Office 转换、Markdown S）未在鸿蒙端计划内承诺
