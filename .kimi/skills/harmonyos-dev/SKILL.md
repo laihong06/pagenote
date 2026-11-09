@@ -154,7 +154,12 @@ harmonyos/
 - **`systemMaterial` 作用域**：仅弹层类组件/接口、Slider/Toggle/Select、Navigation 标题栏、BarPosition.End 底部 TabBar 生效；内容区普通容器设置了也无效（日志 `Material inactive: out of scope`）——不要给页面内 Row/Column 挂材质。
 - API 26 模拟器镜像同样**没有 PDF Kit**；首跑会弹小艺输入法隐私向导（先点同意+下一步，否则键盘类自动化全被拦）。
 
-## 14. 测试与验证纪律（项目要求）
+## 14. 文件选择器（2026-11-09 实测）
+
+- **`fileSuffixFilters` 必须是「描述|后缀」两段式**（`'PDF|.pdf'`、`'所有文件(*.*)|.*'`）。**没有竖线时整串被当作字而后缀**，选择器什么都筛不出来——曾误判为"媒体库索引限制"，实际是格式错误。官方示例：`['Images (.png, .jpg)|.png,.jpg', '.pdf']`。
+- 调试签名自动化：`devecocli auth login`（浏览器授权一次）→ `devecocli signature generate --type debug`，自动生成调试材料并写入 build-profile；发布材料手动流程见第 13 节相关记录。真机装包：`hvigor assembleHap` 后 `hdc -t <设备> install -r entry/build/default/outputs/default/entry-default-signed.hap`（products.signingConfig 指向哪套就签哪套）。
+
+## 15. 测试与验证纪律（项目要求）
 
 - 不宣称未执行的验证。模拟器/真机截图只能来自鸿蒙端实际运行。
 - 每次推送必须更新根 `CHANGELOG.md`（Unreleased 段）。
