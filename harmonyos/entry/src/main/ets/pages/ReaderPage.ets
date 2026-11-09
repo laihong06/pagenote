@@ -1,5 +1,7 @@
 import { common } from '@kit.AbilityKit';
+import { componentSnapshot } from '@kit.ArkUI';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
+import { image } from '@kit.ImageKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { ProjectStore, OpenProject } from '../core/ProjectStore';
 import { PdfBridge } from '../core/PdfBridge';
@@ -60,6 +62,9 @@ const INK_WIDTHS: InkWidthSpec[] = [
   { value: 7, label: '粗' }
 ];
 
+// 手写转文字：InkCanvas 快照组件 id（componentSnapshot.get 按 id 捕获）
+const INK_SNAPSHOT_ID: string = 'inkCanvasDoc';
+
 /**
  * 阅读页：左侧源文档（PDF 走 PdfView，Markdown 直接显示），右侧逐页 Markdown 笔记。
  * 笔记按 `<!-- pagebreak -->` 分页；保存时带 revision 校验并写历史快照；
@@ -101,6 +106,8 @@ struct ReaderPage {
   // 套索选中的笔迹索引（删除所选用）；切换工具/撤销/清除时递增 selectionEpoch 让画布清选区
   @State selectedIndices: number[] = [];
   @State selectionEpoch: number = 0;
+  // 手写转文字：OCR Kit 一次性可用性探测结果（@hms 模块在低版本设备可能不存在，只能动态 import 探测）
+  @State ocrReady: boolean = false;
   @State inkWidth: number = 3;
   @State inkTextEditing: boolean = false;
   @State inkTextDraft: string = '';
@@ -184,6 +191,7 @@ struct ReaderPage {
       this.loadMarkdownSource();
     }
     this.loadPage(1);
+    this.probeOcrReady();
   }
 
   aboutToDisappear(): void {
@@ -304,6 +312,10 @@ struct ReaderPage {
     this.dirty = false;
     this.panX = 0;
     this.panY = 0;
+    // 静态审查 H1：翻页必须清套索选区，否则旧索引会作用到新页笔迹（可删错/拖错，数据损坏链）
+    this.selectedIndices = [];
+    this.selectionEpoch += 1;
+    this.inkTextEditing = false;
     this.inkItems = Annotations.pageItems(this.annotations, 'document', page);
     PageNotes.revision(this.note).then((rev: string) => {
       this.noteRevision = rev;
@@ -483,6 +495,106 @@ struct ReaderPage {
     this.selectedIndices = [];
     this.selectionEpoch += 1;
     this.saveAnnotations();
+  }
+
+  /** OCR Kit 可用性一次性探测：syscap 校验 + 动态 import（@hms 模块缺失时静态 import 会崩）。 */
+  private async probeOcrReady(): Promise<void> {
+    if (!canIUse('SystemCapability.AI.OCR.TextRecognition')) {
+      return;
+    }
+    try {
+      const ocr = await import('@hms.ai.ocr.textRecognition');
+      this.ocrReady = typeof ocr.default.recognizeText === 'function';
+    } catch (e) {
+      this.ocrReady = false;
+    }
+  }
+
+  /**
+   * 手写转文字：把套索选中的笔迹区域截图送 OCR，识别成功后删除原笔迹、
+   * 在原包围盒左上角插入文字批注（颜色/线宽取当前笔设置）；失败统一提示未识别到。
+   */
+  private async convertSelectedInkToText(): Promise<void> {
+    const indices: number[] = this.selectedIndices;
+    if (indices.length === 0 || !this.ocrReady) {
+      return;
+    }
+    const toast = this.getUIContext().getPromptAction();
+    // 选中笔迹的 1000 比例系包围盒（画布 y 与 x 同比例系数，像素 = 坐标 * 宽 / 1000）
+    let minX: number = Number.MAX_VALUE;
+    let minY: number = Number.MAX_VALUE;
+    let maxX: number = -Number.MAX_VALUE;
+    let maxY: number = -Number.MAX_VALUE;
+    for (const idx of indices) {
+      const item: AnnotationItem | undefined = this.inkItems[idx];
+      if (item === undefined) {
+        continue;
+      }
+      for (const p of item.points) {
+        if (p.length < 2) {
+          continue;
+        }
+        minX = Math.min(minX, p[0]);
+        minY = Math.min(minY, p[1]);
+        maxX = Math.max(maxX, p[0]);
+        maxY = Math.max(maxY, p[1]);
+      }
+    }
+    if (minX > maxX) {
+      toast.showToast({ message: '未识别到手写文字' });
+      return;
+    }
+    try {
+      const shot: image.PixelMap = componentSnapshot.getSync(INK_SNAPSHOT_ID,
+        { waitUntilRenderFinished: true });
+      const info: image.ImageInfo = await shot.getImageInfo();
+      const layerW: number = info.size.width;
+      const layerH: number = info.size.height;
+      // 20px 边距余量防切字，裁剪框钳制在画布内
+      const margin: number = 20;
+      const x0: number = Math.max(0, Math.floor(minX * layerW / 1000) - margin);
+      const y0: number = Math.max(0, Math.floor(minY * layerW / 1000) - margin);
+      const x1: number = Math.min(layerW, Math.ceil(maxX * layerW / 1000) + margin);
+      const y1: number = Math.min(layerH, Math.ceil(maxY * layerW / 1000) + margin);
+      const cropW: number = x1 - x0;
+      const cropH: number = y1 - y0;
+      if (cropW < 1 || cropH < 1) {
+        toast.showToast({ message: '未识别到手写文字' });
+        return;
+      }
+      // 裁剪走 PNG 编解码：readPixels 固定输出 BGRA，直接重建 PixelMap 会交换红蓝通道
+      const packer: image.ImagePacker = image.createImagePacker();
+      const packed: ArrayBuffer = await packer.packToData(shot, { format: 'image/png', quality: 100 });
+      await packer.release();
+      const source: image.ImageSource = image.createImageSource(packed);
+      const cropped: image.PixelMap = await source.createPixelMap({
+        desiredRegion: { x: x0, y: y0, size: { width: cropW, height: cropH } }
+      });
+      await source.release();
+      const ocr = await import('@hms.ai.ocr.textRecognition');
+      const result = await ocr.default.recognizeText({ pixelMap: cropped });
+      const text: string = result.value.trim();
+      if (text.length === 0) {
+        toast.showToast({ message: '未识别到手写文字' });
+        return;
+      }
+      const drop: Set<number> = new Set<number>(indices);
+      const kept: AnnotationItem[] =
+        this.inkItems.filter((_: AnnotationItem, i: number): boolean => !drop.has(i));
+      const textItem: AnnotationItem = {
+        type: 'text', color: this.inkColor, width: this.inkWidth,
+        points: [[minX, minY]], text: text
+      };
+      this.inkItems = [...kept, textItem];
+      this.selectedIndices = [];
+      this.selectionEpoch += 1;
+      this.saveAnnotations();
+      toast.showToast({
+        message: `已转为文字：${text.length > 30 ? text.substring(0, 30) + '…' : text}`
+      });
+    } catch (e) {
+      toast.showToast({ message: '未识别到手写文字' });
+    }
   }
 
   // ---- 闪卡 ----
@@ -821,6 +933,9 @@ struct ReaderPage {
           active: this.inkMode,
           onTap: () => {
             this.inkMode = !this.inkMode;
+            // 静态审查 L12：关闭批注时同步清选区，避免重新开启后残留旧选区入口
+            this.selectedIndices = [];
+            this.selectionEpoch += 1;
           }
         })
           .margin({ left: 12 })
@@ -904,6 +1019,14 @@ struct ReaderPage {
               this.saveAnnotations();
             }
           })
+          IconButton({
+            symbol: $r('sys.symbol.textformat'), label: '手写转文字',
+            enabledState: this.selectedIndices.length > 0 && this.ocrReady,
+            onTap: () => {
+              this.convertSelectedInkToText();
+            }
+          })
+            .margin({ left: 8 })
           IconButton({
             symbol: $r('sys.symbol.hand_raised_hexagon_fill'), label: this.fingerLock ? '解锁手指' : '锁定手指',
             active: this.fingerLock,
@@ -1555,6 +1678,7 @@ struct ReaderPage {
           this.panY += dy;
         }
       })
+        .id(INK_SNAPSHOT_ID)
         .width('100%')
         .height('100%')
       }

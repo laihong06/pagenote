@@ -38,6 +38,8 @@ export struct InkCanvas {
   private panAnchor: number[] | null = null;
   // 橡皮本次拖动是否真的擦到过东西（决定抬笔是否触发落盘）
   private eraserTouched: boolean = false;
+  // 是否有进行中的手势（多指守卫：第二根手指的 Down 不覆盖在飞手势，静态审查 L5）
+  private gestureActive: boolean = false;
   // 套索：圈选矩形与选中笔迹索引（1000 比例系）
   private lassoStart: number[] | null = null;
   private lassoEnd: number[] | null = null;
@@ -53,12 +55,25 @@ export struct InkCanvas {
     return x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3];
   }
 
+  /** 复位所有进行中的手势中间态（静态审查 M2：切工具/系统 Cancel 时防串扰与幽灵图形）。 */
+  private resetGestureStates(): void {
+    this.current = [];
+    this.shapeStart = null;
+    this.shapeEnd = null;
+    this.panAnchor = null;
+    this.moveAnchor = null;
+    this.eraserTouched = false;
+    this.strokeIsPen = false;
+    this.strokeMaxPressure = 0;
+    this.gestureActive = false;
+  }
+
   private clearSelection(): void {
     this.lassoStart = null;
     this.lassoEnd = null;
     this.selectedIdx = [];
     this.selRect = null;
-    this.moveAnchor = null;
+    this.resetGestureStates();
     this.repaint();
     this.onSelectionChange([]);
   }
@@ -255,14 +270,26 @@ export struct InkCanvas {
         const touch = event.touches[0];
         const x = Math.max(0, (touch.x) * this.scaleX());
         const y = Math.max(0, (touch.y) * this.scaleX());
+        // 系统手势抢占/掌根误触导致的 Cancel：与切工具同等复位，不留半截状态（静态审查 L4）
+        if (event.type === TouchType.Cancel) {
+          this.resetGestureStates();
+          this.repaint();
+          return;
+        }
+        // 多指守卫：已有在飞手势时，新手指的 Down 不覆盖锚点（静态审查 L5）
+        if (event.type === TouchType.Down && this.gestureActive) {
+          return;
+        }
         // 手锁：手指/鼠标不书写，只拖动平移（画布命中无法按输入源分流，平移由回调驱动内容偏移）
         if (this.fingerLock && (event.sourceTool === SourceTool.Finger || event.sourceTool === SourceTool.MOUSE)) {
           if (event.type === TouchType.Down) {
+            this.gestureActive = true;
             this.panAnchor = [touch.x, touch.y];
           } else if (event.type === TouchType.Move && this.panAnchor !== null) {
             this.onPanDelta(touch.x - this.panAnchor[0], touch.y - this.panAnchor[1]);
             this.panAnchor = [touch.x, touch.y];
           } else if (event.type === TouchType.Up) {
+            this.gestureActive = false;
             this.panAnchor = null;
           }
           return;
@@ -270,6 +297,7 @@ export struct InkCanvas {
         // 套索：圈选笔迹 → 框内拖动移动 → 框外点击取消；选中索引经 onSelectionChange 报给父组件
         if (this.tool === 'lasso') {
           if (event.type === TouchType.Down) {
+            this.gestureActive = true;
             if (this.selRect !== null && this.inRect(x, y, this.selRect)) {
               this.moveAnchor = [x, y];
             } else {
@@ -301,6 +329,7 @@ export struct InkCanvas {
               this.repaint();
             }
           } else if (event.type === TouchType.Up) {
+            this.gestureActive = false;
             if (this.moveAnchor !== null) {
               this.moveAnchor = null;
               this.items = [...this.items];
@@ -328,8 +357,10 @@ export struct InkCanvas {
         // 压感橡皮：拖动经过笔迹即擦除，抬笔一次同步落盘
         if (this.tool === 'eraser') {
           if (event.type === TouchType.Down || event.type === TouchType.Move) {
+            this.gestureActive = true;
             this.eraseAt(x, y, touch.pressure ?? 0.7);
           } else if (event.type === TouchType.Up) {
+            this.gestureActive = false;
             if (this.eraserTouched) {
               this.eraserTouched = false;
               this.onChange(this.items);
@@ -338,6 +369,7 @@ export struct InkCanvas {
           return;
         }
         if (event.type === TouchType.Down) {
+          this.gestureActive = true;
           this.strokeIsPen = event.sourceTool === SourceTool.Pen;
           this.strokeMaxPressure = touch.pressure ?? 0;
           if (this.tool === 'text') {
@@ -370,6 +402,7 @@ export struct InkCanvas {
             this.strokeSegment(prev[0], prev[1], x, y);
           }
         } else if (event.type === TouchType.Up) {
+          this.gestureActive = false;
           if (this.isShapeTool()) {
             this.commitShape();
             this.repaint();

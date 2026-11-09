@@ -281,6 +281,19 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **系统笔记能力复用盘点**（HMS SDK，均有公开 API，供后续对齐华为笔记）：`@kit.Penkit` HandwriteComponent（系统低延迟手写画布，含跟手预测/形状美化/缩放——全量替换 InkCanvas 需打通 annotations.json 契约映射，工程量大暂列评估）；`@hms.ai.ocr.textRecognition`（手写/印刷识别，可做"手写转文字"）；`@hms.ai.speechRecognizer`（语音转文字——需麦克风受限权限，上架材料成本+隐私政策更新，列待评估）；PointPredictor/InstantShapeGenerator 可作 InkCanvas 增量增强
 - 真机回归：画笔/橡皮/套索/平移全过；单测 16/16
 
+## 手写转文字 + 静态审查修复（2026-11-10 凌晨，已提交）
+
+- **手写转文字**（子代理实现）：套索选中 → `componentSnapshot.getSync`（waitUntilRenderFinished）整画布捕获 → PNG 编解码按包围盒裁剪（避开 readPixels 的 BGRA 通道坑）→ `@hms.ai.ocr.textRecognition` 端侧识别 → 删笔迹插文字批注（契约不变）→ 落盘+清选区+toast；OCR 可用性 canIUse+动态 import 探测缓存；该 Kit 是 CoreVisionKit 印刷体识别（无手写类型参数），手写中文识别率待真机评估
+- **静态审查修复**（explore 子代理 thorough 审查，按严重度处置）：
+  - H1 翻页选区残留→跨页删错/拖错笔迹（数据损坏链）：loadPage 补清选区+epoch+文字输入行
+  - M2 切工具在飞手势泄漏：clearSelection 扩为 resetGestureStates（笔迹/形状/平移/橡皮状态全复位）
+  - L4 TouchType.Cancel 未处理：Cancel 走统一复位
+  - L5 多指锚点抢占：gestureActive 守卫，第二指 Down 忽略
+  - L12 关闭批注残留选区：批注开关同步清选区
+  - 记录不修：撤销对套索移动=整笔删除、压感抬笔线宽微跳、平移无钳制（入 KNOWN_ISSUES）
+- 集成时修子代理引入的两处弃用 API：componentSnapshot.get→getSync、packing→packToData
+- 验证：构建+单测 16/16；真机画笔/橡皮回归通过；多子代理并行（功能 coder + 文档 coder + 审查 explore）
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行
