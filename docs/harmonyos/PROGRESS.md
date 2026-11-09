@@ -263,6 +263,14 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **API 26 模拟器（MatePad Pro 13 API26，127.0.0.1:5557）**：装机、新建项目、阅读、批注（增量路径）、液态玻璃弹层逐项实测；镜像同样无 PDF Kit（PdfView 验证仍需真机）；新模拟器首跑有小艺输入法隐私向导需先点掉
 - **API 24 回归**：同包安装，书架/阅读/弹层/批注无退化；单测 16/16
 
+## 真机首批验证（2026-11-09 晚，MatePad WEB-W00 / HarmonyOS 7.0.0.111 / API 26）
+
+- 调试签名全自动化：`devecocli auth login`（华为账号浏览器授权）→ `devecocli signature generate --type debug`，自动生成调试 p12/csr/cer/p7b 并写入 build-profile（新增 default 调试签名配置，材料在 `~/.ohos/config`）；发布签名配置（release）保留
+- 真机安装启动成功（调试签名包）；未签名/发布签名包装真机分别报 `no signature file` / `not trusted app source`（符合设计）
+- **fileSuffixFilters 格式 bug（真 Bug，用户质疑引出）**：两处选择器写成 `'PDF(.pdf)'`，官方要求 `'描述|后缀'` 竖线两段式，缺竖线整串被当字而后缀导致**任何文件都筛不出来**——之前记录的"选择器只显示媒体库索引文件"结论有误，根因是这个格式错误。修正为 `'PDF|.pdf'` 等后选择器正常列出文件（含 hdc 推送的 PDF）
+- **PdfView 真机渲染验证通过**：picker 选 PDF → 导入建项目 → PdfView 渲染封面与内页 → 翻页正常（截图 matepad-01-pdfview）；此前"PdfView 需真机验证"关闭
+- 上架包就绪：`harmonyos/build/outputs/default/harmonyos-default-signed.app`（发布签名，2.3 MB）
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

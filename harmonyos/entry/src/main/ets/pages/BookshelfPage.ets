@@ -85,7 +85,8 @@ struct BookshelfPage {
     const options = new picker.DocumentSelectOptions();
     options.maxSelectNumber = 1;
     options.selectMode = picker.DocumentSelectMode.FILE;
-    options.fileSuffixFilters = ['PDF(.pdf)', 'Markdown(.md,.markdown)', '所有文件(.*)'];
+    // 官方格式为「描述|后缀」，缺竖线会把整串当后缀导致什么都筛不出来（实测）
+    options.fileSuffixFilters = ['PDF|.pdf', 'Markdown|.md,.markdown', '所有文件(*.*)|.*'];
     docPicker.select(options).then((uris: string[]) => {
       if (uris.length === 0) {
         return;
