@@ -69,7 +69,7 @@ export class RainProjectWriter {
       const info = await pixelMap.getImageInfo();
       const scale = Math.min(960 / info.size.width, 720 / info.size.height, 1);
       const packer = image.createImagePacker();
-      const jpeg = await packer.packing(pixelMap, { format: 'image/jpeg', quality: 88 });
+      const jpeg = await packer.packToData(pixelMap, { format: 'image/jpeg', quality: 88 });
       pixelMap.release();
       return {
         width: Math.max(1, Math.round(info.size.width * scale)),

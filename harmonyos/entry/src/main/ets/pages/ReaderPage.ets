@@ -1,6 +1,6 @@
-import { router, promptAction } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { ProjectStore, OpenProject } from '../core/ProjectStore';
 import { PdfBridge } from '../core/PdfBridge';
 import { PageNotes } from '../core/PageNotes';
@@ -131,7 +131,7 @@ struct ReaderPage {
   private pdfLoaded: boolean = false;
 
   aboutToAppear(): void {
-    const params = router.getParams() as ReaderParams;
+    const params = this.getUIContext().getRouter().getParams() as ReaderParams;
     if (params === null || params === undefined || params.dir === undefined) {
       this.statusText = '缺少项目参数';
       return;
@@ -149,7 +149,7 @@ struct ReaderPage {
     } catch (e) {
       this.statusText = `批注数据损坏：${(e as Error).message}`;
     }
-    const saved = AgentSettings.load(getContext(this) as common.UIAbilityContext);
+    const saved = AgentSettings.load(this.getUIContext().getHostContext() as common.UIAbilityContext);
     this.aiBaseUrl = saved.baseUrl;
     this.aiApiKey = saved.apiKey;
     this.aiModel = saved.model;
@@ -301,7 +301,7 @@ struct ReaderPage {
       this.statusText = changed ? `第 ${this.currentPage} 页笔记已保存` : '内容未变化';
     } catch (e) {
       this.statusText = `保存失败：${(e as Error).message}`;
-      promptAction.showToast({ message: this.statusText });
+      this.getUIContext().getPromptAction().showToast({ message: this.statusText });
     }
   }
 
@@ -398,7 +398,7 @@ struct ReaderPage {
       this.showHistory = false;
       this.statusText = `已载入 ${new Date(version.created).toLocaleString()} 的快照，保存后生效`;
     } catch (e) {
-      promptAction.showToast({ message: `恢复失败：${(e as Error).message}` });
+      this.getUIContext().getPromptAction().showToast({ message: `恢复失败：${(e as Error).message}` });
     }
   }
 
@@ -480,7 +480,7 @@ struct ReaderPage {
   /** 制卡草稿：有选区用选区，否则用光标（selEnd）所在段落。 */
   private async fillCardDraft(): Promise<void> {
     if (this.note.trim().length === 0) {
-      promptAction.showToast({ message: '本页笔记为空，无可制卡内容' });
+      this.getUIContext().getPromptAction().showToast({ message: '本页笔记为空，无可制卡内容' });
       return;
     }
     try {
@@ -490,13 +490,13 @@ struct ReaderPage {
       this.cardFront = draft.front;
       this.cardTab = 'make';
     } catch (e) {
-      promptAction.showToast({ message: (e as Error).message });
+      this.getUIContext().getPromptAction().showToast({ message: (e as Error).message });
     }
   }
 
   private async saveCard(): Promise<void> {
     if (this.project === null || this.cardFront.trim().length === 0) {
-      promptAction.showToast({ message: '卡片正面不能为空' });
+      this.getUIContext().getPromptAction().showToast({ message: '卡片正面不能为空' });
       return;
     }
     const tags = this.cardTags.split(/[,，]/).map((t: string): string => t.trim())
@@ -524,9 +524,9 @@ struct ReaderPage {
       this.cardFront = '';
       this.cardBack = '';
       this.cardTags = '';
-      promptAction.showToast({ message: '卡片已保存' });
+      this.getUIContext().getPromptAction().showToast({ message: '卡片已保存' });
     } catch (e) {
-      promptAction.showToast({ message: `保存失败：${(e as Error).message}` });
+      this.getUIContext().getPromptAction().showToast({ message: `保存失败：${(e as Error).message}` });
     }
   }
 
@@ -558,11 +558,10 @@ struct ReaderPage {
     if (this.project === null) {
       return;
     }
-    const context = getContext(this) as common.UIAbilityContext;
-    const photoPicker = new picker.PhotoViewPicker(context);
-    const options = new picker.PhotoSelectOptions();
+    const photoPicker = new photoAccessHelper.PhotoViewPicker();
+    const options = new photoAccessHelper.PhotoSelectOptions();
     options.maxSelectNumber = 1;
-    photoPicker.select(options).then((result: picker.PhotoSelectResult) => {
+    photoPicker.select(options).then((result: photoAccessHelper.PhotoSelectResult) => {
       const uris = result.photoUris;
       if (uris.length === 0) {
         return;
@@ -658,7 +657,7 @@ struct ReaderPage {
     if (this.dirty) {
       await this.saveCurrentPage();
       if (this.dirty) {
-        promptAction.showToast({ message: '当前页保存失败，未导出' });
+        this.getUIContext().getPromptAction().showToast({ message: '当前页保存失败，未导出' });
         return false;
       }
     }
@@ -690,7 +689,7 @@ struct ReaderPage {
   }
 
   private saveToUserFile(file: NoteTransferFile): void {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const docPicker = new picker.DocumentViewPicker(context);
     const options = new picker.DocumentSaveOptions();
     options.newFileNames = [file.fileName];
@@ -707,7 +706,7 @@ struct ReaderPage {
         }
         this.statusText = `已导出：${file.fileName}`;
       } catch (e) {
-        promptAction.showToast({ message: `导出失败：${(e as Error).message}` });
+        this.getUIContext().getPromptAction().showToast({ message: `导出失败：${(e as Error).message}` });
       }
     }).catch(() => {
       // 用户取消
@@ -716,7 +715,7 @@ struct ReaderPage {
 
   /** 导入：JSON 备份合并进整份笔记（合法页覆盖、空串清页、缺失不动）；MD/TXT 文本插入光标处。 */
   private importNotes(): void {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const docPicker = new picker.DocumentViewPicker(context);
     const options = new picker.DocumentSelectOptions();
     options.maxSelectNumber = 1;
@@ -746,7 +745,7 @@ struct ReaderPage {
         }
         this.showTransfer = false;
       } catch (e) {
-        promptAction.showToast({ message: `导入失败：${(e as Error).message}` });
+        this.getUIContext().getPromptAction().showToast({ message: `导入失败：${(e as Error).message}` });
       }
     }).catch(() => {
       // 用户取消
@@ -771,7 +770,7 @@ struct ReaderPage {
           .backgroundColor('#EEEEEE')
           .fontColor('#333333')
           .onClick(() => {
-            router.back();
+            this.getUIContext().getRouter().back();
           })
         Text(this.projectName)
           .fontSize(18)
@@ -837,10 +836,12 @@ struct ReaderPage {
               })
           }, (spec: InkToolSpec) => spec.id)
           ForEach(['#dc3545', '#2263EB', '#0E9F6E', '#222222'], (c: string) => {
-            Circle()
+            // fill 是 API 26+ 接口，用 Stack+圆角代替 Circle().fill 保持 API 20 兼容
+            Stack()
               .width(22)
               .height(22)
-              .fill(c)
+              .borderRadius(11)
+              .backgroundColor(c)
               .margin({ left: 10 })
               .border(this.inkColor === c ? { width: 2, color: '#FFAA00' } : { width: 0 })
               .onClick(() => {
@@ -896,7 +897,7 @@ struct ReaderPage {
             .onClick(() => {
               const text = this.inkTextDraft.trim();
               if (text.length === 0) {
-                promptAction.showToast({ message: '请输入批注内容' });
+                this.getUIContext().getPromptAction().showToast({ message: '请输入批注内容' });
                 return;
               }
               const item: AnnotationItem = {
@@ -1603,7 +1604,7 @@ struct ReaderPage {
           .backgroundColor('#EEEEEE')
           .fontColor('#333333')
           .onClick(() => {
-            AgentSettings.clear(getContext(this) as common.UIAbilityContext);
+            AgentSettings.clear(this.getUIContext().getHostContext() as common.UIAbilityContext);
             this.aiBaseUrl = '';
             this.aiApiKey = '';
             this.aiModel = '';
@@ -1612,7 +1613,7 @@ struct ReaderPage {
         Blank()
         Button('保存')
           .onClick(() => {
-            AgentSettings.save(getContext(this) as common.UIAbilityContext, {
+            AgentSettings.save(this.getUIContext().getHostContext() as common.UIAbilityContext, {
               baseUrl: this.aiBaseUrl,
               apiKey: this.aiApiKey,
               model: this.aiModel

@@ -1,7 +1,5 @@
-import { router } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { picker, fileIo as fs } from '@kit.CoreFileKit';
-import { promptAction } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
 import { ProjectStore, ProjectSummary, OpenProject } from '../core/ProjectStore';
 import { RainClient, RainLoginState, RainLiveState } from '../core/RainClient';
@@ -39,13 +37,13 @@ struct BookshelfPage {
 
   private rain(): RainClient {
     if (this.rainClient === null) {
-      this.rainClient = new RainClient(getContext(this) as common.UIAbilityContext);
+      this.rainClient = new RainClient(this.getUIContext().getHostContext() as common.UIAbilityContext);
     }
     return this.rainClient;
   }
 
   private projectsRoot(): string {
-    return ProjectStore.projectsRoot(getContext(this).filesDir);
+    return ProjectStore.projectsRoot((this.getUIContext().getHostContext() as common.UIAbilityContext).filesDir);
   }
 
   aboutToAppear(): void {
@@ -64,15 +62,15 @@ struct BookshelfPage {
     ProjectStore.create(this.projectsRoot(), name)
       .then((project: OpenProject) => {
         this.reload();
-        router.pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
+        this.getUIContext().getRouter().pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
       })
       .catch((e: Error) => {
-        promptAction.showToast({ message: `创建失败：${e.message}` });
+        this.getUIContext().getPromptAction().showToast({ message: `创建失败：${e.message}` });
       });
   }
 
   private importDocument(): void {
-    const context = getContext(this) as common.UIAbilityContext;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const docPicker = new picker.DocumentViewPicker(context);
     const options = new picker.DocumentSelectOptions();
     options.maxSelectNumber = 1;
@@ -109,10 +107,10 @@ struct BookshelfPage {
         project.manifest.leftName = fileName;
         ProjectStore.saveManifest(project.dir, project.manifest);
         this.reload();
-        router.pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
+        this.getUIContext().getRouter().pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
       })
       .catch((e: Error) => {
-        promptAction.showToast({ message: `导入失败：${e.message}` });
+        this.getUIContext().getPromptAction().showToast({ message: `导入失败：${e.message}` });
       });
   }
 
@@ -325,7 +323,7 @@ struct BookshelfPage {
         });
       this.showRain = false;
       this.reload();
-      router.pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
+      this.getUIContext().getRouter().pushUrl({ url: 'pages/ReaderPage', params: { dir: project.dir } });
     } catch (e) {
       this.rainError = (e as Error).message;
       this.rainProgress = '';
@@ -409,7 +407,7 @@ struct BookshelfPage {
               .alignItems(VerticalAlign.Center)
             }
             .onClick(() => {
-              router.pushUrl({ url: 'pages/ReaderPage', params: { dir: item.dir } });
+              this.getUIContext().getRouter().pushUrl({ url: 'pages/ReaderPage', params: { dir: item.dir } });
             })
           }, (item: ProjectSummary) => item.id)
         }
@@ -678,7 +676,7 @@ struct BookshelfPage {
           .onClick(() => {
             const name = this.newProjectName.trim();
             if (name.length === 0) {
-              promptAction.showToast({ message: '请输入项目名称' });
+              this.getUIContext().getPromptAction().showToast({ message: '请输入项目名称' });
               return;
             }
             this.showCreateDialog = false;
