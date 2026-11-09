@@ -150,6 +150,14 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## MatePad 最终回归（2026-11-09，已提交）
+
+- 范围决策：暂时只以 MatePad Pro 13 平板模拟器为验收设备（手机/折叠屏模拟器调试通道问题不再绕行，见下方调查记录）
+- 雨课堂链路复验（url.URL 构造改 parseURL 后）：登录态、课程列表（4 门）、课堂列表全部正常
+- 批注复验（redrawTick 删除后）：笔迹正常，工具箱完整（截图 emulator-22）
+- CodeGenie MCP 全量 21 个 .ets 静态检查：deprecatedSymbol/unusedSymbol 清零（仅剩风格建议类提示）
+- 全量重编 BUILD SUCCESSFUL，deprecated 警告清零
+
 ## 模拟器环境调查记录（2026-11-09）
 
 - `devecocli emulator rotate left/right` 在 MatePad Pro 13 上返回成功但系统 UI 不旋转：snapshot 面板分辨率恒为 2880×1920、内容方向不变。该命令按官方语义是"旋转模拟器"（向虚拟设备发方向事件），平板桌面态未开自动旋转时系统不响应该事件；亦无法排除它只影响宿主窗口呈现。无论哪种情况，此镜像上无法用 CLI 获得竖屏系统 UI。
