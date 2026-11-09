@@ -150,6 +150,10 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## 最终全量回归（2026-11-09，已提交）
+
+最终构建在 MatePad 模拟器全链路复扫：书架 → 项目 → 空页写入保存（修复后）→ 编辑/预览切换 → 搜索 → 闪卡面板，全部正常（截图 emulator-23/24）。至此鸿蒙线在模拟器可验证范围内无任何已知未决缺陷。
+
 ## 空页保存 bug 修复（2026-11-09，已提交）
 
 - 现象：向全新空页（第 3 页）写笔记保存失败，状态栏报 `Cannot read property length of undefined`，文件不落盘
