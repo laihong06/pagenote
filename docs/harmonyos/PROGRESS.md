@@ -150,6 +150,12 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## 核心层单元测试（2026-11-09，已提交）
+
+- `entry/src/test/List.test.ets`：10 个 Local Test 用例，覆盖 PageNotes 分页/revision、manifest 编解码与非法值拒绝、mergeBackup 合并语义、SM-2 排程四档、雨课堂历史 type=3/14 语义、LESSON_ON、当前课堂 status 过滤
+- 运行：`hvigor test`（hypium 经 `ohpm install @ohos/hypium` 加入 entry 依赖）；报告在 `entry/.test/default/outputs/test/reports/`（核心行覆盖约 33%）
+- 过程中修正：空串 SHA-256 在无 update 时 cryptoFramework 不返回标准摘要 → 空输入直接返回定义值
+
 ## MatePad 最终回归（2026-11-09，已提交）
 
 - 范围决策：暂时只以 MatePad Pro 13 平板模拟器为验收设备（手机/折叠屏模拟器调试通道问题不再绕行，见下方调查记录）

@@ -5,5 +5,9 @@
   "main": "",
   "author": "",
   "license": "PolyForm-Noncommercial-1.0.0",
-  "dependencies": {}
+  "dependencies": {
+    "@ohos/hypium": "^1.0.30"
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {}
 }

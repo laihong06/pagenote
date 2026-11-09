@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Add HarmonyOS unit tests (`entry/src/test/List.test.ets`): ten Local Test cases covering page splitting/revision, manifest codec and validation, backup merge semantics, SM-2 scheduling, and Yuketang history/current-lesson normalization. Also fix empty-input SHA-256 returning a nonstandard digest on this platform (empty input now returns the well-known constant directly). `hvigor test` passes. / 鸿蒙端新增 10 个 Local Test 用例（分页/revision、manifest、备份合并、SM-2、雨课堂协议解析），并修复空输入 SHA-256 非标准摘要问题；hvigor test 通过。
+
+- Run the CodeGenie MCP static check over all 21 HarmonyOS .ets files
+
 - Run the CodeGenie MCP static check over all 21 HarmonyOS .ets files and fix what it found: the deprecated two-arg `url.URL` constructor moved to `url.URL.parseURL` in the Yuketang modules, and dead symbols (`redrawTick`, `liveCookie`) removed. A second full check reports zero deprecated-symbol and zero unused-symbol diagnostics. / 用 CodeGenie MCP 对全部 21 个 .ets 静态检查并修复：url.URL 构造弃用改 parseURL，删除无用符号；复检废弃符号与未用符号诊断清零。
 
 - Migrate HarmonyOS code off deprecated APIs:
