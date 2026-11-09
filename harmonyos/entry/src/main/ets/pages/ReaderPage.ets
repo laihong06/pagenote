@@ -44,7 +44,9 @@ const INK_TOOLS: InkToolSpec[] = [
   { id: 'line', label: '直线', symbol: $r('sys.symbol.minus') },
   { id: 'rect', label: '方框', symbol: $r('sys.symbol.square') },
   { id: 'ellipse', label: '椭圆', symbol: $r('sys.symbol.circle') },
-  { id: 'text', label: '文字', symbol: $r('sys.symbol.character_textbox') }
+  { id: 'text', label: '文字', symbol: $r('sys.symbol.character_textbox') },
+  { id: 'eraser', label: '橡皮擦（压感）', symbol: $r('sys.symbol.eraser_line_fill') },
+  { id: 'lasso', label: '套索', symbol: $r('sys.symbol.selector') }
 ];
 
 interface InkWidthSpec {
@@ -90,7 +92,15 @@ struct ReaderPage {
   @State inkMode: boolean = false;
   @State inkColor: string = '#dc3545';
   @State inkItems: AnnotationItem[] = [];
-  @State inkTool: string = 'pen'; // pen | highlight | line | rect | ellipse | text
+  @State inkTool: string = 'pen'; // pen | highlight | line | rect | ellipse | text | eraser
+  // 手锁：开启后手指/鼠标只能拖动平移版面，手写笔照常书写
+  @State fingerLock: boolean = false;
+  // 手锁拖动时的版面偏移（px）
+  @State panX: number = 0;
+  @State panY: number = 0;
+  // 套索选中的笔迹索引（删除所选用）；切换工具/撤销/清除时递增 selectionEpoch 让画布清选区
+  @State selectedIndices: number[] = [];
+  @State selectionEpoch: number = 0;
   @State inkWidth: number = 3;
   @State inkTextEditing: boolean = false;
   @State inkTextDraft: string = '';
@@ -292,6 +302,8 @@ struct ReaderPage {
     this.note = notes.get(page) ?? '';
     this.currentPage = page;
     this.dirty = false;
+    this.panX = 0;
+    this.panY = 0;
     this.inkItems = Annotations.pageItems(this.annotations, 'document', page);
     PageNotes.revision(this.note).then((rev: string) => {
       this.noteRevision = rev;
@@ -458,6 +470,8 @@ struct ReaderPage {
       return;
     }
     this.inkItems = this.inkItems.slice(0, this.inkItems.length - 1);
+    this.selectedIndices = [];
+    this.selectionEpoch += 1;
     this.saveAnnotations();
   }
 
@@ -466,6 +480,8 @@ struct ReaderPage {
       return;
     }
     this.inkItems = [];
+    this.selectedIndices = [];
+    this.selectionEpoch += 1;
     this.saveAnnotations();
   }
 
@@ -837,14 +853,15 @@ struct ReaderPage {
         title: { title: '搜索笔记' }
       })
 
-      if (this.inkMode) {
-        Row() {
+      // 画笔栏常显（工具预选随时可用）；「批注」按钮仍是书写的总开关
+      Row() {
           ForEach(INK_TOOLS, (spec: InkToolSpec) => {
             IconButton({
               symbol: spec.symbol, label: spec.label,
               active: this.inkTool === spec.id,
               onTap: () => {
                 this.inkTool = spec.id;
+                this.selectionEpoch += 1;
               }
             })
               .margin({ left: 6 })
@@ -877,11 +894,31 @@ struct ReaderPage {
           }, (spec: InkWidthSpec) => spec.label)
           Blank()
           IconButton({
+            symbol: $r('sys.symbol.minus_circle'), label: '删除所选',
+            enabledState: this.selectedIndices.length > 0,
+            onTap: () => {
+              const drop = new Set<number>(this.selectedIndices);
+              this.inkItems = this.inkItems.filter((_: AnnotationItem, i: number): boolean => !drop.has(i));
+              this.selectedIndices = [];
+              this.selectionEpoch += 1;
+              this.saveAnnotations();
+            }
+          })
+          IconButton({
+            symbol: $r('sys.symbol.hand_raised_hexagon_fill'), label: this.fingerLock ? '解锁手指' : '锁定手指',
+            active: this.fingerLock,
+            onTap: () => {
+              this.fingerLock = !this.fingerLock;
+            }
+          })
+            .margin({ left: 8 })
+          IconButton({
             symbol: $r('sys.symbol.undo'), label: '撤销',
             onTap: () => {
               this.undoInk();
             }
           })
+            .margin({ left: 8 })
           IconButton({
             symbol: $r('sys.symbol.trash'), label: '清除本页',
             onTap: () => {
@@ -895,7 +932,6 @@ struct ReaderPage {
         .alignItems(VerticalAlign.Center)
         .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
         .border({ width: { bottom: 0.5 }, color: UiTheme.hairline(this.isDarkMode()) })
-      }
 
       // 文字批注输入行：内嵌在页面里（sheet 会被软键盘顶掉，实测）
       if (this.inkMode && this.inkTextEditing) {
@@ -1449,8 +1485,10 @@ struct ReaderPage {
 
   @Builder
   leftPane() {
-    // 左侧：源文档 + 手写批注层
+    // 左侧：源文档 + 手写批注层同处可平移层——手锁时手指拖动经 onPanDelta 整体平移，
+    // 批注随内容一起移动，命中坐标与绘制坐标一致
     Stack() {
+      Stack() {
       Column() {
         if (this.isPdf) {
           if (this.pdfPaneBuilder !== null) {
@@ -1498,18 +1536,31 @@ struct ReaderPage {
         penWidth: this.inkWidth,
         tool: this.inkTool,
         drawingEnabled: this.inkMode,
+        fingerLock: this.fingerLock,
+        selectionEpoch: this.selectionEpoch,
         onChange: (items: AnnotationItem[]) => {
           this.inkItems = items;
           this.saveAnnotations();
+        },
+        onSelectionChange: (indices: number[]) => {
+          this.selectedIndices = indices;
         },
         onTextTap: (x: number, y: number) => {
           this.inkTextPoint = [x, y];
           this.inkTextDraft = '';
           this.inkTextEditing = true;
+        },
+        onPanDelta: (dx: number, dy: number) => {
+          this.panX += dx;
+          this.panY += dy;
         }
       })
         .width('100%')
         .height('100%')
+      }
+      .offset({ x: this.panX, y: this.panY })
+      .width('100%')
+      .height('100%')
     }
     .layoutWeight(1)
     .width(this.isLandscape ? '0%' : '100%')

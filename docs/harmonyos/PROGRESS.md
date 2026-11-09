@@ -271,6 +271,16 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **PdfView 真机渲染验证通过**：picker 选 PDF → 导入建项目 → PdfView 渲染封面与内页 → 翻页正常（截图 matepad-01-pdfview）；此前"PdfView 需真机验证"关闭
 - 上架包就绪：`harmonyos/build/outputs/default/harmonyos-default-signed.app`（发布签名，2.3 MB）
 
+## 批注工作区重构 + 系统笔记能力盘点（2026-11-09 深夜，已提交）
+
+- **画笔栏常显**（工具预选，"批注"按钮仍是书写总开关）
+- **锁定手指**：手指/Mouse 只平移（可平移层=内容 Column+InkCanvas 同层 offset，批注与内容联动、命中坐标一致；ArkUI 命中无法按输入源分流，平移只能画布捕获后经 onPanDelta 回调驱动）；手写笔照常书写
+- **压感橡皮**：半径 30×(0.5+pressure)（1000 比例系），笔迹任一点落入即整笔擦除，过程实时、抬笔落盘；真机快慢滑动均可靠（基准 18 时快速滑动采样稀疏会漏擦，已修）
+- **套索**：虚线框选（任一点落入即选中整笔）→ 框内拖动整体移动（抬笔一次落盘）→ 框外点击取消；配套"删除所选"按钮（无选中时禁用）；切换工具/撤销/清除经 selectionEpoch 同步清选区
+- **修复**：IconButton 悬停气泡触摸后残留（点击即清 hovering）；`sys.symbol.lasso` 不存在（编译期资源校验拦截，换 `selector`）
+- **系统笔记能力复用盘点**（HMS SDK，均有公开 API，供后续对齐华为笔记）：`@kit.Penkit` HandwriteComponent（系统低延迟手写画布，含跟手预测/形状美化/缩放——全量替换 InkCanvas 需打通 annotations.json 契约映射，工程量大暂列评估）；`@hms.ai.ocr.textRecognition`（手写/印刷识别，可做"手写转文字"）；`@hms.ai.speechRecognizer`（语音转文字——需麦克风受限权限，上架材料成本+隐私政策更新，列待评估）；PointPredictor/InstantShapeGenerator 可作 InkCanvas 增量增强
+- 真机回归：画笔/橡皮/套索/平移全过；单测 16/16
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

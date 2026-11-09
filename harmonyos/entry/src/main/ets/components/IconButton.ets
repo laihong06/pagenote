@@ -64,6 +64,8 @@ export struct IconButton {
       .enabled(this.enabledState)
       .accessibilityText(this.label)
       .onClick(() => {
+        // 触摸点击后清除悬停态，否则悬停气泡会残留在屏幕上（触摸设备无 mouseleave 补偿）
+        this.hovering = false;
         this.onTap();
       })
       .onHover((isHover: boolean) => {

@@ -14,9 +14,15 @@ export struct InkCanvas {
   @Prop penColor: string = '#dc3545';
   @Prop penWidth: number = 3;
   @Prop drawingEnabled: boolean = false;
-  @Prop tool: string = 'pen'; // pen | highlight | line | rect | ellipse | text
+  @Prop tool: string = 'pen'; // pen | highlight | line | rect | ellipse | text | eraser
+  // 禁止手指书写：开启后手指/鼠标只触发拖动平移（由 onPanDelta 回调给父组件），手写笔照常书写
+  @Prop fingerLock: boolean = false;
+  // 外部要求清空套索选区（切换工具/撤销/清除/删除所选时父组件递增此值）
+  @Prop @Watch('clearSelection') selectionEpoch: number = 0;
   onChange: (items: AnnotationItem[]) => void = () => {};
   onTextTap: (x: number, y: number) => void = () => {};
+  onPanDelta: (dx: number, dy: number) => void = () => {};
+  onSelectionChange: (indices: number[]) => void = () => {};
 
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private canvas: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
@@ -28,6 +34,34 @@ export struct InkCanvas {
   // 手写笔压感：一次笔迹中记录最大压力，抬笔时按压力调制线宽（不改变存储契约，width 仍是数值）
   private strokeIsPen: boolean = false;
   private strokeMaxPressure: number = 0;
+  // 手锁拖动：上一次采样点（原始像素坐标）
+  private panAnchor: number[] | null = null;
+  // 橡皮本次拖动是否真的擦到过东西（决定抬笔是否触发落盘）
+  private eraserTouched: boolean = false;
+  // 套索：圈选矩形与选中笔迹索引（1000 比例系）
+  private lassoStart: number[] | null = null;
+  private lassoEnd: number[] | null = null;
+  private selectedIdx: number[] = [];
+  private selRect: number[] | null = null;
+  private moveAnchor: number[] | null = null;
+
+  private normRect(a: number[], b: number[]): number[] {
+    return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+  }
+
+  private inRect(x: number, y: number, r: number[]): boolean {
+    return x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3];
+  }
+
+  private clearSelection(): void {
+    this.lassoStart = null;
+    this.lassoEnd = null;
+    this.selectedIdx = [];
+    this.selRect = null;
+    this.moveAnchor = null;
+    this.repaint();
+    this.onSelectionChange([]);
+  }
 
   private onItemsChange(): void {
     this.repaint();
@@ -55,6 +89,12 @@ export struct InkCanvas {
     // 拖拽中的形状实时预览
     if (this.shapeStart !== null && this.shapeEnd !== null) {
       this.drawShape(ctx, this.tool, this.penColor, this.penWidth, this.shapeStart, this.shapeEnd);
+    }
+    // 套索圈选/选中框
+    if (this.lassoStart !== null && this.lassoEnd !== null) {
+      this.drawDashedRect(ctx, this.normRect(this.lassoStart, this.lassoEnd));
+    } else if (this.selRect !== null) {
+      this.drawDashedRect(ctx, this.selRect);
     }
     ctx.globalAlpha = 1.0;
   }
@@ -131,6 +171,38 @@ export struct InkCanvas {
     return this.tool === 'line' || this.tool === 'rect' || this.tool === 'ellipse';
   }
 
+  private drawDashedRect(ctx: CanvasRenderingContext2D, r: number[]): void {
+    ctx.strokeStyle = '#2263EB';
+    ctx.lineWidth = Math.max(1, 2 / this.scaleX());
+    ctx.globalAlpha = 1.0;
+    ctx.setLineDash([10, 6]);
+    ctx.strokeRect(this.toCanvasX(r[0]), this.toCanvasY(r[1]),
+      this.toCanvasX(r[2]) - this.toCanvasX(r[0]), this.toCanvasY(r[3]) - this.toCanvasY(r[1]));
+    ctx.setLineDash([]);
+  }
+
+  /** 擦除判定：笔迹任一点落在 (x,y) 半径 r（1000 比例系）内即擦除整笔。 */
+  private itemNear(item: AnnotationItem, x: number, y: number, r: number): boolean {
+    for (const p of item.points) {
+      const dx = p[0] - x;
+      const dy = p[1] - y;
+      if (dx * dx + dy * dy <= r * r) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 压感橡皮：半径随压力缩放（基准 30，1000 比例系≈40px），拖动经过即擦除并实时重绘。 */
+  private eraseAt(x: number, y: number, pressure: number): void {
+    const r = 30 * (0.5 + Math.min(1.2, Math.max(0, pressure)));
+    const next = this.items.filter((item: AnnotationItem): boolean => !this.itemNear(item, x, y, r));
+    if (next.length !== this.items.length) {
+      this.items = next; // @Watch 触发重绘，实时反馈；父组件 inkItems 在抬笔 onChange 时才同步
+      this.eraserTouched = true;
+    }
+  }
+
   /** 绘制笔迹的一段（增量路径用，样式与 drawItem 的 pen/highlight 一致）。 */
   private strokeSegment(x1: number, y1: number, x2: number, y2: number): void {
     const ctx = this.canvas;
@@ -183,6 +255,88 @@ export struct InkCanvas {
         const touch = event.touches[0];
         const x = Math.max(0, (touch.x) * this.scaleX());
         const y = Math.max(0, (touch.y) * this.scaleX());
+        // 手锁：手指/鼠标不书写，只拖动平移（画布命中无法按输入源分流，平移由回调驱动内容偏移）
+        if (this.fingerLock && (event.sourceTool === SourceTool.Finger || event.sourceTool === SourceTool.MOUSE)) {
+          if (event.type === TouchType.Down) {
+            this.panAnchor = [touch.x, touch.y];
+          } else if (event.type === TouchType.Move && this.panAnchor !== null) {
+            this.onPanDelta(touch.x - this.panAnchor[0], touch.y - this.panAnchor[1]);
+            this.panAnchor = [touch.x, touch.y];
+          } else if (event.type === TouchType.Up) {
+            this.panAnchor = null;
+          }
+          return;
+        }
+        // 套索：圈选笔迹 → 框内拖动移动 → 框外点击取消；选中索引经 onSelectionChange 报给父组件
+        if (this.tool === 'lasso') {
+          if (event.type === TouchType.Down) {
+            if (this.selRect !== null && this.inRect(x, y, this.selRect)) {
+              this.moveAnchor = [x, y];
+            } else {
+              this.selectedIdx = [];
+              this.selRect = null;
+              this.onSelectionChange([]);
+              this.lassoStart = [x, y];
+              this.lassoEnd = [x, y];
+              this.repaint();
+            }
+          } else if (event.type === TouchType.Move) {
+            if (this.moveAnchor !== null) {
+              const dx = x - this.moveAnchor[0];
+              const dy = y - this.moveAnchor[1];
+              this.moveAnchor = [x, y];
+              for (const idx of this.selectedIdx) {
+                const item = this.items[idx];
+                if (item !== undefined) {
+                  item.points = item.points.map((p: number[]): number[] => [p[0] + dx, p[1] + dy]);
+                }
+              }
+              if (this.selRect !== null) {
+                this.selRect = [this.selRect[0] + dx, this.selRect[1] + dy,
+                  this.selRect[2] + dx, this.selRect[3] + dy];
+              }
+              this.repaint();
+            } else if (this.lassoStart !== null) {
+              this.lassoEnd = [x, y];
+              this.repaint();
+            }
+          } else if (event.type === TouchType.Up) {
+            if (this.moveAnchor !== null) {
+              this.moveAnchor = null;
+              this.items = [...this.items];
+              this.onChange(this.items);
+            } else if (this.lassoStart !== null && this.lassoEnd !== null) {
+              const rect = this.normRect(this.lassoStart, this.lassoEnd);
+              const picked: number[] = [];
+              for (let i = 0; i < this.items.length; i++) {
+                const item = this.items[i];
+                if (item !== undefined
+                  && item.points.some((p: number[]): boolean => this.inRect(p[0], p[1], rect))) {
+                  picked.push(i);
+                }
+              }
+              this.lassoStart = null;
+              this.lassoEnd = null;
+              this.selectedIdx = picked;
+              this.selRect = picked.length > 0 ? rect : null;
+              this.repaint();
+              this.onSelectionChange(picked);
+            }
+          }
+          return;
+        }
+        // 压感橡皮：拖动经过笔迹即擦除，抬笔一次同步落盘
+        if (this.tool === 'eraser') {
+          if (event.type === TouchType.Down || event.type === TouchType.Move) {
+            this.eraseAt(x, y, touch.pressure ?? 0.7);
+          } else if (event.type === TouchType.Up) {
+            if (this.eraserTouched) {
+              this.eraserTouched = false;
+              this.onChange(this.items);
+            }
+          }
+          return;
+        }
         if (event.type === TouchType.Down) {
           this.strokeIsPen = event.sourceTool === SourceTool.Pen;
           this.strokeMaxPressure = touch.pressure ?? 0;
