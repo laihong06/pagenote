@@ -43,5 +43,5 @@ PageNote 的鸿蒙版是 **ArkTS／ArkUI 原生应用**（Stage 模型，平板�
 
 - 分支：`harmonyos/beta`（本地测试线，尚未推送远端）。
 - 构建：先运行一次 `harmonyos/setup-links.ps1`（把 DevEco 自带的 hvigor 链接进项目，离线可构建），再执行 `harmonyos/build.cmd`。需要本机安装 DevEco Studio 6.1（默认路径 `D:\Program Files\DevEco Studio`）。
-- 签名与安装：未配置签名。要装到模拟器／真机，在 DevEco Studio 中打开 `harmonyos/` 目录，用 File → Project Structure 自动生成调试签名。
+- 签名与安装：未配置签名时，在 DevEco Studio 中打开 `harmonyos/` 目录，用 File → Project Structure 自动生成调试签名。上架签名材料：密钥库与证书请求在本机 `.certs/`（key.p12 / key.csr，已 gitignore，不入库），AGC 签发的发布/调试证书（.cer）与 Profile（.p7b）下载后也放同目录，再写入 `build-profile.json5` 的 `signingConfigs`。
 - 更完整的本机环境说明见项目局部技能 `.kimi/skills/harmonyos-dev/SKILL.md`。

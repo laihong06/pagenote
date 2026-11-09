@@ -38,3 +38,4 @@ tests/typora-*.txt
 .opencode/
 .mcp.json
 .codegraph/
+.certs/
