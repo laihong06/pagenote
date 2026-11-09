@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Migrate HarmonyOS code off deprecated APIs: router/promptAction/getContext moved to `getUIContext()` equivalents, `ImagePacker.packing` → `packToData`, `picker.PhotoViewPicker` → `photoAccessHelper.PhotoViewPicker`, and `Circle().fill` (API 26-only) replaced with a rounded Stack to keep API 20 compatibility. A clean rebuild reports zero deprecation warnings; emulator smoke (bookshelf, reader, photo picker, back navigation, Yuketang panel) passes. / 鸿蒙代码迁离废弃 API：router/promptAction/getContext 改走 getUIContext()，packing 改 packToData，相册选择器改 photoAccessHelper，Circle.fill 改圆角 Stack 保持 API 20 兼容；全量重编废弃警告清零，模拟器冒烟通过。
+
+- Advance the HarmonyOS line to 0.2.0-dev.1 (versionCode 2)
+
 - Advance the HarmonyOS line to 0.2.0-dev.1 (versionCode 2) after the feature batches since 0.1.0-dev.1, and record the platform's tracked limits in KNOWN_ISSUES.md (no PDF Kit on the emulator image, unverified portrait branch, picker media-index limits, unverified live-class capture and real AI calls, unsigned debug builds only). No published downloads. / 鸿蒙线推进到 0.2.0-dev.1（versionCode 2），并在 KNOWN_ISSUES 记录平台已知边界（模拟器无 PDF Kit、竖屏未上机、选择器媒体库索引限制、实时采集与 AI 真实调用未验收、仅有未签名 debug 包）。
 
 
