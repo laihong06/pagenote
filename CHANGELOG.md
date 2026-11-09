@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Run the CodeGenie MCP static check over all 21 HarmonyOS .ets files and fix what it found: the deprecated two-arg `url.URL` constructor moved to `url.URL.parseURL` in the Yuketang modules, and dead symbols (`redrawTick`, `liveCookie`) removed. A second full check reports zero deprecated-symbol and zero unused-symbol diagnostics. / 用 CodeGenie MCP 对全部 21 个 .ets 静态检查并修复：url.URL 构造弃用改 parseURL，删除无用符号；复检废弃符号与未用符号诊断清零。
+
+- Migrate HarmonyOS code off deprecated APIs:
+
 - Migrate HarmonyOS code off deprecated APIs: router/promptAction/getContext moved to `getUIContext()` equivalents, `ImagePacker.packing` → `packToData`, `picker.PhotoViewPicker` → `photoAccessHelper.PhotoViewPicker`, and `Circle().fill` (API 26-only) replaced with a rounded Stack to keep API 20 compatibility. A clean rebuild reports zero deprecation warnings; emulator smoke (bookshelf, reader, photo picker, back navigation, Yuketang panel) passes. / 鸿蒙代码迁离废弃 API：router/promptAction/getContext 改走 getUIContext()，packing 改 packToData，相册选择器改 photoAccessHelper，Circle.fill 改圆角 Stack 保持 API 20 兼容；全量重编废弃警告清零，模拟器冒烟通过。
 
 - Advance the HarmonyOS line to 0.2.0-dev.1 (versionCode 2)

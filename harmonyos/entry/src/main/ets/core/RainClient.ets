@@ -251,7 +251,7 @@ export class RainClient {
   private ticketUrl(ticket: string): string {
     let parsed: arkUrl.URL;
     try {
-      parsed = new arkUrl.URL(ticket, YUKETANG_HOME);
+      parsed = arkUrl.URL.parseURL(ticket, YUKETANG_HOME);
     } catch (e) {
       throw new Error('雨课堂二维码地址无效');
     }
@@ -412,7 +412,7 @@ export class RainClient {
   async downloadSlideImage(slide: RainSlide): Promise<RainSlideImage> {
     let parsed: arkUrl.URL;
     try {
-      parsed = new arkUrl.URL(slide.imageUrl);
+      parsed = arkUrl.URL.parseURL(slide.imageUrl);
     } catch (e) {
       throw new Error('课件图片地址无效');
     }
@@ -458,7 +458,6 @@ export class RainClient {
   private liveLastKey: string | null = null;
   private liveLastPageKey: string | null = null;
   private livePresentations: Map<string, RainSlide[]> = new Map<string, RainSlide[]>();
-  private liveCookie: string = '';
   private liveToken: string = '';
   private liveIdentity: string = '';
   private liveCollected: number = 0;
@@ -504,7 +503,6 @@ export class RainClient {
     this.liveOnSlide = onSlide;
     this.liveOnState = onState;
     this.liveLessonId = lesson.lessonId;
-    this.liveCookie = session.cookie;
     this.emitLive('joining', null);
 
     const response = await this.postRaw(`${YUKETANG_HOME}/api/v3/lesson/checkin`,
@@ -700,7 +698,7 @@ export class RainClient {
       this.captureAuthorization(cookie, response.header);
       const parsed = rainAsObject(JSON.parse(response.result as string) as Object);
       if (parsed === null) {
-        throw new Error(`雨课堂返回了无法识别的数据（${new arkUrl.URL(url).pathname}）`);
+        throw new Error(`雨课堂返回了无法识别的数据（${arkUrl.URL.parseURL(url).pathname}）`);
       }
       return parsed;
     } finally {

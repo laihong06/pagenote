@@ -147,7 +147,7 @@ export function rainApiHeaders(cookie: string, authorization: string | null,
 export function rainHttpError(urlString: string, status: number, operation?: string): Error {
   let path = '/未知接口';
   try {
-    path = new url.URL(urlString).pathname;
+    path = url.URL.parseURL(urlString).pathname;
   } catch (e) {
     // 保留默认路径
   }
@@ -225,7 +225,7 @@ function normalizeSlides(slides: Array<Object | null>, presentationId: string,
       }
       continue;
     }
-    const absolute = new url.URL(image, 'https://www.yuketang.cn').toString();
+    const absolute = url.URL.parseURL(image, 'https://www.yuketang.cn').toString();
     result.push({
       pageId: pageId,
       sourceIndex: rainInt(item['index']) ?? order,

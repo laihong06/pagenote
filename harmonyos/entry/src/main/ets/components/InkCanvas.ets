@@ -18,7 +18,6 @@ export struct InkCanvas {
   onChange: (items: AnnotationItem[]) => void = () => {};
   onTextTap: (x: number, y: number) => void = () => {};
 
-  @State private redrawTick: number = 0;
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private canvas: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private layerWidth: number = 1;
