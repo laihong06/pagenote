@@ -150,6 +150,11 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## 模拟器环境调查记录（2026-11-09）
+
+- `devecocli emulator rotate left/right` 在 MatePad Pro 13 上返回成功但系统 UI 不旋转：snapshot 面板分辨率恒为 2880×1920、内容方向不变。该命令按官方语义是"旋转模拟器"（向虚拟设备发方向事件），平板桌面态未开自动旋转时系统不响应该事件；亦无法排除它只影响宿主窗口呈现。无论哪种情况，此镜像上无法用 CLI 获得竖屏系统 UI。
+- 手机/折叠屏模拟器（Pura 90、Mate X7，均 API 24）在本机启动后调试通道（hdc 127.0.0.1:5555）始终未连通，反复等待数分钟无效，与 MatePad 镜像行为不同；竖屏上机验证因此受阻，需在 DevEco Studio Device Manager 中检查这些实例（可能需完成首次启动向导）。
+
 ## 已知边界
 
 - 未做模拟器/真机运行验证；PDF Kit、文件选择器、AI 调用、批注层、公式与图片渲染均为编译期确认
