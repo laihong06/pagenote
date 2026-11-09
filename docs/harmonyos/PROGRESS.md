@@ -218,6 +218,14 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - API 24 模拟器实测：编辑器/预览正常渲染、无新崩溃日志；排版效果本身需 API 26 设备验收
 - 经验已沉淀至 `.kimi/skills/harmonyos-dev/SKILL.md` 第 11 节
 
+## 图标按钮化（2026-11-09，已提交）
+
+- 新增 `components/IconButton.ets`：SymbolGlyph + `$r('sys.symbol.*')` 系统符号，灰底常态/彩底激活、accessibilityText 无障碍标签、showDot 脏标记角标；符号名以 HM Symbol 官方图标库（developer.huawei.com/consumer/cn/design/harmonyos-symbol）清单为准
+- 覆盖：书架头部（auditorium/doc_text/plus）、雨课堂面板（arrow_clockwise/person_xmark/play_circle/pause_circle/download/chevron_left）、阅读页头部（chevron_left/paintbrush_pointed/moon/ellipsis_circle）、批注工具条（pencil_tip/highlighter_tip/minus/square/circle/character_textbox + undo/trash）、笔记工具条（翻页 chevron、预览 eye/编辑 square_and_pencil、magnifyingglass/arrow_counterclockwise_clock/AI/picture/rectangle_stack/AI_expand/保存 square_and_arrow_down_1 带脏角标）
+- 保留文字：表单对话框的取消/确认/登录类按钮（鸿蒙设计规范对话框操作钮为文字）；批注粗细（细/中/粗）为参数标签
+- 实测修了两个真实 bug：① IconButton 的 active/enabledState/showDot 未用 @Prop 导致状态冻结（与 InkCanvas 当年同型）；② EntryAbility onWindowStageDestroy 里 window.off 在窗口已销毁时抛 1300002 jscrash（install -r 杀进程触发），已 try/catch
+- API 24 模拟器实测：全部符号正确渲染无占位符（截图 emulator-27-icon-buttons）；激活态蓝底、脏角标、禁用透明度均验证；单测 16/16
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

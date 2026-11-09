@@ -5,6 +5,7 @@ import { ProjectStore, ProjectSummary, OpenProject } from '../core/ProjectStore'
 import { RainClient, RainLoginState, RainLiveState } from '../core/RainClient';
 import { RainCourse, RainLesson, RainSlideImage, RainCurrentLesson } from '../core/RainProtocol';
 import { RainProjectWriter } from '../core/RainProjectWriter';
+import { IconButton } from '../components/IconButton';
 
 /**
  * 书架页：列出沙箱项目库中的全部项目，支持新建项目与导入文档建项目。
@@ -341,21 +342,28 @@ struct BookshelfPage {
           .fontSize(24)
           .fontWeight(FontWeight.Bold)
         Blank()
-        Button('雨课堂')
-          .onClick(() => {
+        IconButton({
+          symbol: $r('sys.symbol.auditorium'), label: '雨课堂',
+          onTap: () => {
             this.openRain();
-          })
-        Button('导入文档')
-          .margin({ left: 12 })
-          .onClick(() => {
+          }
+        })
+        IconButton({
+          symbol: $r('sys.symbol.doc_text'), label: '导入文档',
+          onTap: () => {
             this.importDocument();
-          })
-        Button('新建项目')
+          }
+        })
           .margin({ left: 12 })
-          .onClick(() => {
+        IconButton({
+          symbol: $r('sys.symbol.plus'), label: '新建项目',
+          active: true,
+          onTap: () => {
             this.newProjectName = '';
             this.showCreateDialog = true;
-          })
+          }
+        })
+          .margin({ left: 12 })
       }
       .width('100%')
       .padding(16)
@@ -506,25 +514,21 @@ struct BookshelfPage {
             .layoutWeight(1)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Button('刷新')
-            .fontSize(13)
-            .height(30)
-            .backgroundColor('#EEEEEE')
-            .fontColor('#333333')
-            .enabled(!this.rainBusy)
-            .onClick(() => {
+          IconButton({
+            symbol: $r('sys.symbol.arrow_clockwise'), label: '刷新',
+            enabledState: !this.rainBusy,
+            onTap: () => {
               this.loadRainCourses();
-            })
-          Button('退出登录')
-            .fontSize(13)
-            .height(30)
-            .backgroundColor('#EEEEEE')
-            .fontColor('#333333')
-            .margin({ left: 8 })
-            .enabled(!this.rainBusy)
-            .onClick(() => {
+            }
+          })
+          IconButton({
+            symbol: $r('sys.symbol.person_xmark'), label: '退出登录',
+            enabledState: !this.rainBusy,
+            onTap: () => {
               this.logoutRain();
-            })
+            }
+          })
+            .margin({ left: 8 })
         }
         .width('100%')
         .padding({ top: 4, bottom: 8 })
@@ -535,14 +539,12 @@ struct BookshelfPage {
               .fontSize(13)
               .fontColor('#2263EB')
               .layoutWeight(1)
-            Button('停止采集')
-              .fontSize(13)
-              .height(30)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.pause_circle'), label: '停止采集',
+              onTap: () => {
                 this.stopRainLive();
-              })
+              }
+            })
           }
           .width('100%')
           .padding({ bottom: 8 })
@@ -562,14 +564,14 @@ struct BookshelfPage {
                 .layoutWeight(1)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Button('开始采集')
-                .fontSize(13)
-                .height(30)
-                .margin({ left: 12 })
-                .enabled(!this.rainBusy)
-                .onClick(() => {
+              IconButton({
+                symbol: $r('sys.symbol.play_circle'), label: '开始采集',
+                enabledState: !this.rainBusy,
+                onTap: () => {
                   this.startRainLive(current);
-                })
+                }
+              })
+                .margin({ left: 12 })
             }
             .width('100%')
             .padding({ top: 6, bottom: 6 })
@@ -611,17 +613,15 @@ struct BookshelfPage {
           .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
         } else {
           Row() {
-            Button('返回课程列表')
-              .fontSize(13)
-              .height(30)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .enabled(!this.rainBusy)
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.chevron_left'), label: '返回课程列表',
+              enabledState: !this.rainBusy,
+              onTap: () => {
                 this.rainSelectedCourse = '';
                 this.rainLessons = [];
                 this.rainError = '';
-              })
+              }
+            })
           }
           .width('100%')
           .padding({ bottom: 8 })
@@ -641,18 +641,18 @@ struct BookshelfPage {
                   }
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
-                  Button('导入')
-                    .fontSize(13)
-                    .height(30)
-                    .margin({ left: 12 })
-                    .enabled(!this.rainBusy)
-                    .onClick(() => {
+                  IconButton({
+                    symbol: $r('sys.symbol.download'), label: '导入',
+                    enabledState: !this.rainBusy,
+                    onTap: () => {
                       const course = this.rainCourses.find(
                         (item: RainCourse): boolean => item.classroomId === this.rainSelectedCourse);
                       if (course !== undefined) {
                         this.importRainLesson(course, lesson);
                       }
-                    })
+                    }
+                  })
+                    .margin({ left: 12 })
                 }
                 .width('100%')
                 .padding(12)

@@ -13,6 +13,7 @@ import { NoteTransfer, NoteTransferFile } from '../core/NoteTransfer';
 import { MarkdownView } from '../components/MarkdownView';
 import { InkCanvas } from '../components/InkCanvas';
 import { cnTypographyAvailable, CnTextAreaTypography } from '../components/CnTypography';
+import { IconButton } from '../components/IconButton';
 
 interface ReaderParams {
   dir: string;
@@ -33,15 +34,16 @@ interface RainPageAsset {
 interface InkToolSpec {
   id: string;
   label: string;
+  symbol: Resource;
 }
 
 const INK_TOOLS: InkToolSpec[] = [
-  { id: 'pen', label: '笔' },
-  { id: 'highlight', label: '荧光' },
-  { id: 'line', label: '直线' },
-  { id: 'rect', label: '方框' },
-  { id: 'ellipse', label: '椭圆' },
-  { id: 'text', label: '文字' }
+  { id: 'pen', label: '笔', symbol: $r('sys.symbol.pencil_tip') },
+  { id: 'highlight', label: '荧光', symbol: $r('sys.symbol.highlighter_tip') },
+  { id: 'line', label: '直线', symbol: $r('sys.symbol.minus') },
+  { id: 'rect', label: '方框', symbol: $r('sys.symbol.square') },
+  { id: 'ellipse', label: '椭圆', symbol: $r('sys.symbol.circle') },
+  { id: 'text', label: '文字', symbol: $r('sys.symbol.character_textbox') }
 ];
 
 interface InkWidthSpec {
@@ -770,12 +772,12 @@ struct ReaderPage {
   build() {
     Column() {
       Row() {
-        Button('返回')
-          .backgroundColor('#EEEEEE')
-          .fontColor('#333333')
-          .onClick(() => {
+        IconButton({
+          symbol: $r('sys.symbol.chevron_left'), label: '返回',
+          onTap: () => {
             this.getUIContext().getRouter().back();
-          })
+          }
+        })
         Text(this.projectName)
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
@@ -788,33 +790,29 @@ struct ReaderPage {
             .fontSize(14)
             .fontColor('#666666')
         }
-        Button(this.inkMode ? '批注中' : '批注')
-          .fontSize(13)
-          .height(30)
-          .margin({ left: 12 })
-          .backgroundColor(this.inkMode ? '#2263EB' : '#EEEEEE')
-          .fontColor(this.inkMode ? '#FFFFFF' : '#333333')
-          .onClick(() => {
+        IconButton({
+          symbol: $r('sys.symbol.paintbrush_pointed'), label: this.inkMode ? '关闭批注' : '批注',
+          active: this.inkMode,
+          onTap: () => {
             this.inkMode = !this.inkMode;
-          })
-        Button(this.nightMode ? '夜览中' : '夜览')
-          .fontSize(13)
-          .height(30)
-          .margin({ left: 8 })
-          .backgroundColor(this.nightMode ? '#B45309' : '#EEEEEE')
-          .fontColor(this.nightMode ? '#FFFFFF' : '#333333')
-          .onClick(() => {
+          }
+        })
+          .margin({ left: 12 })
+        IconButton({
+          symbol: $r('sys.symbol.moon'), label: this.nightMode ? '关闭夜览' : '夜览',
+          active: this.nightMode, activeColor: '#B45309',
+          onTap: () => {
             this.nightMode = !this.nightMode;
-          })
-        Button('更多')
-          .fontSize(13)
-          .height(30)
+          }
+        })
           .margin({ left: 8 })
-          .backgroundColor('#EEEEEE')
-          .fontColor('#333333')
-          .onClick(() => {
+        IconButton({
+          symbol: $r('sys.symbol.ellipsis_circle'), label: '更多',
+          onTap: () => {
             this.showTransfer = true;
-          })
+          }
+        })
+          .margin({ left: 8 })
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
@@ -831,16 +829,14 @@ struct ReaderPage {
       if (this.inkMode) {
         Row() {
           ForEach(INK_TOOLS, (spec: InkToolSpec) => {
-            Button(spec.label)
-              .fontSize(12)
-              .height(28)
-              .padding({ left: 8, right: 8 })
-              .margin({ left: 6 })
-              .backgroundColor(this.inkTool === spec.id ? '#2263EB' : '#EEEEEE')
-              .fontColor(this.inkTool === spec.id ? '#FFFFFF' : '#333333')
-              .onClick(() => {
+            IconButton({
+              symbol: spec.symbol, label: spec.label,
+              active: this.inkTool === spec.id,
+              onTap: () => {
                 this.inkTool = spec.id;
-              })
+              }
+            })
+              .margin({ left: 6 })
           }, (spec: InkToolSpec) => spec.id)
           ForEach(['#dc3545', '#2263EB', '#0E9F6E', '#222222'], (c: string) => {
             // fill 是 API 26+ 接口，用 Stack+圆角代替 Circle().fill 保持 API 20 兼容
@@ -868,23 +864,19 @@ struct ReaderPage {
               })
           }, (spec: InkWidthSpec) => spec.label)
           Blank()
-          Button('撤销')
-            .fontSize(13)
-            .height(30)
-            .backgroundColor('#EEEEEE')
-            .fontColor('#333333')
-            .onClick(() => {
+          IconButton({
+            symbol: $r('sys.symbol.undo'), label: '撤销',
+            onTap: () => {
               this.undoInk();
-            })
-          Button('清除本页')
-            .fontSize(13)
-            .height(30)
-            .backgroundColor('#EEEEEE')
-            .fontColor('#333333')
-            .margin({ left: 8 })
-            .onClick(() => {
+            }
+          })
+          IconButton({
+            symbol: $r('sys.symbol.trash'), label: '清除本页',
+            onTap: () => {
               this.clearInk();
-            })
+            }
+          })
+            .margin({ left: 8 })
         }
         .width('100%')
         .padding({ left: 16, right: 16, bottom: 6 })
@@ -1292,91 +1284,79 @@ struct ReaderPage {
         // 右侧：逐页笔记
         Column() {
           Row() {
-            Button('上一页')
-              .fontSize(13)
-              .height(32)
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.chevron_left'), label: '上一页',
+              onTap: () => {
                 this.goToPage(this.currentPage - 1);
-              })
+              }
+            })
             Text(`第 ${this.currentPage} 页`)
               .fontSize(14)
               .margin({ left: 8, right: 8 })
-            Button('下一页')
-              .fontSize(13)
-              .height(32)
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.chevron_right'), label: '下一页',
+              onTap: () => {
                 this.goToPage(this.currentPage + 1);
-              })
+              }
+            })
             Blank()
-            Button(this.previewMode ? '编辑' : '预览')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .onClick(() => {
+            IconButton({
+              symbol: this.previewMode ? $r('sys.symbol.square_and_pencil') : $r('sys.symbol.eye'),
+              label: this.previewMode ? '编辑' : '预览',
+              onTap: () => {
                 this.previewMode = !this.previewMode;
-              })
-            Button('搜索')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
-              .margin({ left: 8 })
-              .onClick(() => {
+              }
+            })
+            IconButton({
+              symbol: $r('sys.symbol.magnifyingglass'), label: '搜索',
+              onTap: () => {
                 this.openSearch();
-              })
-            Button('历史')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
+              }
+            })
               .margin({ left: 8 })
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.arrow_counterclockwise_clock'), label: '历史',
+              onTap: () => {
                 this.openHistory();
-              })
-            Button('AI')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
+              }
+            })
               .margin({ left: 8 })
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.AI'), label: 'AI 讲解',
+              onTap: () => {
                 this.explainCurrentPage();
-              })
-            Button('插图')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
+              }
+            })
               .margin({ left: 8 })
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.picture'), label: '插图',
+              onTap: () => {
                 this.insertImage();
-              })
-            Button('卡片')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
+              }
+            })
               .margin({ left: 8 })
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.rectangle_stack'), label: '卡片',
+              onTap: () => {
                 this.openCards();
-              })
-            Button('AI 选区')
-              .fontSize(13)
-              .height(32)
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
+              }
+            })
               .margin({ left: 8 })
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.AI_expand'), label: 'AI 选区',
+              onTap: () => {
                 this.openAiAction();
-              })
-            Button(this.dirty ? '保存 *' : '保存')
-              .fontSize(13)
-              .height(32)
+              }
+            })
               .margin({ left: 8 })
-              .onClick(() => {
+            IconButton({
+              symbol: $r('sys.symbol.square_and_arrow_down_1'), label: '保存',
+              active: true, showDot: this.dirty,
+              onTap: () => {
                 this.saveCurrentPage();
-              })
+              }
+            })
+              .margin({ left: 8 })
           }
           .width('100%')
           .padding(8)

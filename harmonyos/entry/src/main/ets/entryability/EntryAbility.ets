@@ -38,7 +38,11 @@ export default class EntryAbility extends UIAbility {
 
   onWindowStageDestroy(): void {
     if (this.mainWindow !== null) {
-      this.mainWindow.off('windowSizeChange', this.sizeChangeCallback);
+      try {
+        this.mainWindow.off('windowSizeChange', this.sizeChangeCallback);
+      } catch (e) {
+        // 窗口已销毁时 off 会抛 1300002（Window is nullptr），忽略
+      }
       this.mainWindow = null;
     }
     hilog.info(DOMAIN, TAG, 'EntryAbility onWindowStageDestroy');
