@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="mermaid/mermaid.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #diagram { padding: 4px; overflow-x: auto; text-align: center; }
+  .err { color: #c7254e; font-family: monospace; font-size: 13px; text-align: left; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="diagram"></div>
+<script>
+mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
+// 渲染完成后把 "宽,高" 写到 window.__mmdResult（runJavaScript 不等 Promise，宿主轮询读取）
+async function renderDiagram(source) {
+  var el = document.getElementById('diagram');
+  window.__mmdResult = '';
+  try {
+    var out = await mermaid.render('mmd-' + Date.now(), source);
+    el.innerHTML = out.svg;
+  } catch (e) {
+    el.innerHTML = '';
+    var pre = document.createElement('pre');
+    pre.className = 'err';
+    pre.textContent = source + '\n' + (e && e.message ? e.message : String(e));
+    el.appendChild(pre);
+  }
+  window.__mmdResult = '' + document.body.scrollWidth + ',' + document.body.scrollHeight;
+}
+</script>
+</body>
+</html>

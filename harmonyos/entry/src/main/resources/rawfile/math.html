@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="katex/katex.min.css">
+<script src="katex/katex.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #math { padding: 4px; overflow-x: auto; text-align: center; font-size: 16px; }
+  #math.inline { padding: 0 2px; text-align: left; font-size: 15px; }
+  .err { color: #c7254e; font-family: monospace; font-size: 13px; text-align: left; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="math"></div>
+<script>
+// 返回 "宽,高"（CSS px），供宿主按内容调整 Web 组件尺寸；用纯文本避免 JSON 嵌套编码歧义
+function renderMath(latex, displayMode) {
+  var el = document.getElementById('math');
+  el.className = displayMode ? '' : 'inline';
+  try {
+    katex.render(latex, el, { displayMode: !!displayMode, throwOnError: true, output: 'html' });
+  } catch (e) {
+    el.innerHTML = '';
+    var pre = document.createElement('pre');
+    pre.className = 'err';
+    pre.textContent = latex + '\n' + (e && e.message ? e.message : String(e));
+    el.appendChild(pre);
+  }
+  return '' + document.body.scrollWidth + ',' + document.body.scrollHeight;
+}
+</script>
+</body>
+</html>

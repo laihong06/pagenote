@@ -7,7 +7,8 @@
 | Windows 电脑 | [Windows README](docs/windows/README.md) | x64；正式版 1.0.0 |
 | Mac 电脑 | [macOS 独立 README](https://github.com/laihong06/pagenote/blob/macos/beta/README.md) | Apple Silicon；实验性，Intel 不可用 |
 | Android 平板 | [Android 独立 README](https://github.com/laihong06/pagenote/blob/android/beta/README.md) | Android 14+／ARM64；独立原生应用 |
-| Linux／鸿蒙 | 尚无实现与下载 | 规划中 |
+| Linux | 尚无实现与下载 | 规划中 |
+| 鸿蒙平板 | [鸿蒙 README](docs/harmonyos/README.md) | HarmonyOS 6 平板；开发中 0.1.0-dev.1，尚无公开下载 |
 
 [下载 Windows 正式版安装包](https://github.com/laihong06/pagenote/releases/download/v1.0.0/pagenote-1.0.0-windows-x64-setup.exe) · [发布说明与校验](https://github.com/laihong06/pagenote/releases/tag/v1.0.0)。其他系统的测试包只在其对应测试说明中提供，不用 Windows 包替代。
 

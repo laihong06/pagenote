@@ -1,0 +1,13 @@
+node_modules/
+oh_modules/
+.hvigor/
+.cxx/
+entry/build/
+entry/.test/
+entry/.preview/
+local.properties
+*.p12
+*.csr
+*.cer
+*.p7b
+.verify/

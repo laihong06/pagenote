@@ -1,0 +1,10 @@
+{
+  "app": {
+    "bundleName": "com.cilang.pagenote",
+    "vendor": "长沙词浪科技有限公司",
+    "versionCode": 3,
+    "versionName": "0.3.0-dev.1",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name"
+  }
+}

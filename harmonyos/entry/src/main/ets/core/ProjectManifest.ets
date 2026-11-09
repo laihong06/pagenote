@@ -1,0 +1,161 @@
+/**
+ * project.pagenote 入口清单的模型、解码与校验。
+ * 与 Android core-project 的 ProjectManifestCodec.kt / ProjectModel.kt、
+ * 共享契约 android/docs/spec/contracts/project.schema.json 逐条对齐。
+ */
+
+export interface ProjectManifest {
+  format: string;
+  version: number;
+  id: string;
+  name: string;
+  created: string | null;
+  modified: string | null;
+  left: string;
+  right: string;
+  leftName: string | null;
+  preview: string | null;
+}
+
+const ID_PATTERN: RegExp = /^[a-f0-9]{64}$/;
+
+export class ProjectValidation {
+  static validate(manifest: ProjectManifest): void {
+    if (manifest.format !== 'pagenote-project' && manifest.format !== 'page-notes-project') {
+      throw new Error('not a pagenote project');
+    }
+    if (manifest.version !== 1) {
+      throw new Error('unsupported project version');
+    }
+    if (!ID_PATTERN.test(manifest.id)) {
+      throw new Error('bad project id');
+    }
+    if (manifest.name.trim().length === 0) {
+      throw new Error('bad project name');
+    }
+    ProjectValidation.resolveLinkSegments(manifest.left);
+    ProjectValidation.resolveLinkSegments(manifest.right);
+    if (manifest.preview !== null) {
+      ProjectValidation.resolveLinkSegments(manifest.preview);
+    }
+  }
+
+  /** 解析相对链接为段数组，拒绝绝对路径、NUL 与逃逸出 src/ 的链接。 */
+  static resolveLinkSegments(link: string): string[] {
+    if (link.length === 0 || link.startsWith('/') || link.indexOf('\x00') >= 0) {
+      throw new Error('project link must be relative');
+    }
+    const segments: string[] = [];
+    const parts = link.split('/');
+    for (const segment of parts) {
+      if (segment === '' || segment === '.') {
+        continue;
+      }
+      if (segment === '..') {
+        if (segments.length === 0) {
+          throw new Error('project link escapes project root');
+        }
+        segments.pop();
+        continue;
+      }
+      segments.push(segment);
+    }
+    if (segments.length < 2 || segments[0] !== 'src') {
+      throw new Error('project link must stay under src/');
+    }
+    return segments;
+  }
+
+  static kindOf(left: string): string {
+    const dot = left.lastIndexOf('.');
+    const ext = dot >= 0 ? left.substring(dot + 1).toLowerCase() : '';
+    return ext === 'md' || ext === 'markdown' ? 'markdown' : 'pdf';
+  }
+}
+
+export class ProjectManifestCodec {
+  static decode(text: string): ProjectManifest {
+    let root: object;
+    try {
+      root = JSON.parse(text) as object;
+    } catch (e) {
+      throw new Error('invalid project manifest JSON');
+    }
+    if (root === null || typeof root !== 'object' || Array.isArray(root)) {
+      throw new Error('project manifest must be an object');
+    }
+    const record = root as Record<string, Object | null>;
+    const manifest: ProjectManifest = {
+      format: ProjectManifestCodec.requiredString(record, 'format'),
+      version: ProjectManifestCodec.requiredInt(record, 'version'),
+      id: ProjectManifestCodec.requiredString(record, 'id'),
+      name: ProjectManifestCodec.requiredString(record, 'name'),
+      created: ProjectManifestCodec.optionalString(record, 'created'),
+      modified: ProjectManifestCodec.optionalString(record, 'modified'),
+      left: ProjectManifestCodec.requiredString(record, 'left'),
+      right: ProjectManifestCodec.requiredString(record, 'right'),
+      leftName: ProjectManifestCodec.optionalString(record, 'leftName'),
+      preview: ProjectManifestCodec.optionalString(record, 'preview')
+    };
+    ProjectValidation.validate(manifest);
+    return manifest;
+  }
+
+  static encode(manifest: ProjectManifest): string {
+    ProjectValidation.validate(manifest);
+    const lines: string[] = [];
+    lines.push('{');
+    lines.push(`  "format": ${JSON.stringify(manifest.format)},`);
+    lines.push(`  "version": ${manifest.version},`);
+    lines.push(`  "id": ${JSON.stringify(manifest.id)},`);
+    lines.push(`  "name": ${JSON.stringify(manifest.name)},`);
+    if (manifest.created !== null) {
+      lines.push(`  "created": ${JSON.stringify(manifest.created)},`);
+    }
+    if (manifest.modified !== null) {
+      lines.push(`  "modified": ${JSON.stringify(manifest.modified)},`);
+    }
+    lines.push(`  "left": ${JSON.stringify(manifest.left)},`);
+    lines.push(`  "right": ${JSON.stringify(manifest.right)}`);
+    if (manifest.leftName !== null) {
+      lines[lines.length - 1] += ',';
+      lines.push(`  "leftName": ${JSON.stringify(manifest.leftName)}`);
+    }
+    if (manifest.preview !== null) {
+      lines[lines.length - 1] += ',';
+      lines.push(`  "preview": ${JSON.stringify(manifest.preview)}`);
+    }
+    lines.push('}');
+    return lines.join('\n') + '\n';
+  }
+
+  private static requiredString(record: Record<string, Object | null>, key: string): string {
+    const value = ProjectManifestCodec.optionalString(record, key);
+    if (value === null) {
+      throw new Error(`missing project field: ${key}`);
+    }
+    return value;
+  }
+
+  private static optionalString(record: Record<string, Object | null>, key: string): string | null {
+    const element = record[key];
+    if (element === undefined || element === null) {
+      return null;
+    }
+    if (typeof element !== 'string') {
+      throw new Error(`project field must be a string: ${key}`);
+    }
+    return element;
+  }
+
+  private static requiredInt(record: Record<string, Object | null>, key: string): number {
+    const element = record[key];
+    if (element === undefined || element === null) {
+      throw new Error(`missing project field: ${key}`);
+    }
+    if (typeof element !== 'number' || !Number.isInteger(element)) {
+      throw new Error(`project field must be an integer: ${key}`);
+    }
+    return element;
+  }
+}

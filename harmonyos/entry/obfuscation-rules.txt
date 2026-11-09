@@ -1,0 +1,1 @@
+# When obfuscation is enabled, list keep rules here. Disabled by default.

@@ -1,0 +1,13 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "PageNote HarmonyOS entry module",
+  "main": "",
+  "author": "",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "dependencies": {
+    "@ohos/hypium": "^1.0.30"
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {}
+}

@@ -13,6 +13,20 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 | 旧 2.0 测试版升级至 1.0 | 有意重置首个正式版本编号；完全退出旧版，手动安装或完整解压新 ZIP。若系统拒绝覆盖，可卸载应用后安装；先备份项目，保留用户数据。 |
 | AI、Word/PPT 外部依赖 | 不内置大模型；AI 客户端、服务额度和本机 Office 授权需用户自行准备。 |
 
+## HarmonyOS（鸿蒙，开发线 harmonyos/beta，未发布）
+
+| 项目 | 状态与后续处理 |
+|---|---|
+| ~~模拟器镜像缺 PDF Kit~~ | 已关闭：真机 MatePad（HarmonyOS 7.0.0.111）带 PDF Kit，PdfView 渲染与翻页实测通过（截图 matepad-01）；模拟器镜像仍缺库但属环境问题。 |
+| 竖屏/旋转 | 阅读页已实现横竖屏自适应，但模拟器 rotate 命令无效、折叠屏模拟器调试通道未连通，竖屏分支未经上机验证。 |
+| ~~文件/相册选择器可见性~~ | 已关闭：根因是 fileSuffixFilters 格式写错（缺竖线分隔），并非索引限制；真机实测选择器与导入全链路正常。 |
+| 雨课堂实时采集 | 协议与队列已实现并编译验证，未经真实课堂验收（重连/去重/笔记保护）。 |
+| AI 真实调用 | 已用本机 OpenAI 兼容中继完成 HTTP 全链路验证（设置→讲解→渲染）；真实模型的回答质量属端点侧问题。 |
+| 签名与分发 | 当前只产未签名 debug HAP；正式发布需 AGC 证书与发布流程，未排期。 |
+| 手写笔压感/悬停/分屏运行 | 笔迹压感调制已实现并真机可用；压力曲线微调与悬停视觉（行悬停高亮、图标按钮悬停文字提示）仍需实体笔/鼠标验收；分屏窗口模式已声明，实机分屏运行未验证。 |
+| 批注交互已知小限制 | 撤销对套索移动过的笔迹是整笔删除而非回退原位；压感调制线宽在抬笔瞬间有轻微视觉跳变；手锁平移无边界钳制可拖出较远；「手写转文字」基于印刷体 OCR，手写中文识别率待真机评估。 |
+| 深色模式跟随系统 | 已实现并在模拟器实测运行中切换（media query 通道，浅→深→浅往返截图存档）。注意本模拟器构建上 envProp('colorMode') 恒为 0 不可用，真机回归时建议顺带复核该通道行为差异。 |
+
 遇到 Bug 请[提交 Issue](https://github.com/laihong06/pagenote/issues/new)，附版本、系统、操作步骤及脱敏截图；不要上传私人课件或连接密钥。联系：chennanfeng310@gmail.com。
 
 Windows stable is founder-approved; macOS remains experimental. Pending work includes the unexplained interrupted soak, wider environment coverage, signing/notarization, antivirus review, and OCR prerequisites. These are tracked risks under the early-stage release policy, not claims that every environment has passed.
