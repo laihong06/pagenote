@@ -225,6 +225,7 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - 保留文字：表单对话框的取消/确认/登录类按钮（鸿蒙设计规范对话框操作钮为文字）；批注粗细（细/中/粗）为参数标签
 - 实测修了两个真实 bug：① IconButton 的 active/enabledState/showDot 未用 @Prop 导致状态冻结（与 InkCanvas 当年同型）；② EntryAbility onWindowStageDestroy 里 window.off 在窗口已销毁时抛 1300002 jscrash（install -r 杀进程触发），已 try/catch
 - API 24 模拟器实测：全部符号正确渲染无占位符（截图 emulator-27-icon-buttons）；激活态蓝底、脏角标、禁用透明度均验证；单测 16/16
+- 悬停文字提示（同日补充）：IconButton 内 onHover + 条件渲染深色小气泡（150ms 淡入），悬停才显示 label；不用 bindPopup（点击会连带触发）；气泡统一向下浮出（工具条都在面板顶排，向上会被窗口/弹层上沿裁掉）；悬停视觉需实体鼠标/手写笔验收
 
 ## 已知边界
 
