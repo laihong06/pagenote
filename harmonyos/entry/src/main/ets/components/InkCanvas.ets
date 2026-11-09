@@ -14,6 +14,8 @@ export struct InkCanvas {
   @Prop penColor: string = '#dc3545';
   @Prop penWidth: number = 3;
   @Prop drawingEnabled: boolean = false;
+  // 完全穿透：不响应也不阻塞下层（连续滚动模式下画布透明挂在 Scroll 上方，必须让手势直达下层）
+  @Prop passThrough: boolean = false;
   @Prop tool: string = 'pen'; // pen | highlight | line | rect | ellipse | text | eraser
   // 禁止手指书写：开启后手指/鼠标只触发拖动平移（由 onPanDelta 回调给父组件），手写笔照常书写
   @Prop fingerLock: boolean = false;
@@ -127,7 +129,7 @@ export struct InkCanvas {
       const text = item.text ?? '';
       if (item.points.length >= 1 && text.length > 0) {
         ctx.fillStyle = item.color;
-        ctx.font = `${Math.max(12, item.width * 5) / this.scaleX()}px sans-serif`;
+        ctx.font = `${Math.max(20, item.width * 5) / this.scaleX()}px sans-serif`;
         ctx.fillText(text, this.toCanvasX(item.points[0][0]), this.toCanvasY(item.points[0][1]));
       }
       return;
@@ -252,7 +254,8 @@ export struct InkCanvas {
     Canvas(this.canvas)
       .width('100%')
       .height('100%')
-      .hitTestBehavior(this.drawingEnabled ? HitTestMode.Default : HitTestMode.Transparent)
+      .hitTestBehavior(this.drawingEnabled ? HitTestMode.Default :
+        (this.passThrough ? HitTestMode.None : HitTestMode.Transparent))
       .onReady(() => {
         this.repaint();
       })
@@ -411,9 +414,12 @@ export struct InkCanvas {
             return;
           }
           if (this.current.length > 0) {
-            // 手写笔：按本次笔迹最大压力调制线宽（0.6x~1.6x），手指/鼠标不调制
             let width = this.penWidth;
-            if (this.strokeIsPen && this.strokeMaxPressure > 0) {
+            if (this.tool === 'highlight') {
+              // 荧光落盘线宽对齐桌面约定 max(12, width*5)，否则跨端互看粗细差数倍
+              width = Math.max(12, this.penWidth * 5);
+            } else if (this.strokeIsPen && this.strokeMaxPressure > 0) {
+              // 手写笔：按本次笔迹最大压力调制线宽（0.6x~1.6x），手指/鼠标不调制
               const factor = 0.6 + this.strokeMaxPressure;
               width = Math.min(this.penWidth * 1.6, Math.max(1, Math.round(this.penWidth * factor)));
             }

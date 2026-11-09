@@ -95,5 +95,7 @@ export struct IconButton {
           .transition(TransitionEffect.OPACITY.animation({ duration: 150 }))
       }
     }
+    // 悬停时整体提升渲染层级：否则气泡会被同行后画的兄弟组件/下层内容盖住
+    .zIndex(this.hovering ? 999 : 1)
   }
 }

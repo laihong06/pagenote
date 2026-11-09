@@ -10,3 +10,4 @@ local.properties
 *.csr
 *.cer
 *.p7b
+.verify/

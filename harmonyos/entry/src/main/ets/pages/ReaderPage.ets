@@ -6,6 +6,7 @@ import { image } from '@kit.ImageKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { ProjectStore, OpenProject } from '../core/ProjectStore';
 import { PdfBridge } from '../core/PdfBridge';
+import { PdfFlowBridge } from '../core/PdfFlowBridge';
 import { PageNotes } from '../core/PageNotes';
 import { ProjectValidation } from '../core/ProjectManifest';
 import { NoteHistory, NoteVersion } from '../core/NoteHistory';
@@ -95,6 +96,8 @@ struct ReaderPage {
   @State showAiResult: boolean = false;
   @State aiResult: string = '';
   @State aiBusy: boolean = false;
+  // 设置页是否由"缺配置引导"打开（决定保存后是否自动续跑讲解）
+  @State aiGuidePending: boolean = false;
   @State inkMode: boolean = false;
   @State inkColor: string = '#dc3545';
   @State inkItems: AnnotationItem[] = [];
@@ -107,7 +110,8 @@ struct ReaderPage {
   // 套索选中的笔迹索引（删除所选用）；切换工具/撤销/清除时递增 selectionEpoch 让画布清选区
   @State selectedIndices: number[] = [];
   @State selectionEpoch: number = 0;
-  // 翻页模式：tap=点击翻页（单页+批注可用）；scroll=滑动翻页（跟手纵拖过阈值翻页，批注自动禁用）
+  // 翻页模式：tap=点击翻页（PdfView 单页，批注可用）；scroll=连续滚动
+  //（PDF 走 PdfFlowPane 堆叠渲染，批注禁用；非 PDF 保留跟手纵拖吸附翻页）
   @State pageTurnMode: string = 'tap';
   // 手写转文字：OCR Kit 一次性可用性探测结果（@hms 模块在低版本设备可能不存在，只能动态 import 探测）
   @State ocrReady: boolean = false;
@@ -156,6 +160,7 @@ struct ReaderPage {
     cnTypographyAvailable() ? new CnTextAreaTypography() : undefined;
 
   @State pdfPaneBuilder: WrappedBuilder<[PdfBridge]> | null = null;
+  @State pdfFlowBuilder: WrappedBuilder<[PdfFlowBridge]> | null = null;
   // PDF Kit 缺失时，雨课堂项目用来源图片降级显示（页序 = yuketang-source.json 的 projectPage）
   @State rainPageImages: string[] = [];
 
@@ -164,6 +169,8 @@ struct ReaderPage {
   // PDF Kit 只在 PdfPane（动态 import）里实例化，缺失 PDF Kit 的设备上本页仍可打开 Markdown 项目
   private pdfBridge: PdfBridge = { controller: null, continuous: false };
   private pdfLoaded: boolean = false;
+  // 连续滚动桥（scroll 模式专用）；scrollToPage 由 PdfFlowPane 挂载后回填，挂载前为记账存根
+  private pdfFlowBridge: PdfFlowBridge | null = null;
 
   aboutToAppear(): void {
     this.loadTurnMode();
@@ -190,6 +197,19 @@ struct ReaderPage {
     this.aiApiKey = saved.apiKey;
     this.aiModel = saved.model;
     if (this.isPdf) {
+      this.pdfFlowBridge = {
+        docPath: this.project.leftPath,
+        requestedPage: 0,
+        onDocumentReady: (pageCount: number, error: string): void => {
+          this.onFlowDocumentReady(pageCount, error);
+        },
+        onVisiblePage: (page: number): void => {
+          this.onFlowVisiblePage(page);
+        },
+        scrollToPage: (page: number): void => {
+          // PdfFlowPane 挂载后回填真正实现；挂载前跳页只靠 requestedPage 记账
+        }
+      };
       this.initPdf(this.loadRainFallback());
     } else {
       this.loadMarkdownSource();
@@ -255,12 +275,47 @@ struct ReaderPage {
     try {
       const pdfPane = await import('../components/PdfPane');
       this.pdfPaneBuilder = pdfPane.pdfPaneWrappedBuilder;
-      this.loadPdf(0);
+      const pdfFlow = await import('../components/PdfFlowPane');
+      this.pdfFlowBuilder = pdfFlow.pdfFlowPaneWrappedBuilder;
+      if (this.pageTurnMode !== 'scroll') {
+        // 点击模式沿用 PdfView；连续滚动由 PdfFlowPane 挂载后自行打开文档
+        this.loadPdf(0);
+      }
     } catch (e) {
       this.statusText = imageFallback
         ? 'PDF 组件加载失败，正用课件原始图片显示（内容与 PDF 一致）'
         : 'PDF 组件加载失败，无法阅读 PDF（Markdown 项目不受影响）';
     }
+  }
+
+  /** 连续滚动文档就绪：回填总页数；scroll 模式下 PdfView 不存在，由 PdfFlowPane 打开文档。 */
+  private onFlowDocumentReady(pageCount: number, error: string): void {
+    if (error.length > 0) {
+      this.statusText = error;
+      return;
+    }
+    this.pdfLoaded = true;
+    if (pageCount >= 1) {
+      this.pageCount = pageCount;
+    }
+    this.statusText = '';
+  }
+
+  /** 连续滚动可见页回报：与当前页不同才加载（防回跳；Pane 已抑制程序化滚动期间的中间页）。 */
+  private onFlowVisiblePage(page: number): void {
+    if (page === this.currentPage) {
+      return;
+    }
+    this.loadPage(page);
+  }
+
+  /** 连续滚动跳页请求：先记账（Pane 挂载时消费），再驱动已挂载的 Pane。 */
+  private queueFlowScroll(page: number): void {
+    if (this.pdfFlowBridge === null) {
+      return;
+    }
+    this.pdfFlowBridge.requestedPage = page;
+    this.pdfFlowBridge.scrollToPage(page);
   }
 
   private loadPdf(retried: number): void {
@@ -287,6 +342,8 @@ struct ReaderPage {
             this.pageCount = 1;
           }
           this.statusText = '';
+          // 从连续滚动切回时 PdfView 全新加载，需回到当前页（启动时为第 1 页，无副作用）
+          controller.goToPage(this.currentPage - 1);
         })
         .catch((e: Error) => {
           this.statusText = `PDF 打开失败：${e.message}`;
@@ -334,18 +391,25 @@ struct ReaderPage {
     }
   }
 
-  /** 切回点击模式时让 PDF 回到当前页（滑动翻页走 InkCanvas 跟手拖动，不动 PdfView 内部模式）。 */
+  /** 应用翻页模式：scroll=让流式视图定位到当前页（未挂载记账）；tap=让 PdfView 回到当前页。 */
   private applyTurnMode(): void {
+    if (this.pageTurnMode === 'scroll') {
+      this.queueFlowScroll(this.currentPage);
+      return;
+    }
     const controller = this.pdfBridge.controller;
-    if (controller !== null && this.pageTurnMode === 'tap') {
+    if (controller !== null) {
       controller.goToPage(this.currentPage - 1);
+    } else if (this.isPdf && this.pdfPaneBuilder !== null) {
+      // 以 scroll 模式进入后首次切回 tap：PdfPane 刚挂载、控制器未创建，走初始化重试
+      this.loadPdf(0);
     }
   }
 
   private toggleTurnMode(): void {
     this.pageTurnMode = this.pageTurnMode === 'scroll' ? 'tap' : 'scroll';
     this.saveTurnMode();
-    // 滑动翻页时批注定会错位，强制退出批注并清选区
+    // 连续滚动时批注定会错位，强制退出批注并清选区
     this.inkMode = false;
     this.selectedIndices = [];
     this.selectionEpoch += 1;
@@ -368,6 +432,9 @@ struct ReaderPage {
     this.selectedIndices = [];
     this.selectionEpoch += 1;
     this.inkTextEditing = false;
+    // 审查 H2：文本选区偏移同样不得跨页残留
+    this.selStart = 0;
+    this.selEnd = 0;
     this.inkItems = Annotations.pageItems(this.annotations, 'document', page);
     PageNotes.revision(this.note).then((rev: string) => {
       this.noteRevision = rev;
@@ -497,10 +564,15 @@ struct ReaderPage {
     if (this.project === null) {
       return;
     }
+    // 重入守卫（审查 M1）：防止连点并发双请求
+    if (this.aiBusy) {
+      return;
+    }
     let endpoint: ModelEndpoint;
     try {
       endpoint = ModelConfig.resolve(this.aiBaseUrl, this.aiApiKey, this.aiModel);
     } catch (e) {
+      this.aiGuidePending = true;
       this.showAiSettings = true;
       return;
     }
@@ -824,9 +896,10 @@ struct ReaderPage {
     }
   }
 
-  /** 确认后插回：替换选区或追加到选区之后。 */
+  /** 确认后插回：替换选区或追加到选区之后。带选区上界守卫（审查 H2：翻页/编辑后旧偏移越界会静默变成追加）。 */
   private insertAiAction(mode: string): void {
-    if (this.aiActionResult.trim().length === 0 || this.selEnd <= this.selStart) {
+    if (this.aiActionResult.trim().length === 0 || this.selEnd <= this.selStart
+      || this.selEnd > this.note.length) {
       return;
     }
     if (mode === 'replace') {
@@ -955,6 +1028,10 @@ struct ReaderPage {
     if (this.isPdf && target > this.pageCount) {
       target = this.pageCount;
     }
+    if (this.isPdf && this.pageTurnMode === 'scroll') {
+      // 连续滚动：先让流式视图滚到目标页（Pane 内部抑制滚动回报，不会触发重复 loadPage）
+      this.queueFlowScroll(target);
+    }
     this.loadPage(target);
   }
 
@@ -979,42 +1056,9 @@ struct ReaderPage {
           Text(`第 ${this.currentPage} / ${this.pageCount} 页`)
             .fontSize(14)
             .fontColor(UiTheme.ink2(this.isDarkMode()))
+            .margin({ left: 12 })
         }
-        IconButton({
-          symbol: this.pageTurnMode === 'scroll' ? $r('sys.symbol.arrow_up_and_down_square_portrait') :
-            $r('sys.symbol.hand_point_up_tap_fill_1'),
-          label: this.pageTurnMode === 'scroll' ? '切换为点击翻页' : '切换为滑动翻页',
-          active: this.pageTurnMode === 'scroll',
-          onTap: () => {
-            this.toggleTurnMode();
-          }
-        })
-        IconButton({
-          symbol: $r('sys.symbol.paintbrush_pointed'), label: this.inkMode ? '关闭批注' : '批注',
-          active: this.inkMode, enabledState: this.pageTurnMode === 'tap',
-          onTap: () => {
-            this.inkMode = !this.inkMode;
-            // 静态审查 L12：关闭批注时同步清选区，避免重新开启后残留旧选区入口
-            this.selectedIndices = [];
-            this.selectionEpoch += 1;
-          }
-        })
-          .margin({ left: 12 })
-        IconButton({
-          symbol: $r('sys.symbol.moon'), label: this.nightMode ? '关闭夜览' : '夜览',
-          active: this.nightMode, activeColor: UiTheme.ACCENT,
-          onTap: () => {
-            this.nightMode = !this.nightMode;
-          }
-        })
-          .margin({ left: 8 })
-        IconButton({
-          symbol: $r('sys.symbol.ellipsis_circle'), label: '更多',
-          onTap: () => {
-            this.showTransfer = true;
-          }
-        })
-          .margin({ left: 8 })
+        // 阅读与笔记操作按钮已全部下放到画笔栏/笔记栏，顶栏只留返回与标题（各 sheet 仍挂本节点）
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 10, bottom: 10 })
@@ -1069,6 +1113,24 @@ struct ReaderPage {
               })
           }, (spec: InkWidthSpec) => spec.label)
           Blank()
+          IconButton({
+            symbol: $r('sys.symbol.paintbrush_pointed'), label: this.inkMode ? '关闭批注' : '批注',
+            active: this.inkMode, enabledState: this.pageTurnMode === 'tap',
+            onTap: () => {
+              this.inkMode = !this.inkMode;
+              // 静态审查 L12：关闭批注时同步清选区，避免重新开启后残留旧选区入口
+              this.selectedIndices = [];
+              this.selectionEpoch += 1;
+            }
+          })
+          IconButton({
+            symbol: $r('sys.symbol.moon'), label: this.nightMode ? '关闭夜览' : '夜览',
+            active: this.nightMode, activeColor: UiTheme.ACCENT,
+            onTap: () => {
+              this.nightMode = !this.nightMode;
+            }
+          })
+            .margin({ left: 8 })
           IconButton({
             symbol: $r('sys.symbol.minus_circle'), label: '删除所选',
             enabledState: this.selectedIndices.length > 0,
@@ -1605,6 +1667,7 @@ struct ReaderPage {
               .margin({ left: 8 })
             IconButton({
               symbol: $r('sys.symbol.AI'), label: 'AI 讲解',
+              enabledState: !this.aiBusy,
               onTap: () => {
                 this.explainCurrentPage();
               }
@@ -1636,6 +1699,23 @@ struct ReaderPage {
               filled: true, active: true, showDot: this.dirty,
               onTap: () => {
                 this.saveCurrentPage();
+              }
+            })
+              .margin({ left: 8 })
+            IconButton({
+              symbol: this.pageTurnMode === 'scroll' ? $r('sys.symbol.arrow_up_and_down_square_portrait') :
+                $r('sys.symbol.hand_point_up_tap_fill_1'),
+              label: this.pageTurnMode === 'scroll' ? '切换为点击翻页' : '切换为滑动翻页',
+              active: this.pageTurnMode === 'scroll',
+              onTap: () => {
+                this.toggleTurnMode();
+              }
+            })
+              .margin({ left: 8 })
+            IconButton({
+              symbol: $r('sys.symbol.ellipsis_circle'), label: '更多（导出/导入）',
+              onTap: () => {
+                this.showTransfer = true;
               }
             })
               .margin({ left: 8 })
@@ -1675,7 +1755,10 @@ struct ReaderPage {
       Stack() {
       Column() {
         if (this.isPdf) {
-          if (this.pdfPaneBuilder !== null) {
+          if (this.pageTurnMode === 'scroll' && this.pdfFlowBuilder !== null && this.pdfFlowBridge !== null) {
+            // 连续滚动：PdfFlowPane 堆叠渲染（scroll 模式下不挂载 PdfView）
+            this.pdfFlowBuilder.builder(this.pdfFlowBridge)
+          } else if (this.pageTurnMode === 'tap' && this.pdfPaneBuilder !== null) {
             this.pdfPaneBuilder.builder(this.pdfBridge)
           } else if (this.rainPageImages.length > 0) {
             Scroll() {
@@ -1715,12 +1798,17 @@ struct ReaderPage {
       .height('100%')
 
       InkCanvas({
-        items: this.inkItems,
+        // 连续滚动下逐页批注无法与堆叠页面对齐，隐藏且禁绘（数据仍随页切换加载）
+        items: this.pageTurnMode === 'scroll' ? [] : this.inkItems,
         penColor: this.inkColor,
         penWidth: this.inkWidth,
         tool: this.inkTool,
-        drawingEnabled: this.pageTurnMode === 'scroll' || (this.inkMode && this.pageTurnMode === 'tap'),
-        fingerLock: this.pageTurnMode === 'scroll' || this.fingerLock,
+        drawingEnabled: this.inkMode && this.pageTurnMode === 'tap',
+        // PDF 连续滚动：画布完全穿透，手势直达 PdfFlowPane 的 Scroll；
+        // 非 PDF 滑动翻页保留 InkCanvas 跟手纵拖（fingerLock 才能收到平移回调）
+        passThrough: this.pageTurnMode === 'scroll' && this.isPdf,
+        fingerLock: (this.pageTurnMode === 'scroll' && !this.isPdf) ||
+          (this.pageTurnMode === 'tap' && this.fingerLock),
         selectionEpoch: this.selectionEpoch,
         onChange: (items: AnnotationItem[]) => {
           this.inkItems = items;
@@ -1736,15 +1824,17 @@ struct ReaderPage {
         },
         onPanDelta: (dx: number, dy: number) => {
           if (this.pageTurnMode === 'scroll') {
-            // 滑动翻页只跟纵向；内容上拉显示下一页、下拉显示上一页
-            this.panY += dy;
+            if (!this.isPdf) {
+              // 非 PDF 滑动翻页只跟纵向；内容上拉显示下一页、下拉显示上一页
+              this.panY += dy;
+            }
           } else {
             this.panX += dx;
             this.panY += dy;
           }
         },
         onPanEnd: () => {
-          if (this.pageTurnMode === 'scroll') {
+          if (this.pageTurnMode === 'scroll' && !this.isPdf) {
             const threshold: number = 150;
             if (this.panY <= -threshold && this.currentPage < this.pageCount) {
               this.loadPage(this.currentPage + 1);
@@ -1757,6 +1847,9 @@ struct ReaderPage {
         }
       })
         .id(INK_SNAPSHOT_ID)
+        // PDF 连续滚动：整层（含组件包装节点）都不参与命中，手势直达 PdfFlowPane 的 Scroll；
+        // 仅 Canvas 穿透不够——InkCanvas 的包装节点默认命中会把触摸吃掉
+        .hitTestBehavior(this.pageTurnMode === 'scroll' && this.isPdf ? HitTestMode.None : HitTestMode.Default)
         .width('100%')
         .height('100%')
       }
@@ -1885,11 +1978,13 @@ struct ReaderPage {
         .fontColor(UiTheme.ink3(this.isDarkMode()))
         .width('100%')
         .margin({ bottom: 8 })
-      TextInput({ placeholder: 'Base URL（默认本地中转 http://127.0.0.1:3457/v1）', text: $$this.aiBaseUrl })
+      TextInput({ placeholder: 'Base URL（OpenAI 兼容接口，如 https://api.example.com/v1）', text: $$this.aiBaseUrl })
         .margin({ top: 8 })
+      // 密钥密文输入（审查 H1：不再明文回显，防截屏/肩窥）
       TextInput({ placeholder: 'API Key', text: $$this.aiApiKey })
+        .type(InputType.Password)
         .margin({ top: 8 })
-      TextInput({ placeholder: '模型名（默认 cline-free/mimo-v2.6-flash）', text: $$this.aiModel })
+      TextInput({ placeholder: '模型名（如 gpt-4o-mini / deepseek-chat）', text: $$this.aiModel })
         .margin({ top: 8 })
       Row() {
         Button('清空')
@@ -1900,6 +1995,7 @@ struct ReaderPage {
             this.aiBaseUrl = '';
             this.aiApiKey = '';
             this.aiModel = '';
+            this.aiGuidePending = false;
             this.showAiSettings = false;
           })
         Blank()
@@ -1911,7 +2007,11 @@ struct ReaderPage {
               model: this.aiModel
             });
             this.showAiSettings = false;
-            this.explainCurrentPage();
+            // 仅"缺配置引导"入口打开的保存才自动续跑讲解，避免主动改配置被意外扣费
+            if (this.aiGuidePending) {
+              this.aiGuidePending = false;
+              this.explainCurrentPage();
+            }
           })
       }
       .width('100%')

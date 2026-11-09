@@ -13,6 +13,8 @@ export interface AnnotationItem {
   width: number;
   points: number[][];
   text?: string; // type=text 的文字内容
+  url?: string; // type=image 的载荷（桌面契约；鸿蒙端不透丢）
+  html?: string; // type=html 的载荷（桌面契约；鸿蒙端不透丢）
 }
 
 export interface AnnotationBook {
@@ -90,6 +92,15 @@ export class Annotations {
     const text = raw['text'];
     if (typeof text === 'string' && text.length > 0) {
       item.text = text;
+    }
+    // 桌面契约的 image/html 载荷必须透传：鸿蒙端不渲染但绝不能在保存时剥掉（审查 §4-2 跨端数据损坏）
+    const url = raw['url'];
+    if (typeof url === 'string' && url.length > 0) {
+      item.url = url;
+    }
+    const html = raw['html'];
+    if (typeof html === 'string' && html.length > 0) {
+      item.html = html;
     }
     return item;
   }

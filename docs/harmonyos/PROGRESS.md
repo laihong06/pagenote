@@ -301,6 +301,16 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **PdfView 连续滚动模式实测放弃**（教训）：`setPageContinuous(true)`（含重建 PdfView 构造 isContinuous）后手势完全失效（连页内滚动都死了），方向错误；真机问题不可远程诊断，改用自管手势管线后一次通过
 - 真机验证：上拉进第 2 页，页码/笔记/该页既有手写批注全部正确跟随
 
+## PDF 连续滚动 + 按钮重构 + 双审查修复（2026-11-10，已提交）
+
+- **PDF 连续滚动**（子代理实现，真机全项验收）：新增 `components/PdfFlowPane.ets` + `core/PdfFlowBridge.ets`——scroll 模式用 pdfService 自开文档、`PdfPage.getAreaPixelMap` 按栏宽 2× 逐页渲染进原生 Scroll（真连续：两页同屏、丝滑），±3 页缓存其余 `release()`；滚动定位用 `scroller.currentOffset().yOffset`（onDidScroll 的 yOffset 是每帧增量，真机踩坑）；笔记/批注随视口页跟随；InkCanvas 整层 hitTestBehavior(None)（仅 Canvas 设 None 不够，包装节点 Default 命中会吞触摸——第二个真机坑）；吸附翻页仅非 PDF 保留；uitest swipe 注入到不了应用窗口（点击可以），验证要靠真实手势或 onTouch 探测
+- **按钮布局重构**：顶栏只留返回/标题/页码（sheet 仍挂顶栏节点）；批注/夜览下放画笔栏右侧；翻页模式/更多下放笔记栏胶囊；新增按钮全部带提示文本
+- **悬停提示修复**：悬停时按钮根 Stack `zIndex 999`（气泡不再被同行兄弟/下层内容盖住）；点击即清 hovering（触摸设备无 mouseleave 会残留）
+- **AI 板块审查修复**（agent-5，8 项）：见 CHANGELOG；核心是密钥密文输入、插回上界守卫+翻页清选区、删不安全本地中转默认、重入守卫、防注入+输出清洗、笔记限长、max_tokens、错误带响应体
+- **安卓对齐审查修复**（agent-4，12 项中修 9 项）：雨课堂 401 语义/pending 保护/logout 停采集/重连防双发；批注 image/html 载荷透传、荧光线宽与文字字号对齐桌面；备份页键严格校验；闪卡段落截断/到期限 50/背面校验
+- 记录不修（KNOWN_ISSUES 或遗留）：插页重建 PDF 可能丢无来源页、插页无事务回滚、sections/PDF outline 缺失、历史快照位置与插页不重映射、InkCanvas 层与 PDF 页几何待真机比对、压感抬笔线宽微跳
+- 验证：构建+单测 16/16；真机整合冒烟（连续滚动同屏+新布局）通过
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

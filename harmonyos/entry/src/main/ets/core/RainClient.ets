@@ -113,6 +113,14 @@ export class RainSessionStore {
     store.deleteSync(KEY_SESSION);
     store.flush();
   }
+
+  /** 仅清除授权头、保留 cookie（对齐 Android：单次 401/403 不整会话登出）。 */
+  static clearAuthorization(context: common.UIAbilityContext): void {
+    const session = RainSessionStore.read(context);
+    if (session !== null) {
+      RainSessionStore.save(context, { cookie: session.cookie, name: session.name, authorization: null });
+    }
+  }
 }
 
 export class RainClient {
@@ -133,6 +141,8 @@ export class RainClient {
 
   logout(): void {
     this.cancelLogin();
+    // 审查修复：登出必须先停实时采集，否则 socket 在会话清除后仍在跑
+    this.stopLive();
     RainSessionStore.clear(this.context);
   }
 
@@ -452,6 +462,7 @@ export class RainClient {
   private liveStopped: boolean = true;
   private liveLessonId: string = '';
   private liveAttempts: number = 0;
+  private liveReconnectScheduled: boolean = false;
   private liveProcessing: boolean = false;
   private livePending: Map<string, RainLiveSlideEvent> = new Map<string, RainLiveSlideEvent>();
   private liveInitialReceived: boolean = false;
@@ -490,6 +501,10 @@ export class RainClient {
     }
     if (!this.liveStopped) {
       throw new Error('已有正在采集的课堂，请先停止');
+    }
+    // 审查修复（对齐 Android）：上一课堂 stopped-but-pending 的未写页不得静默丢弃
+    if (this.livePending.size > 0) {
+      throw new Error('上一课堂还有未写入的页面，请稍候重试或重启应用');
     }
     const session = this.requireSession();
     this.livePresentations.clear();
@@ -588,10 +603,17 @@ export class RainClient {
       if (this.liveStopped) {
         return;
       }
+      // 审查修复（对齐 Android reconnectPending）：error+close 双事件只调度一次重连，
+      // 否则会出现两个定时器、两条 socket 并发 hello
+      if (this.liveReconnectScheduled) {
+        return;
+      }
+      this.liveReconnectScheduled = true;
       this.liveAttempts += 1;
       this.emitLive('reconnecting', reason);
       const waitMs = Math.min(30000, 1000 * (1 << Math.min(this.liveAttempts, 5)));
       setTimeout(() => {
+        this.liveReconnectScheduled = false;
         if (!this.liveStopped) {
           this.connectLive();
         }
@@ -691,7 +713,7 @@ export class RainClient {
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {
         if (response.responseCode === 401 || response.responseCode === 403) {
-          RainSessionStore.clear(this.context);
+          RainSessionStore.clearAuthorization(this.context);
         }
         throw rainHttpError(url, response.responseCode);
       }
@@ -724,7 +746,7 @@ export class RainClient {
       });
       if (response.responseCode < 200 || response.responseCode >= 300) {
         if (response.responseCode === 401 || response.responseCode === 403) {
-          RainSessionStore.clear(this.context);
+          RainSessionStore.clearAuthorization(this.context);
         }
         throw rainHttpError(url, response.responseCode);
       }

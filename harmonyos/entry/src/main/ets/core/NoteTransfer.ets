@@ -90,9 +90,14 @@ export class NoteTransfer {
     const pages = PageNotes.split(existingMarkdown);
     const notes = notesValue as Record<string, Object | null>;
     const keys = Object.keys(notes);
+    // 页键严格校验（对齐 Android ^[0-9]+$）：Number() 会吞 '1e3'/'0x10'/' 1' 这类怪异键并无界垫页
+    const MAX_BACKUP_PAGES: number = 2000;
     for (const key of keys) {
+      if (!/^[0-9]+$/.test(key)) {
+        continue;
+      }
       const page = Number(key);
-      if (!Number.isInteger(page) || page < 1) {
+      if (!Number.isInteger(page) || page < 1 || page > MAX_BACKUP_PAGES) {
         continue;
       }
       const value = notes[key];

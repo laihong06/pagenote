@@ -173,7 +173,9 @@ export class FlashcardCapture {
     if (range === null) {
       throw new Error('光标所在处没有可制卡的段落');
     }
-    return FlashcardCapture.fromSelection(page, context, range[0], range[1])
+    // 对齐 Android fromParagraph：超长段落截断后照常制卡（复用 fromSelection 会先抛错，先截端点）
+    const cappedEnd = Math.min(range[1], range[0] + FlashcardCapture.MAX_TEXT_LENGTH);
+    return FlashcardCapture.fromSelection(page, context, range[0], cappedEnd)
       .then((draft: FlashcardDraft): FlashcardDraft => {
         draft.sourceKind = 'note_paragraph';
         if (draft.front.length > FlashcardCapture.MAX_TEXT_LENGTH) {
@@ -247,6 +249,9 @@ export class FlashcardStore {
   }
 
   static newCard(draft: FlashcardDraft, back: string, tags: string[], now: number): FlashcardItem {
+    if (back.length > FlashcardCapture.MAX_TEXT_LENGTH) {
+      throw new Error('卡片背面过长（上限 20000 字符）');
+    }
     const schedule = ReviewScheduler.initial(now);
     return {
       id: util.generateRandomUUID(),
@@ -268,10 +273,11 @@ export class FlashcardStore {
     };
   }
 
-  /** 到期卡片：dueAt <= now，按到期时间升序。 */
-  static dueCards(cards: FlashcardItem[], now: number): FlashcardItem[] {
+  /** 到期卡片：dueAt <= now，按到期时间升序；默认限 50 张（对齐 Android DEFAULT_REVIEW_LIMIT）。 */
+  static dueCards(cards: FlashcardItem[], now: number, limit: number = 50): FlashcardItem[] {
     return cards.filter((card: FlashcardItem): boolean => card.dueAt <= now)
-      .sort((a: FlashcardItem, b: FlashcardItem): number => a.dueAt - b.dueAt);
+      .sort((a: FlashcardItem, b: FlashcardItem): number => a.dueAt - b.dueAt)
+      .slice(0, Math.max(1, limit));
   }
 
   /** 评分后更新排程字段。 */
