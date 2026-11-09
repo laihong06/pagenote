@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Configure HarmonyOS release signing and produce the first signed store package: `signingConfigs` in build-profile.json5 references the local `.certs/` material with DevEco-encrypted passwords (plaintext never enters the repo), and `assembleApp` now outputs `harmonyos-default-signed.app` (2.3 MB, signed entry HAP + pack.info). Device installation of the release package is rejected by design ("not trusted app source") — real-device runs need a debug profile bound to the device UDID. / 鸿蒙发布签名配置完成并产出首个上架包：build-profile.json5 的 signingConfigs 引用本地 .certs/ 材料（密码为 DevEco 加密形态，明文永不入库），assembleApp 输出 harmonyos-default-signed.app（2.3 MB，含签名 HAP 与 pack.info）。发布包按设计无法直接装真机（not trusted app source），真机运行需绑定设备 UDID 的调试 Profile。
+
 - Prepare HarmonyOS release signing material: an EC secp256r1 key store and certificate signing request were generated on the maintainer machine (`.certs/`, gitignored); AGC-issued certificates and profiles go in the same folder before wiring `signingConfigs`. / 鸿蒙上架签名材料准备：本机生成 EC secp256r1 密钥库与证书请求文件（.certs/，已 gitignore）；AGC 签发的证书与 Profile 下载后放同目录，再配置 signingConfigs。
 
 - Rename the HarmonyOS bundle to `com.cilang.pagenote` and set the vendor to 长沙词浪科技有限公司: the previous `io.pagenote.harmonyos` violated the AppGallery package-name rules ("harmonyos" is a reserved segment and may not appear as a standalone segment). This changes the app identity — already-installed debug builds are treated as a different app and keep their own sandbox. / 鸿蒙包名改为 com.cilang.pagenote、厂商改为长沙词浪科技有限公司：原 io.pagenote.harmonyos 违反应用市场包名规范（harmonyos 是保留字符不能独立成段）。包名即应用身份，已装的调试包与新包互不承认、沙箱数据不迁移。
