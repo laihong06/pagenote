@@ -235,6 +235,15 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **阅读页**：顶部工具栏白底 + 底部 0.5 细线（expandSafeArea 保留）；左/右面板改悬浮白卡片（圆角+阴影+clip，横竖屏边距分别处理，删旧 0.5 分隔边框）；笔记工具条改灰色胶囊（PAGE_BG 底、圆角 22）；编辑器/预览留白加大；批注粗细按钮统一为透明底+浅橙激活
 - 模拟器实测对比截图 emulator-28（书架）/emulator-29（阅读页）；单测 16/16；深色模式主题化仍为后续项（令牌已集中，届时只改一处）
 
+## 深色模式 + 弹层令牌化 + 卡片封面（2026-11-09，已提交）
+
+- **深色模式**：UiTheme 改明暗双套取色函数（pageBg/cardBg/capsuleBg/ink/ink2/ink3/hairline/primarySoft/accentSoft/hoverBg/controlIdle/cardShadow）；EntryAbility `Environment.envProp('colorMode', LIGHT)`，BookshelfPage/ReaderPage/IconButton/MarkdownView `@StorageProp('colorMode')` 消费；页面背景 expandSafeArea(BOTTOM) 消除深色底边白条
+- **组件 get 访问器陷阱（实测）**：`private get isDark()` 在 build 中返回 **undefined**（hilog 实证 colorMode=1 但 isDark=undefined），改普通方法 `isDarkMode()` 后正常——与断点技能"禁止 get 派生状态"一致，已沉淀至技能文档
+- **模拟器深色不下发（实测结论）**：系统切深色后，三方应用 `context.config.colorMode` 与 `Environment.envProp('colorMode')` 均保持 0（LIGHT），`getApplicationContext().setColorMode(DARK)` 强制也不生效（API 24 模拟器镜像 6.1.0.125）；色板链路经手动 `AppStorage.setOrCreate('colorMode', DARK)` 注入验证（截图 emulator-30 深色书架 / emulator-31 深色阅读页），跟随系统需真机验收
+- **弹层令牌化**：雨课堂面板、搜索/历史/闪卡/AI/导出导入 sheet 的灰按钮与文字色统一到令牌（controlIdle/ink 系），深色下自动适配
+- **书架卡片封面**：`ProjectSummary.cover`——雨课堂项目取 `src/assets/yuketang/` 第一张来源图（file:// 前缀），其余项目显示类型图标块（PDF 浅蓝 doc_text / MD 浅绿 textformat）；徽标移除（封面已含类型信息）
+- 验证：浅色回归正常、深色双截图、构建+单测 16/16
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

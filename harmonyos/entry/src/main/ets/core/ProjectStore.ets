@@ -17,6 +17,8 @@ export interface ProjectSummary {
   id: string;
   modified: string | null;
   kind: string;
+  /** 书架封面图（file:// 前缀的沙箱绝对路径）；无可用封面时为 null（雨课堂项目取首页来源图） */
+  cover: string | null;
 }
 
 const BAD_NAME: RegExp = /[<>:"/\\|?*]/;
@@ -120,6 +122,25 @@ export class ProjectStore {
   }
 
   /** 列举沙箱项目库下的全部项目，坏目录跳过。 */
+  /** 书架封面：雨课堂项目取 src/assets/yuketang/ 里按文件名排序的第一张来源图；其余项目无封面。 */
+  private static findCover(dir: string): string | null {
+    const yuketangDir = `${dir}/src/assets/yuketang`;
+    try {
+      if (!ProjectStore.exists(yuketangDir)) {
+        return null;
+      }
+      const files = fs.listFileSync(yuketangDir)
+        .filter((f: string): boolean => /\.(jpe?g|png)$/i.test(f))
+        .sort();
+      if (files.length === 0) {
+        return null;
+      }
+      return `file://${yuketangDir}/${files[0]}`;
+    } catch (e) {
+      return null;
+    }
+  }
+
   static list(root: string): ProjectSummary[] {
     const result: ProjectSummary[] = [];
     if (!ProjectStore.exists(root)) {
@@ -138,7 +159,8 @@ export class ProjectStore {
           name: project.manifest.name,
           id: project.manifest.id,
           modified: project.manifest.modified ?? project.manifest.created,
-          kind: ProjectValidation.kindOf(project.manifest.left)
+          kind: ProjectValidation.kindOf(project.manifest.left),
+          cover: ProjectStore.findCover(dir)
         });
       } catch (e) {
         continue;

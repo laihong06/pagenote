@@ -6,6 +6,7 @@
  * 不追求完整 CommonMark，复杂语法原样显示。
  */
 
+import { UiTheme } from './UiTheme';
 import { MathView } from './MathView';
 import { MermaidView } from './MermaidView';
 import { cnTypographyAvailable, CnTextTypography } from './CnTypography';
@@ -184,6 +185,11 @@ export struct MarkdownView {
   /** 把笔记里的相对图片路径（如 assets/x.png）解析为可加载的沙箱绝对路径；返回空串表示不可渲染。 */
   resolveImage: (src: string) => string = () => '';
   @State private blocks: MdBlock[] = [];
+  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+
+  private isDarkMode(): boolean {
+    return this.colorMode === ColorMode.DARK;
+  }
 
   // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器
   private cnTypographyMod: AttributeModifier<TextAttribute> | undefined =
@@ -218,7 +224,7 @@ export struct MarkdownView {
                 if (block.alt.length > 0) {
                   Text(block.alt)
                     .fontSize(12)
-                    .fontColor('#999999')
+                    .fontColor(UiTheme.ink3(this.isDarkMode()))
                     .margin({ top: 4 })
                 }
               }
@@ -227,7 +233,7 @@ export struct MarkdownView {
             } else {
               Text(`[图片${block.alt.length > 0 ? `：${block.alt}` : ''}] ${block.src}`)
                 .fontSize(13)
-                .fontColor('#999999')
+                .fontColor(UiTheme.ink3(this.isDarkMode()))
                 .width('100%')
                 .margin({ top: 4, bottom: 4 })
             }
@@ -243,7 +249,7 @@ export struct MarkdownView {
             Text(block.text)
               .fontFamily('monospace')
               .fontSize(13)
-              .backgroundColor('#F2F3F5')
+              .backgroundColor(UiTheme.capsuleBg(this.isDarkMode()))
               .borderRadius(6)
               .padding(10)
               .width('100%')
@@ -260,9 +266,9 @@ export struct MarkdownView {
                   .fontFamily(span.code ? 'monospace' : '')
               })
             }
-            .fontColor('#555555')
-            .backgroundColor('#F7F7F7')
-            .border({ width: { left: 3 }, color: '#2263EB' })
+            .fontColor(UiTheme.ink2(this.isDarkMode()))
+            .backgroundColor(UiTheme.capsuleBg(this.isDarkMode()))
+            .border({ width: { left: 3 }, color: UiTheme.PRIMARY })
             .padding(8)
             .width('100%')
             .margin({ top: 4, bottom: 4 })
@@ -277,7 +283,7 @@ export struct MarkdownView {
                     .fontWeight(span.bold ? FontWeight.Bold : FontWeight.Normal)
                     .fontStyle(span.italic ? FontStyle.Italic : FontStyle.Normal)
                     .fontFamily(span.code ? 'monospace' : '')
-                    .fontColor(span.code ? '#C7254E' : '#222222')
+                    .fontColor(span.code ? UiTheme.DANGER : UiTheme.ink(this.isDarkMode()))
                 }
               }, (span: InlineSpan, index: number) => `${index}-${span.text.length}-${span.math}`)
             }
@@ -290,7 +296,7 @@ export struct MarkdownView {
                   .fontWeight(span.bold ? FontWeight.Bold : FontWeight.Normal)
                   .fontStyle(span.italic ? FontStyle.Italic : FontStyle.Normal)
                   .fontFamily(span.code ? 'monospace' : '')
-                  .fontColor(span.code ? '#C7254E' : '#222222')
+                  .fontColor(span.code ? UiTheme.DANGER : UiTheme.ink(this.isDarkMode()))
               })
             }
             .fontSize(this.headingSize(block.kind))

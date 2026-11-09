@@ -5,6 +5,7 @@ import { UiTheme } from './UiTheme';
  * 常态透明底，悬停浅灰底并浮出文字气泡；激活态浅彩底 + 彩色图标；
  * filled 为实心主按钮（保存/新建项目等）。label 仅作无障碍朗读与悬停气泡文本。
  * 符号名以华为 HarmonyOS Symbol 官方图标库为准（developer.huawei.com/consumer/cn/design/harmonyos-symbol）。
+ * 颜色随系统深浅色模式（UiTheme 色板）。
  */
 @Component
 export struct IconButton {
@@ -13,25 +14,37 @@ export struct IconButton {
   // 父组件运行期切换的参数必须是 @Prop，否则只在创建时赋值一次（激活态/禁用态/角标会冻结）
   @Prop active: boolean = false;
   @Prop activeColor: string = UiTheme.PRIMARY;
-  @Prop activeSoftColor: string = UiTheme.PRIMARY_SOFT;
   @Prop filled: boolean = false;
   @Prop showDot: boolean = false;
   @Prop enabledState: boolean = true;
   onTap: () => void = () => {};
+  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
   @State private hovering: boolean = false;
 
+  private isAccent(): boolean {
+    return this.activeColor === UiTheme.ACCENT;
+  }
+
   private bgColor(): string {
+    const dark = this.colorMode === ColorMode.DARK;
     if (this.active) {
-      return this.filled ? this.activeColor : this.activeSoftColor;
+      if (this.filled) {
+        return this.activeColor;
+      }
+      return this.isAccent() ? UiTheme.accentSoft(dark) : UiTheme.primarySoft(dark);
     }
-    return this.hovering ? '#14000000' : '#00000000';
+    return this.hovering ? UiTheme.hoverBg(dark) : '#00000000';
   }
 
   private iconColor(): string {
+    const dark = this.colorMode === ColorMode.DARK;
     if (this.active) {
-      return this.filled ? '#FFFFFF' : this.activeColor;
+      if (this.filled) {
+        return '#FFFFFF';
+      }
+      return this.isAccent() ? UiTheme.accentIcon(dark) : UiTheme.primaryIcon(dark);
     }
-    return '#4A4F55';
+    return dark ? '#A8ADB4' : '#4A4F55';
   }
 
   build() {

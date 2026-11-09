@@ -11,6 +11,8 @@ export default class EntryAbility extends UIAbility {
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'EntryAbility onCreate');
+    // 系统深浅色模式写入 AppStorage，组件经 @StorageProp('colorMode') 消费
+    Environment.envProp('colorMode', ColorMode.LIGHT);
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {

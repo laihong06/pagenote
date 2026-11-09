@@ -35,6 +35,12 @@ struct BookshelfPage {
   @State rainLiveText: string = '';
   // 系统横向断点（EntryAbility 在 loadContent 回调内注册并持续更新）
   @StorageProp('currentWidthBreakpoint') widthBp: WidthBreakpoint = WidthBreakpoint.WIDTH_LG;
+  // 系统深浅色模式（EntryAbility 用 Environment.envProp 注册）
+  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+
+  private isDarkMode(): boolean {
+    return this.colorMode === ColorMode.DARK;
+  }
 
   private rainClient: RainClient | null = null;
   private liveProjectDir: string | null = null;
@@ -351,10 +357,10 @@ struct BookshelfPage {
           Text('PageNote')
             .fontSize(28)
             .fontWeight(FontWeight.Bold)
-            .fontColor(UiTheme.INK)
+            .fontColor(UiTheme.ink(this.isDarkMode()))
           Text(this.projects.length > 0 ? `${this.projects.length} 个项目` : '逐页笔记')
             .fontSize(13)
-            .fontColor(UiTheme.INK_WEAK)
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .margin({ top: 2 })
         }
         .alignItems(HorizontalAlign.Start)
@@ -385,7 +391,7 @@ struct BookshelfPage {
       .width('100%')
       .padding({ left: 20, right: 20, top: 16, bottom: 12 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(UiTheme.PAGE_BG)
+      .backgroundColor(UiTheme.pageBg(this.isDarkMode()))
       // 标题栏背景延伸至状态栏区域，避免沉浸式下出现色带
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       // 同节点多 bindSheet 会全部失效，雨课堂面板挂到标题栏节点
@@ -398,15 +404,15 @@ struct BookshelfPage {
         Column() {
           SymbolGlyph($r('sys.symbol.book'))
             .fontSize(64)
-            .fontColor(['#C9CDD4'])
+            .fontColor([UiTheme.ink3(this.isDarkMode())])
           Text('还没有项目')
             .fontSize(18)
             .fontWeight(FontWeight.Medium)
-            .fontColor(UiTheme.INK_SECONDARY)
+            .fontColor(UiTheme.ink2(this.isDarkMode()))
             .margin({ top: 20 })
           Text('新建项目，或导入 PDF / Markdown 文档开始逐页笔记')
             .fontSize(14)
-            .fontColor(UiTheme.INK_WEAK)
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .margin({ top: 8 })
         }
         .layoutWeight(1)
@@ -417,35 +423,48 @@ struct BookshelfPage {
           ForEach(this.projects, (item: ProjectSummary) => {
             ListItem() {
               Row() {
-                Text(item.kind === 'pdf' ? 'PDF' : 'MD')
-                  .fontSize(11)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor('#FFFFFF')
-                  .backgroundColor(item.kind === 'pdf' ? UiTheme.PRIMARY : '#0E9F6E')
-                  .borderRadius(6)
-                  .padding({ left: 7, right: 7, top: 2, bottom: 2 })
+                if (item.cover !== null) {
+                  Image(item.cover ?? '')
+                    .width(64)
+                    .height(86)
+                    .objectFit(ImageFit.Cover)
+                    .borderRadius(10)
+                    .margin({ right: 12 })
+                } else {
+                  Column() {
+                    SymbolGlyph(item.kind === 'pdf' ? $r('sys.symbol.doc_text') : $r('sys.symbol.textformat'))
+                      .fontSize(26)
+                      .fontColor([item.kind === 'pdf' ? UiTheme.primaryIcon(this.isDarkMode()) : UiTheme.SUCCESS])
+                  }
+                  .width(64)
+                  .height(86)
+                  .borderRadius(10)
+                  .justifyContent(FlexAlign.Center)
+                  .backgroundColor(item.kind === 'pdf' ? UiTheme.primarySoft(this.isDarkMode()) :
+                    this.isDarkMode() ? '#1E3A2E' : '#E3F4EC')
+                  .margin({ right: 12 })
+                }
                 Column() {
                   Text(item.name)
                     .fontSize(17)
                     .fontWeight(FontWeight.Medium)
-                    .fontColor(UiTheme.INK)
+                    .fontColor(UiTheme.ink(this.isDarkMode()))
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                   Text(this.formatModified(item.modified))
                     .fontSize(12)
-                    .fontColor(UiTheme.INK_WEAK)
+                    .fontColor(UiTheme.ink3(this.isDarkMode()))
                     .margin({ top: 6 })
                 }
                 .alignItems(HorizontalAlign.Start)
-                .margin({ left: 12 })
                 .layoutWeight(1)
               }
               .width('100%')
               .padding(16)
               .alignItems(VerticalAlign.Center)
-              .backgroundColor(UiTheme.CARD_BG)
+              .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
               .borderRadius(UiTheme.RADIUS_CARD)
-              .shadow(UiTheme.cardShadow())
+              .shadow(UiTheme.cardShadow(this.isDarkMode()))
             }
             .margin({ left: 20, right: 20, top: 5, bottom: 5 })
             .borderRadius(UiTheme.RADIUS_CARD)
@@ -464,7 +483,9 @@ struct BookshelfPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(UiTheme.PAGE_BG)
+    .backgroundColor(UiTheme.pageBg(this.isDarkMode()))
+    // 页面背景延伸至底部导航条区域，深色下不留白边
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     .bindSheet($$this.showCreateDialog, this.createDialogBuilder(), {
       height: SheetSize.FIT_CONTENT,
       title: { title: '新建项目' }
@@ -477,14 +498,14 @@ struct BookshelfPage {
       if (this.rainProgress.length > 0) {
         Text(this.rainProgress)
           .fontSize(13)
-          .fontColor('#2263EB')
+          .fontColor(UiTheme.PRIMARY)
           .width('100%')
           .padding({ top: 4, bottom: 4 })
       }
       if (this.rainError.length > 0) {
         Text(this.rainError)
           .fontSize(13)
-          .fontColor('#C7254E')
+          .fontColor(UiTheme.DANGER)
           .width('100%')
           .padding({ top: 4, bottom: 4 })
       }
@@ -499,14 +520,14 @@ struct BookshelfPage {
               .margin({ top: 12 })
             Text('用微信扫描雨课堂官方二维码完成登录')
               .fontSize(13)
-              .fontColor('#666666')
+              .fontColor(UiTheme.ink2(this.isDarkMode()))
               .margin({ top: 8 })
           } else {
             Text(this.rainLoginStatus === 'connecting' || this.rainLoginStatus === 'loading_qr'
               ? '正在获取雨课堂登录二维码…'
               : '登录后可将雨课堂课件导入为项目')
               .fontSize(14)
-              .fontColor('#666666')
+              .fontColor(UiTheme.ink2(this.isDarkMode()))
               .margin({ top: 16 })
           }
           Row() {
@@ -523,8 +544,8 @@ struct BookshelfPage {
               || this.rainLoginStatus === 'loading_qr') {
               Button('取消')
                 .margin({ top: 16, left: 12 })
-                .backgroundColor('#EEEEEE')
-                .fontColor('#333333')
+                .backgroundColor(UiTheme.controlIdle(this.isDarkMode()))
+                .fontColor(UiTheme.ink(this.isDarkMode()))
                 .onClick(() => {
                   this.cancelRainLogin();
                 })
@@ -566,7 +587,7 @@ struct BookshelfPage {
           Row() {
             Text(this.rainLiveText)
               .fontSize(13)
-              .fontColor('#2263EB')
+              .fontColor(UiTheme.PRIMARY)
               .layoutWeight(1)
             IconButton({
               symbol: $r('sys.symbol.pause_circle'), label: '停止采集',
@@ -583,7 +604,7 @@ struct BookshelfPage {
           && this.rainLiveStatus.length === 0) {
           Text('正在进行的课堂')
             .fontSize(13)
-            .fontColor('#999999')
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .width('100%')
             .padding({ bottom: 4 })
           ForEach(this.rainCurrentLessons, (current: RainCurrentLesson) => {
@@ -608,7 +629,7 @@ struct BookshelfPage {
           Divider().margin({ top: 8, bottom: 8 })
           Text('历史课件')
             .fontSize(13)
-            .fontColor('#999999')
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .width('100%')
             .padding({ bottom: 4 })
         }
@@ -624,7 +645,7 @@ struct BookshelfPage {
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                   Text(`${course.teacher}${course.term.length > 0 ? ` · ${course.term}` : ''}`)
                     .fontSize(12)
-                    .fontColor('#999999')
+                    .fontColor(UiTheme.ink3(this.isDarkMode()))
                     .margin({ top: 4 })
                 }
                 .width('100%')
@@ -639,7 +660,7 @@ struct BookshelfPage {
           }
           .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
+          .divider({ strokeWidth: 0.5, color: UiTheme.hairline(this.isDarkMode()) })
         } else {
           Row() {
             IconButton({
@@ -665,7 +686,7 @@ struct BookshelfPage {
                       .textOverflow({ overflow: TextOverflow.Ellipsis })
                     Text(lesson.createdAt ?? '')
                       .fontSize(12)
-                      .fontColor('#999999')
+                      .fontColor(UiTheme.ink3(this.isDarkMode()))
                       .margin({ top: 4 })
                   }
                   .alignItems(HorizontalAlign.Start)
@@ -691,7 +712,7 @@ struct BookshelfPage {
           }
           .width('100%')
           .layoutWeight(1)
-          .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
+          .divider({ strokeWidth: 0.5, color: UiTheme.hairline(this.isDarkMode()) })
         }
       }
     }
@@ -707,7 +728,7 @@ struct BookshelfPage {
         .margin({ top: 8 })
       Row() {
         Button('取消')
-          .backgroundColor('#CCCCCC')
+          .backgroundColor(UiTheme.controlIdle(this.isDarkMode()))
           .onClick(() => {
             this.showCreateDialog = false;
           })

@@ -124,6 +124,13 @@ struct ReaderPage {
 
   private annotations: AnnotationBook = Annotations.empty();
 
+  // 系统深浅色模式（EntryAbility 用 Environment.envProp 注册）
+  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+
+  private isDarkMode(): boolean {
+    return this.colorMode === ColorMode.DARK;
+  }
+
   // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器
   private cnTypographyMod: AttributeModifier<TextAreaAttribute> | undefined =
     cnTypographyAvailable() ? new CnTextAreaTypography() : undefined;
@@ -789,7 +796,7 @@ struct ReaderPage {
         if (this.isPdf) {
           Text(`第 ${this.currentPage} / ${this.pageCount} 页`)
             .fontSize(14)
-            .fontColor('#666666')
+            .fontColor(UiTheme.ink2(this.isDarkMode()))
         }
         IconButton({
           symbol: $r('sys.symbol.paintbrush_pointed'), label: this.inkMode ? '关闭批注' : '批注',
@@ -801,7 +808,7 @@ struct ReaderPage {
           .margin({ left: 12 })
         IconButton({
           symbol: $r('sys.symbol.moon'), label: this.nightMode ? '关闭夜览' : '夜览',
-          active: this.nightMode, activeColor: '#B45309', activeSoftColor: '#FBF0E2',
+          active: this.nightMode, activeColor: UiTheme.ACCENT,
           onTap: () => {
             this.nightMode = !this.nightMode;
           }
@@ -818,8 +825,8 @@ struct ReaderPage {
       .width('100%')
       .padding({ left: 16, right: 16, top: 10, bottom: 10 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(UiTheme.CARD_BG)
-      .border({ width: { bottom: 0.5 }, color: UiTheme.HAIRLINE })
+      .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
+      .border({ width: { bottom: 0.5 }, color: UiTheme.hairline(this.isDarkMode()) })
       // 工具栏背景延伸至状态栏区域
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       // 同一节点挂多个 bindSheet 会导致全部失效（API 24 实测），每个 sheet 挂不同节点
@@ -840,7 +847,7 @@ struct ReaderPage {
             })
               .margin({ left: 6 })
           }, (spec: InkToolSpec) => spec.id)
-          ForEach(['#dc3545', '#2263EB', '#0E9F6E', '#222222'], (c: string) => {
+          ForEach(['#dc3545', UiTheme.PRIMARY, UiTheme.SUCCESS, '#222222'], (c: string) => {
             // fill 是 API 26+ 接口，用 Stack+圆角代替 Circle().fill 保持 API 20 兼容
             Stack()
               .width(22)
@@ -860,8 +867,8 @@ struct ReaderPage {
               .padding({ left: 8, right: 8 })
               .margin({ left: 6 })
               .borderRadius(8)
-              .backgroundColor(this.inkWidth === spec.value ? '#FBF0E2' : '#00000000')
-              .fontColor(this.inkWidth === spec.value ? '#B45309' : '#4A4F55')
+              .backgroundColor(this.inkWidth === spec.value ? UiTheme.accentSoft(this.isDarkMode()) : '#00000000')
+              .fontColor(this.inkWidth === spec.value ? UiTheme.ACCENT : UiTheme.ink2(this.isDarkMode()))
               .onClick(() => {
                 this.inkWidth = spec.value;
               })
@@ -884,8 +891,8 @@ struct ReaderPage {
         .width('100%')
         .padding({ left: 16, right: 16, top: 6, bottom: 6 })
         .alignItems(VerticalAlign.Center)
-        .backgroundColor(UiTheme.CARD_BG)
-        .border({ width: { bottom: 0.5 }, color: UiTheme.HAIRLINE })
+        .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
+        .border({ width: { bottom: 0.5 }, color: UiTheme.hairline(this.isDarkMode()) })
       }
 
       // 文字批注输入行：内嵌在页面里（sheet 会被软键盘顶掉，实测）
@@ -916,8 +923,8 @@ struct ReaderPage {
             .fontSize(13)
             .height(30)
             .margin({ left: 8 })
-            .backgroundColor('#EEEEEE')
-            .fontColor('#333333')
+            .backgroundColor(UiTheme.controlIdle(this.isDarkMode()))
+            .fontColor(UiTheme.ink(this.isDarkMode()))
             .onClick(() => {
               this.inkTextEditing = false;
             })
@@ -925,8 +932,8 @@ struct ReaderPage {
         .width('100%')
         .padding({ left: 16, right: 16, top: 6, bottom: 6 })
         .alignItems(VerticalAlign.Center)
-        .backgroundColor(UiTheme.CARD_BG)
-        .border({ width: { bottom: 0.5 }, color: UiTheme.HAIRLINE })
+        .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
+        .border({ width: { bottom: 0.5 }, color: UiTheme.hairline(this.isDarkMode()) })
       }
 
       Stack() {
@@ -974,7 +981,9 @@ struct ReaderPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(UiTheme.PAGE_BG)
+    .backgroundColor(UiTheme.pageBg(this.isDarkMode()))
+    // 页面背景延伸至底部导航条区域，深色下不留白边
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
     // 2in1/外接键盘快捷键：Ctrl+S 保存当前页，Ctrl+F 打开搜索
     .keyboardShortcut('S', [ModifierKey.CTRL], () => {
       this.saveCurrentPage().catch(() => {});
@@ -997,7 +1006,7 @@ struct ReaderPage {
     Column() {
       Text('导出内容不写入项目源文件；导入 JSON 备份按页合并（合法页覆盖、空串清页、缺失不动），Markdown/文本插入当前页光标处。')
         .fontSize(12)
-        .fontColor('#999999')
+        .fontColor(UiTheme.ink3(this.isDarkMode()))
         .width('100%')
         .margin({ bottom: 8 })
       Row() {
@@ -1038,8 +1047,8 @@ struct ReaderPage {
         Button('制卡')
           .fontSize(13)
           .height(30)
-          .backgroundColor(this.cardTab === 'make' ? '#2263EB' : '#EEEEEE')
-          .fontColor(this.cardTab === 'make' ? '#FFFFFF' : '#333333')
+          .backgroundColor(this.cardTab === 'make' ? UiTheme.PRIMARY : UiTheme.controlIdle(this.isDarkMode()))
+          .fontColor(this.cardTab === 'make' ? '#FFFFFF' : UiTheme.ink(this.isDarkMode()))
           .onClick(() => {
             this.fillCardDraft();
           })
@@ -1047,8 +1056,8 @@ struct ReaderPage {
           .fontSize(13)
           .height(30)
           .margin({ left: 8 })
-          .backgroundColor(this.cardTab === 'review' ? '#2263EB' : '#EEEEEE')
-          .fontColor(this.cardTab === 'review' ? '#FFFFFF' : '#333333')
+          .backgroundColor(this.cardTab === 'review' ? UiTheme.PRIMARY : UiTheme.controlIdle(this.isDarkMode()))
+          .fontColor(this.cardTab === 'review' ? '#FFFFFF' : UiTheme.ink(this.isDarkMode()))
           .onClick(() => {
             this.startReview();
           })
@@ -1056,8 +1065,8 @@ struct ReaderPage {
           .fontSize(13)
           .height(30)
           .margin({ left: 8 })
-          .backgroundColor(this.cardTab === 'lib' ? '#2263EB' : '#EEEEEE')
-          .fontColor(this.cardTab === 'lib' ? '#FFFFFF' : '#333333')
+          .backgroundColor(this.cardTab === 'lib' ? UiTheme.PRIMARY : UiTheme.controlIdle(this.isDarkMode()))
+          .fontColor(this.cardTab === 'lib' ? '#FFFFFF' : UiTheme.ink(this.isDarkMode()))
           .onClick(() => {
             this.cardTab = 'lib';
           })
@@ -1069,14 +1078,14 @@ struct ReaderPage {
         Column() {
           Text('正面（问题/原文，默认取选区或光标段落）')
             .fontSize(12)
-            .fontColor('#999999')
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .width('100%')
           TextArea({ placeholder: '卡片正面', text: $$this.cardFront })
             .height(100)
             .margin({ top: 4 })
           Text('背面（答案）')
             .fontSize(12)
-            .fontColor('#999999')
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .width('100%')
             .margin({ top: 8 })
           TextArea({ placeholder: '卡片背面（可留空）', text: $$this.cardBack })
@@ -1096,13 +1105,13 @@ struct ReaderPage {
         if (this.reviewQueue.length === 0 || this.reviewIndex >= this.reviewQueue.length) {
           Text(this.cards.length === 0 ? '还没有卡片，先去制卡' : '现在没有到期的卡片')
             .fontSize(14)
-            .fontColor('#999999')
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .padding(24)
         } else {
           Column() {
             Text(`第 ${this.reviewIndex + 1} / ${this.reviewQueue.length} 张 · 第 ${this.reviewQueue[this.reviewIndex].page} 页`)
               .fontSize(12)
-              .fontColor('#999999')
+              .fontColor(UiTheme.ink3(this.isDarkMode()))
               .width('100%')
             Text(this.reviewQueue[this.reviewIndex].front)
               .fontSize(17)
@@ -1114,24 +1123,24 @@ struct ReaderPage {
               Text(this.reviewQueue[this.reviewIndex].back.length > 0
                 ? this.reviewQueue[this.reviewIndex].back : '（背面留空，回忆后自评）')
                 .fontSize(15)
-                .fontColor('#555555')
+                .fontColor(UiTheme.ink2(this.isDarkMode()))
                 .width('100%')
                 .textAlign(TextAlign.Center)
               Row() {
                 Button('没记住')
-                  .backgroundColor('#C7254E')
+                  .backgroundColor(UiTheme.DANGER)
                   .onClick(() => {
                     this.rateCard('again');
                   })
                 Button('勉强')
                   .margin({ left: 8 })
-                  .backgroundColor('#B45309')
+                  .backgroundColor(UiTheme.ACCENT)
                   .onClick(() => {
                     this.rateCard('hard');
                   })
                 Button('记住')
                   .margin({ left: 8 })
-                  .backgroundColor('#0E9F6E')
+                  .backgroundColor(UiTheme.SUCCESS)
                   .onClick(() => {
                     this.rateCard('good');
                   })
@@ -1163,7 +1172,7 @@ struct ReaderPage {
                 Column() {
                   Text(`第 ${card.page} 页 · ${card.tags.join('、')}`)
                     .fontSize(12)
-                    .fontColor('#999999')
+                    .fontColor(UiTheme.ink3(this.isDarkMode()))
                   Text(card.front)
                     .fontSize(14)
                     .maxLines(2)
@@ -1176,8 +1185,8 @@ struct ReaderPage {
                   .fontSize(13)
                   .height(30)
                   .margin({ left: 12 })
-                  .backgroundColor('#EEEEEE')
-                  .fontColor('#C7254E')
+                  .backgroundColor(UiTheme.controlIdle(this.isDarkMode()))
+                  .fontColor(UiTheme.DANGER)
                   .onClick(() => {
                     this.deleteCard(card);
                   })
@@ -1202,13 +1211,13 @@ struct ReaderPage {
       if (this.selectedText().trim().length === 0) {
         Text('请先在笔记里选中一段文字（长按拖选），再回到这里')
           .fontSize(14)
-          .fontColor('#999999')
+          .fontColor(UiTheme.ink3(this.isDarkMode()))
           .padding(24)
           .width('100%')
       } else {
         Text(`选区（第 ${this.currentPage} 页）：${this.selectedText().substring(0, 80)}${this.selectedText().length > 80 ? '…' : ''}`)
           .fontSize(12)
-          .fontColor('#999999')
+          .fontColor(UiTheme.ink3(this.isDarkMode()))
           .width('100%')
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -1235,13 +1244,13 @@ struct ReaderPage {
         if (this.aiActionBusy) {
           Text('正在调用模型…')
             .fontSize(13)
-            .fontColor('#999999')
+            .fontColor(UiTheme.ink3(this.isDarkMode()))
             .padding(16)
         }
         if (this.aiActionError.length > 0) {
           Text(this.aiActionError)
             .fontSize(13)
-            .fontColor('#C7254E')
+            .fontColor(UiTheme.DANGER)
             .padding(8)
             .width('100%')
         }
@@ -1258,7 +1267,7 @@ struct ReaderPage {
           Row() {
             Text('确认后插回：')
               .fontSize(13)
-              .fontColor('#666666')
+              .fontColor(UiTheme.ink2(this.isDarkMode()))
             Button('替换选区')
               .fontSize(13)
               .height(30)
@@ -1270,8 +1279,8 @@ struct ReaderPage {
               .fontSize(13)
               .height(30)
               .margin({ left: 8 })
-              .backgroundColor('#EEEEEE')
-              .fontColor('#333333')
+              .backgroundColor(UiTheme.controlIdle(this.isDarkMode()))
+              .fontColor(UiTheme.ink(this.isDarkMode()))
               .onClick(() => {
                 this.insertAiAction('append');
               })
@@ -1369,7 +1378,7 @@ struct ReaderPage {
           .padding({ left: 10, right: 10, top: 6, bottom: 6 })
           .margin({ left: 12, right: 12, top: 12, bottom: 8 })
           .alignItems(VerticalAlign.Center)
-          .backgroundColor(UiTheme.PAGE_BG)
+          .backgroundColor(UiTheme.pageBg(this.isDarkMode()))
           .borderRadius(22)
           .bindSheet($$this.showAiAction, this.aiActionBuilder(), {
             height: SheetSize.LARGE,
@@ -1406,7 +1415,7 @@ struct ReaderPage {
           if (this.statusText.length > 0) {
             Text(this.statusText)
               .fontSize(12)
-              .fontColor(UiTheme.INK_WEAK)
+              .fontColor(UiTheme.ink3(this.isDarkMode()))
               .padding({ left: 16, right: 16, bottom: 10 })
               .width('100%')
           }
@@ -1414,9 +1423,9 @@ struct ReaderPage {
         .layoutWeight(1)
         .width(this.isLandscape ? '0%' : '100%')
         .height(this.isLandscape ? '100%' : '0%')
-        .backgroundColor(UiTheme.CARD_BG)
+        .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
         .borderRadius(UiTheme.RADIUS_CARD)
-        .shadow(UiTheme.cardShadow())
+        .shadow(UiTheme.cardShadow(this.isDarkMode()))
         .margin(this.isLandscape ? { left: 8, right: 16, top: 8, bottom: 16 } :
           { left: 16, right: 16, top: 8, bottom: 16 })
         .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
@@ -1447,7 +1456,7 @@ struct ReaderPage {
             Column() {
               Text(this.statusText.length > 0 ? this.statusText : 'PDF 组件不可用')
                 .fontSize(14)
-                .fontColor('#999999')
+                .fontColor(UiTheme.ink3(this.isDarkMode()))
                 .padding(24)
             }
             .layoutWeight(1)
@@ -1492,10 +1501,10 @@ struct ReaderPage {
     .layoutWeight(1)
     .width(this.isLandscape ? '0%' : '100%')
     .height(this.isLandscape ? '100%' : '0%')
-    .backgroundColor(UiTheme.CARD_BG)
+    .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
     .borderRadius(UiTheme.RADIUS_CARD)
     .clip(true)
-    .shadow(UiTheme.cardShadow())
+    .shadow(UiTheme.cardShadow(this.isDarkMode()))
     .margin(this.isLandscape ? { left: 16, right: 8, top: 8, bottom: 16 } :
       { left: 16, right: 16, top: 8, bottom: 8 })
     .bindSheet($$this.showAiResult, this.aiResultBuilder(), {
@@ -1521,7 +1530,7 @@ struct ReaderPage {
       if (this.searchQuery.trim().length > 0 && this.searchResults.length === 0) {
         Text('没有匹配的内容')
           .fontSize(14)
-          .fontColor('#999999')
+          .fontColor(UiTheme.ink3(this.isDarkMode()))
           .padding(24)
       } else {
         List() {
@@ -1531,15 +1540,15 @@ struct ReaderPage {
                 Row() {
                   Text(hit.source === '笔记' ? `第 ${hit.page} 页` : hit.source)
                     .fontSize(12)
-                    .fontColor('#2263EB')
-                    .backgroundColor('#EAF0FE')
+                    .fontColor(UiTheme.PRIMARY)
+                    .backgroundColor(UiTheme.primarySoft(this.isDarkMode()))
                     .borderRadius(4)
                     .padding({ left: 6, right: 6, top: 2, bottom: 2 })
                 }
                 .width('100%')
                 Text(hit.snippet)
                   .fontSize(14)
-                  .fontColor('#333333')
+                  .fontColor(UiTheme.ink(this.isDarkMode()))
                   .maxLines(2)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
                   .width('100%')
@@ -1569,7 +1578,7 @@ struct ReaderPage {
       if (this.historyList.length === 0) {
         Text('这一页还没有历史快照，保存后自动生成')
           .fontSize(14)
-          .fontColor('#999999')
+          .fontColor(UiTheme.ink3(this.isDarkMode()))
           .padding(24)
       } else {
         List() {
@@ -1581,7 +1590,7 @@ struct ReaderPage {
                   .layoutWeight(1)
                 Text(`${item.bytes} B`)
                   .fontSize(12)
-                  .fontColor('#999999')
+                  .fontColor(UiTheme.ink3(this.isDarkMode()))
                 Button('恢复')
                   .fontSize(13)
                   .height(30)
@@ -1607,7 +1616,7 @@ struct ReaderPage {
     Column() {
       Text('使用 OpenAI 兼容接口。密钥只保存在本机应用偏好，不写入项目目录。')
         .fontSize(12)
-        .fontColor('#999999')
+        .fontColor(UiTheme.ink3(this.isDarkMode()))
         .width('100%')
         .margin({ bottom: 8 })
       TextInput({ placeholder: 'Base URL（默认本地中转 http://127.0.0.1:3457/v1）', text: $$this.aiBaseUrl })
@@ -1618,8 +1627,8 @@ struct ReaderPage {
         .margin({ top: 8 })
       Row() {
         Button('清空')
-          .backgroundColor('#EEEEEE')
-          .fontColor('#333333')
+          .backgroundColor(UiTheme.controlIdle(this.isDarkMode()))
+          .fontColor(UiTheme.ink(this.isDarkMode()))
           .onClick(() => {
             AgentSettings.clear(this.getUIContext().getHostContext() as common.UIAbilityContext);
             this.aiBaseUrl = '';
@@ -1651,7 +1660,7 @@ struct ReaderPage {
       if (this.aiBusy) {
         Text('正在生成讲解…')
           .fontSize(14)
-          .fontColor('#999999')
+          .fontColor(UiTheme.ink3(this.isDarkMode()))
           .padding(24)
       } else {
         MarkdownView({

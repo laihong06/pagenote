@@ -139,7 +139,14 @@ harmonyos/
 - 消除 hvigor 兼容告警：修饰器方法内用 `if (deviceInfo.apiAvailable('26.0.0'))` 语句级守卫（编译器 api_check 只认 if 语句守卫，不认三元表达式）；裸 `apiAvailable` 不是全局函数，要走 `deviceInfo.apiAvailable`。
 - 现成实现：`entry/src/main/ets/components/CnTypography.ets`（Text/TextArea 中文排版修饰器）。
 
-## 12. 测试与验证纪律（项目要求）
+## 12. 深浅色模式适配（2026-11-09 实测）
+
+- 链路：`EntryAbility.onCreate` 里 `Environment.envProp('colorMode', ColorMode.LIGHT)`，组件 `@StorageProp('colorMode')` 消费，颜色统一走 `components/UiTheme.ets` 的双套取色函数。
+- **组件内禁止用 `get` 计算属性**：`private get isDark()` 在 build 中返回 undefined（值明明已到组件），改普通方法 `isDarkMode()` 立即正常——ArkUI struct 转换对 getter 不可靠，状态派生一律用方法。
+- **本机模拟器镜像（API 24 / 6.1.0.125）不向三方应用下发深色配置**：系统切深色后 `context.config.colorMode`、`envProp('colorMode')` 均为 0，`getApplicationContext().setColorMode(DARK)` 也不生效。验证色板只能手动 `AppStorage.setOrCreate('colorMode', ColorMode.DARK)` 注入（验完必须删掉）。真机跟随系统属待验收项。
+- 深色下页面背景记得 `expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])`，否则底部导航条区域留白边。
+
+## 13. 测试与验证纪律（项目要求）
 
 - 不宣称未执行的验证。模拟器/真机截图只能来自鸿蒙端实际运行。
 - 每次推送必须更新根 `CHANGELOG.md`（Unreleased 段）。
