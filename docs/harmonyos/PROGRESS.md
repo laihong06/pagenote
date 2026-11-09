@@ -150,6 +150,11 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## 实时协议单测补充（2026-11-09，已提交）
+
+- 新增 3 个用例（共 15 个）：normalizeLiveMessage（hello/fetchtimeline 过滤与当前页补全、slidenav、lessonfinished）、selectTimelineReplay（首连去重/游标续播/缺页标记）、resolveRainLiveSlide（si/sid 定位与未命中报错）
+- 实时采集的真实课堂验收仍未可做：当前账号无正在进行的课堂（on-lesson 为空），需真实上课时段再验
+
 ## AI 真实调用验证（2026-11-09，已提交）
 
 - 本机起 OpenAI 兼容中继（固定应答），模拟器经宿主机 LAN IP（10.158.13.125:3457）完成真实 HTTP 链路：AI 设置（BaseURL/Key/模型）→ 保存自动触发讲解 → 中继应答在讲解 sheet 正常渲染（截图 emulator-25）

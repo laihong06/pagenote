@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- Extend HarmonyOS unit tests to 15 cases, adding live-class protocol coverage: timeline message normalization (hello/fetchtimeline filtering, current-slide completion, slidenav, lessonfinished), cursor replay with gap marking, and slide resolution by index/page id. / 鸿蒙单测扩到 15 例，补充实时课堂协议：时间线消息解析、游标回放与缺页标记、页面定位。
+
 - Verify the HarmonyOS AI call path end-to-end with a local OpenAI-compatible relay: model settings (base URL/key/model) persist, per-page explanation request reaches the relay over HTTP, and the response renders in the sheet. Also fix the AI settings sheet clipping its third input and action buttons (FIT_CONTENT → MEDIUM). / 鸿蒙 AI 调用链路完成本机中继验证：设置保存、按页讲解请求经 HTTP 到达中继、响应正常渲染；顺带修复 AI 设置弹层裁掉第三输入框与按钮的问题。
 
 - Fix saving notes on fresh empty pages on HarmonyOS:

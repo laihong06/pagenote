@@ -3,7 +3,9 @@ import { PageNotes } from '../main/ets/core/PageNotes';
 import { ProjectManifestCodec, ProjectManifest } from '../main/ets/core/ProjectManifest';
 import { NoteTransfer } from '../main/ets/core/NoteTransfer';
 import { ReviewScheduler, FlashcardStore, FlashcardItem } from '../main/ets/core/Flashcards';
-import { normalizeHistoryLessons, rainObjectData, normalizeCurrentLessons } from '../main/ets/core/RainProtocol';
+import { normalizeHistoryLessons, rainObjectData, normalizeCurrentLessons,
+  normalizeLiveMessage, selectTimelineReplay, resolveRainLiveSlide, rainLiveEventKey,
+  RainSlide } from '../main/ets/core/RainProtocol';
 
 /**
  * 核心层纯逻辑单元测试（Local Test，不依赖设备能力）。
@@ -165,6 +167,66 @@ export default function coreTest(): void {
       expect(NoteTransfer.isBackupJson('# 普通 markdown')).assertFalse();
       expect(NoteTransfer.isBackupJson('{"foo":1}')).assertFalse();
       expect(NoteTransfer.isBackupJson('{"notes":[1,2]}')).assertFalse();
+    });
+
+    it('liveMessageTimelineAndSlide', 0, () => {
+      // hello/fetchtimeline：只收 type=slide 且有 pres+si 的项，附当前页
+      const hello = JSON.parse('{"op":"hello","presentation":"P9","slideindex":4,'
+        + '"timeline":[{"type":"slide","pres":"P1","si":0},{"type":"slide","pres":"P1","si":1},'
+        + '{"type":"video","pres":"P2","si":0},{"type":"slide","pres":"P3"}]}') as Record<string, Object | null>;
+      const timeline = normalizeLiveMessage(hello);
+      expect(timeline.timeline).assertTrue();
+      expect(timeline.slides.length).assertEqual(3);
+      expect(rainLiveEventKey(timeline.slides[2])).assertEqual('P9:4');
+      // slidenav 单页事件
+      const navText = '{"op":"slidenav","presentation":"P1","slideindex":5}';
+      const nav = normalizeLiveMessage(JSON.parse(navText) as Record<string, Object | null>);
+      expect(nav.timeline).assertFalse();
+      expect(nav.slides.length).assertEqual(1);
+      expect(nav.slides[0].sourceIndex).assertEqual(5);
+      // 课堂结束
+      expect(normalizeLiveMessage(JSON.parse('{"op":"lessonfinished"}') as Record<string, Object | null>).finished)
+        .assertTrue();
+      // 无关 op 不产生事件
+      expect(normalizeLiveMessage(JSON.parse('{"op":"other"}') as Record<string, Object | null>).slides.length)
+        .assertEqual(0);
+    });
+
+    it('timelineReplayCursorAndGap', 0, () => {
+      const events = normalizeLiveMessage(JSON.parse('{"op":"fetchtimeline",'
+        + '"timeline":[{"type":"slide","pres":"P1","si":0},{"type":"slide","pres":"P1","si":1},'
+        + '{"type":"slide","pres":"P1","si":2}]}') as Record<string, Object | null>).slides;
+      // 首次连接全量去重
+      const initial = selectTimelineReplay(events, null, true);
+      expect(initial.slides.length).assertEqual(3);
+      expect(initial.possibleGap).assertFalse();
+      // 游标存在则续播
+      const resumed = selectTimelineReplay(events, 'P1:1', false);
+      expect(resumed.slides.length).assertEqual(1);
+      expect(resumed.slides[0].sourceIndex).assertEqual(2);
+      expect(resumed.possibleGap).assertFalse();
+      // 游标缺失：只补最后一页并标记可能缺页
+      const gap = selectTimelineReplay(events, 'P9:9', false);
+      expect(gap.slides.length).assertEqual(1);
+      expect(gap.possibleGap).assertTrue();
+    });
+
+    it('resolveLiveSlideMatches', 0, () => {
+      const slides: RainSlide[] = [
+        { pageId: 'a', sourceIndex: 0, presentationId: 'P1', imageUrl: 'https://www.yuketang.cn/x/a.jpg' },
+        { pageId: 'b', sourceIndex: 1, presentationId: 'P1', imageUrl: 'https://www.yuketang.cn/x/b.jpg' }
+      ];
+      const byIndex = resolveRainLiveSlide({ presentationId: 'P1', sourceIndex: 1, pageId: null }, slides);
+      expect(byIndex.pageId).assertEqual('b');
+      const byPageId = resolveRainLiveSlide({ presentationId: 'P1', sourceIndex: null, pageId: 'a' }, slides);
+      expect(byPageId.sourceIndex).assertEqual(0);
+      let threw = false;
+      try {
+        resolveRainLiveSlide({ presentationId: 'P1', sourceIndex: 9, pageId: null }, slides);
+      } catch (e) {
+        threw = true;
+      }
+      expect(threw).assertTrue();
     });
   });
 }
