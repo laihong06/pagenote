@@ -1408,7 +1408,8 @@ struct ReaderPage {
         .width(this.isLandscape ? '0%' : '100%')
         .height(this.isLandscape ? '100%' : '0%')
         .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
-          height: SheetSize.FIT_CONTENT,
+          // FIT_CONTENT 实测会裁掉第三个输入框与按钮，改用固定半屏
+          height: SheetSize.MEDIUM,
           title: { title: 'AI 模型设置' }
         })
   }

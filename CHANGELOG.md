@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Verify the HarmonyOS AI call path end-to-end with a local OpenAI-compatible relay: model settings (base URL/key/model) persist, per-page explanation request reaches the relay over HTTP, and the response renders in the sheet. Also fix the AI settings sheet clipping its third input and action buttons (FIT_CONTENT → MEDIUM). / 鸿蒙 AI 调用链路完成本机中继验证：设置保存、按页讲解请求经 HTTP 到达中继、响应正常渲染；顺带修复 AI 设置弹层裁掉第三输入框与按钮的问题。
+
+- Fix saving notes on fresh empty pages on HarmonyOS:
+
 - Fix saving notes on fresh empty pages on HarmonyOS: `TextEncoder.encodeInto('')` can return undefined on device, crashing the revision path with "Cannot read property length of undefined" and silently failing every empty-page save. Empty input now returns the well-known SHA-256 constant without touching the encoder; verified on emulator that a new third page saves correctly. / 修复鸿蒙端空页笔记保存：设备上 encodeInto('') 返回 undefined 导致 revision 链崩溃、空页保存静默失败；空输入直接返回标准 SHA-256 常量，模拟器实测新增第三页保存成功。
 
 - Add HarmonyOS unit tests (`entry/src/test/List.test.ets`): ten Local Test cases covering page splitting/revision, manifest codec and validation, backup merge semantics, SM-2 scheduling, and Yuketang history/current-lesson normalization. Also fix empty-input SHA-256 returning a nonstandard digest on this platform (empty input now returns the well-known constant directly). `hvigor test` passes. / 鸿蒙端新增 10 个 Local Test 用例（分页/revision、manifest、备份合并、SM-2、雨课堂协议解析），并修复空输入 SHA-256 非标准摘要问题；hvigor test 通过。

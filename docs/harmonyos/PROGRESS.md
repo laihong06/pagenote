@@ -150,6 +150,12 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## AI 真实调用验证（2026-11-09，已提交）
+
+- 本机起 OpenAI 兼容中继（固定应答），模拟器经宿主机 LAN IP（10.158.13.125:3457）完成真实 HTTP 链路：AI 设置（BaseURL/Key/模型）→ 保存自动触发讲解 → 中继应答在讲解 sheet 正常渲染（截图 emulator-25）
+- 顺带修复真 bug：AI 设置 sheet 用 FIT_CONTENT 会裁掉第三个输入框与保存/清空按钮（无法完整配置）→ 改 SheetSize.MEDIUM
+- 中继为一次性验证工具，未入库；KNOWN_ISSUES 的"AI 真实调用"项已更新为已验证
+
 ## 最终全量回归（2026-11-09，已提交）
 
 最终构建在 MatePad 模拟器全链路复扫：书架 → 项目 → 空页写入保存（修复后）→ 编辑/预览切换 → 搜索 → 闪卡面板，全部正常（截图 emulator-23/24）。至此鸿蒙线在模拟器可验证范围内无任何已知未决缺陷。
