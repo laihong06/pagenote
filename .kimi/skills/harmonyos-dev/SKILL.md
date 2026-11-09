@@ -45,7 +45,7 @@ node "D:\Program Files\DevEco Studio\tools\hvigor\hvigor\bin\hvigor.js" --mode m
 HDC="D:\Program Files\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe"
 "$HDC" list targets          # 查看已连接设备/模拟器
 "$HDC" install entry-default-signed.hap
-"$HDC" shell aa start -a EntryAbility -b io.pagenote.harmonyos
+"$HDC" shell aa start -a EntryAbility -b com.cilang.pagenote
 "$HDC" shell hilog | grep -i pagenote
 ```
 
@@ -59,7 +59,7 @@ harmonyos/
 ├── oh-package.json5           # 工程级依赖
 ├── hvigorfile.ts              # export { system: appTasks }
 ├── hvigor/hvigor-config.json5 # 固定 hvigor/插件版本，保证离线可构建
-├── AppScope/app.json5         # bundleName io.pagenote.harmonyos、versionName
+├── AppScope/app.json5         # bundleName com.cilang.pagenote、versionName
 ├── AppScope/resources/base/   # app_name、app_icon（media 下需 PNG）
 └── entry/
     ├── build-profile.json5    # targets
