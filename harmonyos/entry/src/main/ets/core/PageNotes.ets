@@ -31,12 +31,12 @@ export class PageNotes {
   }
 
   static async sha256Hex(text: string): Promise<string> {
-    const bytes = new util.TextEncoder().encodeInto(text);
-    // 空数组会让 cryptoFramework update 报错（HCF DataBlob 校验），空串直接返回其定义上的摘要值
-    if (bytes.length === 0) {
+    // 空串直接返回其定义上的摘要值：设备上 encodeInto('') 可能返回 undefined（length 访问即崩溃）
+    if (text.length === 0) {
       return 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
     }
     const md = cryptoFramework.createMd('SHA256');
+    const bytes = new util.TextEncoder().encodeInto(text);
     await md.update({ data: bytes });
     const digest = await md.digest();
     let hex = '';

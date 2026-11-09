@@ -150,6 +150,13 @@ powershell -File harmonyos/setup-links.ps1   # 首次一次
 
 产物：`harmonyos/entry/build/default/outputs/default/entry-default-unsigned.hap`（未签名；装模拟器需在 DevEco 自动生成调试签名）。
 
+## 空页保存 bug 修复（2026-11-09，已提交）
+
+- 现象：向全新空页（第 3 页）写笔记保存失败，状态栏报 `Cannot read property length of undefined`，文件不落盘
+- 根因链：设备端 `TextEncoder.encodeInto('')` 返回 **undefined**（宿主 Node 环境返回空数组，故单测未暴露）→ `bytes.length` 崩溃。此前"空输入跳过 update"的修法也不对：不 update 时 digest 输出非标准值
+- 修复：`sha256Hex` 对空串直接返回定义摘要常量，不经编码器/cryptoFramework
+- 验证：重编后向第 3 页写入并保存成功，文件落盘，hvigor test 仍全过
+
 ## 核心层单元测试（2026-11-09，已提交）
 
 - `entry/src/test/List.test.ets`：10 个 Local Test 用例，覆盖 PageNotes 分页/revision、manifest 编解码与非法值拒绝、mergeBackup 合并语义、SM-2 排程四档、雨课堂历史 type=3/14 语义、LESSON_ON、当前课堂 status 过滤
