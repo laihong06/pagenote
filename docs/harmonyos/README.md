@@ -4,11 +4,11 @@ PageNote 的鸿蒙版是 **ArkTS／ArkUI 原生应用**（Stage 模型，平板�
 
 ## 下载与版本
 
-- 尚无公开下载；开发版本 **0.1.0-dev.1**，见 [独立版本配置](../../platforms/harmonyos/version.json)。
+- 尚无公开下载；开发版本 **0.2.0-dev.1**，见 [独立版本配置](../../platforms/harmonyos/version.json)。
 - 目标设备：**HarmonyOS 6 平板（兼容 API 20 起，编译 SDK 6.1.1 / API 24）**；deviceTypes 含 tablet、2in1。
 - 尚无获批稳定版与测试版发布；当前产物为未签名 debug HAP，仅供开发机验证。
 
-## 当前已实现（0.1.0-dev.1）
+## 当前已实现（0.2.0-dev.1）
 
 | 模块 | 说明 | 限制 |
 | --- | --- | --- |
