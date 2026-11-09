@@ -499,8 +499,7 @@ struct ReaderPage {
       this.getUIContext().getPromptAction().showToast({ message: '卡片正面不能为空' });
       return;
     }
-    const tags = this.cardTags.split(/[,，]/).map((t: string): string => t.trim())
-      .filter((t: string): boolean => t.length > 0 && t.length <= FlashcardCapture.MAX_TAG_LENGTH);
+    const tags = FlashcardCapture.normalizeTags(this.cardTags);
     try {
       // 优先按选区/段落捕获锚点；本页无可用内容时允许纯手工卡（无来源锚点）
       let draft: FlashcardDraft;

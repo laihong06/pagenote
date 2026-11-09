@@ -2,7 +2,7 @@ import { describe, it, expect } from '@ohos/hypium';
 import { PageNotes } from '../main/ets/core/PageNotes';
 import { ProjectManifestCodec, ProjectManifest } from '../main/ets/core/ProjectManifest';
 import { NoteTransfer } from '../main/ets/core/NoteTransfer';
-import { ReviewScheduler, FlashcardStore, FlashcardItem } from '../main/ets/core/Flashcards';
+import { ReviewScheduler, FlashcardStore, FlashcardItem, FlashcardCapture } from '../main/ets/core/Flashcards';
 import { normalizeHistoryLessons, rainObjectData, normalizeCurrentLessons,
   normalizeLiveMessage, selectTimelineReplay, resolveRainLiveSlide, rainLiveEventKey,
   RainSlide } from '../main/ets/core/RainProtocol';
@@ -160,6 +160,20 @@ export default function coreTest(): void {
       expect(due.length).assertEqual(2);
       expect(due[0].id).assertEqual('due-early');
       expect(due[1].id).assertEqual('due-late');
+    });
+
+    it('flashcardNormalizeTags', 0, () => {
+      // 与 Android FlashcardCapture.normalizeTags 契约一致：
+      // 中英文逗号/顿号/分号/换行切分、trim、去重、丢弃超长、截断 12 个；空格不是切分符
+      const tags = FlashcardCapture.normalizeTags(' 高数 , 第一章、高数；;习题 集\n' + 'x'.repeat(33) + '\r,期末');
+      expect(tags.length).assertEqual(4);
+      expect(tags[0]).assertEqual('高数');
+      expect(tags[1]).assertEqual('第一章');
+      expect(tags[2]).assertEqual('习题 集');
+      expect(tags[3]).assertEqual('期末');
+      const many = FlashcardCapture.normalizeTags('a,b,c,d,e,f,g,h,i,j,k,l,m,n');
+      expect(many.length).assertEqual(FlashcardCapture.MAX_TAGS);
+      expect(FlashcardCapture.normalizeTags('').length).assertEqual(0);
     });
 
     it('noteTransferIsBackupJson', 0, () => {

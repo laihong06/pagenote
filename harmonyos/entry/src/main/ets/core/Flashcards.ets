@@ -182,6 +182,26 @@ export class FlashcardCapture {
         return draft;
       });
   }
+
+  /** 标签输入规范化：按中英文逗号/顿号/分号/换行切分，trim、去重、丢弃超长项，
+   * 超出 MAX_TAGS 时截断；切分符不含空格，与 Android FlashcardCapture.normalizeTags 一致。 */
+  static normalizeTags(raw: string): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    const parts = raw.split(/[,，、;；\n\r]/);
+    for (const part of parts) {
+      const tag = part.trim();
+      if (tag.length === 0 || tag.length > FlashcardCapture.MAX_TAG_LENGTH || seen.has(tag)) {
+        continue;
+      }
+      seen.add(tag);
+      result.push(tag);
+      if (result.length >= FlashcardCapture.MAX_TAGS) {
+        break;
+      }
+    }
+    return result;
+  }
 }
 
 export interface FlashcardDraft {
