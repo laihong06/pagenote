@@ -394,8 +394,34 @@ export struct PdfFlowPane {
     .onAreaChange((oldValue: Area, newValue: Area) => {
       const wVp: number = px2vp(Number(newValue.width));
       if (Math.abs(wVp - this.paneWidthVp) > 0.5) {
+        const hadContent: boolean = this.paneWidthVp > 0 && this.windowInitialized;
         this.paneWidthVp = wVp;
         this.recomputeTops();
+        if (hadContent) {
+          // 栏宽变化（旋转/分屏）：旧位图宽高比失效，ImageFit.Fill 会把它们拉伸变形——
+          // 整窗释放重渲，并重新定位到当前页（tops 已按新宽重算）
+          this.bitmaps.forEach((pm: image.PixelMap) => {
+            try {
+              pm.release();
+            } catch (e) {
+              // 已释放的像素图忽略
+            }
+          });
+          this.bitmaps.clear();
+          this.renderQueued.clear();
+          this.bitmapVersion += 1;
+          this.ensureWindow(this.lastReportedPage - 1);
+          this.suppressReportUntil = Date.now() + SUPPRESS_MS;
+          setTimeout(() => {
+            if (!this.disposed) {
+              this.scroller.scrollTo({
+                xOffset: 0,
+                yOffset: this.pageTopVp(this.lastReportedPage - 1),
+                animation: false
+              });
+            }
+          }, 30);
+        }
         this.initWindowOnce();
       }
     })
