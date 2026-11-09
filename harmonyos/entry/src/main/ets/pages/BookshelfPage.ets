@@ -6,6 +6,7 @@ import { RainClient, RainLoginState, RainLiveState } from '../core/RainClient';
 import { RainCourse, RainLesson, RainSlideImage, RainCurrentLesson } from '../core/RainProtocol';
 import { RainProjectWriter } from '../core/RainProjectWriter';
 import { IconButton } from '../components/IconButton';
+import { UiTheme } from '../components/UiTheme';
 
 /**
  * 书架页：列出沙箱项目库中的全部项目，支持新建项目与导入文档建项目。
@@ -335,12 +336,28 @@ struct BookshelfPage {
     }
   }
 
+  /** ISO 时间戳（2026-11-04T10:17:36.350Z）格式化成阅读友好的 2026-11-04 10:17。 */
+  private formatModified(iso: string | null): string {
+    if (iso === null || iso.length < 16) {
+      return '';
+    }
+    return iso.replace('T', ' ').substring(0, 16);
+  }
+
   build() {
     Column() {
       Row() {
-        Text('PageNote 书架')
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
+        Column() {
+          Text('PageNote')
+            .fontSize(28)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(UiTheme.INK)
+          Text(this.projects.length > 0 ? `${this.projects.length} 个项目` : '逐页笔记')
+            .fontSize(13)
+            .fontColor(UiTheme.INK_WEAK)
+            .margin({ top: 2 })
+        }
+        .alignItems(HorizontalAlign.Start)
         Blank()
         IconButton({
           symbol: $r('sys.symbol.auditorium'), label: '雨课堂',
@@ -357,7 +374,7 @@ struct BookshelfPage {
           .margin({ left: 12 })
         IconButton({
           symbol: $r('sys.symbol.plus'), label: '新建项目',
-          active: true,
+          filled: true, active: true,
           onTap: () => {
             this.newProjectName = '';
             this.showCreateDialog = true;
@@ -366,9 +383,9 @@ struct BookshelfPage {
           .margin({ left: 12 })
       }
       .width('100%')
-      .padding(16)
+      .padding({ left: 20, right: 20, top: 16, bottom: 12 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor('#FAFAFA')
+      .backgroundColor(UiTheme.PAGE_BG)
       // 标题栏背景延伸至状态栏区域，避免沉浸式下出现色带
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       // 同节点多 bindSheet 会全部失效，雨课堂面板挂到标题栏节点
@@ -379,12 +396,17 @@ struct BookshelfPage {
 
       if (this.projects.length === 0) {
         Column() {
+          SymbolGlyph($r('sys.symbol.book'))
+            .fontSize(64)
+            .fontColor(['#C9CDD4'])
           Text('还没有项目')
             .fontSize(18)
-            .fontColor('#666666')
+            .fontWeight(FontWeight.Medium)
+            .fontColor(UiTheme.INK_SECONDARY)
+            .margin({ top: 20 })
           Text('新建项目，或导入 PDF / Markdown 文档开始逐页笔记')
             .fontSize(14)
-            .fontColor('#999999')
+            .fontColor(UiTheme.INK_WEAK)
             .margin({ top: 8 })
         }
         .layoutWeight(1)
@@ -396,20 +418,23 @@ struct BookshelfPage {
             ListItem() {
               Row() {
                 Text(item.kind === 'pdf' ? 'PDF' : 'MD')
-                  .fontSize(12)
+                  .fontSize(11)
+                  .fontWeight(FontWeight.Medium)
                   .fontColor('#FFFFFF')
-                  .backgroundColor(item.kind === 'pdf' ? '#2263EB' : '#0E9F6E')
-                  .borderRadius(4)
-                  .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                  .backgroundColor(item.kind === 'pdf' ? UiTheme.PRIMARY : '#0E9F6E')
+                  .borderRadius(6)
+                  .padding({ left: 7, right: 7, top: 2, bottom: 2 })
                 Column() {
                   Text(item.name)
-                    .fontSize(18)
+                    .fontSize(17)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(UiTheme.INK)
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  Text(item.modified ?? '')
+                  Text(this.formatModified(item.modified))
                     .fontSize(12)
-                    .fontColor('#999999')
-                    .margin({ top: 4 })
+                    .fontColor(UiTheme.INK_WEAK)
+                    .margin({ top: 6 })
                 }
                 .alignItems(HorizontalAlign.Start)
                 .margin({ left: 12 })
@@ -418,7 +443,12 @@ struct BookshelfPage {
               .width('100%')
               .padding(16)
               .alignItems(VerticalAlign.Center)
+              .backgroundColor(UiTheme.CARD_BG)
+              .borderRadius(UiTheme.RADIUS_CARD)
+              .shadow(UiTheme.cardShadow())
             }
+            .margin({ left: 20, right: 20, top: 5, bottom: 5 })
+            .borderRadius(UiTheme.RADIUS_CARD)
             .hoverEffect(HoverEffect.Highlight)
             .onClick(() => {
               this.getUIContext().getRouter().pushUrl({ url: 'pages/ReaderPage', params: { dir: item.dir } });
@@ -430,12 +460,11 @@ struct BookshelfPage {
         // 重复布局：书架列数随横向断点递增（基线 1 列 → md 2 列 → lg/xl 3 列）
         .lanes(this.widthBp >= WidthBreakpoint.WIDTH_LG ? 3 :
           this.widthBp >= WidthBreakpoint.WIDTH_MD ? 2 : 1)
-        .divider({ strokeWidth: 0.5, color: '#E5E5E5' })
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#FAFAFA')
+    .backgroundColor(UiTheme.PAGE_BG)
     .bindSheet($$this.showCreateDialog, this.createDialogBuilder(), {
       height: SheetSize.FIT_CONTENT,
       title: { title: '新建项目' }

@@ -14,6 +14,7 @@ import { MarkdownView } from '../components/MarkdownView';
 import { InkCanvas } from '../components/InkCanvas';
 import { cnTypographyAvailable, CnTextAreaTypography } from '../components/CnTypography';
 import { IconButton } from '../components/IconButton';
+import { UiTheme } from '../components/UiTheme';
 
 interface ReaderParams {
   dir: string;
@@ -800,7 +801,7 @@ struct ReaderPage {
           .margin({ left: 12 })
         IconButton({
           symbol: $r('sys.symbol.moon'), label: this.nightMode ? '关闭夜览' : '夜览',
-          active: this.nightMode, activeColor: '#B45309',
+          active: this.nightMode, activeColor: '#B45309', activeSoftColor: '#FBF0E2',
           onTap: () => {
             this.nightMode = !this.nightMode;
           }
@@ -815,9 +816,10 @@ struct ReaderPage {
           .margin({ left: 8 })
       }
       .width('100%')
-      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+      .padding({ left: 16, right: 16, top: 10, bottom: 10 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor('#FAFAFA')
+      .backgroundColor(UiTheme.CARD_BG)
+      .border({ width: { bottom: 0.5 }, color: UiTheme.HAIRLINE })
       // 工具栏背景延伸至状态栏区域
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
       // 同一节点挂多个 bindSheet 会导致全部失效（API 24 实测），每个 sheet 挂不同节点
@@ -855,10 +857,11 @@ struct ReaderPage {
             Button(spec.label)
               .fontSize(12)
               .height(28)
-              .padding({ left: 6, right: 6 })
+              .padding({ left: 8, right: 8 })
               .margin({ left: 6 })
-              .backgroundColor(this.inkWidth === spec.value ? '#B45309' : '#EEEEEE')
-              .fontColor(this.inkWidth === spec.value ? '#FFFFFF' : '#333333')
+              .borderRadius(8)
+              .backgroundColor(this.inkWidth === spec.value ? '#FBF0E2' : '#00000000')
+              .fontColor(this.inkWidth === spec.value ? '#B45309' : '#4A4F55')
               .onClick(() => {
                 this.inkWidth = spec.value;
               })
@@ -879,8 +882,10 @@ struct ReaderPage {
             .margin({ left: 8 })
         }
         .width('100%')
-        .padding({ left: 16, right: 16, bottom: 6 })
+        .padding({ left: 16, right: 16, top: 6, bottom: 6 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(UiTheme.CARD_BG)
+        .border({ width: { bottom: 0.5 }, color: UiTheme.HAIRLINE })
       }
 
       // 文字批注输入行：内嵌在页面里（sheet 会被软键盘顶掉，实测）
@@ -918,8 +923,10 @@ struct ReaderPage {
             })
         }
         .width('100%')
-        .padding({ left: 16, right: 16, bottom: 6 })
+        .padding({ left: 16, right: 16, top: 6, bottom: 6 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(UiTheme.CARD_BG)
+        .border({ width: { bottom: 0.5 }, color: UiTheme.HAIRLINE })
       }
 
       Stack() {
@@ -967,7 +974,7 @@ struct ReaderPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#FAFAFA')
+    .backgroundColor(UiTheme.PAGE_BG)
     // 2in1/外接键盘快捷键：Ctrl+S 保存当前页，Ctrl+F 打开搜索
     .keyboardShortcut('S', [ModifierKey.CTRL], () => {
       this.saveCurrentPage().catch(() => {});
@@ -1351,7 +1358,7 @@ struct ReaderPage {
               .margin({ left: 8 })
             IconButton({
               symbol: $r('sys.symbol.square_and_arrow_down_1'), label: '保存',
-              active: true, showDot: this.dirty,
+              filled: true, active: true, showDot: this.dirty,
               onTap: () => {
                 this.saveCurrentPage();
               }
@@ -1359,8 +1366,11 @@ struct ReaderPage {
               .margin({ left: 8 })
           }
           .width('100%')
-          .padding(8)
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .margin({ left: 12, right: 12, top: 12, bottom: 8 })
           .alignItems(VerticalAlign.Center)
+          .backgroundColor(UiTheme.PAGE_BG)
+          .borderRadius(22)
           .bindSheet($$this.showAiAction, this.aiActionBuilder(), {
             height: SheetSize.LARGE,
             title: { title: '选区 AI 动作' }
@@ -1373,11 +1383,12 @@ struct ReaderPage {
             })
               .layoutWeight(1)
               .width('100%')
+              .padding({ left: 16, right: 16, bottom: 16 })
           } else {
             TextArea({ placeholder: '这一页的笔记，Markdown 格式', text: this.note })
               .layoutWeight(1)
               .width('100%')
-              .padding(8)
+              .padding({ left: 16, right: 16, top: 8, bottom: 8 })
               .fontSize(15)
               .textAlign(TextAlign.Start)
               // 中文排版优化（API 26+）：避孤字 + 标点悬挂；低版本运行时无此方法，只能条件挂载
@@ -1395,14 +1406,19 @@ struct ReaderPage {
           if (this.statusText.length > 0) {
             Text(this.statusText)
               .fontSize(12)
-              .fontColor('#999999')
-              .padding(8)
+              .fontColor(UiTheme.INK_WEAK)
+              .padding({ left: 16, right: 16, bottom: 10 })
               .width('100%')
           }
         }
         .layoutWeight(1)
         .width(this.isLandscape ? '0%' : '100%')
         .height(this.isLandscape ? '100%' : '0%')
+        .backgroundColor(UiTheme.CARD_BG)
+        .borderRadius(UiTheme.RADIUS_CARD)
+        .shadow(UiTheme.cardShadow())
+        .margin(this.isLandscape ? { left: 8, right: 16, top: 8, bottom: 16 } :
+          { left: 16, right: 16, top: 8, bottom: 16 })
         .bindSheet($$this.showAiSettings, this.aiSettingsBuilder(), {
           // FIT_CONTENT 实测会裁掉第三个输入框与按钮，改用固定半屏
           height: SheetSize.MEDIUM,
@@ -1476,8 +1492,12 @@ struct ReaderPage {
     .layoutWeight(1)
     .width(this.isLandscape ? '0%' : '100%')
     .height(this.isLandscape ? '100%' : '0%')
-    .backgroundColor('#FFFFFF')
-    .border(this.isLandscape ? { width: { right: 0.5 }, color: '#E0E0E0' } : { width: { bottom: 0.5 }, color: '#E0E0E0' })
+    .backgroundColor(UiTheme.CARD_BG)
+    .borderRadius(UiTheme.RADIUS_CARD)
+    .clip(true)
+    .shadow(UiTheme.cardShadow())
+    .margin(this.isLandscape ? { left: 16, right: 8, top: 8, bottom: 16 } :
+      { left: 16, right: 16, top: 8, bottom: 8 })
     .bindSheet($$this.showAiResult, this.aiResultBuilder(), {
       height: SheetSize.LARGE,
       title: { title: `第 ${this.currentPage} 页讲解` }

@@ -1,6 +1,9 @@
+import { UiTheme } from './UiTheme';
+
 /**
  * 图标按钮：华为系统符号（SymbolGlyph + $r('sys.symbol.*')）替代文字按钮。
- * 灰底常态 / 彩底激活态；label 仅作无障碍朗读文本，不显示；showDot 用于脏标记角标。
+ * 常态透明底，悬停浅灰底并浮出文字气泡；激活态浅彩底 + 彩色图标；
+ * filled 为实心主按钮（保存/新建项目等）。label 仅作无障碍朗读与悬停气泡文本。
  * 符号名以华为 HarmonyOS Symbol 官方图标库为准（developer.huawei.com/consumer/cn/design/harmonyos-symbol）。
  */
 @Component
@@ -9,25 +12,41 @@ export struct IconButton {
   label: string = '';
   // 父组件运行期切换的参数必须是 @Prop，否则只在创建时赋值一次（激活态/禁用态/角标会冻结）
   @Prop active: boolean = false;
-  @Prop activeColor: string = '#2263EB';
+  @Prop activeColor: string = UiTheme.PRIMARY;
+  @Prop activeSoftColor: string = UiTheme.PRIMARY_SOFT;
+  @Prop filled: boolean = false;
   @Prop showDot: boolean = false;
   @Prop enabledState: boolean = true;
   onTap: () => void = () => {};
   @State private hovering: boolean = false;
 
+  private bgColor(): string {
+    if (this.active) {
+      return this.filled ? this.activeColor : this.activeSoftColor;
+    }
+    return this.hovering ? '#14000000' : '#00000000';
+  }
+
+  private iconColor(): string {
+    if (this.active) {
+      return this.filled ? '#FFFFFF' : this.activeColor;
+    }
+    return '#4A4F55';
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopEnd }) {
       Button() {
         SymbolGlyph(this.symbol)
-          .fontSize(18)
-          .fontColor([this.active ? '#FFFFFF' : '#333333'])
+          .fontSize(20)
+          .fontColor([this.iconColor()])
       }
       .type(ButtonType.Normal)
-      .width(36)
-      .height(30)
-      .borderRadius(8)
-      .backgroundColor(this.active ? this.activeColor : '#EEEEEE')
-      .opacity(this.enabledState ? 1.0 : 0.4)
+      .width(40)
+      .height(36)
+      .borderRadius(UiTheme.RADIUS_CONTROL)
+      .backgroundColor(this.bgColor())
+      .opacity(this.enabledState ? 1.0 : 0.35)
       .enabled(this.enabledState)
       .accessibilityText(this.label)
       .onClick(() => {
@@ -43,7 +62,7 @@ export struct IconButton {
           .height(8)
           .borderRadius(4)
           .backgroundColor('#FF8800')
-          .offset({ x: -3, y: 3 })
+          .offset({ x: -4, y: 4 })
       }
 
       // 悬停文字提示：不用 bindPopup（会被点击连带触发），自定义气泡只在鼠标/手写笔悬停时浮现；
@@ -52,10 +71,10 @@ export struct IconButton {
         Text(this.label)
           .fontSize(11)
           .fontColor('#FFFFFF')
-          .backgroundColor('#CC333333')
-          .borderRadius(4)
-          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-          .offset({ x: -9, y: 34 })
+          .backgroundColor('#E6333333')
+          .borderRadius(6)
+          .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+          .offset({ x: -11, y: 40 })
           .hitTestBehavior(HitTestMode.None)
           .transition(TransitionEffect.OPACITY.animation({ duration: 150 }))
       }
