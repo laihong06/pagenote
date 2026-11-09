@@ -181,7 +181,8 @@ function parseBlocks(markdown: string): MdBlock[] {
 
 @Component
 export struct MarkdownView {
-  content: string = '';
+  // 运行期换页/编辑会更新内容，必须 @Prop 才会重解析（普通成员只在创建时赋值一次）
+  @Prop @Watch('onContentChange') content: string = '';
   /** 把笔记里的相对图片路径（如 assets/x.png）解析为可加载的沙箱绝对路径；返回空串表示不可渲染。 */
   resolveImage: (src: string) => string = () => '';
   @State private blocks: MdBlock[] = [];
@@ -195,6 +196,10 @@ export struct MarkdownView {
   // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器
   private cnTypographyMod: AttributeModifier<TextAttribute> | undefined =
     cnTypographyAvailable() ? new CnTextTypography() : undefined;
+
+  private onContentChange(): void {
+    this.blocks = parseBlocks(this.content);
+  }
 
   aboutToAppear(): void {
     this.blocks = parseBlocks(this.content);

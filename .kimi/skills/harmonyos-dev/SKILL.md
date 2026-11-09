@@ -147,7 +147,14 @@ harmonyos/
 - **组件内禁止用 `get` 计算属性**：`private get isDark()` 在 build 中返回 undefined（值明明已到组件），改普通方法立即正常——ArkUI struct 转换对 getter 不可靠。
 - 深色下三件事别漏：① Text/TextArea 不设 fontColor 时系统默认色不跟应用色板（本镜像恒深色文字），正文一律显式给色；② `setWindowSystemBarProperties` 把状态栏/导航条内容色随主题反转；③ 页面背景 `expandSafeArea(BOTTOM)`，否则底部导航条区域留白边。
 
-## 13. 测试与验证纪律（项目要求）
+## 13. API 26 适配要点（2026-11-09 实测）
+
+- `targetSdkVersion` 格式是语义化版本号 `"26.0.0"`（不是 `"7.0.0(26)"` 也不是 `"26.0.0(26)"`）。
+- 沉浸材质（液态玻璃）：module.json5 `metadata` 加 `{"name": "ohos.arkui.UIMaterial.state", "value": "enable"}`，弹层/对话框/Toast 自动生效；`uiMaterial.getMaterialInfo()` 可读当前状态。
+- **`systemMaterial` 作用域**：仅弹层类组件/接口、Slider/Toggle/Select、Navigation 标题栏、BarPosition.End 底部 TabBar 生效；内容区普通容器设置了也无效（日志 `Material inactive: out of scope`）——不要给页面内 Row/Column 挂材质。
+- API 26 模拟器镜像同样**没有 PDF Kit**；首跑会弹小艺输入法隐私向导（先点同意+下一步，否则键盘类自动化全被拦）。
+
+## 14. 测试与验证纪律（项目要求）
 
 - 不宣称未执行的验证。模拟器/真机截图只能来自鸿蒙端实际运行。
 - 每次推送必须更新根 `CHANGELOG.md`（Unreleased 段）。

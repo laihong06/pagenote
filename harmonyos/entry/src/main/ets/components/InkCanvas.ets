@@ -131,6 +131,21 @@ export struct InkCanvas {
     return this.tool === 'line' || this.tool === 'rect' || this.tool === 'ellipse';
   }
 
+  /** 绘制笔迹的一段（增量路径用，样式与 drawItem 的 pen/highlight 一致）。 */
+  private strokeSegment(x1: number, y1: number, x2: number, y2: number): void {
+    const ctx = this.canvas;
+    ctx.strokeStyle = this.penColor;
+    ctx.lineWidth = Math.max(1, this.penWidth / this.scaleX());
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = this.tool === 'highlight' ? 0.35 : 1.0;
+    ctx.beginPath();
+    ctx.moveTo(this.toCanvasX(x1), this.toCanvasY(y1));
+    ctx.lineTo(this.toCanvasX(x2), this.toCanvasY(y2));
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+  }
+
   private commitShape(): void {
     if (this.shapeStart === null || this.shapeEnd === null) {
       return;
@@ -181,12 +196,8 @@ export struct InkCanvas {
             return;
           }
           this.current = [[x, y]];
-          const item: AnnotationItem = {
-            type: this.tool === 'highlight' ? 'highlight' : 'pen',
-            color: this.penColor, width: this.penWidth, points: this.current
-          };
-          this.items = [...this.items, item];
-          this.repaint();
+          // 增量画首点（单笔迹过程不全量 repaint，抬笔时才入 items 触发一次重绘）
+          this.strokeSegment(x, y, x + 0.1, y + 0.1);
         } else if (event.type === TouchType.Move) {
           if (this.isShapeTool() && this.shapeStart !== null) {
             this.shapeEnd = [x, y];
@@ -200,8 +211,9 @@ export struct InkCanvas {
                 this.strokeMaxPressure = p;
               }
             }
+            const prev = this.current[this.current.length - 1];
             this.current.push([x, y]);
-            this.repaint();
+            this.strokeSegment(prev[0], prev[1], x, y);
           }
         } else if (event.type === TouchType.Up) {
           if (this.isShapeTool()) {
@@ -211,19 +223,20 @@ export struct InkCanvas {
           }
           if (this.current.length > 0) {
             // 手写笔：按本次笔迹最大压力调制线宽（0.6x~1.6x），手指/鼠标不调制
-            if (this.strokeIsPen && this.strokeMaxPressure > 0 && this.items.length > 0) {
-              const last = this.items[this.items.length - 1];
+            let width = this.penWidth;
+            if (this.strokeIsPen && this.strokeMaxPressure > 0) {
               const factor = 0.6 + this.strokeMaxPressure;
-              const adjusted: AnnotationItem = {
-                type: last.type, color: last.color,
-                width: Math.min(this.penWidth * 1.6, Math.max(1, Math.round(this.penWidth * factor))),
-                points: last.points
-              };
-              this.items = [...this.items.slice(0, this.items.length - 1), adjusted];
+              width = Math.min(this.penWidth * 1.6, Math.max(1, Math.round(this.penWidth * factor)));
             }
+            const item: AnnotationItem = {
+              type: this.tool === 'highlight' ? 'highlight' : 'pen',
+              color: this.penColor, width: width, points: this.current
+            };
+            this.items = [...this.items, item];
             this.current = [];
             this.strokeIsPen = false;
             this.strokeMaxPressure = 0;
+            // items 重赋值经 @Watch 触发一次全量重绘（压感调制后的线宽在这步对齐）
             this.onChange(this.items);
           }
         }

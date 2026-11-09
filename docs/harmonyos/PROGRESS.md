@@ -254,6 +254,15 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **默认颜色文字黑压黑**：TextArea/Text 不设 fontColor 时用系统默认色（在本镜像上恒为深色文字），深色下不可读——笔记编辑器、原文、页码、项目名、闪卡复习/卡片库、AI 结果、雨课堂账号/课堂行全部补显式色板颜色
 - **验证**：模拟器上不重启应用完成 浅→深→浅 往返（截图 emulator-30/31 已更新为真实系统切换版本），状态栏同步反转；单测 16/16
 
+## API 26 综合优化批（2026-11-09 晚，已提交）
+
+- **主目标 API 26**：`targetSdkVersion: "26.0.0"`（注意格式是语义化版本号，`"7.0.0(26)"`/`"26.0.0(26)"` 都会被拒）；版本升 0.3.0-dev.1（versionCode 3）；compatibleSdk 保持 6.0.0(20)，新特性继续条件挂载
+- **沉浸光感/液态玻璃**：module.json5 加 `metadata ohos.arkui.UIMaterial.state=enable`——API 26 设备上 bindSheet/Dialog/Toast 自动液态玻璃（截图 emulator-32 浮动磨砂弹层）。**作用域教训**：`systemMaterial` 对内容区普通容器不生效（官方日志 `Material inactive: out of scope`；仅弹层/系统组件、Navigation 标题栏、BarPosition.End 的底部 TabBar 在作用域内），尝试给笔记工具条挂材质被证实无效后回退，组件改悬浮覆盖布局（Stack，内容 top:64 留白，玻璃感留给系统弹层）
+- **InkCanvas 性能**：笔迹绘制改增量渲染——Down/Move 只画最新线段，不再每个移动点全量 repaint（原 O(笔迹×点数)）；抬笔时一次入 items 触发全量重绘对齐压感线宽
+- **MarkdownView 正确性**：content 改 @Prop+@Watch，预览随翻页/编辑重解析（普通成员只在创建时赋值一次的同型陷阱）
+- **API 26 模拟器（MatePad Pro 13 API26，127.0.0.1:5557）**：装机、新建项目、阅读、批注（增量路径）、液态玻璃弹层逐项实测；镜像同样无 PDF Kit（PdfView 验证仍需真机）；新模拟器首跑有小艺输入法隐私向导需先点掉
+- **API 24 回归**：同包安装，书架/阅读/弹层/批注无退化；单测 16/16
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

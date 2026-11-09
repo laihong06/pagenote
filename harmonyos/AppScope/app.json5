@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "io.pagenote.harmonyos",
     "vendor": "pagenote",
-    "versionCode": 2,
-    "versionName": "0.2.0-dev.1",
+    "versionCode": 3,
+    "versionName": "0.3.0-dev.1",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }

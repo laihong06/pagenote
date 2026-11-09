@@ -1301,8 +1301,48 @@ struct ReaderPage {
 
   @Builder
   rightPane() {
-        // 右侧：逐页笔记
-        Column() {
+        // 右侧：逐页笔记；工具条浮动在内容上方（液态玻璃模糊下层滚动文字）
+        Stack({ alignContent: Alignment.Top }) {
+          Column() {
+          if (this.previewMode) {
+            MarkdownView({
+              content: this.note,
+              resolveImage: (src: string): string => this.resolveAsset(src)
+            })
+              .layoutWeight(1)
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 64, bottom: 16 })
+          } else {
+            TextArea({ placeholder: '这一页的笔记，Markdown 格式', text: this.note })
+              .layoutWeight(1)
+              .width('100%')
+              .padding({ left: 16, right: 16, top: 64, bottom: 8 })
+              .fontSize(15)
+              .fontColor(UiTheme.ink(this.isDarkMode()))
+              .textAlign(TextAlign.Start)
+              // 中文排版优化（API 26+）：避孤字 + 标点悬挂；低版本运行时无此方法，只能条件挂载
+              .attributeModifier(this.cnTypographyMod)
+              .onChange((value: string) => {
+                this.note = value;
+                this.dirty = true;
+              })
+              .onTextSelectionChange((selectionStart: number, selectionEnd: number) => {
+                this.selStart = selectionStart;
+                this.selEnd = selectionEnd;
+              })
+          }
+
+          if (this.statusText.length > 0) {
+            Text(this.statusText)
+              .fontSize(12)
+              .fontColor(UiTheme.ink3(this.isDarkMode()))
+              .padding({ left: 16, right: 16, bottom: 10 })
+              .width('100%')
+          }
+          }
+          .width('100%')
+          .height('100%')
+
           Row() {
             IconButton({
               symbol: $r('sys.symbol.chevron_left'), label: '上一页',
@@ -1389,48 +1429,13 @@ struct ReaderPage {
             height: SheetSize.LARGE,
             title: { title: '选区 AI 动作' }
           })
-
-          if (this.previewMode) {
-            MarkdownView({
-              content: this.note,
-              resolveImage: (src: string): string => this.resolveAsset(src)
-            })
-              .layoutWeight(1)
-              .width('100%')
-              .padding({ left: 16, right: 16, bottom: 16 })
-          } else {
-            TextArea({ placeholder: '这一页的笔记，Markdown 格式', text: this.note })
-              .layoutWeight(1)
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-              .fontSize(15)
-              .fontColor(UiTheme.ink(this.isDarkMode()))
-              .textAlign(TextAlign.Start)
-              // 中文排版优化（API 26+）：避孤字 + 标点悬挂；低版本运行时无此方法，只能条件挂载
-              .attributeModifier(this.cnTypographyMod)
-              .onChange((value: string) => {
-                this.note = value;
-                this.dirty = true;
-              })
-              .onTextSelectionChange((selectionStart: number, selectionEnd: number) => {
-                this.selStart = selectionStart;
-                this.selEnd = selectionEnd;
-              })
-          }
-
-          if (this.statusText.length > 0) {
-            Text(this.statusText)
-              .fontSize(12)
-              .fontColor(UiTheme.ink3(this.isDarkMode()))
-              .padding({ left: 16, right: 16, bottom: 10 })
-              .width('100%')
-          }
         }
         .layoutWeight(1)
         .width(this.isLandscape ? '0%' : '100%')
         .height(this.isLandscape ? '100%' : '0%')
         .backgroundColor(UiTheme.cardBg(this.isDarkMode()))
         .borderRadius(UiTheme.RADIUS_CARD)
+        .clip(true)
         .shadow(UiTheme.cardShadow(this.isDarkMode()))
         .margin(this.isLandscape ? { left: 8, right: 16, top: 8, bottom: 16 } :
           { left: 16, right: 16, top: 8, bottom: 16 })
