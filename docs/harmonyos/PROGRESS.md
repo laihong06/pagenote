@@ -211,6 +211,13 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **手写笔压感**（INPUT-04）：InkCanvas 笔/荧光笔迹按一次笔迹的最大压力调制线宽（0.6x~1.6x，仅 sourceTool=Pen 时生效，手指/鼠标保持原宽）；存储仍是契约 width 数值，跨端互通无损；模拟器无笔，压力曲线本身未验证（编译+逻辑确认）
 - **分屏声明**（SPEC-10 P0）：module.json5 声明 supportWindowMode fullscreen+split
 
+## API 26 新特性首批：中文排版（2026-11-09，已提交）
+
+- 调研 API 25/26 相对 24 的新增（SDK d.ts @since 标注 + 官方发布说明）：API 25 无 ArkUI 组件变更；API 26 可用项中 systemMaterial 材质为系统 API（三方不可见）、List/Grid enableEditMode 无场景，选定 **Text/TextArea 的 orphanCharOptimization（避孤字）+ punctuationOverflow（标点悬挂）**，应用于笔记编辑器与 Markdown 预览段落
+- **真实崩溃教训**：新属性方法在 API 24 运行时直接 TypeError（jscrash 日志为证），不是静默忽略；最终方案为 `CnTypography.ets` 的 AttributeModifier 条件挂载 + `typeof deviceInfo.apiAvailable` 防御 + 修饰器内 if 语句级守卫（兼容告警清零）
+- API 24 模拟器实测：编辑器/预览正常渲染、无新崩溃日志；排版效果本身需 API 26 设备验收
+- 经验已沉淀至 `.kimi/skills/harmonyos-dev/SKILL.md` 第 11 节
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

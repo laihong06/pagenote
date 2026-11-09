@@ -132,7 +132,14 @@ harmonyos/
 - 本机 npm 全局 `@deveco/deveco-code` 提供 `npx -y @deveco-codegenie/mcp@beta`（stdio MCP，工具含 check_ets_files / build_project / perform_ui_action 等）；LSP 首次调用需预热，同进程内重试。
 - 全量检查目标：deprecatedSymbol（6387）与 unusedSymbol（6133）诊断清零；addTryCatch 等风格类提示不做强制。
 
-## 11. 测试与验证纪律（项目要求）
+## 11. 高版本 API 的兼容挂载（API 24 实测崩溃教训）
+
+- **ArkUI 新属性方法在低版本运行时不是静默忽略，而是直接 TypeError 崩溃**（"undefined is not callable"，JS 侧 View 类没有该方法）。compatibleSdkVersion 低于属性 @since 时，禁止直接链式调用——这也是当初 Circle().fill 改圆角 Stack 的原因。
+- 正确做法：**AttributeModifier 条件挂载**。修饰器类内调新属性，组件侧 `cnTypographyAvailable() ? new XxxModifier() : undefined`；可用性判断用 `typeof deviceInfo.apiAvailable === 'function' && deviceInfo.apiAvailable('26.0.0')`（apiAvailable 本身 @since 26，必须 typeof 防御，try/catch 兜底）。
+- 消除 hvigor 兼容告警：修饰器方法内用 `if (deviceInfo.apiAvailable('26.0.0'))` 语句级守卫（编译器 api_check 只认 if 语句守卫，不认三元表达式）；裸 `apiAvailable` 不是全局函数，要走 `deviceInfo.apiAvailable`。
+- 现成实现：`entry/src/main/ets/components/CnTypography.ets`（Text/TextArea 中文排版修饰器）。
+
+## 12. 测试与验证纪律（项目要求）
 
 - 不宣称未执行的验证。模拟器/真机截图只能来自鸿蒙端实际运行。
 - 每次推送必须更新根 `CHANGELOG.md`（Unreleased 段）。

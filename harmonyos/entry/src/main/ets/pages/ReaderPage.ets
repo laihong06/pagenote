@@ -12,6 +12,7 @@ import { FlashcardItem, FlashcardStore, FlashcardCapture, FlashcardDraft, Review
 import { NoteTransfer, NoteTransferFile } from '../core/NoteTransfer';
 import { MarkdownView } from '../components/MarkdownView';
 import { InkCanvas } from '../components/InkCanvas';
+import { cnTypographyAvailable, CnTextAreaTypography } from '../components/CnTypography';
 
 interface ReaderParams {
   dir: string;
@@ -119,6 +120,10 @@ struct ReaderPage {
   @State showTransfer: boolean = false;
 
   private annotations: AnnotationBook = Annotations.empty();
+
+  // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器
+  private cnTypographyMod: AttributeModifier<TextAreaAttribute> | undefined =
+    cnTypographyAvailable() ? new CnTextAreaTypography() : undefined;
 
   @State pdfPaneBuilder: WrappedBuilder<[PdfBridge]> | null = null;
   // PDF Kit 缺失时，雨课堂项目用来源图片降级显示（页序 = yuketang-source.json 的 projectPage）
@@ -1395,6 +1400,8 @@ struct ReaderPage {
               .padding(8)
               .fontSize(15)
               .textAlign(TextAlign.Start)
+              // 中文排版优化（API 26+）：避孤字 + 标点悬挂；低版本运行时无此方法，只能条件挂载
+              .attributeModifier(this.cnTypographyMod)
               .onChange((value: string) => {
                 this.note = value;
                 this.dirty = true;

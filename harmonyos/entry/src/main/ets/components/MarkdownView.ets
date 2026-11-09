@@ -8,6 +8,7 @@
 
 import { MathView } from './MathView';
 import { MermaidView } from './MermaidView';
+import { cnTypographyAvailable, CnTextTypography } from './CnTypography';
 
 interface InlineSpan {
   text: string;
@@ -184,6 +185,10 @@ export struct MarkdownView {
   resolveImage: (src: string) => string = () => '';
   @State private blocks: MdBlock[] = [];
 
+  // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器
+  private cnTypographyMod: AttributeModifier<TextAttribute> | undefined =
+    cnTypographyAvailable() ? new CnTextTypography() : undefined;
+
   aboutToAppear(): void {
     this.blocks = parseBlocks(this.content);
   }
@@ -291,6 +296,8 @@ export struct MarkdownView {
             .fontSize(this.headingSize(block.kind))
             .fontWeight(block.kind.startsWith('heading') ? FontWeight.Bold : FontWeight.Normal)
             .lineHeight(22)
+            // 中文排版优化（API 26+）：避孤字 + 标点悬挂；低版本运行时无此方法，只能条件挂载
+            .attributeModifier(this.cnTypographyMod)
             .width('100%')
             .margin({ top: block.kind.startsWith('heading') ? 12 : 4, bottom: 4 })
           }
