@@ -9,7 +9,7 @@ import { PdfBridge } from '../core/PdfBridge';
  */
 @Component
 export struct PdfPane {
-  bridge: PdfBridge = { controller: null };
+  bridge: PdfBridge = { controller: null, continuous: false };
 
   aboutToAppear(): void {
     if (this.bridge.controller === null) {
@@ -22,7 +22,7 @@ export struct PdfPane {
       controller: this.bridge.controller as pdfViewManager.PdfController,
       pageFit: pdfService.PageFit.FIT_WIDTH,
       pageLayout: pdfService.PageLayout.LAYOUT_SINGLE,
-      isContinuous: false,
+      isContinuous: this.bridge.continuous,
       showScroll: true
     })
       .width('100%')

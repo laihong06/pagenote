@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { preferences } from '@kit.ArkData';
 import { componentSnapshot } from '@kit.ArkUI';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
@@ -100,12 +101,14 @@ struct ReaderPage {
   @State inkTool: string = 'pen'; // pen | highlight | line | rect | ellipse | text | eraser
   // 手锁：开启后手指/鼠标只能拖动平移版面，手写笔照常书写
   @State fingerLock: boolean = false;
-  // 手锁拖动时的版面偏移（px）
+  // 手锁拖动/滑动翻页的版面偏移（px）
   @State panX: number = 0;
   @State panY: number = 0;
   // 套索选中的笔迹索引（删除所选用）；切换工具/撤销/清除时递增 selectionEpoch 让画布清选区
   @State selectedIndices: number[] = [];
   @State selectionEpoch: number = 0;
+  // 翻页模式：tap=点击翻页（单页+批注可用）；scroll=滑动翻页（跟手纵拖过阈值翻页，批注自动禁用）
+  @State pageTurnMode: string = 'tap';
   // 手写转文字：OCR Kit 一次性可用性探测结果（@hms 模块在低版本设备可能不存在，只能动态 import 探测）
   @State ocrReady: boolean = false;
   @State inkWidth: number = 3;
@@ -159,10 +162,11 @@ struct ReaderPage {
   private project: OpenProject | null = null;
   private noteRevision: string | null = null;
   // PDF Kit 只在 PdfPane（动态 import）里实例化，缺失 PDF Kit 的设备上本页仍可打开 Markdown 项目
-  private pdfBridge: PdfBridge = { controller: null };
+  private pdfBridge: PdfBridge = { controller: null, continuous: false };
   private pdfLoaded: boolean = false;
 
   aboutToAppear(): void {
+    this.loadTurnMode();
     const params = this.getUIContext().getRouter().getParams() as ReaderParams;
     if (params === null || params === undefined || params.dir === undefined) {
       this.statusText = '缺少项目参数';
@@ -300,6 +304,54 @@ struct ReaderPage {
       this.sourceMarkdown = '';
       this.statusText = `读取原文失败：${(e as Error).message}`;
     }
+  }
+
+  // ---- 翻页模式（点击/滑动），偏好持久化 ----
+
+  private prefStore(): preferences.Preferences {
+    return preferences.getPreferencesSync(this.getUIContext().getHostContext() as common.UIAbilityContext,
+      { name: 'pagenote_reader' });
+  }
+
+  private loadTurnMode(): void {
+    try {
+      const v: preferences.ValueType = this.prefStore().getSync('pageTurnMode', 'tap');
+      if (v === 'scroll' || v === 'tap') {
+        this.pageTurnMode = v as string;
+      }
+    } catch (e) {
+      // 偏好不可用时保持默认点击翻页
+    }
+  }
+
+  private saveTurnMode(): void {
+    try {
+      const store = this.prefStore();
+      store.putSync('pageTurnMode', this.pageTurnMode);
+      store.flush();
+    } catch (e) {
+      // 忽略持久化失败
+    }
+  }
+
+  /** 切回点击模式时让 PDF 回到当前页（滑动翻页走 InkCanvas 跟手拖动，不动 PdfView 内部模式）。 */
+  private applyTurnMode(): void {
+    const controller = this.pdfBridge.controller;
+    if (controller !== null && this.pageTurnMode === 'tap') {
+      controller.goToPage(this.currentPage - 1);
+    }
+  }
+
+  private toggleTurnMode(): void {
+    this.pageTurnMode = this.pageTurnMode === 'scroll' ? 'tap' : 'scroll';
+    this.saveTurnMode();
+    // 滑动翻页时批注定会错位，强制退出批注并清选区
+    this.inkMode = false;
+    this.selectedIndices = [];
+    this.selectionEpoch += 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.applyTurnMode();
   }
 
   private loadPage(page: number): void {
@@ -929,8 +981,17 @@ struct ReaderPage {
             .fontColor(UiTheme.ink2(this.isDarkMode()))
         }
         IconButton({
+          symbol: this.pageTurnMode === 'scroll' ? $r('sys.symbol.arrow_up_and_down_square_portrait') :
+            $r('sys.symbol.hand_point_up_tap_fill_1'),
+          label: this.pageTurnMode === 'scroll' ? '切换为点击翻页' : '切换为滑动翻页',
+          active: this.pageTurnMode === 'scroll',
+          onTap: () => {
+            this.toggleTurnMode();
+          }
+        })
+        IconButton({
           symbol: $r('sys.symbol.paintbrush_pointed'), label: this.inkMode ? '关闭批注' : '批注',
-          active: this.inkMode,
+          active: this.inkMode, enabledState: this.pageTurnMode === 'tap',
           onTap: () => {
             this.inkMode = !this.inkMode;
             // 静态审查 L12：关闭批注时同步清选区，避免重新开启后残留旧选区入口
@@ -1658,8 +1719,8 @@ struct ReaderPage {
         penColor: this.inkColor,
         penWidth: this.inkWidth,
         tool: this.inkTool,
-        drawingEnabled: this.inkMode,
-        fingerLock: this.fingerLock,
+        drawingEnabled: this.pageTurnMode === 'scroll' || (this.inkMode && this.pageTurnMode === 'tap'),
+        fingerLock: this.pageTurnMode === 'scroll' || this.fingerLock,
         selectionEpoch: this.selectionEpoch,
         onChange: (items: AnnotationItem[]) => {
           this.inkItems = items;
@@ -1674,8 +1735,25 @@ struct ReaderPage {
           this.inkTextEditing = true;
         },
         onPanDelta: (dx: number, dy: number) => {
-          this.panX += dx;
-          this.panY += dy;
+          if (this.pageTurnMode === 'scroll') {
+            // 滑动翻页只跟纵向；内容上拉显示下一页、下拉显示上一页
+            this.panY += dy;
+          } else {
+            this.panX += dx;
+            this.panY += dy;
+          }
+        },
+        onPanEnd: () => {
+          if (this.pageTurnMode === 'scroll') {
+            const threshold: number = 150;
+            if (this.panY <= -threshold && this.currentPage < this.pageCount) {
+              this.loadPage(this.currentPage + 1);
+            } else if (this.panY >= threshold && this.currentPage > 1) {
+              this.loadPage(this.currentPage - 1);
+            } else {
+              this.panY = 0;
+            }
+          }
         }
       })
         .id(INK_SNAPSHOT_ID)

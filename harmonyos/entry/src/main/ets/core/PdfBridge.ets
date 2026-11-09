@@ -8,4 +8,6 @@ import type { pdfViewManager } from '@kit.PDFKit';
  */
 export interface PdfBridge {
   controller: pdfViewManager.PdfController | null;
+  /** 滑动翻页模式（连续滚动）；PdfView 构造后由 ReaderPage 经 controller.setPageContinuous 运行时切换 */
+  continuous: boolean;
 }

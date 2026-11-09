@@ -294,6 +294,13 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - 集成时修子代理引入的两处弃用 API：componentSnapshot.get→getSync、packing→packToData
 - 验证：构建+单测 16/16；真机画笔/橡皮回归通过；多子代理并行（功能 coder + 文档 coder + 审查 explore）
 
+## 翻页模式选项（2026-11-10，已提交）
+
+- 顶栏新增点击/滑动翻页切换（`hand_point_up_tap_fill_1` / `arrow_up_and_down_square_portrait` 图标），preferences（`pagenote_reader`）持久化，重启保持
+- **滑动翻页实现**：InkCanvas 在 scroll 模式强制 `drawingEnabled+fingerLock`（画布捕获手指纵拖）→ onPanDelta 只累积纵向偏移跟手 → onPanEnd（新增回调）按阈值 150px 决定上一页/下一页/回弹；loadPage 复位偏移；页码、右侧笔记、逐页批注自动跟随；批注按钮在滑动模式禁用（避免批注与滚动错位）
+- **PdfView 连续滚动模式实测放弃**（教训）：`setPageContinuous(true)`（含重建 PdfView 构造 isContinuous）后手势完全失效（连页内滚动都死了），方向错误；真机问题不可远程诊断，改用自管手势管线后一次通过
+- 真机验证：上拉进第 2 页，页码/笔记/该页既有手写批注全部正确跟随
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

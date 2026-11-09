@@ -22,6 +22,7 @@ export struct InkCanvas {
   onChange: (items: AnnotationItem[]) => void = () => {};
   onTextTap: (x: number, y: number) => void = () => {};
   onPanDelta: (dx: number, dy: number) => void = () => {};
+  onPanEnd: () => void = () => {};
   onSelectionChange: (indices: number[]) => void = () => {};
 
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -291,6 +292,7 @@ export struct InkCanvas {
           } else if (event.type === TouchType.Up) {
             this.gestureActive = false;
             this.panAnchor = null;
+            this.onPanEnd();
           }
           return;
         }
