@@ -124,11 +124,11 @@ struct ReaderPage {
 
   private annotations: AnnotationBook = Annotations.empty();
 
-  // 系统深浅色模式（EntryAbility 用 Environment.envProp 注册）
-  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+  // 系统深浅色模式（EntryAbility 用 media query (dark-mode) 注册并监听切换）
+  @StorageProp('isDarkMode') darkMode: boolean = false;
 
   private isDarkMode(): boolean {
-    return this.colorMode === ColorMode.DARK;
+    return this.darkMode;
   }
 
   // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器
@@ -788,6 +788,7 @@ struct ReaderPage {
         })
         Text(this.projectName)
           .fontSize(18)
+          .fontColor(UiTheme.ink(this.isDarkMode()))
           .fontWeight(FontWeight.Medium)
           .margin({ left: 12 })
           .layoutWeight(1)
@@ -1115,6 +1116,7 @@ struct ReaderPage {
               .width('100%')
             Text(this.reviewQueue[this.reviewIndex].front)
               .fontSize(17)
+              .fontColor(UiTheme.ink(this.isDarkMode()))
               .width('100%')
               .margin({ top: 12 })
               .textAlign(TextAlign.Center)
@@ -1175,6 +1177,7 @@ struct ReaderPage {
                     .fontColor(UiTheme.ink3(this.isDarkMode()))
                   Text(card.front)
                     .fontSize(14)
+                    .fontColor(UiTheme.ink(this.isDarkMode()))
                     .maxLines(2)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                     .margin({ top: 4 })
@@ -1258,6 +1261,7 @@ struct ReaderPage {
           Scroll() {
             Text(this.aiActionResult)
               .fontSize(14)
+              .fontColor(UiTheme.ink(this.isDarkMode()))
               .width('100%')
               .textAlign(TextAlign.Start)
           }
@@ -1308,6 +1312,7 @@ struct ReaderPage {
             })
             Text(`第 ${this.currentPage} 页`)
               .fontSize(14)
+              .fontColor(UiTheme.ink2(this.isDarkMode()))
               .margin({ left: 8, right: 8 })
             IconButton({
               symbol: $r('sys.symbol.chevron_right'), label: '下一页',
@@ -1399,6 +1404,7 @@ struct ReaderPage {
               .width('100%')
               .padding({ left: 16, right: 16, top: 8, bottom: 8 })
               .fontSize(15)
+              .fontColor(UiTheme.ink(this.isDarkMode()))
               .textAlign(TextAlign.Start)
               // 中文排版优化（API 26+）：避孤字 + 标点悬挂；低版本运行时无此方法，只能条件挂载
               .attributeModifier(this.cnTypographyMod)
@@ -1467,6 +1473,7 @@ struct ReaderPage {
           Scroll() {
             Text(this.sourceMarkdown)
               .fontSize(15)
+              .fontColor(UiTheme.ink(this.isDarkMode()))
               .padding(16)
               .width('100%')
               .textAlign(TextAlign.Start)

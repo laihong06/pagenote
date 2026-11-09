@@ -139,12 +139,13 @@ harmonyos/
 - 消除 hvigor 兼容告警：修饰器方法内用 `if (deviceInfo.apiAvailable('26.0.0'))` 语句级守卫（编译器 api_check 只认 if 语句守卫，不认三元表达式）；裸 `apiAvailable` 不是全局函数，要走 `deviceInfo.apiAvailable`。
 - 现成实现：`entry/src/main/ets/components/CnTypography.ets`（Text/TextArea 中文排版修饰器）。
 
-## 12. 深浅色模式适配（2026-11-09 实测）
+## 12. 深浅色模式适配（2026-11-09 实测，含一次结论修正）
 
-- 链路：`EntryAbility.onCreate` 里 `Environment.envProp('colorMode', ColorMode.LIGHT)`，组件 `@StorageProp('colorMode')` 消费，颜色统一走 `components/UiTheme.ets` 的双套取色函数。
-- **组件内禁止用 `get` 计算属性**：`private get isDark()` 在 build 中返回 undefined（值明明已到组件），改普通方法 `isDarkMode()` 立即正常——ArkUI struct 转换对 getter 不可靠，状态派生一律用方法。
-- **本机模拟器镜像（API 24 / 6.1.0.125）不向三方应用下发深色配置**：系统切深色后 `context.config.colorMode`、`envProp('colorMode')` 均为 0，`getApplicationContext().setColorMode(DARK)` 也不生效。验证色板只能手动 `AppStorage.setOrCreate('colorMode', ColorMode.DARK)` 注入（验完必须删掉）。真机跟随系统属待验收项。
-- 深色下页面背景记得 `expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])`，否则底部导航条区域留白边。
+- **可用链路**：`EntryAbility` 在 loadContent 回调里 `uiContext.getMediaQuery().matchMediaSync('(dark-mode: true)')` 取初值并 `on('change')` 监听，写 `AppStorage('isDarkMode')`；组件 `@StorageProp('isDarkMode')` 消费，颜色统一走 `components/UiTheme.ets` 的双套取色函数。模拟器实测运行中切换即生效。
+- **不要用 `Environment.envProp('colorMode')`**：本镜像（API 24 / 6.1.0.125）上该值深浅两态恒为 0（组件级实测），无切换语义。
+- **枚举陷阱**：`ConfigurationConstant.ColorMode` 是 `DARK=0 / LIGHT=1`，ArkUI `ColorMode`（envProp 文档用）是 `LIGHT=0 / DARK=1`——读 `config.colorMode` 数字时千万别拿错表。
+- **组件内禁止用 `get` 计算属性**：`private get isDark()` 在 build 中返回 undefined（值明明已到组件），改普通方法立即正常——ArkUI struct 转换对 getter 不可靠。
+- 深色下三件事别漏：① Text/TextArea 不设 fontColor 时系统默认色不跟应用色板（本镜像恒深色文字），正文一律显式给色；② `setWindowSystemBarProperties` 把状态栏/导航条内容色随主题反转；③ 页面背景 `expandSafeArea(BOTTOM)`，否则底部导航条区域留白边。
 
 ## 13. 测试与验证纪律（项目要求）
 

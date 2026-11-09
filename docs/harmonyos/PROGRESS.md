@@ -244,6 +244,16 @@ CodeGenie 复检仅剩风格建议类提示，逐项评估后的处置：
 - **书架卡片封面**：`ProjectSummary.cover`——雨课堂项目取 `src/assets/yuketang/` 第一张来源图（file:// 前缀），其余项目显示类型图标块（PDF 浅蓝 doc_text / MD 浅绿 textformat）；徽标移除（封面已含类型信息）
 - 验证：浅色回归正常、深色双截图、构建+单测 16/16
 
+## 深色模式跟随系统修复（2026-11-09 晚，已提交，推翻上一批结论）
+
+- **上一批"镜像不下发深色配置"的结论不准确**，真相有两层：
+  1. **枚举陷阱**：`ConfigurationConstant.ColorMode` 是 `DARK=0 / LIGHT=1`，而 `Environment.envProp('colorMode')` 使用的 ArkUI `ColorMode` 是 `LIGHT=0 / DARK=1`——当时把 config 的 0 误读为 LIGHT，实际系统深色一直在正常下发（config=0=DARK）
+  2. **envProp 通道在本构建上确实坏**：深浅两态下 `@StorageProp('colorMode')` 恒为 0（组件级实测），不能用于主题判断
+- **可用通道是 media query**：`uiContext.getMediaQuery().matchMediaSync('(dark-mode: true)')` 深浅两态报告正确且支持 `on('change')` 监听——EntryAbility 注册后写 `AppStorage('isDarkMode')`，全部主题组件改消费该布尔值；窗口销毁时 off
+- **状态栏/导航条**：自定义深色背景下系统不会自动反转内容色（本镜像 config 恒上报），用 `setWindowSystemBarProperties({ statusBarContentColor, navigationBarContentColor })` 跟随应用主题
+- **默认颜色文字黑压黑**：TextArea/Text 不设 fontColor 时用系统默认色（在本镜像上恒为深色文字），深色下不可读——笔记编辑器、原文、页码、项目名、闪卡复习/卡片库、AI 结果、雨课堂账号/课堂行全部补显式色板颜色
+- **验证**：模拟器上不重启应用完成 浅→深→浅 往返（截图 emulator-30/31 已更新为真实系统切换版本），状态栏同步反转；单测 16/16
+
 ## 已知边界
 
 - 已在 MatePad Pro 13 模拟器逐项运行验证（见上文各节）；仍未验证：PdfView 真实渲染（镜像无 PDF Kit）、竖屏上机、实时课堂采集（需真实上课时段）、手写笔压力曲线与悬停视觉（需实体笔/鼠标）、分屏模式实机运行

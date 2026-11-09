@@ -18,7 +18,8 @@ export struct IconButton {
   @Prop showDot: boolean = false;
   @Prop enabledState: boolean = true;
   onTap: () => void = () => {};
-  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+  // 系统深浅色模式（EntryAbility 用 media query (dark-mode) 注册并监听切换）
+  @StorageProp('isDarkMode') darkMode: boolean = false;
   @State private hovering: boolean = false;
 
   private isAccent(): boolean {
@@ -26,7 +27,7 @@ export struct IconButton {
   }
 
   private bgColor(): string {
-    const dark = this.colorMode === ColorMode.DARK;
+    const dark = this.darkMode;
     if (this.active) {
       if (this.filled) {
         return this.activeColor;
@@ -37,7 +38,7 @@ export struct IconButton {
   }
 
   private iconColor(): string {
-    const dark = this.colorMode === ColorMode.DARK;
+    const dark = this.darkMode;
     if (this.active) {
       if (this.filled) {
         return '#FFFFFF';

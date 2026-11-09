@@ -35,11 +35,11 @@ struct BookshelfPage {
   @State rainLiveText: string = '';
   // 系统横向断点（EntryAbility 在 loadContent 回调内注册并持续更新）
   @StorageProp('currentWidthBreakpoint') widthBp: WidthBreakpoint = WidthBreakpoint.WIDTH_LG;
-  // 系统深浅色模式（EntryAbility 用 Environment.envProp 注册）
-  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+  // 系统深浅色模式（EntryAbility 用 media query (dark-mode) 注册并监听切换）
+  @StorageProp('isDarkMode') darkMode: boolean = false;
 
   private isDarkMode(): boolean {
-    return this.colorMode === ColorMode.DARK;
+    return this.darkMode;
   }
 
   private rainClient: RainClient | null = null;
@@ -560,6 +560,7 @@ struct BookshelfPage {
         Row() {
           Text(this.rainAccount)
             .fontSize(15)
+            .fontColor(UiTheme.ink(this.isDarkMode()))
             .fontWeight(FontWeight.Medium)
             .layoutWeight(1)
             .maxLines(1)
@@ -611,6 +612,7 @@ struct BookshelfPage {
             Row() {
               Text(current.name)
                 .fontSize(15)
+                .fontColor(UiTheme.ink(this.isDarkMode()))
                 .layoutWeight(1)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })

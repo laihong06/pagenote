@@ -185,10 +185,11 @@ export struct MarkdownView {
   /** 把笔记里的相对图片路径（如 assets/x.png）解析为可加载的沙箱绝对路径；返回空串表示不可渲染。 */
   resolveImage: (src: string) => string = () => '';
   @State private blocks: MdBlock[] = [];
-  @StorageProp('colorMode') colorMode: ColorMode = ColorMode.LIGHT;
+  // 系统深浅色模式（EntryAbility 用 media query (dark-mode) 注册并监听切换）
+  @StorageProp('isDarkMode') darkMode: boolean = false;
 
   private isDarkMode(): boolean {
-    return this.colorMode === ColorMode.DARK;
+    return this.darkMode;
   }
 
   // API 26 中文排版（避孤字/标点悬挂）：仅确认可用时才挂载修饰器

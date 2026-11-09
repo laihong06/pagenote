@@ -1,7 +1,7 @@
 /**
  * 视觉设计令牌：页面灰底 + 白色卡片层次 + 轻阴影，统一圆角/留白/文字层级。
- * 明暗双套色板：组件经 @StorageProp('colorMode') 取系统深色状态（EntryAbility 用
- * Environment.envProp 注册），把 isDark 传给这里的取色函数。品牌色两模式通用。
+ * 明暗双套色板：组件经 @StorageProp('isDarkMode') 取系统深色状态（EntryAbility 用
+ * media query (dark-mode) 注册并监听切换），把 isDark 传给这里的取色函数。品牌色两模式通用。
  */
 export class UiTheme {
   static readonly PRIMARY: string = '#2263EB';
