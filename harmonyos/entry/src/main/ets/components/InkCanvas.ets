@@ -1,4 +1,5 @@
 import { AnnotationItem } from '../core/Annotations';
+import { areaPairToPx } from './AreaUnits';
 
 /**
  * 手写批注层：覆盖在文档/笔记之上的透明画布。
@@ -260,8 +261,12 @@ export struct InkCanvas {
         this.repaint();
       })
       .onAreaChange((oldValue: Area, newValue: Area) => {
-        this.layerWidth = Number(newValue.width);
-        this.layerHeight = Number(newValue.height);
+        // Area 单位消歧（实测为 vp，见 AreaUnits）：1000 比例系必须以真实像素层宽为基准，
+        // 否则存储坐标翻倍，跨端打开位置全错
+        const pair: number[] = areaPairToPx(Number(newValue.width), Number(newValue.height),
+          this.getUIContext());
+        this.layerWidth = pair[0];
+        this.layerHeight = pair[1];
         this.repaint();
       })
       .onTouch((event: TouchEvent) => {

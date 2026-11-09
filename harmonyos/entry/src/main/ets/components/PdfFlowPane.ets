@@ -1,6 +1,7 @@
 import { image } from '@kit.ImageKit';
 import { pdfService } from '@kit.PDFKit';
 import { PdfFlowBridge } from '../core/PdfFlowBridge';
+import { areaPairToPx } from './AreaUnits';
 
 /**
  * PDF 连续滚动面板（scroll 翻页模式专用）：pdfService 逐页渲染 PixelMap，
@@ -295,17 +296,18 @@ export struct PdfFlowPane {
     }
     const page: pdfService.PdfPage = doc.getPage(idx);
     try {
-      const matrix: pdfService.PdfMatrix = new pdfService.PdfMatrix();
-      // matrix 的 x/y/width/height 是 PDF 页面坐标系（pt）中的源矩形：
-      // 全页渲染 = 源矩形取整页，输出位图按栏宽 2x 等比
-      matrix.x = 0;
-      matrix.y = 0;
-      matrix.width = geom.wPt;
-      matrix.height = geom.hPt;
-      matrix.rotate = 0;
       const pxW: number =
         Math.min(MAX_BITMAP_WIDTH_PX, Math.max(1, Math.round(vp2px(this.paneWidthVp) * BITMAP_SCALE)));
       const pxH: number = Math.max(1, Math.round(pxW * geom.hPt / geom.wPt));
+      const matrix: pdfService.PdfMatrix = new pdfService.PdfMatrix();
+      // 实测（导出位图取证）：matrix 的 x/y/width/height 是【输出位图内的目标矩形】（px），
+      // 页面整页缩放绘制进该矩形；传 pt 尺寸只会把内容画进位图左上角一小块（约 36%×36%）。
+      // 全页渲染 = 目标矩形取整个输出位图。
+      matrix.x = 0;
+      matrix.y = 0;
+      matrix.width = pxW;
+      matrix.height = pxH;
+      matrix.rotate = 0;
       const pm: image.PixelMap | null = page.getAreaPixelMap(matrix, pxW, pxH, false, true);
       if (pm !== null) {
         this.bitmaps.set(idx, pm);
@@ -392,7 +394,10 @@ export struct PdfFlowPane {
     .width('100%')
     .height('100%')
     .onAreaChange((oldValue: Area, newValue: Area) => {
-      const wVp: number = px2vp(Number(newValue.width));
+      // Area 单位消歧（实测为 vp，见 AreaUnits）：换算成真实 px 再回 vp
+      const pair: number[] = areaPairToPx(Number(newValue.width), Number(newValue.height),
+        this.getUIContext());
+      const wVp: number = this.getUIContext().px2vp(pair[0]);
       if (Math.abs(wVp - this.paneWidthVp) > 0.5) {
         const hadContent: boolean = this.paneWidthVp > 0 && this.windowInitialized;
         this.paneWidthVp = wVp;
