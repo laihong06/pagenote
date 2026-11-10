@@ -33,11 +33,18 @@ class PenStyleTest {
   }
 
   @Test
-  fun rejectsInvalidRgbColorAndNonDesktopWidth() {
+  fun acceptsCustomWidthWithinStrokeFormatLimits() {
+    listOf(0.1, 1.0, 3.5, 7.3, 100.0).forEach { width ->
+      assertEquals(width, requireNotNull(PenStyle.create("#dc3545", width)).width, 0.0)
+    }
+  }
+
+  @Test
+  fun rejectsInvalidRgbColorAndOutOfRangeWidth() {
     listOf("red", "#123", "#12345678", "123456", "#12GG34").forEach { color ->
       assertNull(PenStyle.create(color, 3.0))
     }
-    listOf(0.0, 1.0, 3.5, 101.0, Double.NaN, Double.POSITIVE_INFINITY).forEach { width ->
+    listOf(0.0, 0.09, 101.0, Double.NaN, Double.POSITIVE_INFINITY).forEach { width ->
       assertNull(PenStyle.create("#dc3545", width))
     }
   }

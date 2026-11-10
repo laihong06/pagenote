@@ -62,6 +62,10 @@
   <string name="saving">保存中</string>
   <string name="settings_action">设置</string>
   <string name="reader_menu_title">菜单</string>
+  <string name="reader_menu_tab_tools">工具</string>
+  <string name="reader_menu_tab_file">文件</string>
+  <string name="reader_menu_tab_settings">设置</string>
+  <string name="reader_menu_explain_unavailable">查看%1$s不可用的原因</string>
   <string name="reader_menu_open">打开菜单</string>
   <string name="reader_menu_collapse">收起菜单</string>
   <string name="reader_menu_expand">展开菜单</string>
@@ -832,4 +836,14 @@
   <string name="preview_ai">AI</string>
   <string name="preview_more">更多</string>
   <string name="preview_done">完成</string>
+  <string name="reader_pen_collapse_action">收起笔工具</string>
+  <string name="reader_pen_expand_action">展开笔工具</string>
+  <string name="bookshelf_all_notes">全部笔记</string>
+  <string name="bookshelf_navigation">书架导航</string>
+  <string name="reader_pen_box_title">笔盒</string>
+  <string name="reader_pen_box_tools">常用工具</string>
+  <string name="reader_canvas_focus_enter">专注画布</string>
+  <string name="reader_canvas_focus_exit">显示笔记</string>
+    <string name="pen_width_decrease">减小笔迹粗细</string>
+    <string name="pen_width_increase">增加笔迹粗细</string>
 </resources>

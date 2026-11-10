@@ -99,7 +99,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       dispatchStylus(canvas, MotionEvent.ACTION_DOWN, freehandStartX, freehandY, 0.4f, freehandDownTime, freehandDownTime)
       dispatchStylus(canvas, MotionEvent.ACTION_MOVE, freehandEndX, freehandY, 0.8f, freehandDownTime, freehandDownTime + 10)
       dispatchStylus(canvas, MotionEvent.ACTION_UP, freehandEndX, freehandY, 0.8f, freehandDownTime, freehandDownTime + 20)
-      composeRule.waitUntil(10_000) { projectPenStore.readPage(PenSide.DOCUMENT, 1).size == 1 }
+      composeRule.waitUntil(10_000) { runCatching { projectPenStore.readPage(PenSide.DOCUMENT, 1).size == 1 }.getOrDefault(false) }
       val savedFreehand = projectPenStore.readPage(PenSide.DOCUMENT, 1).single()
 
       val downTime = SystemClock.uptimeMillis()
@@ -115,6 +115,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
         (item as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line"
       }
       }
+      composeRule.waitForIdle()
+      assertTrue("Recognized ink should not leave a saved banner", session.penStatus.value != context.getString(R.string.pen_annotation_saved))
       val savedPage = annotations.readPage("document", 1)
       assertEquals(listOf("pen", "line"), savedPage.map { (it as JsonObject)["type"]?.jsonPrimitive?.content })
       val line = savedPage.last() as JsonObject
@@ -128,6 +130,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       waitForAnnotations(annotations) { it.size == 1 &&
         (it.singleOrNull() as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen"
       }
+      revealReaderMenuCommand(composeRule, "pen", "pen_redo")
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 2 &&
         (it.lastOrNull() as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line"
@@ -138,6 +141,63 @@ class PdfAnnotationSelectionClipboardActivityTest {
         session.replaceRenderer(null)
         session.project.value = null
       }
+    }
+  }
+
+  @Test
+  fun recognizedShapeDoesNotBlockWritingWhileSaveIsQueued() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.penStore.value = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+    var locked = false
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val canvasRef = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { canvasRef.set(checkNotNull(findPenCanvas(composeRule.activity.window.decorView))) }
+      val canvas = canvasRef.get()
+      runBlocking { session.penSaveMutex.lock() }; locked = true
+      val down = SystemClock.uptimeMillis()
+      val y = canvas.height * 0.3f
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, canvas.width * 0.15f, y, 0.5f, down, down)
+      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, canvas.width * 0.75f, y, 0.8f, down, down + 10)
+      Thread.sleep(650)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, canvas.width * 0.75f, y, 0.6f, down, down + 700)
+      composeRule.waitForIdle()
+      composeRule.runOnIdle {
+        assertTrue("recognition save must not disable the canvas", canvas.inputEnabled)
+        assertTrue("recognition save must not display a waiting banner", session.penStatus.value != context.getString(R.string.annotation_saving))
+      }
+      val next = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, canvas.width * 0.2f, canvas.height * 0.6f, 0.5f, next, next)
+      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, canvas.width * 0.3f, canvas.height * 0.6f, 0.8f, next, next + 10)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, canvas.width * 0.3f, canvas.height * 0.6f, 0.8f, next, next + 20)
+      composeRule.runOnIdle { assertEquals("a second stroke is accepted before saving finishes", 1, session.penStrokes.value.size) }
+      composeRule.activityRule.scenario.recreate()
+      session.penSaveMutex.unlock(); locked = false
+      waitForAnnotations(annotations) { page ->
+        page.any { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } &&
+          page.any { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" }
+      }
+    } finally {
+      if (locked) session.penSaveMutex.unlock()
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
     }
   }
 
@@ -281,6 +341,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals("Select command must reach the native ink view before input", PenCanvasTool.SELECT, nativeCanvas.selectedTool)
       val pageItems = annotations.readPage("document", 1)
       val geometry = PenCanvasGeometry(nativeCanvas.width.toFloat(), nativeCanvas.height.toFloat(), nativeCanvas.pageTransform)
+      // Injected touch coordinates are quantized to screen pixels; allow at most two pixels in document space.
+      val injectionTolerance = geometry.documentUnitsForPixels(2f).toDouble().coerceAtLeast(0.05)
       fun pageOffset(x: Float, y: Float): Offset {
         val point = PenPoint(x, y, 1f)
         return Offset(geometry.toViewX(point), geometry.toViewY(point))
@@ -435,12 +497,13 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertPoints(
         listOf(120.0, 130.0, 420.0, 430.0),
         points(PdfAnnotationClipboard.decode(movedPayload)!!),
+        injectionTolerance,
       )
       waitForAnnotations(annotations) {
-        (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0)) } == true
+        (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0), injectionTolerance) } == true
       }
       page = annotations.readPage("document", 1)
-      assertPoints(listOf(120.0, 130.0, 420.0, 430.0), points(page[3] as JsonObject))
+      assertPoints(listOf(120.0, 130.0, 420.0, 430.0), points(page[3] as JsonObject), injectionTolerance)
 
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
@@ -448,7 +511,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
-        (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0)) } == true
+        (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0), injectionTolerance) } == true
       }
 
       canvas.performTouchInput {
@@ -463,7 +526,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val resizedPoints = points(resizedPage[3] as JsonObject)
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
-        (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0)) } == true
+        (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0), injectionTolerance) } == true
       }
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) { (it[3] as? JsonObject)?.let(::points) == resizedPoints }
@@ -519,7 +582,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
         up()
       }
       waitForAnnotations(annotations) {
-        (it[5] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(130.0, 140.0, 630.0, 140.0 + points(htmlItem).last() - points(htmlItem)[1])) } == true
+        (it[5] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(130.0, 140.0, 630.0, 140.0 + points(htmlItem).last() - points(htmlItem)[1]), injectionTolerance) } == true
       }
       composeRule.waitUntil(10_000) {
         runCatching {
@@ -530,7 +593,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.waitUntil(10_000) {
         val copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
           ?.let(PdfAnnotationClipboard::decode)
-        copied?.let(::points)?.let { pointsNear(it, listOf(130.0, 140.0, 630.0, 140.0 + points(htmlItem).last() - points(htmlItem)[1])) } == true
+        copied?.let(::points)?.let { pointsNear(it, listOf(130.0, 140.0, 630.0, 140.0 + points(htmlItem).last() - points(htmlItem)[1]), injectionTolerance) } == true
       }
       val copiedHtml = PdfAnnotationClipboard.decode(clipboard.primaryClip!!.getItemAt(0).text.toString())!!
       val copiedHtmlText = copiedHtml["html"]!!.jsonPrimitive.content
@@ -634,15 +697,15 @@ class PdfAnnotationSelectionClipboardActivityTest {
     point.jsonArray.map { it.jsonPrimitive.doubleOrNull ?: error("invalid annotation coordinate") }
   }.orEmpty()
 
-  private fun assertPoints(expected: List<Double>, actual: List<Double>) {
+  private fun assertPoints(expected: List<Double>, actual: List<Double>, tolerance: Double) {
     assertEquals(expected.size, actual.size)
     expected.zip(actual).forEachIndexed { index, (expectedValue, actualValue) ->
-      org.junit.Assert.assertEquals("point coordinate $index", expectedValue, actualValue, 0.05)
+      org.junit.Assert.assertEquals("point coordinate $index", expectedValue, actualValue, tolerance)
     }
   }
 
-  private fun pointsNear(actual: List<Double>, expected: List<Double>): Boolean =
-    actual.size == expected.size && actual.zip(expected).all { (a, e) -> kotlin.math.abs(a - e) <= 0.05 }
+  private fun pointsNear(actual: List<Double>, expected: List<Double>, tolerance: Double): Boolean =
+    actual.size == expected.size && actual.zip(expected).all { (a, e) -> kotlin.math.abs(a - e) <= tolerance }
 
   private fun installFixture(
     resolver: android.content.ContentResolver,

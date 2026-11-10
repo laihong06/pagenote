@@ -10,9 +10,41 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PenCanvasViewInstrumentedTest {
+  @Test
+  fun slowDwellRecognitionDoesNotBlockInputOrApplyAfterLift() {
+    lateinit var canvas: PenCanvasView
+    val started = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val added = mutableListOf<PenStroke>()
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        shapeRecognizer = { points ->
+          started.countDown()
+          release.await(5, TimeUnit.SECONDS)
+          PenShapeRecognizer.recognize(points)
+        }
+        onStrokeAdded = added::add
+        onShapeRecognized = { shape, _ -> recognized += shape; true }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+    }
+    try {
+      assertTrue(started.await(3, TimeUnit.SECONDS))
+      onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.6f, 4) }
+      assertEquals(1, added.size)
+    } finally { release.countDown() }
+    Thread.sleep(200)
+    onUi { }
+    assertTrue("late recognition must not modify a completed gesture", recognized.isEmpty())
+  }
+
   @Test
   fun stylusGesturePersistsNormalizedCoordinatesAndPressure() {
     lateinit var canvas: PenCanvasView

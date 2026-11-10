@@ -96,6 +96,7 @@ class InkSelectionClipboardActivityTest {
       composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput {
         click(touchPoint)
       }
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().assertIsEnabled()
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performClick()
 
@@ -103,17 +104,23 @@ class InkSelectionClipboardActivityTest {
       val payload = clipboard.primaryClip!!.getItemAt(0).text.toString()
       assertTrue(payload.startsWith("PAGE_NOTES_ANNOTATION:\n"))
 
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsEnabled().performClick()
       composeRule.waitUntil(10_000) { session.pendingPenSaves.intValue == 0 }
+      assertTrue("Ordinary ink saves should not leave a saved banner", session.penStatus.value != context.getString(R.string.pen_saved))
       assertEquals(2, pageStore.getItems(PenSide.DOCUMENT, 1).size)
       assertEquals(PenPoint(80f, 90f, 0.4f), pageStore.getItems(PenSide.DOCUMENT, 1).last().points.first())
 
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_delete_ink").performScrollTo().assertIsEnabled().performClick()
       assertEquals(listOf(original), pageStore.getItems(PenSide.DOCUMENT, 1))
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().assertIsEnabled().performClick()
       assertEquals(2, pageStore.getItems(PenSide.DOCUMENT, 1).size)
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().assertIsEnabled().performClick()
       assertEquals(listOf(original), pageStore.getItems(PenSide.DOCUMENT, 1))
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       assertEquals(2, pageStore.getItems(PenSide.DOCUMENT, 1).size)
       composeRule.waitUntil(10_000) { session.pendingPenSaves.intValue == 0 }
@@ -124,6 +131,12 @@ class InkSelectionClipboardActivityTest {
         session.replaceRenderer(null)
         session.project.value = null
       }
+    }
+  }
+
+  private fun reopenCompactMenu() {
+    if (ReaderMenuLayout.forWidth(composeRule.activity.resources.configuration.screenWidthDp) == ReaderMenuLayout.COMPACT_DRAWER) {
+      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
     }
   }
 

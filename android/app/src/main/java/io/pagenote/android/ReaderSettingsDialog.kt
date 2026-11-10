@@ -1,7 +1,15 @@
 package io.pagenote.android
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +28,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -161,6 +174,7 @@ internal fun ReaderSettingsLoadScreen(
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ReaderSettingsDialog(
   settings: ReaderSettings,
@@ -184,13 +198,37 @@ internal fun ReaderSettingsDialog(
   val inkOutsidePageLabel = stringResource(R.string.ink_outside_page_title)
   val rebuildUnavailable = stringResource(R.string.search_index_rebuild_unavailable)
   val rebuildGenericError = stringResource(R.string.settings_save_failed)
+  val appearanceTarget = remember { BringIntoViewRequester() }
+  val ocrTarget = remember { BringIntoViewRequester() }
+  val searchTarget = remember { BringIntoViewRequester() }
+  val audioTarget = remember { BringIntoViewRequester() }
+  val readerTarget = remember { BringIntoViewRequester() }
+  val nightTarget = remember { BringIntoViewRequester() }
+  val modelTarget = remember { BringIntoViewRequester() }
 
-  AlertDialog(
+  ReaderSettingsFrame(
+    wide = LocalConfiguration.current.screenWidthDp >= 840,
     onDismissRequest = { if (!isSaving) onDismiss() },
     title = { Text(stringResource(R.string.reader_settings_title)) },
     text = {
+      Column {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+          listOf(
+            Triple("appearance", R.string.reader_theme, appearanceTarget),
+            Triple("ocr", R.string.ocr_settings_title, ocrTarget),
+            Triple("reader", R.string.reader_split_ratio, readerTarget),
+            Triple("search", R.string.search_index_title, searchTarget),
+            Triple("audio", R.string.audio_asr_settings_title, audioTarget),
+            Triple("night", R.string.night_filter_title, nightTarget),
+            Triple("model", R.string.agent_model_settings_action, modelTarget),
+          ).forEach { (key, title, target) ->
+            TextButton(onClick = { scope.launch { target.bringIntoView() } }, modifier = Modifier.testTag("settings_category_$key")) {
+              Text(stringResource(title), maxLines = 1)
+            }
+          }
+        }
       Column(
-        modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+        modifier = Modifier.heightIn(max = 500.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         if (onChangeLibrary != null) {
@@ -200,7 +238,7 @@ internal fun ReaderSettingsDialog(
             Text(stringResource(if (libraryDirectory == null) R.string.bookshelf_bind else R.string.bookshelf_change))
           }
         }
-        Text(stringResource(R.string.reader_theme), style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.reader_theme), modifier = Modifier.bringIntoViewRequester(appearanceTarget), style = MaterialTheme.typography.titleSmall)
         listOf(
           "system" to R.string.theme_system,
           "light" to R.string.theme_light,
@@ -274,7 +312,7 @@ internal fun ReaderSettingsDialog(
 
         Text(
           stringResource(R.string.ocr_settings_title),
-          modifier = Modifier.padding(top = 8.dp),
+          modifier = Modifier.bringIntoViewRequester(ocrTarget).testTag("settings_section_ocr").padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -312,7 +350,7 @@ internal fun ReaderSettingsDialog(
 
         Text(
           stringResource(R.string.reader_split_ratio),
-          modifier = Modifier.padding(top = 8.dp),
+          modifier = Modifier.bringIntoViewRequester(readerTarget).testTag("settings_section_reader").padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -395,7 +433,7 @@ internal fun ReaderSettingsDialog(
         // 搜索索引范围 / 重建（移植批次 7）。
         Text(
           stringResource(R.string.search_index_title),
-          modifier = Modifier.padding(top = 8.dp),
+          modifier = Modifier.bringIntoViewRequester(searchTarget).testTag("settings_section_search").padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -474,7 +512,7 @@ internal fun ReaderSettingsDialog(
         // 录音与离线转写（移植批次 8）。
         Text(
           stringResource(R.string.audio_asr_settings_title),
-          modifier = Modifier.padding(top = 8.dp),
+          modifier = Modifier.bringIntoViewRequester(audioTarget).testTag("settings_section_audio").padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -555,7 +593,7 @@ internal fun ReaderSettingsDialog(
         // 护眼/夜览滤镜（移植批次 12 / 差距清单 #24，设置项 ⚙️）。
         Text(
           stringResource(R.string.night_filter_title),
-          modifier = Modifier.padding(top = 8.dp),
+          modifier = Modifier.bringIntoViewRequester(nightTarget).testTag("settings_section_night").padding(top = 8.dp),
           style = MaterialTheme.typography.titleSmall,
         )
         Text(
@@ -590,7 +628,7 @@ internal fun ReaderSettingsDialog(
         )
 
         TextButton(
-          modifier = Modifier.fillMaxWidth().testTag(
+          modifier = Modifier.fillMaxWidth().bringIntoViewRequester(modelTarget).testTag(
             if (isSaving) "reader_settings_configure_saving" else "configure_agent_model",
           ),
           enabled = !isSaving,
@@ -654,6 +692,7 @@ internal fun ReaderSettingsDialog(
           )
         }
       }
+      }
     },
     confirmButton = {
       TextButton(
@@ -692,6 +731,42 @@ internal fun ReaderSettingsDialog(
       }
     },
   )
+}
+
+@Composable
+private fun ReaderSettingsFrame(
+  wide: Boolean,
+  onDismissRequest: () -> Unit,
+  title: @Composable () -> Unit,
+  text: @Composable () -> Unit,
+  confirmButton: @Composable () -> Unit,
+  dismissButton: @Composable () -> Unit,
+) {
+  if (!wide) {
+    AlertDialog(onDismissRequest = onDismissRequest, title = title, text = text,
+      confirmButton = confirmButton, dismissButton = dismissButton)
+  } else {
+    Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+      Row(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f).fillMaxHeight().testTag("reader_settings_scrim").clickable { onDismissRequest() })
+        Surface(
+          modifier = Modifier.width(400.dp).fillMaxHeight().testTag("reader_settings_side_panel"),
+          shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+          color = MaterialTheme.colorScheme.surface,
+          shadowElevation = 8.dp,
+        ) {
+          Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
+            ProvideTextStyle(MaterialTheme.typography.headlineSmall) { title() }
+            Box(Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp)) { text() }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+              dismissButton()
+              confirmButton()
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 @Composable

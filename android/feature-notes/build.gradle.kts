@@ -21,4 +21,5 @@ android {
 dependencies {
   testImplementation("junit:junit:4.13.2")
   implementation(project(":core-project"))
+  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }

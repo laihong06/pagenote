@@ -65,6 +65,7 @@ android {
 }
 
 dependencies {
+  implementation("io.github.sceneview:sceneview:2.3.0")
   implementation(project(":core-project"))
   implementation(project(":core-reader"))
   implementation(project(":core-search"))

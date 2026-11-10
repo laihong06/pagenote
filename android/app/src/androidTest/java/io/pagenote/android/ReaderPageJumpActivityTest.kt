@@ -47,6 +47,8 @@ import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class ReaderPageJumpActivityTest {
@@ -145,6 +147,121 @@ class ReaderPageJumpActivityTest {
     assertEquals(listOf(targetStroke), session.penStrokes.value)
     assertEquals(PdfViewportBookmark.DEFAULT, session.viewportBookmark.value)
     assertTrue(composeRule.onAllNodesWithTag("page_preview_drawer").fetchSemanticsNodes().isEmpty())
+  }
+
+  @Test
+  fun failedInkSaveKeepsRetryAvailableEvenWithoutStatusText() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val session = attachProjectToReader(installProject(notes), notes)
+    try {
+      composeRule.runOnIdle {
+        session.failedPenSaves[1] = listOf(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f))))
+        session.penStatus.value = null
+      }
+      composeRule.onNodeWithTag("reader_pen_save_retry").assertIsDisplayed().assertIsEnabled()
+      composeRule.onNodeWithTag("reader_next_page").assertIsNotEnabled()
+    } finally { composeRule.runOnIdle { session.failedPenSaves.clear() } }
+  }
+
+  @Test
+  fun queuedInkWritesStayOnTheirPagesAcrossNavigation() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val store = ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initialSecondPage = store.readPage(PenSide.DOCUMENT, 2)
+    composeRule.runOnIdle {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penStore.value = store
+      session.penWritable.value = true
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    val locked = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val holder = Thread {
+      runBlocking {
+        session.penSaveMutex.lock()
+        try { locked.countDown(); release.await(10, TimeUnit.SECONDS) } finally { session.penSaveMutex.unlock() }
+      }
+    }
+    holder.start()
+    assertTrue(locked.await(5, TimeUnit.SECONDS))
+    val first = PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f)))
+    val second = PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(200f, 300f, 0.8f)))
+    try {
+      composeRule.runOnIdle { requireNotNull(findPenCanvas(composeRule.activity.window.decorView)?.onStrokeAdded).invoke(first) }
+      composeRule.waitUntil(5_000) { session.pendingPenSaves.intValue == 1 }
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+      composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+      composeRule.runOnIdle { requireNotNull(findPenCanvas(composeRule.activity.window.decorView)?.onStrokeAdded).invoke(second) }
+      composeRule.waitUntil(5_000) { session.pendingPenSaves.intValue == 2 }
+    } finally {
+      release.countDown()
+      holder.join(5_000)
+    }
+    composeRule.waitUntil(15_000) { session.pendingPenSaves.intValue == 0 }
+    assertEquals(listOf(first), store.readPage(PenSide.DOCUMENT, 1))
+    assertEquals(initialSecondPage + second, store.readPage(PenSide.DOCUMENT, 2))
+  }
+
+  private fun findPenCanvas(view: View): io.pagenote.feature.pen.PenCanvasView? {
+    if (view is io.pagenote.feature.pen.PenCanvasView) return view
+    if (view is ViewGroup) for (index in 0 until view.childCount) {
+      findPenCanvas(view.getChildAt(index))?.let { return it }
+    }
+    return null
+  }
+
+  @Test
+  fun canTurnPageWhileInkSaveIsPending() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val session = attachProjectToReader(installProject(notes), notes)
+    try {
+      composeRule.runOnIdle { session.pendingPenSaves.intValue = 1 }
+      composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+    } finally {
+      composeRule.runOnIdle { session.pendingPenSaves.intValue = 0 }
+    }
+  }
+
+  @Test
+  fun canNavigateAgainWhilePreviousPdfPageIsRendering() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnIdle { session.markdownSource.value = null; session.replaceRenderer(renderer) }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    val locked = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val holder = Thread { synchronized(renderer) { locked.countDown(); release.await(10, TimeUnit.SECONDS) } }
+    holder.start()
+    assertTrue(locked.await(5, TimeUnit.SECONDS))
+    try {
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 2 }
+      composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+        val start = center.copy(y = center.y - height * 0.35f)
+        val end = center.copy(y = center.y + height * 0.35f)
+        down(0, start); moveTo(0, end, delayMillis = 60); up(0)
+      }
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 2 }
+    } finally {
+      release.countDown()
+      holder.join(5_000)
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("reader_page_status").assertTextEquals("3 / 3")
   }
 
   @Test

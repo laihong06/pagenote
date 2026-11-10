@@ -2,7 +2,10 @@ package io.pagenote.android
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -13,11 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import io.pagenote.feature.ocr.OcrBlock
 import io.pagenote.feature.ocr.OcrResult
@@ -63,7 +68,7 @@ class ReaderOcrSelectionTest {
         var state by remember {
           mutableStateOf(ReaderOcrState().enterSelection(1).withSelection(null))
         }
-        Column {
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
           ReaderOcrActions(
             state = state,
             currentPage = 1,
@@ -74,10 +79,10 @@ class ReaderOcrSelectionTest {
       }
     }
 
-    composeRule.onNodeWithTag("ocr_selection_invalid").assertIsDisplayed()
+    composeRule.onNodeWithTag("ocr_selection_invalid").performScrollTo().assertIsDisplayed()
     // Recognize stays disabled until a valid drag replaces the invalid one.
-    composeRule.onNodeWithTag("recognize_region_action").assertIsDisplayed()
-    composeRule.onNodeWithTag("cancel_region_selection").assertIsDisplayed()
+    composeRule.onNodeWithTag("recognize_region_action").performScrollTo().assertIsDisplayed().assertIsNotEnabled()
+    composeRule.onNodeWithTag("cancel_region_selection").performScrollTo().assertIsDisplayed()
   }
 
   @Test fun dragSelectsRegionWithoutAddingPenStrokeOrZoom() {

@@ -189,6 +189,26 @@ class PdfViewportTransformTest {
   }
 
   @Test
+  fun simultaneousPinchAndPanKeepsTheSameContentUnderFingers() {
+    val current = PdfViewportTransform(scale = 2f, translationX = 0f, translationY = 0f)
+    val oldX = 150f
+    val oldY = 370f
+    val panX = 20f
+    val panY = 15f
+    val next = PdfViewportTransform.applyGesture(
+      current = current, viewportWidthPx = 400f, viewportHeightPx = 800f,
+      pageWidthPx = 400f, pageHeightPx = 800f,
+      centroidX = oldX + panX, centroidY = oldY + panY,
+      zoomChange = 1.2f, panX = panX, panY = panY,
+    )
+    val ratio = next.scale / current.scale
+    val mappedX = 200f + next.translationX + (oldX - 200f - current.translationX) * ratio
+    val mappedY = 400f + next.translationY + (oldY - 400f - current.translationY) * ratio
+    assertEquals(oldX + panX, mappedX, 0.001f)
+    assertEquals(oldY + panY, mappedY, 0.001f)
+  }
+
+  @Test
   fun zoomKeepsGestureCentroidAnchoredAndClampsToMaximumScale() {
     val zoomed = PdfViewportTransform.applyGesture(
       current = PdfViewportTransform.DEFAULT,

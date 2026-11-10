@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -20,6 +21,30 @@ import org.junit.runner.RunWith
 class ReaderSettingsMarkdownThemeTest {
   @get:Rule
   val composeRule = createComposeRule()
+
+  @Test
+  fun settingsCategoryNavigationReachesAudioOptions() {
+    composeRule.setContent {
+      MaterialTheme {
+        ReaderSettingsDialog(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
+      }
+    }
+    composeRule.onNodeWithTag("settings_category_audio").performScrollTo().performClick()
+    composeRule.onNodeWithTag("settings_section_audio").assertIsDisplayed()
+  }
+
+  @Test
+  fun settingsCategoriesReachReaderNightAndModelOptions() {
+    composeRule.setContent {
+      MaterialTheme {
+        ReaderSettingsDialog(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
+      }
+    }
+    listOf("reader", "night", "model").forEach { key ->
+      composeRule.onNodeWithTag("settings_category_$key").performScrollTo().performClick()
+      composeRule.onNodeWithTag(if (key == "model") "configure_agent_model" else "settings_section_$key").assertIsDisplayed()
+    }
+  }
 
   @Test
   fun savesMarkdownThemeSeparatelyFromReaderAppearance() {

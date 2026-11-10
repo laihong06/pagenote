@@ -9,6 +9,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.hypot
 
 enum class PenCanvasTool(val persistedType: String?) {
@@ -28,6 +30,9 @@ class PenCanvasView @JvmOverloads constructor(
     strokeWidth = 3f
   }
   private val activePoints = mutableListOf<PenPoint>()
+  private var activePathLength = 0f
+  private val shapeGeneration = AtomicLong()
+  internal var shapeRecognizer: (List<PenPoint>) -> PenRecognizedShape? = PenShapeRecognizer::recognize
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
   private val strokeCache = PenStrokeCache()
@@ -96,6 +101,13 @@ class PenCanvasView @JvmOverloads constructor(
   var onSelectionChanged: ((Int?) -> Unit)? = null
   var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
+  var viewportTransformInProgress: Boolean = false
+    set(value) {
+      if (field != value) {
+        field = value
+        invalidate()
+      }
+    }
   var selectedIndex: Int? = null
     set(value) {
       field = value
@@ -121,7 +133,7 @@ class PenCanvasView @JvmOverloads constructor(
     if (width <= 0 || height <= 0) return
     val geometry = geometry()
     if (!geometry.isValid) return
-    strokeCache.drawInto(canvas, geometry, width, height)
+    strokeCache.drawInto(canvas, geometry, width, height, viewportTransformInProgress)
     val save = canvas.save()
     canvas.translate(geometry.pageOriginX, geometry.pageOriginY)
     canvas.scale(geometry.pixelsPerDocumentUnit, geometry.pixelsPerDocumentUnit)
@@ -422,6 +434,7 @@ class PenCanvasView @JvmOverloads constructor(
     if (gestureTool != nextTool) {
       clearShapeRecognition(cancelled = true)
       activePoints.clear()
+      activePathLength = 0f
       gestureTool = nextTool
     }
   }
@@ -429,7 +442,7 @@ class PenCanvasView @JvmOverloads constructor(
   private fun updateShapeRecognition(xPx: Float, yPx: Float) {
     if (shapeRecognitionCancelled || activePointerToolType != MotionEvent.TOOL_TYPE_STYLUS ||
       gestureTool != PenCanvasTool.PEN || selectedTool != PenCanvasTool.PEN ||
-      pathLength(activePoints) < MIN_RECOGNITION_PATH
+      activePathLength < MIN_RECOGNITION_PATH
     ) {
       return
     }
@@ -450,8 +463,22 @@ class PenCanvasView @JvmOverloads constructor(
           activePointerToolType == MotionEvent.TOOL_TYPE_STYLUS &&
           gestureTool == PenCanvasTool.PEN && selectedTool == PenCanvasTool.PEN
         ) {
-          shapePreview = PenShapeRecognizer.recognize(activePoints)
-          invalidate()
+          val generation = shapeGeneration.get()
+          val points = activePoints.toList()
+          val recognize = shapeRecognizer
+          shapeExecutor.execute {
+            if (generation != shapeGeneration.get()) return@execute
+            val result = runCatching { recognize(points) }.getOrNull()
+            shapeHandler.post {
+              if (generation == shapeGeneration.get() && inputEnabled && activePointerId != INVALID_POINTER &&
+                !shapeRecognitionCancelled && activePointerToolType == MotionEvent.TOOL_TYPE_STYLUS &&
+                gestureTool == PenCanvasTool.PEN && selectedTool == PenCanvasTool.PEN
+              ) {
+                shapePreview = result
+                invalidate()
+              }
+            }
+          }
         }
       }
       shapeDwellTask = task
@@ -476,6 +503,7 @@ class PenCanvasView @JvmOverloads constructor(
   private fun cancelShapeDwell() {
     shapeDwellTask?.let(shapeHandler::removeCallbacks)
     shapeDwellTask = null
+    shapeGeneration.incrementAndGet()
   }
 
   private fun stationaryRadiusPx() = 4f * resources.displayMetrics.density
@@ -483,14 +511,14 @@ class PenCanvasView @JvmOverloads constructor(
   private fun distancePx(anchor: Pair<Float, Float>, x: Float, y: Float) =
     hypot(anchor.first - x, anchor.second - y)
 
-  private fun pathLength(points: List<PenPoint>): Float = points.zipWithNext()
-    .sumOf { (first, second) -> hypot(first.x - second.x, first.y - second.y).toDouble() }
-    .toFloat()
-
   private fun addPoint(xPx: Float, yPx: Float, pressure: Float) {
     val point = geometry()
       .toDocumentPoint(xPx, yPx, (gestureTool ?: selectedTool).pointPressure(pressure)) ?: return
-    if (activePoints.lastOrNull() != point) activePoints.add(point)
+    val previous = activePoints.lastOrNull()
+    if (previous != point) {
+      if (previous != null) activePathLength += hypot(previous.x - point.x, previous.y - point.y)
+      activePoints.add(point)
+    }
   }
 
   private fun eraseAt(xPx: Float, yPx: Float) {
@@ -538,6 +566,7 @@ class PenCanvasView @JvmOverloads constructor(
     gestureTool = null
     eraseModeLatched = false
     activePoints.clear()
+    activePathLength = 0f
     shapePreview = null
     shapeDwellAnchor = null
     shapeRecognitionCancelled = false
@@ -565,6 +594,7 @@ class PenCanvasView @JvmOverloads constructor(
   private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
 
   private companion object {
+    val shapeExecutor = Executors.newSingleThreadExecutor { task -> Thread(task, "pen-shape-recognition").apply { isDaemon = true } }
     const val INVALID_POINTER = -1
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
     const val SELECTION_INSET = 8f

@@ -2,6 +2,31 @@
 
 ## Unreleased / 尚未发布
 
+- Android 阅读器停留识形后立即显示图形并在后台保存，保存期间可继续书写；保存失败时保留原笔迹。
+
+- Android 阅读器笔盒和笔样式菜单支持滑动及按 0.1 微调笔迹粗细，保留快捷档位。
+
+- Android 阅读器连续双指缩放不再丢失移动增量，缩放时复用笔迹缓存并减少状态保存开销。
+
+- Android 阅读器菜单调整为右侧分组面板，按工具、文件和设置切换，并保留原有操作入口。
+
+- Android 翻页不再等待普通笔迹保存或上一页 PDF 渲染，保存失败仍可重试；取消普通笔迹保存成功的常驻提示，并优化手写停留图形识别的界面响应。
+
+- 更新 Android 和桌面应用图标，并从统一的 SVG 源文件生成各平台尺寸；本地构建，尚未发布。
+
+- 增加 Android 本地真机测试包更新脚本，在固定目录生成按架构区分的 debug APK、校验值和构建来源；不发布公开安装包。
+
+- Android 阅读器新增画布专注模式，可临时收起笔记区域；笔盒提供笔型与颜色快捷选择。上述修改仍为本地开发版本，尚未发布。
+
+- Android 书架新增手机导航和可收起的平板侧栏、新建/导入菜单，并改善目录与书籍布局；笔工具支持长按设置和收起，修复笔身图形越界；设置增加分类快速定位，平板使用右侧设置面板。
+
+- Android 书架重新排列手机顶部搜索与操作入口，宽屏增加快捷侧栏；阅读器笔工具栏跟随主题配色。此为本地进行中的界面改造，尚未发布。
+
+- Android 遗传实验本地原型新增 Filament 原生 3D 染色体视图，继续使用同一 Markdown 数据；Android 14 模拟器完成局部交互与文件回读验证，尚未发布。
+- 修复 Android 笔记预览滚动时绘制越过阅读区域的问题；模拟器验证 3D 初始化异常的二维降级和 Activity 重建后项目重开。
+- Android 遗传实验交互复用 3D 场景并更新对应材质，减少反复创建渲染引擎。
+- Android 3D 视图停止强制屏幕常亮，并在不可见或应用进入后台时暂停自动旋转。
+- 修复 Android 阅读器与 3D 场景之间的横向旋转、纵向滚动手势冲突；模拟器验证保存、停止进程及重开项目。
 - Android 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
