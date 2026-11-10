@@ -2,6 +2,19 @@
 
 ## Unreleased / 尚未发布
 
+- Add real Windows screenshots for the native Markdown S focus-mode enter/exit interaction, with CI runtime provenance; the integrated Windows, macOS, Android, and platform-metadata checks pass in run 42270603065. / 补充 Windows 原生 Markdown S 专注模式进入／退出的实际运行截图和 CI 来源记录；集成 Windows、macOS、Android 与平台元数据检查在 run 42270603065 全部通过。
+
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
+- Fix rapid exit from native Markdown S fullscreen while macOS is still entering fullscreen; keep retries available when the native transition fails. / 修复 macOS 原生全屏进入过程中立即退出可能卡住的问题；切换失败后仍可重试。
+
+- Stabilize the desktop legacy Markdown S preview lifecycle test by focusing its window before checking minimize behavior. / 稳定桌面旧版 Markdown S 预览生命周期测试，在检查最小化前确保窗口可见并获得焦点。
+- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+
+- Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+
 - 同步共享集成线 6388245 到 Windows 测试线，包含已在 Windows CI 和本地打包验证的原生 Markdown S 与 AI 表达路由；本分支根 README 改为 Windows 专属入口，不修改已发布版本或下载。
 
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。

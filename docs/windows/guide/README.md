@@ -141,4 +141,4 @@
 ![独立 AI 批注工作台](images/current/ai-workbench.png)
 # Markdown S 开发示例
 
-[离线交互演示教程与真实截图](markdown-s.md)（开发分支，尚未发布）。
+[离线交互演示教程与真实截图](markdown-s.md)（开发分支，尚未发布；含专注模式全屏与返回笔记的 Windows CI 运行记录）。

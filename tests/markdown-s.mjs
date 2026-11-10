@@ -304,9 +304,42 @@ try {
   console.log(
     'PASS two-preview limit, replacement cleanup, CSP network and renamed-frame navigation isolation',
   );
+  await app.evaluate(({ app, BrowserWindow }) => {
+    if (process.platform === 'darwin') app.focus({ steal: true });
+    else app.focus();
+    const win = BrowserWindow.getAllWindows()[0];
+    win.show();
+    win.focus();
+  });
+  const focusDeadline = Date.now() + 5000;
+  while (
+    !(await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isFocused(),
+    )) &&
+    Date.now() < focusDeadline
+  )
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(
+    await app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      return win.isVisible() && win.isFocused();
+    }),
+    true,
+    'the window must be visible and focused before testing minimize',
+  );
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].minimize(),
   );
+  // macOS can finish minimizing after the request returns. Verify the real
+  // state rather than racing the window server's minimize animation.
+  const minimizeDeadline = Date.now() + 5000;
+  while (
+    !(await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isMinimized(),
+    )) &&
+    Date.now() < minimizeDeadline
+  )
+    await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].isMinimized(),

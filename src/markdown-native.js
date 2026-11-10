@@ -104,12 +104,17 @@ export function renderNativeMarkdown(target) {
     focus.type = 'button';
     focus.textContent = '专注作品';
     focus.onclick = async () => {
+      focus.disabled = true;
       try {
-        if (document.fullscreenElement === block)
+        if (document.fullscreenElement === block) {
+          await window.desktopSettings?.waitForFullscreenEntry?.();
+          if (document.fullscreenElement !== block) return;
           await document.exitFullscreen();
-        else await block.requestFullscreen();
+        } else await block.requestFullscreen();
       } catch {
-        focus.textContent = '当前环境不支持全屏';
+        focus.textContent = '全屏切换失败，请重试';
+      } finally {
+        focus.disabled = false;
       }
     };
     block.addEventListener('fullscreenchange', () => {
