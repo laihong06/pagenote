@@ -22,6 +22,7 @@
 
 - Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
 - Update Multer, body-parser and qs to fixed production versions; production dependency audit reports no vulnerabilities. / 将 Multer、body-parser、qs 更新到已修复版本；生产依赖审计不再报告漏洞。
+- Resubmit platform documentation and review evidence for merged PR #13 under the new contribution standard: add 30 Android API 34 and 20 actual Mac captures, numbered workflows, per-module coverage and provenance; retain Windows capture origins and disclose shape-undo/floating-window defects and validation gaps. No runtime, format, version or public download changes. / 按新规范补交 #13 的平台 README、功能表与配图教程；新增 Android 30 张、Mac 20 张真实运行图及操作过程和来源，保留 Windows 原图来源，如实列出形状撤销、悬浮窗布局与验证缺口；不改程序、格式、版本或公开下载。
 
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 

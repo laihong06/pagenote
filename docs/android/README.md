@@ -23,7 +23,15 @@ PageNote 的 Android 版是 **Kotlin／Jetpack Compose 原生应用**，围绕�
 
 ## Android 截图与验证状态
 
-本轮各模块平板截图待补。不得以 Windows／Mac 截图替代；现有模拟器／真机验证范围见[已知问题](../../KNOWN_ISSUES.md)和[发布说明](../../android/docs/RELEASE-1.0.0-beta.5.md)。最新共享 CI 的 Android 单测／编译任务失败，未将其称为全绿。
+以下为 **2026-10-30 当前共享源码**在 Android 14／API 34 的 Pixel Tablet ARM64 模拟器上的整屏图：2560×1600、320dpi、浅色、中文应用设置。系统原生窗口及悬浮服务部分文案仍显示英文。[采集环境与复现](guide/capture.md) · [逐项截图和状态](features.md)。
+
+![Android 平板双栏阅读与逐页笔记](guide/images/current/02-reading.png)
+
+![Android 选中文字后的 AI 操作菜单，未发送模型请求](guide/images/current/18-selection-ai.png)
+
+本轮补充 30 张原始整屏图及形状、键盘编辑、闪卡、夜览、悬浮工具的编号过程。手工新增形状不能立即撤销、悬浮笔记文字低对比和标题换行已记录为[已知问题](../../KNOWN_ISSUES.md)，没有按截图齐全判定布局通过。OCR／ASR 只采集模型设置；没有把入口写成识别质量、录音或在线 AI 通过。
+
+源码基线 `6388245` 的 [Android CI](https://github.com/laihong06/pagenote/actions/runs/41019223250/job/123942472417) 单测、应用／测试源码编译与 Debug APK 通过；作者本轮另完成 Debug 编译和三个定向采集流程。没有重跑当前源码的全部模拟器测试，也没有验证公开 APK、真机手写笔或全部服务。[验证范围与审查待办](../review/PR13-evidence-2026-10-30.md)。
 
 ## 教程与版本记录
 
