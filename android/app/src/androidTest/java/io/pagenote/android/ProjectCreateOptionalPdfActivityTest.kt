@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.pagenote.core.project.ProjectManifestCodec
@@ -458,19 +459,8 @@ class ProjectCreateOptionalPdfActivityTest {
   }
 
   private fun clickMenuCommand(commandId: String) {
-    composeRule.waitUntil(10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_$commandId").fetchSemanticsNodes().isNotEmpty() ||
-        composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty() ||
-        composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes().isNotEmpty()
-    }
-    if (composeRule.onAllNodesWithTag("reader_menu_command_$commandId").fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_file").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.onNodeWithTag("reader_menu_command_$commandId").performClick()
+    revealReaderMenuCommand(composeRule, "file", commandId)
+    composeRule.onNodeWithTag("reader_menu_command_$commandId").performScrollTo().performClick()
   }
 
   private fun setProjectName(value: String) {

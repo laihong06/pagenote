@@ -300,9 +300,9 @@ data class PdfViewportTransform(
       val nextScale = (current.scale * zoomChange).coerceIn(MIN_SCALE, MAX_SCALE)
       val scaleRatio = nextScale / current.scale
       val nextX = current.translationX * scaleRatio +
-        (centroidX - viewportWidthPx / 2f) * (1f - scaleRatio) + panX
+        (centroidX - panX - viewportWidthPx / 2f) * (1f - scaleRatio) + panX
       val nextY = current.translationY * scaleRatio +
-        (centroidY - viewportHeightPx / 2f) * (1f - scaleRatio) + panY
+        (centroidY - panY - viewportHeightPx / 2f) * (1f - scaleRatio) + panY
       val maxTranslationX = maxOf(0f, (pageWidthPx * nextScale - viewportWidthPx) / 2f)
       val maxTranslationY = maxOf(0f, (pageHeightPx * nextScale - viewportHeightPx) / 2f)
       val clampedX = nextX.coerceIn(-maxTranslationX, maxTranslationX)

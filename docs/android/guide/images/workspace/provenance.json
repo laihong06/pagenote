@@ -1,0 +1,53 @@
+{
+  "baseline_runtime_commit": "6388245cbc919ca7b1335fbf59f36abc6cf5a5be",
+  "runtime_commit": "debec5552a3e234952f4b82aa75e7553f3acd49a",
+  "environment": "Android 14 API 34 ARM64 Pixel Tablet emulator, 320dpi, light theme",
+  "images": {
+    "after-agent.png": {
+      "sha256": "a499ec9610fd59326a953cfc806548c5240d9b43b46df3ffb8b70272998c1393",
+      "width": 2560,
+      "height": 1600
+    },
+    "after-narrow.png": {
+      "sha256": "992486e32da17fc8580680b66cc29685c262a01b0aba8917540a42cad9d04afe",
+      "width": 1200,
+      "height": 1920
+    },
+    "after-page-drawer.png": {
+      "sha256": "fec29f6b6cba0e25a904028e01a6017d3c29aef5fc7c2fd65665eca21a17e906",
+      "width": 2560,
+      "height": 1600
+    },
+    "after-pen-collapsed.png": {
+      "sha256": "887e9cbf1fe674e05cb8e4cc5e5167284393a9678512c9fae19dcbb30c5a1ae2",
+      "width": 2560,
+      "height": 1600
+    },
+    "after-pen-expanded.png": {
+      "sha256": "eba033be6701bde7c538ca48d45e15d0f24f90e1c397d9ccdd3abd3d1cf737f5",
+      "width": 2560,
+      "height": 1600
+    },
+    "after-pen-moved.png": {
+      "sha256": "32999af0f4b86ce7aec204d3ae3dc9e2ea365750b7ba249aa61542ddfc8e34d2",
+      "width": 2560,
+      "height": 1600
+    },
+    "after-reading.png": {
+      "sha256": "6267f2c599d3c1ea43a5637b4d72fad5601d5da6d72aa5e94bf1b455e525d98b",
+      "width": 2560,
+      "height": 1600
+    },
+    "before.png": {
+      "sha256": "3bcf477a061689c959e931ad541157bf6ff47020865d19458ad69a3808dfa652",
+      "width": 2560,
+      "height": 1600
+    },
+    "saving-ink-pending.png": {
+      "sha256": "41576006c2c0084edfec586c565c00d055a1a147d19cb44af8b4de1a51e252ae",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "a1b73130f66a33abbf612250429e6d6910514146"
+    }
+  }
+}

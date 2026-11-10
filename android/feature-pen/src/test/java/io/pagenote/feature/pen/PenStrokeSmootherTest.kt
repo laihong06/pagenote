@@ -6,6 +6,19 @@ import org.junit.Test
 
 class PenStrokeSmootherTest {
   @Test
+  fun streamingSegmentsMatchExistingPressureSensitiveSmoothing() {
+    val points = listOf(
+      PenPoint(0f, 0f, 0.4f), PenPoint(40f, 30f, 0.7f),
+      PenPoint(80f, -10f, 1f), PenPoint(130f, 20f, 0.6f),
+    )
+    val streamed = mutableListOf<PenStrokeSmoother.Segment>()
+    PenStrokeSmoother.forEachSegment(points, 8f) { sx, sy, cx, cy, ex, ey, width ->
+      streamed += PenStrokeSmoother.Segment(sx, sy, cx, cy, ex, ey, width)
+    }
+    assertEquals(PenStrokeSmoother.segments(points, 8f), streamed)
+  }
+
+  @Test
   fun fewerThanThreePointsProduceNoSegments() {
     assertTrue(PenStrokeSmoother.segments(emptyList(), 10f).isEmpty())
     assertTrue(PenStrokeSmoother.segments(listOf(PenPoint(0f, 0f, 1f)), 10f).isEmpty())

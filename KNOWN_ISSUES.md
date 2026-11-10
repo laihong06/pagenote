@@ -4,14 +4,14 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 
 | 项目 | 状态与后续处理 |
 |---|---|
-| Windows 主机上的 Android JVM DataStore 测试 | 2026-10-23 布局预览验收中，345 项应用 JVM 测试通过 342 项；`AgentPromptCustomizationTest` 两项及 `RecentProjectsStoreTest` 一项在 DataStore 覆盖重命名时失败，切换 D 盘临时目录仍复现。此为主机 JVM 测试结果，尚未证实为 Android 运行时缺陷；独立记录，预览版不宣称全部测试通过。5 项工具栏 Android 14 模拟器测试通过。 |
+| Windows 主机上的 Android JVM DataStore 测试 | 2026-10-23 布局预览验收中，345 项应用 JVM 测试通过 342 项；`AgentPromptCustomizationTest` 两项及 `RecentProjectsStoreTest` 一项在 DataStore 重开文件时失败，切换 D 盘临时目录仍复现。2026-11-06 的 Linux CI 也在相同的 DataStore 活跃文件检查处失败；相关测试现等待旧作用域完全关闭后再重开，本机相关测试通过，Linux CI 及 Windows 主机仍需复测。此前 5 项工具栏 Android 14 模拟器测试通过。 |
 | 历史长测约 54 分钟时窗口关闭 | 原因未明；重开后已保存内容恢复。历史中断不记作一小时通过，保留后续排查。 |
 | Mac 全流程与环境覆盖 | 贡献者报告部分实机测试，维护者未独立复验全部 Mac 环境；继续测试版。 |
 | Mac 新增设置、主题与触控板手势 | 贡献者在 Apple Silicon 本机及 arm64 包验证自动化流程；物理触控板手工验收、Intel Mac 包和新增共享界面的 Windows 实机复验尚未单独记录，保持测试版。 |
 | 桌面书架验证范围 | Windows/Mac 共用实现已接入；Mac arm64 本地包完成隔离书架流程验证，Windows 运行未验证。Mac 新增原生设置目录行未手工逐控件验收；具体测试与边界见 [书架验证记录](docs/spec/bookshelf-desktop/validation.md)。本轮未发布新安装包。 |
 | 雨课堂账号与实时课堂 | 桌面/Android 协议回归通过；Android 14 平板 AVD 已完成真实账号登录及 82 页历史导入，且经用户授权验证中途加入真实课堂补采 18 页。观察期间没有新的实时翻页，真实连续追加尚未完整验收；多页追加、去重、保留笔记已通过本地 SAF 回归。Mac arm64 已冷启动并通过打包应用内模拟课堂采集；桌面应用内真实账号导入、Windows 运行尚未验证。此前 Windows 目录包构建提示 `mcp-dist/mcp-node.exe` 缺失，本轮未重建 Windows 包。真实课堂测试需用户明确确认可能产生的签到记录。 |
 | Android 实机与完整服务流程 | 以 Android 14/API 34 平板 AVD 做常规验收；小米 Pad 5 Pro 上的长时间笔迹/延迟、侧键、真实 DocumentsUI 持久授权、用户的 69 页项目及 OpenAI 服务端到端仍未全部验证。Office 进程内编辑尚未实现；不宣称与桌面端全量等价。 |
-| Android API 34 平板 AVD 仪器测试 | 上一轮 `Pixel_Tablet_API34` 定向套件 13/13 通过；最新完整连接套件共 211 项，4 项跳过、1 项失败，失败在 PDF 矩形批注点选及后续编辑集成流程。修正前的更早全量结果有 41 项测试前置/菜单选择器失败。本轮让书架用例从书架导航，隔离的 PDF 批注用例在进入 reader session 前直接授予 SAF 目录权限，避免重复书架/菜单切换污染批注加载；`:app:compileDebugKotlin` 与 `:app:compileDebugAndroidTestKotlin` 编译通过。该批注用例尚未在这次调整后重跑。 / The previous `Pixel_Tablet_API34` focused suite passed 13/13; the latest completed full connected suite ran 211 tests with 4 skipped and 1 failure in PDF rectangle annotation selection and its edit integration flow. An earlier full run had 41 failures from stale test setup/menu selectors. Shelf tests now navigate through the bookshelf; the isolated PDF annotation test grants its SAF tree before attaching the reader session, avoiding repeated shelf/menu transitions during annotation loading. Both `:app:compileDebugKotlin` and `:app:compileDebugAndroidTestKotlin` compile successfully. The annotation test has not been rerun after this adjustment. |
+| Android API 34 平板 AVD 仪器测试 | 2026-11-06 在 Android 14 平板模拟器重跑完整应用套件：244 项中 235 项通过、9 项跳过、0 失败。跳过项为 5 项窄屏／手机布局及 4 项需雨课堂账号或真实课堂的场景；未据此宣称真实服务与手机已在本轮通过。此前失败的 PDF 矩形批注选择、复制、移动与撤销场景单独复测及全量套件均通过。 / On the Android 14 tablet emulator, 235 of 244 app instrumentation tests passed and 9 were skipped: five phone/narrow layouts and four Rain Classroom account or live-session scenarios. The previously failing PDF rectangle annotation flow passed both individually and in the full run; the skipped environments remain unverified in this run. |
 | Android 窄笔盒尺寸 | 笔工具带采用 44dp，按 Android 参考密度约 7 毫米；尚未在小米平板上进行本轮物理宽度测量或新增圆珠笔/激光笔的实体笔验收。API 34 平板模拟器可代替本轮功能验收，不作为阻塞源码 PR 的全设备门槛。 |
 | 多种 Office、DPI、双屏和低配置设备 | 未穷尽环境；报告具体条件后逐项处理。 |
 | Windows 签名与安全软件 | 当前未签名。早期 NSIS 安装包曾被火绒查杀，未取得厂商复核结论；不将其宣称为误报。新文件以实际检测为准。 |

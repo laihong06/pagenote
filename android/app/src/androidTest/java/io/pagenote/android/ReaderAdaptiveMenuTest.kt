@@ -31,6 +31,27 @@ class ReaderAdaptiveMenuTest {
   val composeRule = createComposeRule()
 
   @Test
+  fun groupsShowOnlyTheSelectedGroupCommands() {
+    composeRule.setContent {
+      ReaderAdaptiveMenu(
+        layout = ReaderMenuLayout.PERMANENT_SIDEBAR,
+        groups = listOf(
+          ReaderMenuSection(ReaderMenuGroup.FILE, "File", listOf(ReaderMenuCommand("open_project", "Open", onSelect = {}))),
+          ReaderMenuSection(ReaderMenuGroup.HANDWRITING, "Pen", listOf(ReaderMenuCommand("pen_undo", "Undo", onSelect = {}))),
+        ),
+        expanded = true, onExpandedChange = {}, drawerOpen = false, onDrawerOpenChange = {},
+      ) { Text("Reader") }
+    }
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsDisplayed()
+  }
+
+  @Test
   fun compactDrawerRunsSelectedCommandAndCloses() {
     composeRule.setContent {
         var drawerOpen by remember { mutableStateOf(false) }
@@ -64,6 +85,7 @@ class ReaderAdaptiveMenuTest {
     }
 
     composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_open_project").performClick()
     composeRule.onNodeWithTag("selected_command").assertTextEquals("open")
     composeRule.onNodeWithTag("drawer_state").assertTextEquals("closed")
@@ -137,6 +159,7 @@ class ReaderAdaptiveMenuTest {
       }
     }
 
+    composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
     composeRule.onNodeWithTag("reader_menu_command_undo")
       .assertIsNotEnabled()
       .assertTextContains("Text editing is not available yet.")

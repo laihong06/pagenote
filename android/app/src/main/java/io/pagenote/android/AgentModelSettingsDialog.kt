@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -51,6 +50,8 @@ internal fun AgentModelSettingsDialog(
   store: AgentModelSettingsStore,
   translationStore: TranslationProviderSettingsStore?,
   onDismiss: () -> Unit,
+  embedded: Boolean = false,
+  onBusyChange: (Boolean) -> Unit = {},
 ) {
   var retry by remember { mutableIntStateOf(0) }
   var state by remember { mutableStateOf<AgentModelSettingsLoadState>(AgentModelSettingsLoadState.Loading) }
@@ -68,7 +69,8 @@ internal fun AgentModelSettingsDialog(
   }
 
   when (val loadState = state) {
-    AgentModelSettingsLoadState.Loading -> AlertDialog(
+    AgentModelSettingsLoadState.Loading -> SettingsFormShell(
+      embedded = embedded,
       onDismissRequest = onDismiss,
       title = {
         Text(
@@ -90,7 +92,8 @@ internal fun AgentModelSettingsDialog(
         TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
       },
     )
-    is AgentModelSettingsLoadState.Failed -> AlertDialog(
+    is AgentModelSettingsLoadState.Failed -> SettingsFormShell(
+      embedded = embedded,
       onDismissRequest = onDismiss,
       title = { Text(loadErrorTitle, modifier = Modifier.testTag("agent_model_settings_load_failed")) },
       text = {
@@ -112,6 +115,8 @@ internal fun AgentModelSettingsDialog(
       store = store,
       translationStore = translationStore,
       onDismiss = onDismiss,
+      embedded = embedded,
+      onBusyChange = onBusyChange,
     )
   }
 }
@@ -122,6 +127,8 @@ private fun AgentModelSettingsForm(
   store: AgentModelSettingsStore,
   translationStore: TranslationProviderSettingsStore?,
   onDismiss: () -> Unit,
+  embedded: Boolean,
+  onBusyChange: (Boolean) -> Unit,
 ) {
   var baseUrl by remember(settings) { mutableStateOf(settings.baseUrl) }
   var model by remember(settings) { mutableStateOf(settings.model) }
@@ -154,7 +161,8 @@ private fun AgentModelSettingsForm(
     }
   }
 
-  AlertDialog(
+  SettingsFormShell(
+    embedded = embedded,
     onDismissRequest = { if (!saving) onDismiss() },
     title = {
       Text(
@@ -237,6 +245,7 @@ private fun AgentModelSettingsForm(
         onClick = {
           scope.launch {
             saving = true
+            onBusyChange(true)
             saveError = null
             try {
               val keyChange = when {
@@ -261,6 +270,7 @@ private fun AgentModelSettingsForm(
               }
             } finally {
               saving = false
+              onBusyChange(false)
             }
           }
         },

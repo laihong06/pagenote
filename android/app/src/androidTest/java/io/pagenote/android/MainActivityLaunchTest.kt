@@ -60,6 +60,7 @@ class MainActivityLaunchTest {
       composeRule.onAllNodesWithTag("bookshelf_settings").fetchSemanticsNodes().isNotEmpty()
     }
     composeRule.onNodeWithTag("bookshelf_settings").performClick()
+    composeRule.onNodeWithTag("settings_category_agent").performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag("configure_agent_model").fetchSemanticsNodes().isNotEmpty()
     }

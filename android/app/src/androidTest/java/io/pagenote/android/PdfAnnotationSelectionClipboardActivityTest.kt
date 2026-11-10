@@ -13,10 +13,13 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -30,6 +33,7 @@ import io.pagenote.feature.pen.PenCanvasGeometry
 import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenPoint
+import io.pagenote.feature.pen.PenRecognizedShape
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
 import kotlinx.coroutines.runBlocking
@@ -124,6 +128,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals(listOf(savedFreehand), projectPenStore.readPage(PenSide.DOCUMENT, 1))
       assertEquals(otherPageBefore, annotations.readPage("document", 2))
 
+      if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+      if (composeRule.onAllNodesWithTag("reader_menu_command_pen_undo").fetchSemanticsNodes().isEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().performClick()
+      }
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 1 &&
         (it.singleOrNull() as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen"
@@ -138,6 +148,136 @@ class PdfAnnotationSelectionClipboardActivityTest {
         session.replaceRenderer(null)
         session.project.value = null
       }
+    }
+  }
+
+  @Test
+  fun triangleDwellShowsPreviewAndPersistsTheShape() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.penStore.value = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      if (composeRule.onAllNodesWithTag("reader_menu_collapse").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+      }
+      val canvas = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { canvas.set(findPenCanvas(composeRule.activity.window.decorView)) }
+      val view = checkNotNull(canvas.get())
+      val startX = view.width * 0.3f
+      val topX = view.width * 0.5f
+      val endX = view.width * 0.7f
+      val bottomY = view.height * 0.57f
+      val topY = view.height * 0.32f
+      val down = SystemClock.uptimeMillis()
+      dispatchStylus(view, MotionEvent.ACTION_DOWN, startX, bottomY, 0.5f, down, down)
+      dispatchStylus(view, MotionEvent.ACTION_MOVE, topX, topY, 0.5f, down, down + 10)
+      dispatchStylus(view, MotionEvent.ACTION_MOVE, endX, bottomY, 0.5f, down, down + 20)
+      dispatchStylus(view, MotionEvent.ACTION_MOVE, startX, bottomY, 0.5f, down, down + 30)
+      Thread.sleep(650)
+      saveInkScreenshot("triangle-preview.png")
+      dispatchStylus(view, MotionEvent.ACTION_UP, startX, bottomY, 0.5f, down, down + 700)
+      composeRule.waitUntil(10_000) {
+        val items = runCatching { annotations.readPage("document", 1) }.getOrNull() ?: return@waitUntil false
+        (items.firstOrNull() as? JsonObject)?.get("shape")?.jsonPrimitive?.content == "triangle"
+      }
+      composeRule.waitUntil(10_000) {
+        runCatching {
+          val pixels = composeRule.onNodeWithTag("pdf_annotation_overlay").captureToImage().toPixelMap()
+          (0 until pixels.width step 2).any { x ->
+            (0 until pixels.height step 2).any { y ->
+              val color = pixels[x, y]
+              color.alpha > 0.5f && color.red > 0.65f && color.green < 0.35f && color.blue < 0.4f
+            }
+          }
+        }.getOrDefault(false)
+      }
+      saveInkScreenshot("triangle-saved.png")
+      val item = annotations.readPage("document", 1).single() as JsonObject
+      assertEquals("rect", item["type"]!!.jsonPrimitive.content)
+      assertEquals("triangle", item["shape"]!!.jsonPrimitive.content)
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  @Test
+  fun writingContinuesWhileRecognizedShapeIsSaving() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val store = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.penStore.value = store
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val canvas = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { canvas.set(findPenCanvas(composeRule.activity.window.decorView)) }
+      val view = checkNotNull(canvas.get())
+      resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_PAUSE_NEXT_PEN_WRITE, null, null)
+      val original = PenStroke("pen", "#185abd", 4.0, listOf(PenPoint(100f, 100f, 1f), PenPoint(400f, 100f, 1f)))
+      composeRule.runOnUiThread {
+        assertTrue(checkNotNull(view.onShapeRecognized).invoke(PenRecognizedShape("line", original.points.first(), original.points.last()), original))
+      }
+      composeRule.waitUntil(10_000) {
+        resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CHECK_PEN_WRITE, null, null)?.getBoolean("started") == true
+      }
+      composeRule.waitForIdle()
+      assertTrue("saving a shape must not disable pen input", view.inputEnabled)
+      val pixels = composeRule.onNodeWithTag("pdf_annotation_overlay").captureToImage().toPixelMap()
+      assertTrue("the recognized shape should remain visible while its write is pending",
+        (0 until pixels.width step 2).any { x -> (0 until pixels.height step 2).any { y ->
+          val color = pixels[x, y]
+          color.alpha > 0.5f && color.blue > 0.5f && color.red < 0.3f && color.green < 0.5f
+        } })
+      val down = SystemClock.uptimeMillis()
+      dispatchStylus(view, MotionEvent.ACTION_DOWN, view.width * 0.2f, view.height * 0.4f, 0.5f, down, down)
+      dispatchStylus(view, MotionEvent.ACTION_MOVE, view.width * 0.6f, view.height * 0.45f, 0.6f, down, down + 10)
+      dispatchStylus(view, MotionEvent.ACTION_UP, view.width * 0.6f, view.height * 0.45f, 0.6f, down, down + 20)
+      assertEquals(1, session.penStrokes.value.size)
+    } finally {
+      resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_RELEASE_PEN_WRITE, null, null)
+    }
+    try {
+      composeRule.waitUntil(15_000) {
+        val items = runCatching { annotations.readPage("document", 1) }.getOrNull() ?: return@waitUntil false
+        items.size == 2
+      }
+      assertEquals(setOf("line", "pen"), annotations.readPage("document", 1).map { (it as JsonObject)["type"]!!.jsonPrimitive.content }.toSet())
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
     }
   }
 
@@ -586,6 +726,20 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
     }
     return null
+  }
+
+  private fun saveInkScreenshot(name: String) {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    composeRule.waitForIdle()
+    instrumentation.uiAutomation.waitForIdle(300, 5_000)
+    SystemClock.sleep(500) // Let the latest Compose frame reach SurfaceFlinger.
+    val bitmap = instrumentation.uiAutomation.takeScreenshot()
+    try {
+      val file = java.io.File(instrumentation.targetContext.getExternalFilesDir(null), name)
+      file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand("mkdir -p /sdcard/Download/pagenote-ink-evidence")).use { it.readBytes() }
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand("cp ${file.absolutePath} /sdcard/Download/pagenote-ink-evidence/$name")).use { it.readBytes() }
+    } finally { bitmap.recycle() }
   }
 
   private fun dispatchStylus(

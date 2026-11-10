@@ -14,6 +14,47 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PenCanvasViewInstrumentedTest {
   @Test
+  fun longStrokeDrawBenchmarkPreservesVisibleInk() {
+    var cpuNanos = 0L
+    var visible = false
+    onUi {
+      val bitmap = android.graphics.Bitmap.createBitmap(500, 500, android.graphics.Bitmap.Config.ARGB_8888)
+      val target = android.graphics.Canvas(bitmap)
+      val points = (0..2000).map { i -> PenPoint(i / 5f, 200f + kotlin.math.sin(i / 50f) * 50f, 0.8f) }
+      val stroke = PenStroke("pen", "#112233", 4.0, points)
+      val geometry = PenCanvasGeometry(500f, 500f)
+      val start = android.os.Debug.threadCpuTimeNanos()
+      repeat(20) { PenStrokePainter.drawStroke(target, stroke, geometry) }
+      cpuNanos = android.os.Debug.threadCpuTimeNanos() - start
+      visible = (0 until 500).any { x -> (100 until 300).any { y -> bitmap.getPixel(x, y) != 0 } }
+      bitmap.recycle()
+    }
+    android.util.Log.i("PagenoteInkBenchmark", "20_long_draws_cpu_ms=${cpuNanos / 1_000_000.0}")
+    assertTrue("ink must be visible", visible)
+  }
+
+  @Test
+  fun longStrokeInputBenchmarkKeepsEverySample() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    var cpuNanos = 0L
+    onUi {
+      canvas = createCanvas().apply { onStrokeAdded = added::add }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 30f, 80f, 0.5f, 2)
+      val start = android.os.Debug.threadCpuTimeNanos()
+      repeat(3000) { i ->
+        val x = 30f + (i % 440)
+        val y = 80f + (i / 440) * 8f
+        dispatchTouch(canvas, MotionEvent.ACTION_MOVE, x, y, 0.5f, (3 + i).toLong())
+      }
+      cpuNanos = android.os.Debug.threadCpuTimeNanos() - start
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 390f, 128f, 0.5f, 3004)
+    }
+    android.util.Log.i("PagenoteInkBenchmark", "3000_move_cpu_ms=${cpuNanos / 1_000_000.0}")
+    assertTrue("long stroke should preserve input samples", added.single().points.size > 2500)
+  }
+
+  @Test
   fun stylusGesturePersistsNormalizedCoordinatesAndPressure() {
     lateinit var canvas: PenCanvasView
     val added = mutableListOf<PenStroke>()
@@ -118,6 +159,76 @@ class PenCanvasViewInstrumentedTest {
     assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
     assertTrue("recognized shape must not also be persisted as freehand", added.isEmpty())
     assertTrue(canvas.strokes.isEmpty())
+  }
+
+  @Test
+  fun fingerDrawnLineAlsoRecognizesOnDwell() {
+    val recognized = mutableListOf<PenRecognizedShape>()
+    lateinit var canvas: PenCanvasView
+    fun touch(action: Int, x: Float, time: Long) {
+      withEvent(action, x, 80f, 0.5f, 0, time, toolType = MotionEvent.TOOL_TYPE_FINGER) {
+        canvas.dispatchTouchEvent(it)
+      }
+    }
+    onUi {
+      canvas = createCanvas().apply { onShapeRecognized = { shape, _ -> recognized += shape; true } }
+      touch(MotionEvent.ACTION_DOWN, 40f, 2)
+      touch(MotionEvent.ACTION_MOVE, 240f, 3)
+    }
+    Thread.sleep(650)
+    onUi { touch(MotionEvent.ACTION_UP, 240f, 4) }
+    assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
+  }
+
+  @Test
+  fun ballpointDwellRecognizesLine() {
+    val recognized = mutableListOf<PenRecognizedShape>()
+    lateinit var canvas: PenCanvasView
+    onUi {
+      canvas = createCanvas().apply {
+        selectedTool = PenCanvasTool.BALLPOINT
+        onShapeRecognized = { shape, _ -> recognized += shape; true }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.6f, 4) }
+    assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
+  }
+
+  @Test
+  fun dwellRecognizesVisibleLineWhenPageIsZoomed() {
+    val recognized = mutableListOf<PenRecognizedShape>()
+    lateinit var canvas: PenCanvasView
+    onUi {
+      canvas = createCanvas().apply {
+        pageTransform = PenCanvasPageTransform(pageWidthPx = 500f, pageHeightPx = 500f, scale = 4f)
+        onShapeRecognized = { shape, _ -> recognized += shape; true }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 100f, 250f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 190f, 250f, 0.7f, 3)
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 190f, 250f, 0.6f, 4) }
+    assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
+  }
+
+  @Test
+  fun movingAfterPreviewCanBeRecognizedAgainAtTheNewEndpoint() {
+    val recognized = mutableListOf<PenRecognizedShape>()
+    lateinit var canvas: PenCanvasView
+    onUi {
+      canvas = createCanvas().apply { onShapeRecognized = { shape, _ -> recognized += shape; true } }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 320f, 80f, 0.7f, 4) }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 320f, 80f, 0.7f, 5) }
+    assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
+    assertEquals(640f, recognized.single().second.x, 0.01f)
   }
 
   @Test
@@ -318,11 +429,12 @@ class PenCanvasViewInstrumentedTest {
     pressure: Float,
     buttonState: Int,
     eventTime: Long,
+    toolType: Int = MotionEvent.TOOL_TYPE_STYLUS,
     dispatch: (MotionEvent) -> Boolean,
   ): Boolean {
     val properties = MotionEvent.PointerProperties().apply {
       id = POINTER_ID
-      toolType = MotionEvent.TOOL_TYPE_STYLUS
+      this.toolType = toolType
     }
     val coordinates = MotionEvent.PointerCoords().apply {
       this.x = x

@@ -186,10 +186,11 @@ class PdfImageAnnotationActivityTest {
   }
 
   private fun handwritingCommand() = composeRule.onNodeWithTag("reader_menu_command_insert_ink_image").let { node ->
-    if (composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes().isNotEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
-    } else if (composeRule.onAllNodesWithTag("reader_menu_command_insert_ink_image").fetchSemanticsNodes().isEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    if (composeRule.onAllNodesWithTag("reader_menu_command_insert_ink_image").fetchSemanticsNodes().isEmpty()) {
+      if (composeRule.onAllNodesWithTag("reader_menu_group_handwriting").fetchSemanticsNodes().isEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+      }
+      composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().performClick()
     }
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("reader_menu_command_insert_ink_image").fetchSemanticsNodes().isNotEmpty()

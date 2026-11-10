@@ -93,7 +93,6 @@ class NoteMarkdownImageInsertionActivityTest {
 
     assertProjectAssetRenders(project.sourceDirectoryUri, insertedDraft)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == insertedDraft
     }
@@ -163,7 +162,6 @@ class NoteMarkdownImageInsertionActivityTest {
       assertEquals(referenceEnd + 1, requireNotNull(findNoteEditor()).selectionStart)
       assertProjectAssetRenders(project.sourceDirectoryUri, insertedDraft)
 
-      composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
       composeRule.waitUntil(timeoutMillis = 10_000) {
         NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == insertedDraft
       }
@@ -188,12 +186,10 @@ class NoteMarkdownImageInsertionActivityTest {
   private fun imageCommand() = run {
     val tag = "reader_menu_command_image"
     if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else {
+      if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isEmpty()) {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
+      composeRule.onNodeWithTag("reader_menu_group_insert").performScrollTo().performClick()
     }
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
@@ -204,16 +200,10 @@ class NoteMarkdownImageInsertionActivityTest {
   private fun pasteImageCommand() = run {
     val tag = "reader_menu_command_paste_image"
     if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else if (
-        composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()
-      ) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performScrollTo()
-      } else {
+      if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isEmpty()) {
         composeRule.onNodeWithTag("reader_menu_trigger").performClick()
       }
+      composeRule.onNodeWithTag("reader_menu_group_insert").performScrollTo().performClick()
     }
     composeRule.waitUntil(timeoutMillis = 10_000) {
       composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()

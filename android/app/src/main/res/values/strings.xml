@@ -1,4 +1,12 @@
 <resources>
+  <string name="settings_back">Back</string>
+  <string name="settings_category_appearance">General</string>
+  <string name="settings_category_reading">Reading</string>
+  <string name="settings_category_recognition">OCR &amp; audio</string>
+  <string name="settings_category_search">Search</string>
+  <string name="settings_category_agent">Agent</string>
+  <string name="reader_menu_group_expanded">Expanded</string>
+  <string name="reader_menu_group_collapsed">Collapsed</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">Reader settings</string>
   <string name="reader_settings_loading">Loading saved reader settings…</string>
@@ -587,6 +595,10 @@
   <string name="note_write_recovery_failed">Saving and restoring failed. Recovery copy remains: %1$s</string>
   <string name="note_save_failed">Unable to save notes: %1$s</string>
   <string name="note_reload_failed">Unable to reload notes: %1$s</string>
+  <string name="note_reload_changed">Reload failed because the page or draft changed. Your draft was kept.</string>
+  <string name="note_copy_reload">Copy draft and reload</string>
+  <string name="note_copy_reload_explanation">Copy the current draft to the clipboard, then load the version in the project. Paste the draft back if you want to reapply your changes.</string>
+  <string name="note_copy_failed">Unable to copy the draft. It has been kept on this page.</string>
   <string name="note_reloaded">Reloaded</string>
   <string name="note_recovery_restored">Recovered this page\'s unsaved draft from this device.</string>
   <string name="note_recovery_conflict">Recovered the draft, but the saved note changed afterward. The draft is preserved locally; reload before saving.</string>
@@ -605,6 +617,11 @@
   <string name="ocr_block_confidence">Confidence %1$d%% · position x=%2$d‰ y=%3$d‰ width=%4$d‰ height=%5$d‰</string>
   <string name="close">Close</string>
   <string name="note_edit">Edit</string>
+  <string name="agent_status_running">Running</string>
+  <string name="agent_status_done">Done</string>
+  <string name="agent_status_attention">Needs attention</string>
+  <string name="agent_task_write_incomplete">The agent could not apply the note update.</string>
+  <string name="agent_task_note_conflict">The agent changed or tried to change a page you are editing. Your draft was kept; review the conflict before reloading.</string>
   <string name="agent_task_title">Agent task: page %1$d</string>
   <string name="agent_task_instruction">Task instruction</string>
   <string name="agent_task_run">Run task</string>
@@ -832,4 +849,9 @@
   <string name="preview_ai">AI</string>
   <string name="preview_more">More</string>
   <string name="preview_done">Done</string>
+  <string name="floating_pen_drag">Move pen palette</string>
+  <string name="floating_pen_collapse">Collapse pen palette</string>
+  <string name="floating_pen_expand">Open pen palette</string>
+  <string name="reader_source_pane">Document</string>
+  <string name="reader_note_pane">Notes</string>
 </resources>

@@ -9,7 +9,6 @@ import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -30,7 +29,7 @@ class ReaderSettingsStoreTest {
 
       assertEquals(ReaderSettings(), store.settings.first())
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 
@@ -42,7 +41,7 @@ class ReaderSettingsStoreTest {
       val firstStore = ReaderSettingsStore(newDataStore(file, firstScope))
       firstStore.save(ReaderSettings("dark", "zh-CN", 61, false))
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -51,7 +50,7 @@ class ReaderSettingsStoreTest {
 
       assertEquals(ReaderSettings("dark", "zh-CN", 61, false), secondStore.settings.first())
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -63,7 +62,7 @@ class ReaderSettingsStoreTest {
       val firstStore = ReaderSettingsStore(newDataStore(file, firstScope))
       firstStore.save(ReaderSettings(noteFontSize = 24))
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -72,7 +71,7 @@ class ReaderSettingsStoreTest {
 
       assertEquals(24, secondStore.settings.first().noteFontSize)
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -85,7 +84,7 @@ class ReaderSettingsStoreTest {
         ReaderSettings(theme = "dark", markdownTheme = "paper", noteFontSize = 24),
       )
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -96,7 +95,7 @@ class ReaderSettingsStoreTest {
       assertEquals("dark", reopened.theme)
       assertEquals(24, reopened.noteFontSize)
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -109,7 +108,7 @@ class ReaderSettingsStoreTest {
       assertEquals(false, firstStore.settings.first().allowInkOutsidePage)
       firstStore.save(ReaderSettings(allowInkOutsidePage = true))
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -118,7 +117,7 @@ class ReaderSettingsStoreTest {
 
       assertEquals(true, secondStore.settings.first().allowInkOutsidePage)
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -131,7 +130,7 @@ class ReaderSettingsStoreTest {
       assertEquals("plain", firstStore.settings.first().noteBackground)
       firstStore.save(ReaderSettings(noteBackground = "four-line"))
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -140,7 +139,7 @@ class ReaderSettingsStoreTest {
 
       assertEquals("four-line", secondStore.settings.first().noteBackground)
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -151,7 +150,7 @@ class ReaderSettingsStoreTest {
     try {
       ReaderSettingsStore(newDataStore(file, firstScope)).save(ReaderSettings(prepareAheadPages = 7))
     } finally {
-      firstScope.cancel()
+      firstScope.cancelAndAwaitDataStore()
     }
 
     val secondScope = newScope()
@@ -161,7 +160,7 @@ class ReaderSettingsStoreTest {
         ReaderSettingsStore(newDataStore(file, secondScope)).settings.first().prepareAheadPages,
       )
     } finally {
-      secondScope.cancel()
+      secondScope.cancelAndAwaitDataStore()
     }
   }
 
@@ -184,7 +183,7 @@ class ReaderSettingsStoreTest {
 
       assertEquals(ReaderSettings(noteAnimation = false), store.settings.first())
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 
@@ -214,7 +213,7 @@ class ReaderSettingsStoreTest {
       assertTrue(badFontSizeRejected)
       assertEquals(original, store.settings.first())
     } finally {
-      scope.cancel()
+      scope.cancelAndAwaitDataStore()
     }
   }
 

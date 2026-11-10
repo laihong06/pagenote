@@ -13,7 +13,6 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModelProvider
@@ -78,7 +77,6 @@ class NoteMarkdownClipboardActivityTest {
     assertEquals(0, editedEditor.selectionStart)
     assertEquals(editedEditor.text.length, editedEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
     }
@@ -136,7 +134,6 @@ class NoteMarkdownClipboardActivityTest {
     assertEquals("Lead **fresh**!".length, finalEditor.selectionStart)
     assertEquals(finalEditor.selectionStart, finalEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
     }
@@ -194,7 +191,6 @@ class NoteMarkdownClipboardActivityTest {
     editCommand("note_redo").assertIsEnabled().performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
     }
