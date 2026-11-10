@@ -57,7 +57,7 @@
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",
     "express": "^5.1.0",
-    "multer": "^2.0.2",
+    "multer": "^2.5.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.2.108",
     "pngjs": "^7.0.0",

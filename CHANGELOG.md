@@ -21,6 +21,7 @@
 - Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
 
 - Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+- Update Multer, body-parser and qs to fixed production versions; production dependency audit reports no vulnerabilities. / 将 Multer、body-parser、qs 更新到已修复版本；生产依赖审计不再报告漏洞。
 
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
