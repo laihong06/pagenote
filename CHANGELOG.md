@@ -227,6 +227,19 @@
 - Add end-to-end workflow, cache, continuation, preference evidence and live-entry regression coverage. / 增加路由、缓存、续读、偏好与入口实时更新验证。
 
 - Establish `beta` for new features and routine fixes; reserve `main` for founder-approved stable promotion after real-use testing. / 建立 beta 测试分支，新功能与常规修复先测试，实测并经发起人批准后再通过 PR 晋级 main 正式分支。
+- Protect editor saves with atomic revision checks; keep conflicting drafts in page history, preserve recovery bases across restarts, and expose persistent save/retry/conflict controls in the note footer. AI writes now pass their expected revision to the same commit-time check. Existing unconditioned API clients remain compatible. Local source iteration only; public v1.0.0 binaries are unchanged. / 笔记编辑保存增加落盘时版本校验，冲突草稿备份到本页历史，恢复副本保留原始版本基线；底栏常驻显示保存、重试及冲突对照入口，AI 写入同样在提交时校验版本。兼容未传版本号的旧接口调用。本次仅迭代源码，不替换已发布安装包。
+
+- Adopt PolyForm Noncommercial 1.0.0 for newly licensed founder-original material; preserve historical MIT/contributor permissions and third-party notices, update bilingual scope and package metadata, and include both scope and legacy notices in future distributions. Published binaries and tags are unchanged. / 新增原创内容改用非商业许可，保留历史 MIT、贡献者和依赖授权，未来分发携带许可范围与旧声明，不替换历史包。
+
+- State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
+
+### 1.0.1 Windows patch candidate
+
+- Backport only the Mermaid measurement-container fix from obroccolio PR #6: temporary SVG measurements no longer enter the window grid or move page/word-count footers while navigating. Always clean measurement nodes on success and failure. / 仅回移 Mermaid 测量节点修复，防止翻页时页码与字数底栏上跳，正常及异常路径均清理节点。
+- Add frame-by-frame cold/warm/repeated/scroll/error diagram navigation regression coverage. Beta themes, native settings and welcome UI are excluded. / 增加逐帧翻页回归；不包含 Beta 主题、设置与欢迎页。
+- Source patch version is 1.0.1; existing public v1.0.0 binaries and downloads remain unchanged until a separate matching package release. / 修复源码版本为 1.0.1，已发布 1.0.0 安装包保持不变。
+
+- Separate stable README/download entries from beta; main offers Windows v1.0.0 only, with a link to the beta branch. Documentation only; stable binaries and application code unchanged. / 正式版文档仅提供对应正式包，实验性下载移至测试渠道；不更改正式程序或发布产物。
 
 - Surface Mac Office bridge limits, PDF screenshot permissions and recoverable working copies in both READMEs; distinguish Windows file-association scripts from Finder usage. / 将 Mac 配套文档中的 Office 限制、截图权限与恢复副本说明提到主 README，区分 Windows 注册脚本与 Mac 项目打开方式。
 
