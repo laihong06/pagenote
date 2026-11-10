@@ -1,0 +1,15 @@
+{
+  "purpose": "SHA-256 of runtime source used for the final Windows native screenshots and same-file restart checks; captured before committing",
+  "files": {
+    "src/main.js": "7adb31f46b39cae2a7e58dbe0dccdc477bc9e2a7c749bf288c00aa80ef3c498d",
+    "src/markdown.js": "10db5a4d51218090d8d65600f8cf3ccdc7fc30c6c053f2ea43e0ca74f297d531",
+    "src/editing.js": "64ddf0fc44b3fd26c0529b05afbc2b852ac904181aa77120c032ceb0be82f501",
+    "src/rich-editor.js": "bca18747b8d867163f83ed15e1fcd9c5647f17ba31098ac169b6eb5f15e371f7",
+    "src/markdown-native.js": "9d86d0abc97f80cd8987385b80fecbd095a13c5cd1f403db3d1d2a40941068a4",
+    "src/markdown-native-ga.js": "4748eab045801eec0a0b2c617d56eee195ac497af877d5d8aba7976790bd39aa",
+    "src/markdown-native-import.js": "31e1f426a1962ae38f825fd02af5f15a933d163ca8b2a07634734ac18be6de44",
+    "src/markdown-native-lab.js": "945dda37f3c0f3ab61d32332a22eb66b429494cab8caad87419f2c6ec5618294",
+    "src/markdown-native-three.js": "795841442cfefbb18eeefe52ce58dfcf7b47154898f7882ec413e5169e359735",
+    "src/markdown-native.css": "54fa714917e39c1782f9506c56b981cad25dac3aa93b60a9ded3cb10f878329f"
+  }
+}

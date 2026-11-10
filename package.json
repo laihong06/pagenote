@@ -6,7 +6,7 @@
   "scripts": {
     "test:bookshelf": "node tests/bookshelf-store.mjs && node tests/bookshelf-covers.mjs && node tests/bookshelf-projects.mjs && node tests/yuketang-save-race.mjs && node tests/bookshelf-ui.mjs",
     "dev": "node server.mjs --dev",
-    "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && node scripts/build-mac-settings.mjs && vite build && node scripts/build-mcp.mjs",
+    "build": "node scripts/export-prompts.mjs && node scripts/create-icon.mjs && node scripts/notices.mjs && node scripts/build-mac-settings.mjs && node scripts/build-markdown-s.mjs && vite build && node scripts/build-mcp.mjs",
     "start": "node server.mjs",
     "test": "npm run test:release",
     "desktop": "electron .",
@@ -17,7 +17,7 @@
     "test:markdown": "node tests/rich-editor.mjs",
     "test:mcp": "node tests/mcp.mjs",
     "package:dir": "npm run build && node scripts/package-desktop.mjs --dir",
-    "test:release": "node tests/project-layout.mjs && node tests/project-import.mjs && node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs && npm run test:reading && npm run test:workflows",
+    "test:release": "node tests/project-layout.mjs && node tests/project-import.mjs && node tests/mac-word-host.mjs && node tests/mac-native.mjs && node tests/project-launch.mjs && node tests/project-open.mjs && node tests/file-ops.mjs && node tests/annotation-save-queue.mjs && node tests/external-project.mjs && node tests/external-documents.mjs && node tests/migration.mjs && node tests/ai-settings.mjs && node tests/menus.mjs && node tests/box-tag.mjs && node tests/projects.mjs && node tests/i18n.mjs && node tests/math-input.mjs && node tests/multiline-display-math.mjs && node tests/formula-rendering.mjs && node tests/code-rendering.mjs && node tests/rich-editor.mjs && npm run test:reading && npm run test:workflows",
     "test:reading": "node tests/continuous.mjs && node tests/ai-workspace.mjs && npm run test:trackpad",
     "test:yuketang": "node tests/yuketang-login.mjs && node tests/yuketang-current-lessons.mjs && node tests/yuketang-selection.mjs && node tests/yuketang-history.mjs && node tests/yuketang-live-recovery.mjs && node tests/yuketang-live-service.mjs && node tests/yuketang-projects.mjs && node tests/yuketang-import-route.mjs && node tests/yuketang-live-project-route.mjs",
     "test:english": "node tests/english-windows.mjs",
@@ -38,7 +38,7 @@
     "pretest:mac-office": "node scripts/ensure-electron.mjs",
     "test:version": "node tests/versioning.mjs && node scripts/check-release-version.mjs",
     "check:release": "node scripts/check-release-version.mjs --release",
-    "test:workflows": "node tests/workflows.mjs",
+    "test:workflows": "node tests/prompt-routing.mjs && node tests/workflows.mjs",
     "pretest:workflows": "node scripts/ensure-electron.mjs",
     "test:trackpad": "node tests/trackpad.mjs",
     "pretest:trackpad": "node scripts/ensure-electron.mjs",
@@ -48,7 +48,11 @@
     "test:project-import": "node tests/project-import.mjs",
     "test:platforms": "node tests/platforms.mjs && node scripts/check-platforms.mjs",
     "platform": "node scripts/platform.mjs",
-    "capture:guide": "node scripts/capture-platform-guide.mjs"
+    "capture:guide": "node scripts/capture-platform-guide.mjs",
+    "predev": "node scripts/build-markdown-s.mjs",
+    "test:markdown-s": "node tests/markdown-s.mjs",
+    "demo:markdown-s": "npm run build && node scripts/demo-markdown-s.mjs",
+    "test:markdown-native": "node tests/markdown-native-ga.mjs && node tests/markdown-native-state.mjs && node scripts/demo-markdown-s.mjs --verify"
   },
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",
@@ -73,6 +77,7 @@
     "marked-katex-extension": "^5.1.4",
     "mermaid": "^12.2.0",
     "prettier": "3.6.2",
+    "three": "0.186.1",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2",
     "vite": "^7.1.0",

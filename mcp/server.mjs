@@ -115,6 +115,9 @@ tool(
     documentId,
     page: page.optional(),
     scenario: z.enum(['generation', 'revision']),
+    intent: z
+      .enum(['explain', 'summarize', 'translate', 'edit', 'annotate'])
+      .optional(),
     neighbors: z.boolean().optional(),
     reviewIds: z.array(z.string().uuid()).max(50).optional(),
     instruction: z.string().max(20000).optional(),
@@ -406,6 +409,7 @@ server.registerTool(
         'entry',
         'generation',
         'learning',
+        'representation',
         'page-tutor',
         'output',
         'learner',
@@ -422,7 +426,7 @@ server.registerTool(
 );
 tool(
   'page_notes_validate_note',
-  '提交前本地预检Markdown公式、Mermaid、代码围栏和附件，不保存、不导航；返回规范化正文和错误。',
+  '提交前静态预检Markdown公式、Mermaid、代码围栏、附件及原生Markdown S数据、唯一id和大小；返回visualBlocks及规范化正文。不执行演示，不能将格式通过当运行通过，不保存不导航。',
   { markdown: z.string().max(200000) },
   'validate_note',
   true,

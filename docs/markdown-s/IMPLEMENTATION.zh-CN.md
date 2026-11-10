@@ -1,5 +1,7 @@
 # Markdown S 实施指导
 
+2026-10-30 原生要求优先：按 [原生实现与同文件保存](NATIVE-MARKDOWN.zh-CN.md)构建可信 PageNote 渲染器。组件数据围栏是事实源，原生 DOM／SVG／Canvas／WebGL 是派生视图；交互走宿主状态更新和既有文件保存接口。禁止用整页 HTML／iframe 替代这一主路径。以下历史沙盒步骤仅适用于兼容模式。
+
 本文件描述具体怎么做；“计划”“原型”“验证通过”“已发布”必须分别记录。配合[架构](ARCHITECTURE.zh-CN.md)和[验收](ACCEPTANCE.zh-CN.md)使用。
 
 ## 1. 技术调研与选型

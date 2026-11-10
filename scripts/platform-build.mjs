@@ -4,6 +4,7 @@ for (const script of [
   'scripts/create-icon.mjs',
   'scripts/notices.mjs',
   'scripts/build-mac-settings.mjs',
+  'scripts/build-markdown-s.mjs',
   'node_modules/vite/bin/vite.js',
   'scripts/build-mcp.mjs',
 ]) {
