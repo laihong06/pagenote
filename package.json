@@ -52,7 +52,14 @@
     "predev": "node scripts/build-markdown-s.mjs",
     "test:markdown-s": "node tests/markdown-s.mjs",
     "demo:markdown-s": "npm run build && node scripts/demo-markdown-s.mjs",
-    "test:markdown-native": "node tests/markdown-native-ga.mjs && node tests/markdown-native-state.mjs && node scripts/demo-markdown-s.mjs --verify"
+    "test:markdown-native": "node tests/markdown-native-ga.mjs && node tests/markdown-native-state.mjs && node scripts/demo-markdown-s.mjs --verify",
+    "test:footer": "node tests/footer-stability.mjs",
+    "package:linux": "node scripts/platform.mjs linux package",
+    "package:linux:local": "node scripts/platform.mjs linux package --dir",
+    "launch": "node launch.mjs",
+    "test:linux": "node tests/linux-office.mjs && node tests/linux-smoke.mjs",
+    "predesktop": "node scripts/ensure-electron.mjs",
+    "pretest:linux": "node scripts/ensure-electron.mjs"
   },
   "dependencies": {
     "@gutenye/ocr-node": "1.4.9",

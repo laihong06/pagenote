@@ -9,7 +9,8 @@
 | Windows 电脑 | [Windows README：下载、功能、截图和教程](docs/windows/README.md) | x64；有正式版历史，本分支为测试开发 |
 | Mac 电脑 | [macOS README：下载、原生操作和限制](docs/macos/README.md) | Apple Silicon；实验性，Intel 包不可用 |
 | Android 平板 | [Android README：APK、触控与手写操作](docs/android/README.md) | Android 14+、ARM64；独立原生应用 |
-| Linux／鸿蒙 | 尚未提供实现与下载 | 规划中 |
+| Linux 电脑 | [Linux README：运行、功能、截图和限制](docs/linux/README.md) | Ubuntu x64 本地验证；未发布安装包 |
+| 鸿蒙 | 尚未提供实现与下载 | 规划中 |
 
 **下载请进入对应系统的 README。** 已发布包、开发源码和本地体验包分别标记；Windows 的截图与操作不代表 Android 或 Mac。
 

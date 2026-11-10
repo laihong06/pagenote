@@ -6,6 +6,7 @@ import { registerExternalDocuments } from './external-documents.mjs';
 import { createProjectStore } from './projects.mjs';
 import bookshelfModule from './desktop/bookshelf.cjs';
 import macOfficeModule from './desktop/mac-office.cjs';
+import linuxOffice from './desktop/linux-office.cjs';
 import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
@@ -390,6 +391,8 @@ async function convertOffice(input, output) {
       process.env.PAGE_NOTES_CONVERTER || path.join(root, 'convert-office.ps1'),
     convert = () => {
       if (macOffice) return macOffice.convert(snapshot, output);
+      if (process.platform === 'linux')
+        return linuxOffice.convertOffice(snapshot, output);
       if (process.platform !== 'win32')
         throw Error(
           'Word 和 PowerPoint 转换需要 Windows 或 macOS 上的 Microsoft Office。请先导出 PDF 再导入。',

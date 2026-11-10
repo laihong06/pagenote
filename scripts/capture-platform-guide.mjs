@@ -8,8 +8,13 @@ import { dismissWelcome } from '../tests/dismiss-welcome.mjs';
 import { loadPlatform } from './platform-config.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
-const id = process.platform === 'darwin' ? 'macos' : 'windows';
-if (!['win32', 'darwin'].includes(process.platform))
+const id =
+  process.platform === 'darwin'
+    ? 'macos'
+    : process.platform === 'linux'
+      ? 'linux'
+      : 'windows';
+if (!['win32', 'darwin', 'linux'].includes(process.platform))
   throw Error('Native desktop host required');
 const out = path.resolve(
   process.argv[2] || path.join(root, 'docs', id, 'guide/images/current'),
@@ -48,7 +53,9 @@ const executablePath =
     root,
     process.platform === 'darwin'
       ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
-      : 'node_modules/electron/dist/electron.exe',
+      : process.platform === 'linux'
+        ? 'node_modules/electron/dist/electron'
+        : 'node_modules/electron/dist/electron.exe',
   );
 if (process.env.PAGENOTE_GUIDE_MARKDOWN)
   await fs.copyFile(
@@ -70,7 +77,10 @@ if (process.env.PAGENOTE_NATIVE_SOURCE) {
     path.resolve(process.env.PAGENOTE_GUIDE_MARKDOWN),
     path.join(project, 'src/source.md'),
   );
-  await fs.appendFile(path.join(project, 'src/source.md'), '\r\n\r\n<!-- pagebreak -->\r\n\r\n# 第二页原文\r\n\r\n保留中文、空行与原始分页符。\r\n');
+  await fs.appendFile(
+    path.join(project, 'src/source.md'),
+    '\r\n\r\n<!-- pagebreak -->\r\n\r\n# 第二页原文\r\n\r\n保留中文、空行与原始分页符。\r\n',
+  );
   await fs.writeFile(
     path.join(project, 'src/notes.md'),
     '# 阅读笔记\n\n左侧为原生 Markdown 交互课件，右侧笔记保持不变。\n',
@@ -295,8 +305,13 @@ try {
     await snap('native-brush');
     await page.evaluate(() => window.pageNotes.flush());
     const finalFile = await fs.readFile(nativeFile, 'utf8');
-    const withoutNativeData = (text) => text.replace(/```markdowns\s*\n[\s\S]*?\n```/, '[native data]');
-    assert.equal(withoutNativeData(finalFile), withoutNativeData(nativeBefore), 'native changes preserve every byte outside the data fence');
+    const withoutNativeData = (text) =>
+      text.replace(/```markdowns\s*\n[\s\S]*?\n```/, '[native data]');
+    assert.equal(
+      withoutNativeData(finalFile),
+      withoutNativeData(nativeBefore),
+      'native changes preserve every byte outside the data fence',
+    );
     expectedNativeState = JSON.parse(
       finalFile.match(/\x60\x60\x60markdowns\s*\n([\s\S]*?)\n\x60\x60\x60/)[1],
     );
