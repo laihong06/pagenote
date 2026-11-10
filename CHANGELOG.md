@@ -8,6 +8,10 @@
 
 - Organize StudyHack competition preparation under competitions/qoder-2026: requirements and gaps, existing-feature evidence, a forum-post draft, a web demo plan and Qoder/submission records, with copied historical Windows screenshots and provenance. Documentation only; no Qoder development, public deployment or submission is claimed. / 新增 Qoder 高校创造力大赛 StudyHack 参赛材料目录，整理需求缺口、已有成果证据、作品帖草稿、网页演示计划与过程／提交记录，归档历史 Windows 截图及来源；仅材料整理，不宣称已用 Qoder 开发、完成公网部署或参赛提交。
 
+- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+
+- Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
 - Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
