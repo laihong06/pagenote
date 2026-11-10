@@ -2,6 +2,12 @@
 
 ## Unreleased / 尚未发布
 
+- Adopt the "A · 灵感记录" design as the official PageNote icon: an ivory page whose folded corner forms a paper plane with a hidden pen nib, plus a warm handwritten stroke, on an indigo-violet rounded square. The icon source now lives at `assets/brand/pagenote-icon.svg`, and `scripts/create-icon.mjs` renders that SVG into `build/icon.ico` (16–256px), `build/icon.png` and `build/icon.svg` instead of redrawing the old procedural shapes, so future redesigns only replace the SVG. / 正式采用「A · 灵感记录」为 PageNote 图标：象牙白纸页的折角构成藏着钢笔尖的纸飞机，配暖橙色手写笔迹，置于靛蓝紫圆角底上。图标源文件固定为 `assets/brand/pagenote-icon.svg`，`scripts/create-icon.mjs` 改为渲染该 SVG 生成 `build/icon.ico`（16–256px）、`build/icon.png` 与 `build/icon.svg`，不再逐像素重绘旧图形；后续换标只需替换 SVG。
+
+- Add a founder-review proposal for PageNote's teacher-Agent system, covering instructional decisions, prompt routing, learner evidence, native interactions, reliability, evaluation and staged competition delivery. / 新增供创始人审查的教师 Agent 体系与优化总方案，覆盖教学决策、提示路由、学习证据、原生交互、可靠性、分层评估及参赛实施；仅方案，不声明新增运行能力。
+
+- Organize StudyHack competition preparation under competitions/qoder-2026: requirements and gaps, existing-feature evidence, a forum-post draft, a web demo plan and Qoder/submission records, with copied historical Windows screenshots and provenance. Documentation only; no Qoder development, public deployment or submission is claimed. / 新增 Qoder 高校创造力大赛 StudyHack 参赛材料目录，整理需求缺口、已有成果证据、作品帖草稿、网页演示计划与过程／提交记录，归档历史 Windows 截图及来源；仅材料整理，不宣称已用 Qoder 开发、完成公网部署或参赛提交。
+
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
 - Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
