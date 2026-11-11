@@ -8,6 +8,8 @@
 
 `ReferenceCircleOutline` 仅移植了圆轮廓采样，单元测试覆盖角度步长及退化圆；目前没有接入橡皮或页面交互，也没有声称完整移植 `split_v2`。其输入必须先从项目文件图形明确转换成参考圆心与边界点，且必须解决混合编辑事务后才可用于用户数据。
 
-`ReferencePenSplit` 是 `Pen.split_v2` 和 `PanelUtils.rectToRegion` 的隔离几何移植：接受已计算的参考线段包围盒，调用 Android 的 `Region` 与 `PathMeasure`，保留原流程的整型坐标和线段逐单位采样。Android 14 模拟器定向测试覆盖穿过、完全覆盖、未命中和长距离扫掠，尚未与参考程序做逐点差分。该代码复制传入包围盒，不复现参考源码中 `Rect.intersect` 对原线段包围盒的原地修改；参考材料对象、线段包围盒生成、压感、颜色透明度、图形类型、坐标尺度、连续手势与历史事务仍需适配，不能视为完整的 `split_v2` 实现。它没有接入阅读器，也不会修改用户文件。
+`ReferencePenSplit` 是 `Pen.split_v2` 和 `PanelUtils.rectToRegion` 的隔离几何移植：调用 Android 的 `Region` 与 `PathMeasure`，保留原流程的整型坐标和线段逐单位采样。现已根据 `Pen.buildPathFromPoints`、`PathHelp.onTouch` 和 `PanelUtils.pointsToRect` 补充默认未平滑模式的包围盒生成，并在 `ReferenceCircleSplit` 中串起圆形采样、包围盒和切分；片段宽度使用参考的 `strokeWidth * autoShapeLineFactor * 1.2`。Android 14 模拟器定向测试覆盖穿过、完全覆盖、未命中、长距离扫掠和圆形切分，尚未与参考程序做逐点差分。
+
+该代码复制传入包围盒，不复现参考源码中 `Rect.intersect` 对原线段包围盒的原地修改；参考材料对象、其他平滑模式、压感、颜色透明度、图形类型、坐标尺度、连续手势与历史事务仍需适配，不能视为完整的 `split_v2` 实现。参考圆形使用圆心和半径点，PageNote 的椭圆使用包围盒对角点，不能直接套用。它没有接入阅读器，也不会修改用户文件。
 
 PageNote 的识形结果保存在矢量批注层，自由笔迹保存在独立内存模型；混合擦除必须在同一手势中统一快照、更新显示、保存和撤销。早期将矢量拆分后单独异步保存的实验会产生撤销不同步、扩展数据与片段数量问题，已撤出产品代码，实验记录保留在本机参考项目的 `handwriting-kernel/erase-prototype/`。下一步需要先完成统一事务与失败回滚，再按参考源码恢复各图形的切分方式，验证项目文件往返及真实设备交互。

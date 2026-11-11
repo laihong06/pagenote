@@ -7,14 +7,44 @@ import android.graphics.Region
 
 /**
  * Geometry stage of reference Pen.split_v2, using its integer region and one-pixel
- * PathMeasure sampling. Input bounds are the reference pen's pre-built segment
- * bounds; creating those bounds and mapping its material model are separate work.
+ * PathMeasure sampling. Input bounds use the reference pen's pre-built segment
+ * bounds; the default unsmoothed construction is available below. Mapping the
+ * reference material model and other smoothing modes remains separate work.
  * Not connected to editing or persistence.
  */
 internal object ReferencePenSplit {
   data class Point(val x: Float, val y: Float, val bounds: Rect)
   data class Position(val x: Float, val y: Float)
   data class Result(val split: Boolean, val pieces: List<List<Position>>)
+
+  /**
+   * Default (unsmoothed) Pen.buildPathFromPoints / PathHelp bounds. Coordinates
+   * and width must already be in the reference material's pixel space.
+   */
+  fun buildDefaultBounds(positions: List<Position>, width: Float): List<Point> {
+    if (positions.isEmpty()) return emptyList()
+    val margin = width.toInt() / 2 + 3
+    var lastX = positions.first().x
+    var lastY = positions.first().y
+    var endX = lastX
+    var endY = lastY
+    return positions.mapIndexed { index, point ->
+      if (index == 0) return@mapIndexed Point(point.x, point.y, Rect())
+      val isEnd = index == positions.lastIndex
+      val controlX = if (isEnd) lastX + (point.x - lastX) * 0.58f else lastX
+      val controlY = if (isEnd) lastY + (point.y - lastY) * 0.58f else lastY
+      val midX = if (isEnd) point.x else lastX + (point.x - lastX) * 0.58f
+      val midY = if (isEnd) point.y else lastY + (point.y - lastY) * 0.58f
+      val x = listOf(endX.toInt(), controlX.toInt(), midX.toInt())
+      val y = listOf(endY.toInt(), controlY.toInt(), midY.toInt())
+      val bounds = Rect(x.min() - margin, y.min() - margin, x.max() + margin, y.max() + margin)
+      endX = midX
+      endY = midY
+      lastX = point.x
+      lastY = point.y
+      Point(point.x, point.y, bounds)
+    }
+  }
 
   fun split(points: List<Point>, width: Float, previous: Rect, current: Rect): Result {
     if (points.isEmpty()) return Result(false, emptyList())
