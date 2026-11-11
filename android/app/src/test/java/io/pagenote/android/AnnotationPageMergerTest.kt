@@ -41,6 +41,17 @@ class AnnotationPageMergerTest {
   }
 
   @Test
+  fun selectionFollowsSameAnnotationAcrossInkReorderingAndStyleUndo() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val expected = page("""[{"type":"pen","id":"ink"},{"type":"rect","width":4},{"type":"line"}]""")
+    val restored = page("""[{"type":"pen","id":"ink"},{"type":"rect","width":2},{"type":"line"}]""")
+    val committed = page("""[{"type":"rect","width":2},{"type":"line"},{"type":"pen","id":"ink"}]""")
+    assertEquals(0, AnnotationPageMerger.rebaseHistorySelection(expected, 1, expected, restored, committed))
+    val removed = page("""[{"type":"pen","id":"ink"},{"type":"line"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseHistorySelection(expected, 1, expected, removed, removed))
+  }
+
+  @Test
   fun replacingFreehandItemsRetainsOtherAnnotationTypesAndMetadata() {
     val rectangle = mapOf("type" to "rect", "color" to "#112233", "custom" to "kept")
     val existing = listOf(

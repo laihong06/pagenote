@@ -33,6 +33,33 @@ object AnnotationPageMerger {
     return JsonArray(result)
   }
 
+  /** Keep selection only when the same annotation is unambiguous across a history edit. */
+  fun rebaseHistorySelection(
+    visible: JsonArray,
+    selectedIndex: Int?,
+    expected: JsonArray,
+    restored: JsonArray,
+    committed: JsonArray,
+  ): Int? {
+    val index = selectedIndex ?: return null
+    val selected = visible.getOrNull(index) ?: return null
+    if (isFreehand(selected)) return null
+    val currentAnnotations = visible.filterNot(::isFreehand)
+    val beforeAnnotations = expected.filterNot(::isFreehand)
+    val afterAnnotations = restored.filterNot(::isFreehand)
+    if (!jsonListsEqual(currentAnnotations, beforeAnnotations) ||
+      beforeAnnotations.size != afterAnnotations.size ||
+      !jsonListsEqual(committed.filterNot(::isFreehand), afterAnnotations)) return null
+    val ordinal = visible.take(index).count { !isFreehand(it) }
+    if (ordinal !in beforeAnnotations.indices || beforeAnnotations.indices.any {
+        it != ordinal && !jsonEqual(beforeAnnotations[it], afterAnnotations[it])
+      }) return null
+    val beforeType = (beforeAnnotations[ordinal] as? JsonObject)?.get("type")
+    val afterType = (afterAnnotations[ordinal] as? JsonObject)?.get("type")
+    if (beforeType == null || beforeType != afterType) return null
+    return committed.indices.filter { !isFreehand(committed[it]) }.getOrNull(ordinal)
+  }
+
   private fun jsonListsEqual(left: List<JsonElement>, right: List<JsonElement>): Boolean =
     left.size == right.size && left.indices.all { jsonEqual(left[it], right[it]) }
 

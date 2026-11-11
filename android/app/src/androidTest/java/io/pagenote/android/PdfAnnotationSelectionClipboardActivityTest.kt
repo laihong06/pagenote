@@ -355,6 +355,11 @@ class PdfAnnotationSelectionClipboardActivityTest {
       session.penTool.value = io.pagenote.feature.pen.PenCanvasTool.PEN
     }
 
+    fun readerCommand(id: String): androidx.compose.ui.test.SemanticsNodeInteraction {
+      revealReaderMenuCommand(composeRule, "handwriting", id)
+      return composeRule.onNodeWithTag("reader_menu_command_$id")
+    }
+
     try {
       composeRule.waitUntil(15_000) {
         session.pageIndex.intValue == 0 &&
@@ -364,7 +369,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       composeRule.waitForIdle()
       revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
-      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      readerCommand("select_tool").performScrollTo().performClick()
       val canvas = composeRule.onNodeWithTag("pdf_ink_canvas")
       val nativeCanvasRef = AtomicReference<PenCanvasView>()
       composeRule.runOnUiThread {
@@ -398,22 +403,14 @@ class PdfAnnotationSelectionClipboardActivityTest {
         rectIndex,
         expectedHit,
       )
-      val copyCommand = composeRule.onNodeWithTag("reader_menu_command_copy_ink")
-      val selectionDeadline = SystemClock.uptimeMillis() + 10_000
-      while (
-        SystemClock.uptimeMillis() < selectionDeadline &&
-        runCatching { copyCommand.assertIsEnabled() }.isFailure
-      ) {
-        canvas.performTouchInput { click(tapOffset) }
-        SystemClock.sleep(50)
-      }
-      copyCommand.assertIsEnabled()
+      canvas.performTouchInput { click(tapOffset) }
+      readerCommand("copy_ink").assertIsEnabled()
 
       val latestPage = annotations.readPage("document", 1)
       val latestLine = JsonObject((latestPage[1] as JsonObject) + ("concurrent" to JsonPrimitive("preserve")))
       annotations.writePage("document", 1, JsonArray(listOf(latestPage[0], latestLine, latestPage[2])))
 
-      composeRule.onNodeWithTag("reader_menu_command_ink_color").performScrollTo().performClick()
+      readerCommand("ink_color").performScrollTo().performClick()
       composeRule.onNodeWithTag("ink_color_swatch_red").performClick()
       composeRule.onNodeWithTag("ink_color_apply").performClick()
       waitForAnnotations(annotations) {
@@ -421,7 +418,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
         rect?.get("color")?.jsonPrimitive?.content == "#dc3545" &&
           rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 4.0
       }
-      composeRule.onNodeWithTag("reader_menu_command_ink_width").performScrollTo().performClick()
+      readerCommand("ink_width").performScrollTo().performClick()
       composeRule.onNodeWithTag("ink_width_10").performClick()
       composeRule.onNodeWithTag("ink_width_apply").performClick()
       waitForAnnotations(annotations) {
@@ -433,26 +430,26 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals("#dc3545", (annotations.readPage("document", 1)[1] as JsonObject)["color"]?.jsonPrimitive?.content)
       assertEquals("preserve", (annotations.readPage("document", 1)[1] as JsonObject)["concurrent"]?.jsonPrimitive?.content)
       waitForEnabledCommand("reader_menu_command_pen_undo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         val rect = it[0] as? JsonObject
         rect?.get("color")?.jsonPrimitive?.content == "#dc3545" &&
           rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 4.0
       }
       waitForEnabledCommand("reader_menu_command_pen_undo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         val rect = it[0] as? JsonObject
         rect?.get("color")?.jsonPrimitive?.content == "#185abd" &&
           rect["width"]?.jsonPrimitive?.content?.toDoubleOrNull() == 4.0
       }
       waitForEnabledCommand("reader_menu_command_pen_redo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      readerCommand("pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         (it[0] as? JsonObject)?.get("color")?.jsonPrimitive?.content == "#dc3545"
       }
       waitForEnabledCommand("reader_menu_command_pen_redo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      readerCommand("pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         (it[0] as? JsonObject)?.get("width")?.jsonPrimitive?.content?.toDoubleOrNull() == 10.0
       }
@@ -460,10 +457,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
       canvas.performTouchInput { click(pageOffset(760f, 860f)) }
       composeRule.waitUntil(10_000) {
         runCatching {
-          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+          readerCommand("copy_ink").assertIsEnabled()
         }.isSuccess
       }
-      composeRule.onNodeWithTag("reader_menu_command_ink_color").performScrollTo().performClick()
+      readerCommand("ink_color").performScrollTo().performClick()
       composeRule.onNodeWithTag("ink_color_swatch_green").performClick()
       composeRule.onNodeWithTag("ink_color_apply").performClick()
       composeRule.waitUntil(10_000) {
@@ -471,31 +468,31 @@ class PdfAnnotationSelectionClipboardActivityTest {
           it.color == "#2e7d32" && it.width == originalStroke.width
         } == true
       }
-      composeRule.onNodeWithTag("reader_menu_command_ink_width").performScrollTo().performClick()
+      readerCommand("ink_width").performScrollTo().performClick()
       composeRule.onNodeWithTag("ink_width_6").performClick()
       composeRule.onNodeWithTag("ink_width_apply").performClick()
       composeRule.waitUntil(10_000) {
         projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.width == 6.0
       }
       waitForEnabledCommand("reader_menu_command_pen_undo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       composeRule.waitUntil(10_000) {
         projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.let {
           it.color == "#2e7d32" && it.width == originalStroke.width
         } == true
       }
       waitForEnabledCommand("reader_menu_command_pen_undo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       composeRule.waitUntil(10_000) {
         projectPenStore.readPage(PenSide.DOCUMENT, 1) == listOf(originalStroke)
       }
       waitForEnabledCommand("reader_menu_command_pen_redo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      readerCommand("pen_redo").performScrollTo().performClick()
       composeRule.waitUntil(10_000) {
         projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.color == "#2e7d32"
       }
       waitForEnabledCommand("reader_menu_command_pen_redo")
-      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      readerCommand("pen_redo").performScrollTo().performClick()
       composeRule.waitUntil(10_000) {
         projectPenStore.readPage(PenSide.DOCUMENT, 1).singleOrNull()?.let {
           it.color == "#2e7d32" && it.width == 6.0
@@ -504,18 +501,18 @@ class PdfAnnotationSelectionClipboardActivityTest {
       canvas.performTouchInput { click(pageOffset(250f, 100f)) }
       composeRule.waitUntil(10_000) {
         runCatching {
-          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+          readerCommand("copy_ink").assertIsEnabled()
         }.isSuccess
       }
 
-      composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
+      readerCommand("copy_ink").performScrollTo().performClick()
 
       val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
       val payload = clipboard.primaryClip!!.getItemAt(0).text.toString()
       assertTrue(payload.startsWith("PAGE_NOTES_ANNOTATION:\n"))
       assertEquals("rect", PdfAnnotationClipboard.decode(payload)?.get("type")?.toString()?.trim('"'))
 
-      composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().performClick()
+      readerCommand("paste_ink").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 4 }
       var page = annotations.readPage("document", 1)
       val copied = page[3] as JsonObject
@@ -527,7 +524,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
         moveTo(pageOffset(140f, 140f), delayMillis = 500)
         up()
       }
-      composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
+      readerCommand("copy_ink").performScrollTo().performClick()
       val movedPayload = clipboard.primaryClip!!.getItemAt(0).text.toString()
       assertPoints(
         listOf(120.0, 130.0, 420.0, 430.0),
@@ -540,11 +537,11 @@ class PdfAnnotationSelectionClipboardActivityTest {
       page = annotations.readPage("document", 1)
       assertPoints(listOf(120.0, 130.0, 420.0, 430.0), points(page[3] as JsonObject), injectionTolerance)
 
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         (it[3] as? JsonObject)?.let(::points) == listOf(80.0, 90.0, 380.0, 390.0)
       }
-      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      readerCommand("pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0), injectionTolerance) } == true
       }
@@ -559,17 +556,30 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       val resizedPage = annotations.readPage("document", 1)
       val resizedPoints = points(resizedPage[3] as JsonObject)
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) {
         (it[3] as? JsonObject)?.let(::points)?.let { actual -> pointsNear(actual, listOf(120.0, 130.0, 420.0, 430.0), injectionTolerance) } == true
       }
-      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      readerCommand("pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) { (it[3] as? JsonObject)?.let(::points) == resizedPoints }
+      composeRule.waitForIdle()
+      Thread.sleep(600)
+      val selectionScreenshot = java.io.File(context.getExternalFilesDir(null), "annotation-selection-redo.png")
+      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
+        selectionScreenshot.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+      }
+      Thread.sleep(1500)
 
-      composeRule.onNodeWithTag("reader_menu_command_delete_ink").performScrollTo().performClick()
-      waitForAnnotations(annotations) { it.size == 3 }
+      readerCommand("delete_ink").performScrollTo().performClick()
+      try {
+        waitForAnnotations(annotations) { it.size == 3 }
+      } catch (error: Throwable) {
+        val actualPage = annotations.readPage("document", 1)
+        throw AssertionError("After delete page=$actualPage status=${session.penStatus.value}", error)
+      }
       assertEquals(listOf(originalStroke), projectPenStore.readPage(PenSide.DOCUMENT, 1))
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 4 }
       assertEquals("line", (annotations.readPage("document", 1)[1] as JsonObject)["type"]?.toString()?.trim('"'))
       assertEquals(listOf(originalStroke), projectPenStore.readPage(PenSide.DOCUMENT, 1))
@@ -579,7 +589,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       """.trimIndent()
       clipboard.setPrimaryClip(ClipData.newPlainText("image annotation", PdfAnnotationClipboard.MARKER + missingImage))
       composeRule.waitForIdle()
-      composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsNotEnabled()
+      readerCommand("paste_ink").performScrollTo().assertIsNotEnabled()
       assertEquals(4, annotations.readPage("document", 1).size)
 
       clipboard.setPrimaryClip(
@@ -591,7 +601,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
         ),
       )
       composeRule.waitForIdle()
-      composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsEnabled().performClick()
+      readerCommand("paste_ink").performScrollTo().assertIsEnabled().performClick()
       waitForAnnotations(annotations) { it.size == 5 }
       val htmlItem = annotations.readPage("document", 1)[4] as JsonObject
       val safeHtml = htmlItem["html"]?.jsonPrimitive?.content.orEmpty()
@@ -606,7 +616,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
         ClipData.newPlainText("desktop HTML annotation", PdfAnnotationClipboard.encode(desktopItem)),
       )
       composeRule.waitForIdle()
-      composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().performClick()
+      readerCommand("paste_ink").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 6 }
       assertEquals("preserve", (annotations.readPage("document", 1)[5] as JsonObject)["custom"]?.jsonPrimitive?.content)
 
@@ -621,10 +631,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
       composeRule.waitUntil(10_000) {
         runCatching {
-          composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled()
+          readerCommand("copy_ink").assertIsEnabled()
         }.isSuccess
       }
-      composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().performClick()
+      readerCommand("copy_ink").performScrollTo().performClick()
       composeRule.waitUntil(10_000) {
         val copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
           ?.let(PdfAnnotationClipboard::decode)
@@ -634,9 +644,9 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val copiedHtmlText = copiedHtml["html"]!!.jsonPrimitive.content
       assertTrue(!copiedHtmlText.contains("script", ignoreCase = true))
       assertTrue(!copiedHtmlText.contains("example.invalid", ignoreCase = true))
-      composeRule.onNodeWithTag("reader_menu_command_delete_ink").performScrollTo().performClick()
+      readerCommand("delete_ink").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 5 }
-      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      readerCommand("pen_undo").performScrollTo().performClick()
       waitForAnnotations(annotations) { it.size == 6 }
       assertEquals("html", (annotations.readPage("document", 1)[5] as JsonObject)["type"]?.jsonPrimitive?.content)
       assertEquals(untouchedOtherPage, annotations.readPage("document", 2))
@@ -671,6 +681,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
   }
 
   private fun waitForEnabledCommand(tag: String) {
+    revealReaderMenuCommand(composeRule, "handwriting", tag.removePrefix("reader_menu_command_"))
     composeRule.waitUntil(10_000) {
       runCatching { composeRule.onNodeWithTag(tag).assertIsEnabled() }.isSuccess
     }
