@@ -33,6 +33,18 @@ object AnnotationPageMerger {
     return JsonArray(result)
   }
 
+  /**
+   * Prepare an all-or-nothing mixed history restore. Interleaving of pen and
+   * annotation items may differ after a pen save, but both layer sequences
+   * must still match the snapshot from which the history action starts.
+   * This does not write the page or update the live pen model.
+   */
+  fun rebaseMixedHistory(latest: JsonArray, expected: JsonArray, restored: JsonArray): JsonArray? {
+    if (!jsonListsEqual(latest.filter(::isFreehand), expected.filter(::isFreehand)) ||
+      !jsonListsEqual(latest.filterNot(::isFreehand), expected.filterNot(::isFreehand))) return null
+    return restored
+  }
+
   /** Keep selection only when the same annotation is unambiguous across a history edit. */
   fun rebaseHistorySelection(
     visible: JsonArray,

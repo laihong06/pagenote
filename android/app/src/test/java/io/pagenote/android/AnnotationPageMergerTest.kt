@@ -52,6 +52,19 @@ class AnnotationPageMergerTest {
   }
 
   @Test
+  fun mixedHistoryRestoresBothLayersOnlyWhenNeitherHasChanged() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val expected = page("""[{"type":"text","text":"recognized"},{"type":"pen","id":"b","width":3.0}]""")
+    val restored = page("""[{"type":"pen","id":"a","width":2},{"type":"pen","id":"b","width":3}]""")
+    val reordered = page("""[{"type":"pen","id":"b","width":3},{"type":"text","text":"recognized"}]""")
+    assertEquals(restored, AnnotationPageMerger.rebaseMixedHistory(reordered, expected, restored))
+    val newInk = page("""[{"type":"text","text":"recognized"},{"type":"pen","id":"b","width":3},{"type":"pen","id":"new"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseMixedHistory(newInk, expected, restored))
+    val newAnnotation = page("""[{"type":"text","text":"changed"},{"type":"pen","id":"b","width":3}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseMixedHistory(newAnnotation, expected, restored))
+  }
+
+  @Test
   fun replacingFreehandItemsRetainsOtherAnnotationTypesAndMetadata() {
     val rectangle = mapOf("type" to "rect", "color" to "#112233", "custom" to "kept")
     val existing = listOf(

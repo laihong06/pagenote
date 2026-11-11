@@ -1445,9 +1445,10 @@ private fun ReaderHome(
       after = restored,
       selectedAfter = null,
       recordHistory = false,
-      transformLatest = if (annotationOnly) { latest ->
-        AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
-      } else null,
+      transformLatest = { latest ->
+        if (annotationOnly) AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+        else AnnotationPageMerger.rebaseMixedHistory(latest, expected, restored)
+      },
       conflictMessage = context.getString(R.string.pen_annotation_history_changed),
       resolveSelection = if (annotationOnly) { committed ->
         AnnotationPageMerger.rebaseHistorySelection(selectionPage, selectionIndex, expected, restored, committed)
@@ -1471,9 +1472,10 @@ private fun ReaderHome(
       after = restored,
       selectedAfter = null,
       recordHistory = false,
-      transformLatest = if (annotationOnly) { latest ->
-        AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
-      } else null,
+      transformLatest = { latest ->
+        if (annotationOnly) AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+        else AnnotationPageMerger.rebaseMixedHistory(latest, expected, restored)
+      },
       conflictMessage = context.getString(R.string.pen_annotation_history_changed),
       resolveSelection = if (annotationOnly) { committed ->
         AnnotationPageMerger.rebaseHistorySelection(selectionPage, selectionIndex, expected, restored, committed)
