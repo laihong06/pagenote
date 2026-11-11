@@ -3,6 +3,9 @@ package io.pagenote.feature.pen
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -15,6 +18,41 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PenCanvasViewInstrumentedTest {
+  @Test fun eraserShowsItsActualBoundaryWhileTouching() {
+    onUi {
+      val view = createCanvas().apply { selectedTool = PenCanvasTool.ERASER; eraserRadiusPx = 30f }
+      val bitmap = Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
+      dispatchTouch(view, MotionEvent.ACTION_DOWN, 250f, 250f, 0.5f, 2)
+      view.draw(Canvas(bitmap))
+      assertTrue("eraser outline should be visible at its actual radius", Color.alpha(bitmap.getPixel(280, 250)) > 0)
+      assertEquals("outline should not fill the center", 0, Color.alpha(bitmap.getPixel(250, 250)))
+      dispatchTouch(view, MotionEvent.ACTION_UP, 250f, 250f, 0.5f, 3)
+      bitmap.eraseColor(Color.TRANSPARENT)
+      view.draw(Canvas(bitmap))
+      assertEquals("touch outline should disappear after lift", 0, Color.alpha(bitmap.getPixel(280, 250)))
+      bitmap.recycle()
+    }
+  }
+
+  @Test fun eraserShowsBoundaryWhileStylusHoversAndHidesOnExit() {
+    onUi {
+      val view = createCanvas().apply { selectedTool = PenCanvasTool.ERASER; eraserRadiusPx = 30f }
+      val bitmap = Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
+      withEvent(MotionEvent.ACTION_HOVER_MOVE, 250f, 250f, 0f, 0, 2) { view.onHoverEvent(it) }
+      view.draw(Canvas(bitmap))
+      assertTrue(Color.alpha(bitmap.getPixel(280, 250)) > 0)
+      withEvent(MotionEvent.ACTION_HOVER_EXIT, 250f, 250f, 0f, 0, 3) { view.onHoverEvent(it) }
+      bitmap.eraseColor(Color.TRANSPARENT)
+      view.draw(Canvas(bitmap))
+      assertEquals(0, Color.alpha(bitmap.getPixel(280, 250)))
+      withEvent(MotionEvent.ACTION_HOVER_MOVE, 250f, 250f, 0f, 0, 4) { view.onHoverEvent(it) }
+      view.cancelActiveGesture()
+      bitmap.eraseColor(Color.TRANSPARENT)
+      view.draw(Canvas(bitmap))
+      assertEquals("cancel must clear a hover-only cursor", 0, Color.alpha(bitmap.getPixel(280, 250)))
+      bitmap.recycle()
+    }
+  }
   @Test
   fun slowDwellRecognitionDoesNotBlockInputOrApplyAfterLift() {
     lateinit var canvas: PenCanvasView

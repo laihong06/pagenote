@@ -90,6 +90,10 @@ class ReaderPageJumpActivityTest {
     composeRule.onNodeWithTag("reader_pen_ballpoint").performClick()
     composeRule.runOnIdle { assertEquals(io.pagenote.feature.pen.PenCanvasTool.BALLPOINT, session.penTool.value) }
     saveUiScreenshot("reader-floating-pen-box.png")
+    composeRule.onNodeWithTag("reader_pen_eraser").performClick()
+    composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { down(center) }
+    saveUiScreenshot("reader-eraser-boundary.png")
+    composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { up() }
     composeRule.onNodeWithTag("reader_page_status").assertIsEnabled().performClick()
     composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
     composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("page_preview_bitmap_0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }

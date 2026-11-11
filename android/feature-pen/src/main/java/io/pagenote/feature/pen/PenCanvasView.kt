@@ -29,6 +29,12 @@ class PenCanvasView @JvmOverloads constructor(
     style = Paint.Style.STROKE
     strokeWidth = 3f
   }
+  private val eraserOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = Color.DKGRAY
+    style = Paint.Style.STROKE
+    strokeWidth = resources.displayMetrics.density.coerceAtLeast(1f)
+  }
+  private var eraserPosition: Pair<Float, Float>? = null
   private val activePoints = mutableListOf<PenPoint>()
   private var activePathLength = 0f
   private val shapeGeneration = AtomicLong()
@@ -85,6 +91,7 @@ class PenCanvasView @JvmOverloads constructor(
       if (field != value && value != PenCanvasTool.PEN && activePointerId != INVALID_POINTER) {
         clearShapeRecognition(cancelled = true)
       }
+      if (field != value && value != PenCanvasTool.ERASER) eraserPosition = null
       field = value
       invalidate()
     }
@@ -115,6 +122,13 @@ class PenCanvasView @JvmOverloads constructor(
   var onSelectionChanged: ((Int?) -> Unit)? = null
   var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
+    set(value) {
+      field = value
+      if (!value && eraserPosition != null) {
+        eraserPosition = null
+        invalidate()
+      }
+    }
   var viewportTransformInProgress: Boolean = false
     set(value) {
       if (field != value) {
@@ -184,6 +198,7 @@ class PenCanvasView @JvmOverloads constructor(
       }
     }
     canvas.restoreToCount(save)
+    eraserPosition?.let { (x, y) -> canvas.drawCircle(x, y, eraserRadiusPx, eraserOutlinePaint) }
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -293,6 +308,21 @@ class PenCanvasView @JvmOverloads constructor(
     return true
   }
 
+  override fun onHoverEvent(event: MotionEvent): Boolean {
+    val pointerType = event.getToolType(0)
+    if (inputEnabled && (pointerType == MotionEvent.TOOL_TYPE_ERASER ||
+      (selectedTool == PenCanvasTool.ERASER && pointerType == MotionEvent.TOOL_TYPE_STYLUS))) {
+      when (event.actionMasked) {
+        MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> eraserPosition = event.x to event.y
+        MotionEvent.ACTION_HOVER_EXIT -> eraserPosition = null
+        else -> return super.onHoverEvent(event)
+      }
+      invalidate()
+      return true
+    }
+    return super.onHoverEvent(event)
+  }
+
   override fun performClick(): Boolean {
     super.performClick()
     return true
@@ -300,6 +330,10 @@ class PenCanvasView @JvmOverloads constructor(
 
   fun cancelActiveGesture() {
     clearLaserTrail()
+    if (eraserPosition != null) {
+      eraserPosition = null
+      invalidate()
+    }
     if (activePointerId == INVALID_POINTER) return
     resetGesture()
     invalidate()
@@ -544,6 +578,8 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun eraseAt(xPx: Float, yPx: Float) {
+    eraserPosition = xPx to yPx
+    invalidate()
     if (onAreaEraseCommitted == null) {
       val index = geometry().hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
       internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
@@ -606,6 +642,7 @@ class PenCanvasView @JvmOverloads constructor(
     activePointerToolType = MotionEvent.TOOL_TYPE_UNKNOWN
     gestureTool = null
     eraseModeLatched = false
+    eraserPosition = null
     activePoints.clear()
     liveStrokeCache.clear()
     activePathLength = 0f
