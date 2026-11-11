@@ -209,7 +209,7 @@ internal fun ReaderPenRail(
 }
 
 @Composable
-private fun PenWidthControl(width: Double, enabled: Boolean, tag: String, onWidth: (Double) -> Unit) {
+internal fun PenWidthControl(width: Double, enabled: Boolean, tag: String, onWidth: (Double) -> Unit) {
   var draft by remember(width) { mutableFloatStateOf(width.toFloat().coerceIn(0.1f, 20f)) }
   fun rounded(value: Float): Double = (value.coerceIn(0.1f, 20f) * 10).roundToInt() / 10.0
   Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
@@ -274,7 +274,7 @@ private fun RailAction(label: String, tag: String, active: Boolean, enabled: Boo
 private fun RailDivider() = HorizontalDivider(Modifier.padding(horizontal = 6.dp, vertical = 5.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
 @Composable
-private fun PenIllustration(tool: PenCanvasTool, ink: Color, active: Boolean) {
+internal fun PenIllustration(tool: PenCanvasTool, ink: Color, active: Boolean) {
   Canvas(Modifier.fillMaxSize().clipToBounds()) {
     withTransform({ scale(size.width / 44f, size.height / 40f, Offset.Zero); translate(if (active) 0f else -5f, 0f) }) {
       val slim = tool == PenCanvasTool.BALLPOINT

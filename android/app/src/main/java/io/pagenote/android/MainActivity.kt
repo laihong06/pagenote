@@ -6502,26 +6502,8 @@ private fun ReaderHome(
     }
 
     if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
-      Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-      if (activeRenderer != null) {
-        ReaderPenRail(
-          tool = penTool,
-          drawTool = annotationDrawTool,
-          style = penStyle,
-          enabled = canUsePen,
-          selectionEnabled = canSelectPen,
-          onTool = { nextTool ->
-            selectedPenIndex = null
-            selectedAnnotationIndex = null
-            selectAnnotationDrawTool(null)
-            penTool = nextTool
-          },
-          onShape = ::selectAnnotationDrawTool,
-          onColor = { applyPenStyle(color = it) },
-          onWidth = { applyPenStyle(width = it) },
-          onCustomColor = { showPenColorPicker = true },
-        )
-      }
+      Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+      Row(modifier = Modifier.fillMaxSize()) {
       BoxWithConstraints(
         modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 8.dp, vertical = 4.dp),
       ) {
@@ -6808,6 +6790,32 @@ private fun ReaderHome(
             )
           }
         }
+      }
+      }
+      if (activeRenderer != null) {
+        FloatingPenBox(
+          tool = penTool,
+          drawTool = annotationDrawTool,
+          style = penStyle,
+          enabled = canUsePen,
+          selectionEnabled = canSelectPen,
+          onTool = { nextTool ->
+            selectedPenIndex = null
+            selectedAnnotationIndex = null
+            selectAnnotationDrawTool(null)
+            penTool = nextTool
+          },
+          onShape = ::selectAnnotationDrawTool,
+          onColor = { applyPenStyle(color = it) },
+          onWidth = { applyPenStyle(width = it) },
+          onCustomColor = { showPenColorPicker = true },
+          onRestoreStyle = { color, width ->
+            PenStyle.create(color, width)?.let { restored ->
+              penColor = restored.color
+              penWidth = restored.width
+            }
+          },
+        )
       }
       }
     } else {

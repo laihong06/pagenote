@@ -1,4 +1,8 @@
 <resources>
+  <string name="floating_pen_expand">Expand pen box</string>
+  <string name="floating_pen_handle">Collapse pen box; drag to move; long press to lock</string>
+  <string name="floating_pen_duplicate">Duplicate pen</string>
+  <string name="floating_pen_remove">Remove from pen box</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">Reader settings</string>
   <string name="reader_settings_loading">Loading saved reader settings…</string>

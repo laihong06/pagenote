@@ -73,7 +73,8 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
-  fun nativePdfShowsNarrowRailAndRealThumbnailDrawer() {
+  fun nativePdfShowsFloatingPenBoxAndRealThumbnailDrawer() {
+    InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("reader_floating_pen_box", 0).edit().clear().commit()
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
     val session = attachProjectToReader(project, notes)
@@ -85,10 +86,10 @@ class ReaderPageJumpActivityTest {
       session.penWritable.value = true
     }
     composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
-    composeRule.onNodeWithTag("reader_pen_rail").assertWidthIsEqualTo(44.dp)
+    composeRule.onNodeWithTag("floating_pen_box").assertIsDisplayed()
     composeRule.onNodeWithTag("reader_pen_ballpoint").performClick()
     composeRule.runOnIdle { assertEquals(io.pagenote.feature.pen.PenCanvasTool.BALLPOINT, session.penTool.value) }
-    saveUiScreenshot("reader-pen-rail.png")
+    saveUiScreenshot("reader-floating-pen-box.png")
     composeRule.onNodeWithTag("reader_page_status").assertIsEnabled().performClick()
     composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
     composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("page_preview_bitmap_0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }

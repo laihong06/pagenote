@@ -20,6 +20,7 @@ class NoteUiEvidenceTest {
 
   @Test fun captureReaderAndToolbox() {
     val name = "UI evidence"
+    InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("reader_floating_pen_box", 0).edit().clear().commit()
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     val manifest = """{"format":"pagenote-project","version":1,"id":"${"d".repeat(64)}","name":"$name","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}"""
     resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_INSTALL, null, Bundle().apply {
@@ -37,20 +38,17 @@ class NoteUiEvidenceTest {
     }
     android.os.SystemClock.sleep(700)
     compose.waitForIdle()
-    compose.onNodeWithTag("reader_pen_box").performClick()
-    compose.onNodeWithTag("reader_pen_box_panel").assertExists()
-    android.os.SystemClock.sleep(500); compose.waitForIdle(); capture("pen-box")
-    InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
-    compose.waitForIdle()
-    compose.onNodeWithTag("reader_pen_pen").performTouchInput { longClick() }
+    compose.onNodeWithTag("floating_pen_box").assertExists()
+    capture("pen-box")
+    compose.onNodeWithTag("reader_pen_pen").performClick()
     compose.onNodeWithTag("reader_pen_style_menu").assertExists()
     compose.waitForIdle()
     capture("pen-style")
     InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
-    compose.onNodeWithTag("reader_pen_collapse").performClick()
+    compose.onNodeWithTag("floating_pen_box_handle").performClick()
     compose.waitForIdle()
     capture("pen-collapsed")
-    compose.onNodeWithTag("reader_pen_expand").performClick()
+    compose.onNodeWithTag("floating_pen_box_handle").performClick()
     compose.waitForIdle()
     capture("reader")
     compose.onNodeWithTag("reader_menu_trigger").performClick()

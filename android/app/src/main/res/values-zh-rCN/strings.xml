@@ -1,4 +1,8 @@
 <resources>
+  <string name="floating_pen_expand">展开笔盒</string>
+  <string name="floating_pen_handle">收起笔盒；拖动移动，长按锁定</string>
+  <string name="floating_pen_duplicate">复制此笔</string>
+  <string name="floating_pen_remove">从笔盒移除</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">阅读设置</string>
   <string name="reader_settings_loading">正在读取阅读设置…</string>
