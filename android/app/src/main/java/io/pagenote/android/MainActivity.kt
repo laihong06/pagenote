@@ -1120,22 +1120,23 @@ private fun ReaderHome(
     val snapshot = strokes.toList()
     pendingPenSaves += 1
     try {
-      penSaveMutex.withLock {
+      val recovery = penSaveMutex.withLock {
         withContext(Dispatchers.IO) {
           store.writePage(PenSide.DOCUMENT, targetPage, snapshot)
+          store.lastRetainedRecoveryCopyName
         }
       }
       val recoveredFailedSave = readerSession.failedPenSaves.remove(targetPage) != null
+      readerSession.failedPenSaveMessages.remove(targetPage)
       lastEditWasAnnotation[targetPage] = false
+      if (recovery != null) readerSession.penSaveRecoveryStatuses[recovery] = context.getString(R.string.pen_saved_recovery_copy, recovery)
       if (readerSession.failedPenSaves.isEmpty()) {
-        val recovery = store.lastRetainedRecoveryCopyName
-        if (recovery != null) penStatus = context.getString(R.string.pen_saved_recovery_copy, recovery)
-        else if (recoveredFailedSave) penStatus = null
+        if (recoveredFailedSave && penStatus?.startsWith(context.getString(R.string.pen_not_saved, "")) == true) penStatus = null
       }
     } catch (error: Exception) {
       if (error is CancellationException) throw error
       readerSession.failedPenSaves[targetPage] = snapshot
-      penStatus = context.getString(R.string.pen_not_saved, error.message ?: "")
+      readerSession.failedPenSaveMessages[targetPage] = context.getString(R.string.pen_not_saved, error.message ?: "")
     } finally {
       pendingPenSaves -= 1
     }
@@ -3563,6 +3564,8 @@ private fun ReaderHome(
       penStrokes = loaded.penPageStore.getItems(PenSide.DOCUMENT, loaded.restoredPageIndex + 1)
       penWritable = loaded.penWritable
       readerSession.failedPenSaves.clear()
+      readerSession.failedPenSaveMessages.clear()
+      readerSession.penSaveRecoveryStatuses.clear()
       penStatus = if (loaded.penWritable) null else context.getString(R.string.pen_read_only)
       pageIndex = loaded.restoredPageIndex
       val restoredPage = pageIndex + 1
@@ -6377,15 +6380,6 @@ private fun ReaderHome(
         }
       }
 
-    errorMessage?.let { message ->
-      Text(
-        text = message,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodyMedium,
-      )
-    }
-
     if (activeProject != null && (activeRenderer != null || activeMarkdown != null)) {
       if (pdfTextSelectionMode) {
         Row(
@@ -6470,33 +6464,6 @@ private fun ReaderHome(
             onStateChange = { formulaOcrState = it },
             onRecognize = ::recognizeFormulaSelection,
           )
-        }
-      }
-      val visiblePenStatus = if (failedPenSave != null && (penStatus == null || !isReaderErrorStatus(penStatus!!))) {
-        context.getString(R.string.pen_not_saved, "")
-      } else penStatus
-      visiblePenStatus?.let { status ->
-        Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text(
-            text = status,
-            modifier = Modifier.weight(1f),
-            color = if (isReaderErrorStatus(status)) {
-              MaterialTheme.colorScheme.error
-            } else {
-              MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            style = MaterialTheme.typography.labelMedium,
-          )
-          failedPenSave?.let { (targetPage, strokes) ->
-            TextButton(
-              modifier = Modifier.testTag("reader_pen_save_retry"),
-              onClick = { readerSession.launchSessionTask { savePenPage(targetPage, strokes) } },
-              enabled = !isPenSaving,
-            ) { Text(stringResource(R.string.retry)) }
-          }
         }
       }
     }
@@ -6622,7 +6589,7 @@ private fun ReaderHome(
               dirty = hasUnsavedChanges,
               writable = noteWritable && !isRainApplyingPage,
               saving = isSaving || isExportingNotes,
-              status = noteStatus,
+              status = null,
               onMarkdownChange = readerSession::setNoteDraft,
               onMarkdownMutation = { before, after ->
                 if (!isApplyingMarkdownHistory) {
@@ -6752,7 +6719,7 @@ private fun ReaderHome(
               dirty = hasUnsavedChanges,
               writable = noteWritable && !isRainApplyingPage,
               saving = isSaving || isExportingNotes,
-              status = noteStatus,
+              status = null,
               onMarkdownChange = readerSession::setNoteDraft,
               onMarkdownMutation = { before, after ->
                 if (!isApplyingMarkdownHistory) {
@@ -6854,6 +6821,44 @@ private fun ReaderHome(
   }
     }
   }
+    if (!showBookshelf) {
+      val saveErrorPrefix = context.getString(R.string.pen_not_saved, "")
+      val saveErrorDetail = failedPenSave?.first?.let { readerSession.failedPenSaveMessages[it] }
+        ?: penStatus?.takeIf { it.startsWith(saveErrorPrefix) }
+      val visiblePenStatus = penStatus?.takeUnless {
+        it == context.getString(R.string.pen_saved) || it == context.getString(R.string.annotation_saving) ||
+          (failedPenSave != null && it.startsWith(saveErrorPrefix))
+      }
+      val visibleNoteStatus = noteStatus?.takeUnless { it == context.getString(R.string.note_saved) || it == context.getString(R.string.annotation_saving) }
+      val transientPenMessages = listOf(R.string.pen_copied, R.string.pen_pasted, R.string.pen_deleted,
+        R.string.ink_ocr_converted, R.string.formula_ocr_inserted, R.string.formula_ocr_material_saved)
+        .map(context::getString).toSet()
+      val transientNoteMessages = listOf(R.string.help_diagnostics_copied, R.string.note_history_restored,
+        R.string.note_reloaded, R.string.ai_action_unchanged, R.string.reader_menu_busy,
+        R.string.reader_menu_export_success, R.string.reader_menu_import_success).map(context::getString).toSet()
+      Column(
+        modifier = Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
+          .heightIn(max = maxHeight * 0.5f).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        errorMessage?.let { message -> ReaderStatusPill(message, persistent = true, onDismiss = { errorMessage = null }) }
+        visiblePenStatus?.let { message -> ReaderStatusPill(message, persistent = message !in transientPenMessages, onDismiss = { if (penStatus == message) penStatus = null }) }
+        visibleNoteStatus?.let { message -> ReaderStatusPill(message, persistent = message !in transientNoteMessages, onDismiss = { if (noteStatus == message) noteStatus = null }) }
+        readerSession.penSaveRecoveryStatuses.forEach { (key, message) ->
+          ReaderStatusPill(message, persistent = true, onDismiss = { readerSession.penSaveRecoveryStatuses.remove(key) })
+        }
+        failedPenSave?.let { (targetPage, strokes) ->
+          ReaderStatusPill(
+            message = saveErrorDetail?.takeUnless { it == saveErrorPrefix } ?: context.getString(R.string.reader_ink_not_saved),
+            persistent = true,
+            onDismiss = {},
+            onRetry = { readerSession.launchSessionTask { savePenPage(targetPage, strokes) } },
+            retryEnabled = !isPenSaving,
+          )
+        }
+      }
+    }
   }
 
   if (search.show && activeProject != null) {

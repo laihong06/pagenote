@@ -19,6 +19,8 @@ import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
@@ -155,17 +157,39 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
-  fun failedInkSaveKeepsRetryAvailableEvenWithoutStatusText() {
+  fun failedInkSaveKeepsRetryAndOtherErrorsVisible() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val session = attachProjectToReader(installProject(notes), notes)
     try {
       composeRule.runOnIdle {
         session.failedPenSaves[1] = listOf(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f))))
-        session.penStatus.value = null
+        session.failedPenSaveMessages[1] = composeRule.activity.getString(R.string.pen_not_saved, "storage full")
+        session.penStatus.value = "OCR failed"
+        session.noteStatus.value = composeRule.activity.getString(R.string.note_conflict)
       }
       composeRule.onNodeWithTag("reader_pen_save_retry").assertIsDisplayed().assertIsEnabled()
+      composeRule.onNodeWithText("OCR failed").assertIsDisplayed()
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.pen_not_saved, "storage full")).assertIsDisplayed()
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.note_conflict)).assertIsDisplayed()
+      saveUiScreenshot("reader-status-error.png")
+      composeRule.onNodeWithTag("reader_pen_save_retry").performClick()
+      composeRule.waitUntil(10_000) { session.failedPenSaves.isEmpty() }
+      composeRule.runOnIdle { assertTrue(session.failedPenSaveMessages.isEmpty()) }
+      composeRule.onNodeWithText("OCR failed").assertIsDisplayed()
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.note_conflict)).assertIsDisplayed()
+      composeRule.runOnIdle { session.noteStatus.value = null }
+      composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText(composeRule.activity.getString(R.string.note_conflict)).fetchSemanticsNodes().isEmpty() }
+      saveUiScreenshot("reader-status-single.png")
+      composeRule.runOnIdle {
+        session.failedPenSaves[1] = listOf(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f))))
+        session.penStatus.value = null
+      }
+      composeRule.onNodeWithTag("reader_pen_save_retry").assertIsDisplayed()
+      val savedError = composeRule.activity.getString(R.string.pen_not_saved, "storage full")
+      composeRule.runOnIdle { session.penStatus.value = savedError }
+      composeRule.onNodeWithText(savedError).assertIsDisplayed()
       composeRule.onNodeWithTag("reader_next_page").assertIsNotEnabled()
-    } finally { composeRule.runOnIdle { session.failedPenSaves.clear() } }
+    } finally { composeRule.runOnIdle { session.failedPenSaves.clear(); session.failedPenSaveMessages.clear(); session.penStatus.value = null; session.noteStatus.value = null } }
   }
 
   @Test

@@ -1,4 +1,5 @@
 <resources>
+  <string name="reader_ink_not_saved">Ink not saved</string>
   <string name="floating_pen_expand">Expand pen box</string>
   <string name="floating_pen_handle">Collapse pen box; drag to move; long press to lock</string>
   <string name="floating_pen_duplicate">Duplicate pen</string>

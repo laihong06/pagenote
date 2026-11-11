@@ -49,6 +49,8 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   val penTool: MutableState<PenCanvasTool> = mutableStateOf(PenCanvasTool.PEN)
   val penStatus: MutableState<String?> = mutableStateOf(null)
   val failedPenSaves = androidx.compose.runtime.mutableStateMapOf<Int, List<PenStroke>>()
+  val failedPenSaveMessages = androidx.compose.runtime.mutableStateMapOf<Int, String>()
+  val penSaveRecoveryStatuses = androidx.compose.runtime.mutableStateMapOf<String, String>()
   val pendingPenSaves: MutableIntState = mutableIntStateOf(0)
   val isOpening: MutableState<Boolean> = mutableStateOf(false)
   val isSaving: MutableState<Boolean> = mutableStateOf(false)
