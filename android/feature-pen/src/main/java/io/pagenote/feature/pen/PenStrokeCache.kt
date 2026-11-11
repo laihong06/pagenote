@@ -5,8 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 
 /**
- * View-pixel raster of committed strokes — the Kotlin counterpart of the
- * page handle in the Newskyer PaintView kernel. Committed ink renders once
+ * View-pixel raster of committed strokes. Committed ink renders once
  * into this layer; the owner draws only live ink on top per frame.
  * Rebuilds are lazy: they happen when the view size, the geometry key, or
  * the committed list changes, and skip strokes outside the viewport.

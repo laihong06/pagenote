@@ -36,6 +36,7 @@ class PenCanvasView @JvmOverloads constructor(
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
   private val strokeCache = PenStrokeCache()
+  private val liveStrokeCache = PenLiveStrokeCache()
   private val predictor = PenPredictor(
     densityPx = resources.displayMetrics.density,
     // Context.display throws on non-visual contexts (API 30+), so the safe
@@ -152,15 +153,12 @@ class PenCanvasView @JvmOverloads constructor(
             PenStroke(preview.type, activeColor, activeWidth, listOf(preview.first, preview.second)),
             geometry,
           )
+        } else if (tool == PenCanvasTool.PEN || tool == PenCanvasTool.BALLPOINT) {
+          liveStrokeCache.draw(canvas, activePoints, activeColor, activeWidth)
         } else {
           PenStrokePainter.drawStroke(
             canvas,
-            PenStroke(
-              type = tool.persistedType ?: "pen",
-              color = activeColor,
-              width = activeWidth,
-              points = activePoints.toList(),
-            ),
+            PenStroke(tool.persistedType ?: "pen", activeColor, activeWidth, activePoints.toList()),
             geometry,
           )
         }
@@ -566,6 +564,7 @@ class PenCanvasView @JvmOverloads constructor(
     gestureTool = null
     eraseModeLatched = false
     activePoints.clear()
+    liveStrokeCache.clear()
     activePathLength = 0f
     shapePreview = null
     shapeDwellAnchor = null
