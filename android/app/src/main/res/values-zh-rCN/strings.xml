@@ -3,6 +3,15 @@
   <string name="floating_pen_handle">收起笔盒；拖动移动，长按锁定</string>
   <string name="floating_pen_duplicate">复制此笔</string>
   <string name="floating_pen_remove">从笔盒移除</string>
+  <string name="floating_pen_groups">笔盒组</string>
+  <string name="floating_pen_group_number">笔盒 %1$d</string>
+  <string name="floating_pen_group_copy">复制笔盒</string>
+  <string name="floating_pen_group_new">新建空笔盒</string>
+  <string name="floating_pen_add">添加笔</string>
+  <string name="floating_pen_group_edit">编辑笔盒</string>
+  <string name="floating_pen_group_name">名称</string>
+  <string name="floating_pen_group_delete">删除笔盒</string>
+  <string name="floating_pen_group_delete_message">确定删除这个笔盒及其笔槽吗？</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">阅读设置</string>
   <string name="reader_settings_loading">正在读取阅读设置…</string>

@@ -3,6 +3,15 @@
   <string name="floating_pen_handle">Collapse pen box; drag to move; long press to lock</string>
   <string name="floating_pen_duplicate">Duplicate pen</string>
   <string name="floating_pen_remove">Remove from pen box</string>
+  <string name="floating_pen_groups">Pen boxes</string>
+  <string name="floating_pen_group_number">Pen box %1$d</string>
+  <string name="floating_pen_group_copy">Duplicate pen box</string>
+  <string name="floating_pen_group_new">New empty pen box</string>
+  <string name="floating_pen_add">Add pen</string>
+  <string name="floating_pen_group_edit">Edit pen box</string>
+  <string name="floating_pen_group_name">Name</string>
+  <string name="floating_pen_group_delete">Delete pen box</string>
+  <string name="floating_pen_group_delete_message">Delete this pen box and its slots?</string>
   <string name="app_name">pagenote</string>
   <string name="reader_settings_title">Reader settings</string>
   <string name="reader_settings_loading">Loading saved reader settings…</string>

@@ -74,6 +74,12 @@ internal fun FloatingPenBox(
   var settingsOpen by remember { mutableStateOf(false) }
   var shapesOpen by remember { mutableStateOf(false) }
   var generalStyleOpen by remember { mutableStateOf(false) }
+  var groupsOpen by remember { mutableStateOf(false) }
+  var addPenOpen by remember { mutableStateOf(false) }
+  var editingGroup by remember { mutableStateOf<String?>(null) }
+  var confirmDeleteGroup by remember { mutableStateOf<String?>(null) }
+  var groupName by remember { mutableStateOf("") }
+  var groupRevision by remember { mutableIntStateOf(0) }
   var reordering by remember { mutableStateOf(false) }
   val handleLabel = stringResource(if (collapsed) R.string.floating_pen_expand else R.string.floating_pen_handle)
   val selectLabel = stringResource(R.string.reader_menu_select_tool)
@@ -81,13 +87,22 @@ internal fun FloatingPenBox(
   val styleLabel = stringResource(R.string.pen_style_title)
   val defaultTools = remember { listOf(PenCanvasTool.PEN, PenCanvasTool.BALLPOINT, PenCanvasTool.HIGHLIGHTER, PenCanvasTool.LASER) }
   fun slotTool(id: String): PenCanvasTool? = defaultTools.firstOrNull { it.name == id.substringBefore('|') }
+  var groupIds by remember { mutableStateOf(preferences.getString("groups", "default").orEmpty().split(',').filter { it.isNotBlank() }.distinct().ifEmpty { listOf("default") }) }
+  var currentGroup by remember { mutableStateOf(preferences.getString("current_group", "default")?.takeIf { it in groupIds } ?: groupIds.first()) }
+  fun orderKey(group: String) = if (group == "default") "order" else "group_${group}_order"
+  fun selectedKey(group: String) = if (group == "default") "selected" else "group_${group}_selected"
+  fun loadSlots(group: String): List<String> = if (!preferences.contains(orderKey(group))) defaultTools.map { it.name } else preferences.getString(orderKey(group), "").orEmpty().split(',').filter { slotTool(it) != null }.distinct()
   var orderedSlots by remember {
-    val stored = preferences.getString("order", "").orEmpty().split(',').filter { slotTool(it) != null }.distinct()
-    mutableStateOf(stored.ifEmpty { defaultTools.map { it.name } })
+    val stored = loadSlots(currentGroup)
+    val slots = if (stored.isNotEmpty() && tool in defaultTools && stored.none { slotTool(it) == tool }) {
+      val id = if (currentGroup == "default") tool.name else "${tool.name}|${UUID.randomUUID()}"
+      (stored + id).also { preferences.edit().putString(orderKey(currentGroup), it.joinToString(",")).apply() }
+    } else stored
+    mutableStateOf(slots)
   }
   var selectedSlot by remember {
-    val saved = preferences.getString("selected", tool.name)?.takeIf { it in orderedSlots }
-    mutableStateOf(saved?.takeIf { slotTool(it) == tool } ?: orderedSlots.firstOrNull { slotTool(it) == tool } ?: saved ?: orderedSlots.first())
+    val saved = preferences.getString(selectedKey(currentGroup), tool.name)?.takeIf { it in orderedSlots }
+    mutableStateOf(saved?.takeIf { slotTool(it) == tool } ?: orderedSlots.firstOrNull { slotTool(it) == tool } ?: saved ?: orderedSlots.firstOrNull().orEmpty())
   }
   var initialized by remember { mutableStateOf(false) }
   var previousTool by remember { mutableStateOf(tool) }
@@ -108,12 +123,12 @@ internal fun FloatingPenBox(
   }
   LaunchedEffect(initialized, tool) {
     if (initialized && previousTool != tool && tool != PenCanvasTool.SELECT && tool != PenCanvasTool.ERASER) {
-      val matching = selectedSlot.takeIf { slotTool(it) == tool } ?: orderedSlots.firstOrNull { slotTool(it) == tool } ?: tool.name.also {
+      val matching = selectedSlot.takeIf { slotTool(it) == tool } ?: orderedSlots.firstOrNull { slotTool(it) == tool } ?: (if (currentGroup == "default") tool.name else "${tool.name}|${UUID.randomUUID()}").also {
         orderedSlots = orderedSlots + it
-        preferences.edit().putString("order", orderedSlots.joinToString(",")).apply()
+        preferences.edit().putString(orderKey(currentGroup), orderedSlots.joinToString(",")).apply()
       }
       selectedSlot = matching
-      preferences.edit().putString("selected", matching).apply()
+      preferences.edit().putString(selectedKey(currentGroup), matching).apply()
       val color = preferences.getString("${matching}_color", style.color) ?: style.color
       val width = preferences.getFloat("${matching}_width", style.width.toFloat()).toDouble()
       onRestoreStyle(color, width)
@@ -126,13 +141,83 @@ internal fun FloatingPenBox(
     val color = preferences.getString("${id}_color", style.color) ?: style.color
     val width = preferences.getFloat("${id}_width", style.width.toFloat()).toDouble()
     selectedSlot = id
-    preferences.edit().putString("selected", id).apply()
+    preferences.edit().putString(selectedKey(currentGroup), id).apply()
     onTool(choice)
     onColor(color)
     onWidth(width)
   }
+  fun switchGroup(group: String) {
+    if (group == currentGroup) return
+    val slots = loadSlots(group)
+    val next = preferences.getString(selectedKey(group), null)?.takeIf { it in slots } ?: slots.firstOrNull()
+    currentGroup = group
+    orderedSlots = slots
+    preferences.edit().putString("current_group", group).apply()
+    if (next == null) selectedSlot = "" else selectSlot(next)
+  }
+  fun copyGroup() {
+    val group = UUID.randomUUID().toString()
+    val copied = orderedSlots.map { slot ->
+      val id = "${slotTool(slot)!!.name}|${UUID.randomUUID()}"
+      val color = if (slot == selectedSlot && slotTool(slot) == tool) style.color else preferences.getString("${slot}_color", style.color) ?: style.color
+      val width = if (slot == selectedSlot && slotTool(slot) == tool) style.width.toFloat() else preferences.getFloat("${slot}_width", style.width.toFloat())
+      preferences.edit().putString("${id}_color", color).putFloat("${id}_width", width).apply()
+      id
+    }
+    val selectedIndex = orderedSlots.indexOf(selectedSlot).takeIf { it >= 0 } ?: 0
+    preferences.edit().putString(orderKey(group), copied.joinToString(",")).putString(selectedKey(group), copied.getOrNull(selectedIndex).orEmpty()).apply()
+    groupIds = groupIds + group
+    preferences.edit().putString("groups", groupIds.joinToString(",")).apply()
+    switchGroup(group)
+  }
+  fun newGroup() {
+    val group = UUID.randomUUID().toString()
+    groupIds = groupIds + group
+    preferences.edit().putString("groups", groupIds.joinToString(",")).putString(orderKey(group), "").apply()
+    switchGroup(group)
+  }
+  fun addPen(choice: PenCanvasTool) {
+    val id = "${choice.name}|${UUID.randomUUID()}"
+    preferences.edit().putString("${id}_color", style.color).putFloat("${id}_width", style.width.toFloat()).apply()
+    orderedSlots = orderedSlots + id
+    preferences.edit().putString(orderKey(currentGroup), orderedSlots.joinToString(",")).apply()
+    selectSlot(id)
+  }
   val vertical = edge == PenBoxEdge.LEFT || edge == PenBoxEdge.RIGHT
   val density = LocalDensity.current
+  editingGroup?.let { group ->
+    AlertDialog(
+      onDismissRequest = { editingGroup = null },
+      title = { Text(stringResource(R.string.floating_pen_group_edit)) },
+      text = { OutlinedTextField(value = groupName, onValueChange = { groupName = it.take(40) }, singleLine = true, label = { Text(stringResource(R.string.floating_pen_group_name)) }, modifier = Modifier.testTag("floating_pen_group_name")) },
+      confirmButton = { TextButton(onClick = {
+        preferences.edit().putString("group_${group}_name", groupName.trim()).apply()
+        groupRevision++
+        editingGroup = null
+      }, modifier = Modifier.testTag("floating_pen_group_save")) { Text(stringResource(R.string.save)) } },
+      dismissButton = {
+        if (groupIds.size > 1 && group != "default") TextButton(onClick = { editingGroup = null; confirmDeleteGroup = group }, modifier = Modifier.testTag("floating_pen_group_delete")) { Text(stringResource(R.string.floating_pen_group_delete)) }
+      },
+    )
+  }
+  confirmDeleteGroup?.let { group ->
+    AlertDialog(onDismissRequest = { confirmDeleteGroup = null },
+      title = { Text(stringResource(R.string.floating_pen_group_delete)) },
+      text = { Text(stringResource(R.string.floating_pen_group_delete_message)) },
+      confirmButton = { TextButton(onClick = {
+        val removedSlots = loadSlots(group)
+        if (currentGroup == group) switchGroup(groupIds.first { it != group })
+        groupIds = groupIds.filterNot { it == group }
+        val edit = preferences.edit().putString("groups", groupIds.joinToString(","))
+          .remove(orderKey(group)).remove(selectedKey(group)).remove("group_${group}_name")
+        removedSlots.filter { slot -> groupIds.none { slot in loadSlots(it) } }.forEach { slot ->
+          edit.remove("${slot}_color").remove("${slot}_width")
+        }
+        edit.apply()
+        confirmDeleteGroup = null
+      }, modifier = Modifier.testTag("floating_pen_group_confirm_delete")) { Text(stringResource(R.string.floating_pen_group_delete)) } },
+      dismissButton = { TextButton(onClick = { confirmDeleteGroup = null }) { Text(stringResource(R.string.cancel)) } })
+  }
   BoxWithConstraints(modifier.fillMaxSize()) {
     val parentWidth = with(density) { maxWidth.toPx() }
     val parentHeight = with(density) { maxHeight.toPx() }
@@ -164,7 +249,7 @@ internal fun FloatingPenBox(
     val y = if (dragging) dragY.coerceIn(0f, limitY) else animatedY.value.coerceIn(0f, limitY)
     val currentPosition by rememberUpdatedState(x to y)
     val shape = RoundedCornerShape(16.dp)
-    val listOverflows = if (vertical) (orderedSlots.size * 40 + 188).dp > maxHeight else (orderedSlots.size * 40 + 188).dp > maxWidth
+    val listOverflows = if (vertical) (orderedSlots.size * 40 + 260).dp > maxHeight else (orderedSlots.size * 40 + 260).dp > maxWidth
     val dragModifier = Modifier.pointerInput(locked, edge, restingX, restingY, parentWidth, parentHeight, boxSize, listOverflows) {
       try {
       if (!locked) awaitEachGesture {
@@ -220,6 +305,26 @@ internal fun FloatingPenBox(
         contentAlignment = Alignment.Center,
       ) { Icon(if (locked) Icons.Outlined.Lock else if (collapsed) Icons.Outlined.ChevronRight else Icons.Outlined.DragIndicator, null, tint = Color(0xff626262), modifier = Modifier.size(22.dp)) }
       if (!collapsed) {
+        Box {
+          Box(Modifier.size(36.dp).combinedClickable(onClick = { groupsOpen = true }).semantics { contentDescription = context.getString(R.string.floating_pen_groups) }.testTag("floating_pen_groups"), contentAlignment = Alignment.Center) {
+            Image(painterResource(if (vertical) R.drawable.reference_toolbar_vertical else R.drawable.reference_toolbar_horizontal), null, modifier = Modifier.size(20.dp))
+          }
+          DropdownMenu(expanded = groupsOpen, onDismissRequest = { groupsOpen = false }) {
+            groupIds.forEachIndexed { index, group ->
+              val fallbackName = stringResource(R.string.floating_pen_group_number, index + 1)
+              val name = remember(group, groupRevision) { preferences.getString("group_${group}_name", null)?.takeIf { it.isNotBlank() } } ?: fallbackName
+              DropdownMenuItem(text = { Text(name) },
+                leadingIcon = { if (group == currentGroup) Icon(Icons.Outlined.Check, null) },
+                trailingIcon = { IconButton(onClick = { groupName = name; groupsOpen = false; editingGroup = group }, modifier = Modifier.testTag("floating_pen_group_edit_$index")) { Icon(Icons.Outlined.Edit, stringResource(R.string.floating_pen_group_edit)) } },
+                modifier = Modifier.testTag("floating_pen_group_$index"),
+                onClick = { groupsOpen = false; switchGroup(group) })
+            }
+            DropdownMenuItem(text = { Text(stringResource(R.string.floating_pen_group_copy)) },
+              modifier = Modifier.testTag("floating_pen_group_add"), onClick = { groupsOpen = false; copyGroup() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.floating_pen_group_new)) },
+              modifier = Modifier.testTag("floating_pen_group_new"), onClick = { groupsOpen = false; newGroup() })
+          }
+        }
         orderedSlots.forEachIndexed { index, slotId ->
           val choice = slotTool(slotId) ?: return@forEachIndexed
           val label = stringResource(when (choice) {
@@ -241,7 +346,7 @@ internal fun FloatingPenBox(
                   onDragEnd = {
                     val target = (index + (displacement / 40.dp.toPx()).roundToInt()).coerceIn(0, orderedSlots.lastIndex)
                     orderedSlots = PenBoxGeometry.moveItem(orderedSlots, index, target)
-                    preferences.edit().putString("order", orderedSlots.joinToString(",")).apply()
+                    preferences.edit().putString(orderKey(currentGroup), orderedSlots.joinToString(",")).apply()
                     reordering = false
                   },
                   onDragCancel = { reordering = false },
@@ -299,16 +404,29 @@ internal fun FloatingPenBox(
                 val copyId = "${choice.name}|${UUID.randomUUID()}"
                 preferences.edit().putString("${copyId}_color", style.color).putFloat("${copyId}_width", style.width.toFloat()).apply()
                 orderedSlots = orderedSlots.toMutableList().apply { add(index + 1, copyId) }
-                preferences.edit().putString("order", orderedSlots.joinToString(",")).apply()
+                preferences.edit().putString(orderKey(currentGroup), orderedSlots.joinToString(",")).apply()
                 settingsOpen = false
                 selectSlot(copyId)
               })
-              if (orderedSlots.size > 1) DropdownMenuItem(text = { Text(stringResource(R.string.floating_pen_remove)) }, modifier = Modifier.testTag("floating_pen_remove"), onClick = {
+              DropdownMenuItem(text = { Text(stringResource(R.string.floating_pen_remove)) }, modifier = Modifier.testTag("floating_pen_remove"), onClick = {
                 orderedSlots = orderedSlots.filterNot { it == slotId }
-                preferences.edit().putString("order", orderedSlots.joinToString(",")).remove("${slotId}_color").remove("${slotId}_width").apply()
+                val edit = preferences.edit().putString(orderKey(currentGroup), orderedSlots.joinToString(","))
+                if (groupIds.filterNot { it == currentGroup }.none { slotId in loadSlots(it) }) {
+                  edit.remove("${slotId}_color").remove("${slotId}_width")
+                }
+                edit.apply()
                 settingsOpen = false
-                selectSlot(orderedSlots.first())
+                if (orderedSlots.isEmpty()) selectedSlot = "" else selectSlot(orderedSlots.first())
               })
+            }
+          }
+        }
+        Box {
+          Box(Modifier.size(36.dp).combinedClickable(onClick = { addPenOpen = true }).semantics { contentDescription = context.getString(R.string.floating_pen_add) }.testTag("floating_pen_add"), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Add, null, modifier = Modifier.size(22.dp)) }
+          DropdownMenu(expanded = addPenOpen, onDismissRequest = { addPenOpen = false }) {
+            defaultTools.forEach { choice ->
+              val label = when (choice) { PenCanvasTool.PEN -> R.string.pen; PenCanvasTool.BALLPOINT -> R.string.pen_ballpoint; PenCanvasTool.HIGHLIGHTER -> R.string.highlighter; else -> R.string.pen_laser }
+              DropdownMenuItem(text = { Text(stringResource(label)) }, modifier = Modifier.testTag("floating_pen_add_${choice.name.lowercase()}"), onClick = { addPenOpen = false; addPen(choice) })
             }
           }
         }

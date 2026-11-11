@@ -6810,9 +6810,11 @@ private fun ReaderHome(
           onWidth = { applyPenStyle(width = it) },
           onCustomColor = { showPenColorPicker = true },
           onRestoreStyle = { color, width ->
-            PenStyle.create(color, width)?.let { restored ->
-              penColor = restored.color
-              penWidth = restored.width
+            if (selectedPenIndex == null && selectedAnnotationIndex == null) {
+              PenStyle.create(color, width)?.let { restored ->
+                penColor = restored.color
+                penWidth = restored.width
+              }
             }
           },
         )
