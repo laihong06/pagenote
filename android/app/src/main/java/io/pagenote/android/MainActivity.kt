@@ -1238,6 +1238,7 @@ private fun ReaderHome(
     transformLatest: ((JsonArray) -> JsonArray?)? = null,
     showSuccess: Boolean = true,
     backgroundAppend: Boolean = false,
+    conflictMessage: String? = null,
     onFailure: (() -> Unit)? = null,
     onFinished: (() -> Unit)? = null,
   ) {
@@ -1300,7 +1301,10 @@ private fun ReaderHome(
             selectedPenIndex = null
             annotationOverlayReload++
           }
-          if (selectionWasStale) penStatus = context.getString(R.string.pen_selection_required)
+          if (selectionWasStale) {
+            onFailure?.invoke()
+            penStatus = conflictMessage ?: context.getString(R.string.pen_selection_required)
+          }
           return@nativeSave
         }
         if (recordHistory) {
@@ -1428,13 +1432,19 @@ private fun ReaderHome(
   fun undoNativeAnnotationPage(): Boolean {
     val targetProject = project ?: return false
     val targetPage = pageIndex + 1
+    val expected = annotationEditHistory.current(targetProject.manifest.id, targetPage) ?: return false
     val restored = annotationEditHistory.undo(targetProject.manifest.id, targetPage) ?: return false
+    val annotationOnly = AnnotationPageMerger.isAnnotationOnlyHistory(expected, restored)
     persistNativeAnnotationPage(
       targetPage = targetPage,
       before = annotationPageItems,
       after = restored,
-      selectedAfter = selectedAnnotationIndex?.takeIf { restored.getOrNull(it) is JsonObject },
+      selectedAfter = null,
       recordHistory = false,
+      transformLatest = if (annotationOnly) { latest ->
+        AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+      } else null,
+      conflictMessage = context.getString(R.string.pen_annotation_history_changed),
       onFailure = { annotationEditHistory.redo(targetProject.manifest.id, targetPage) },
     )
     return true
@@ -1443,13 +1453,19 @@ private fun ReaderHome(
   fun redoNativeAnnotationPage(): Boolean {
     val targetProject = project ?: return false
     val targetPage = pageIndex + 1
+    val expected = annotationEditHistory.current(targetProject.manifest.id, targetPage) ?: return false
     val restored = annotationEditHistory.redo(targetProject.manifest.id, targetPage) ?: return false
+    val annotationOnly = AnnotationPageMerger.isAnnotationOnlyHistory(expected, restored)
     persistNativeAnnotationPage(
       targetPage = targetPage,
       before = annotationPageItems,
       after = restored,
-      selectedAfter = selectedAnnotationIndex?.takeIf { restored.getOrNull(it) is JsonObject },
+      selectedAfter = null,
       recordHistory = false,
+      transformLatest = if (annotationOnly) { latest ->
+        AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+      } else null,
+      conflictMessage = context.getString(R.string.pen_annotation_history_changed),
       onFailure = { annotationEditHistory.undo(targetProject.manifest.id, targetPage) },
     )
     return true

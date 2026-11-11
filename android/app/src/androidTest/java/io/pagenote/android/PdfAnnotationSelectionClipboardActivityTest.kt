@@ -126,16 +126,51 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals(listOf(savedFreehand), projectPenStore.readPage(PenSide.DOCUMENT, 1))
       assertEquals(otherPageBefore, annotations.readPage("document", 2))
 
+      // Simulate a queued ink save completing after the shape snapshot was taken.
+      val laterFreehand = PenStroke("pen", "#123456", 2.0, listOf(
+        PenPoint(31f, 42f, 0.6f), PenPoint(80f, 42f, 0.7f),
+      ))
+      projectPenStore.writePage(PenSide.DOCUMENT, 1, listOf(savedFreehand, laterFreehand))
+
+      val beforeConflict = annotations.readPage("document", 1)
+      val conflicted = JsonArray(beforeConflict.map { item ->
+        val obj = item as? JsonObject
+        if (obj?.get("type")?.jsonPrimitive?.content == "line") {
+          JsonObject(obj + ("concurrent" to JsonPrimitive("other editor")))
+        } else item
+      })
+      annotations.writePage("document", 1, conflicted)
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
-      waitForAnnotations(annotations) { it.size == 1 &&
-        (it.singleOrNull() as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen"
+      composeRule.waitUntil(10_000) {
+        session.penStatus.value == context.getString(R.string.pen_annotation_history_changed)
+      }
+      assertEquals(conflicted, annotations.readPage("document", 1))
+      composeRule.waitForIdle()
+      Thread.sleep(600) // Capture after the menu's close animation.
+      val screenshotFile = java.io.File(context.getExternalFilesDir(null), "annotation-history-conflict.png")
+      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
+        screenshotFile.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+      }
+      Thread.sleep(1500) // Let the evidence collector copy the screenshot before test teardown.
+      annotations.writePage("document", 1, beforeConflict)
+
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      try {
+        waitForAnnotations(annotations) { it.size == 2 &&
+          it.all { item -> (item as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" }
+        }
+      } catch (error: Throwable) {
+        val actualPage = annotations.readPage("document", 1)
+        throw AssertionError("page=$actualPage status=${session.penStatus.value}", error)
       }
       revealReaderMenuCommand(composeRule, "pen", "pen_redo")
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
-      waitForAnnotations(annotations) { it.size == 2 &&
+      waitForAnnotations(annotations) { it.size == 3 &&
         (it.lastOrNull() as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line"
       }
-      assertEquals(listOf(savedFreehand), projectPenStore.readPage(PenSide.DOCUMENT, 1))
+      assertEquals(listOf(savedFreehand, laterFreehand), projectPenStore.readPage(PenSide.DOCUMENT, 1))
     } finally {
       composeRule.runOnUiThread {
         session.replaceRenderer(null)

@@ -390,4 +390,5 @@ internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
 
   fun canUndo(projectId: String, page: Int): Boolean = pages[projectId to page]?.undo?.isNotEmpty() == true
   fun canRedo(projectId: String, page: Int): Boolean = pages[projectId to page]?.redo?.isNotEmpty() == true
+  fun current(projectId: String, page: Int): JsonArray? = pages[projectId to page]?.current
 }

@@ -6,8 +6,40 @@ import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 
 class AnnotationPageMergerTest {
+  @Test
+  fun annotationUndoPreservesInkSavedAfterHistorySnapshot() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val expected = page("""[{"type":"line","custom":"shape"},{"type":"pen","id":"old"}]""")
+    val restored = page("""[{"type":"pen","id":"old"}]""")
+    val latest = page("""[{"type":"line","custom":"shape"},{"type":"pen","id":"old"},{"type":"pen","id":"new","custom":{"v":1}}]""")
+    val merged = AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+    assertEquals(page("""[{"type":"pen","id":"old"},{"type":"pen","id":"new","custom":{"v":1}}]"""), merged)
+  }
+
+  @Test
+  fun annotationUndoRejectsChangedShapeAndMixedInkHistory() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val expected = page("""[{"type":"line","value":1},{"type":"pen","id":"a"}]""")
+    val changed = page("""[{"type":"line","value":2},{"type":"pen","id":"a"}]""")
+    val restored = page("""[{"type":"pen","id":"a"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(changed, expected, restored))
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(expected, expected, page("[]")))
+  }
+
+  @Test
+  fun annotationUndoComparesJsonNumbersByValueButKeepsStringsDistinct() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val expected = page("""[{"type":"line","width":3.0,"points":[[1.0,2.0]]}]""")
+    val latest = page("""[{"type":"line","width":3,"points":[[1,2]]}]""")
+    assertEquals(page("[]"), AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, page("[]")))
+    val changed = page("""[{"type":"line","width":"3","points":[[1,2]]}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(changed, expected, page("[]")))
+  }
+
   @Test
   fun replacingFreehandItemsRetainsOtherAnnotationTypesAndMetadata() {
     val rectangle = mapOf("type" to "rect", "color" to "#112233", "custom" to "kept")
