@@ -1152,6 +1152,18 @@ private fun ReaderHome(
     readerSession.launchSessionTask { savePenPage(targetPage, updated) }
   }
 
+  fun commitAreaErase(targetPage: Int, strokes: List<PenStroke>) {
+    if (penPageStore.replacePage(PenSide.DOCUMENT, targetPage, strokes)) {
+      lastEditWasAnnotation[targetPage] = false
+      val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+      if (pageIndex + 1 == targetPage) {
+        selectedPenIndex = null
+        penStrokes = updated
+      }
+      readerSession.launchSessionTask { savePenPage(targetPage, updated) }
+    }
+  }
+
   fun erasePenStroke(index: Int) {
     val targetPage = pageIndex + 1
     if (penPageStore.eraseAt(PenSide.DOCUMENT, targetPage, index)) {
@@ -6534,6 +6546,7 @@ private fun ReaderHome(
               PdfPageViewport(
                 bitmap = pageBitmap.takeIf { renderedPageRenderer === activeRenderer && renderedPageIndex == pageIndex },
                 sourceName = activeProject.sourceName,
+                documentKey = activeProject.sourceUri.toString(),
                 page = pageIndex,
                 annotations = annotationOverlayItems + pendingRecognizedShapes.forPage(pageIndex + 1) + listOfNotNull(
                   annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
@@ -6555,6 +6568,9 @@ private fun ReaderHome(
                 onStrokeAdded = { applyPenStroke(it) },
                 onShapeRecognized = ::applyRecognizedShape,
                 onStrokeErased = ::erasePenStroke,
+                onAreaEraseCommitted = { targetPage, items ->
+                  if (readerSession.project.value?.sourceUri == activeProject.sourceUri) commitAreaErase(targetPage, items)
+                },
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
                 onAnnotationSelectionTouch = ::handleNativeAnnotationSelectionTouch,
@@ -6676,6 +6692,7 @@ private fun ReaderHome(
               PdfPageViewport(
                 bitmap = pageBitmap.takeIf { renderedPageRenderer === activeRenderer && renderedPageIndex == pageIndex },
                 sourceName = activeProject.sourceName,
+                documentKey = activeProject.sourceUri.toString(),
                 page = pageIndex,
                 annotations = annotationOverlayItems + pendingRecognizedShapes.forPage(pageIndex + 1) + listOfNotNull(
                   annotationPreview?.takeIf { it.first == pageIndex + 1 }?.second,
@@ -6697,6 +6714,9 @@ private fun ReaderHome(
                 onStrokeAdded = { applyPenStroke(it) },
                 onShapeRecognized = ::applyRecognizedShape,
                 onStrokeErased = ::erasePenStroke,
+                onAreaEraseCommitted = { targetPage, items ->
+                  if (readerSession.project.value?.sourceUri == activeProject.sourceUri) commitAreaErase(targetPage, items)
+                },
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
                 onAnnotationSelectionTouch = ::handleNativeAnnotationSelectionTouch,
@@ -8500,6 +8520,7 @@ internal fun PdfPageViewport(
   bitmap: Bitmap?,
   sourceName: String,
   page: Int,
+  documentKey: String = sourceName,
   annotations: List<PdfAnnotationOverlayItem> = emptyList(),
   annotationImages: Map<String, Bitmap> = emptyMap(),
   annotationHtmlBitmaps: Map<Int, Bitmap> = emptyMap(),
@@ -8512,6 +8533,7 @@ internal fun PdfPageViewport(
   onStrokeAdded: (PenStroke) -> Unit,
   onShapeRecognized: (PenRecognizedShape, PenStroke) -> Boolean = { _, _ -> false },
   onStrokeErased: (Int) -> Unit,
+  onAreaEraseCommitted: ((Int, List<PenStroke>) -> Unit)? = null,
   selectedStrokeIndex: Int? = null,
   onSelectedStrokeChanged: (Int?) -> Unit = {},
   onAnnotationSelectionTouch: (MotionEvent, PenCanvasGeometry, Int) -> Boolean = { _, _, _ -> false },
@@ -8795,6 +8817,7 @@ internal fun PdfPageViewport(
           modifier = Modifier.fillMaxSize().testTag("pdf_ink_canvas"),
           factory = { viewContext -> PenCanvasView(viewContext).also { inkCanvasView = it } },
           update = { view ->
+            view.contentIdentity = documentKey to page
             view.strokes = strokes
             view.selectedTool = tool
             view.selectedIndex = selectedStrokeIndex
@@ -8813,6 +8836,7 @@ internal fun PdfPageViewport(
             view.onStrokeAdded = onStrokeAdded
             view.onShapeRecognized = onShapeRecognized
             view.onStrokeErased = onStrokeErased
+            view.onAreaEraseCommitted = onAreaEraseCommitted?.let { callback -> { items -> callback(page + 1, items) } }
             view.onSelectionChanged = latestOnSelectedStrokeChanged
             view.onAnnotationSelectionTouch = latestOnAnnotationSelectionTouch
           },

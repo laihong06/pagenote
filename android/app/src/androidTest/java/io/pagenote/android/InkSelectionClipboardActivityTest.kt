@@ -134,6 +134,51 @@ class InkSelectionClipboardActivityTest {
     }
   }
 
+  @Test
+  fun areaEraserSavesSplitStrokesAndUndoRestoresOriginal() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val original = PenStroke("pen", "#185abd", 5.0,
+      listOf(PenPoint(150f, 500f, 0.4f), PenPoint(850f, 500f, 0.9f)))
+    val pageStore = PenPageStore().apply { addStroke(PenSide.DOCUMENT, 1, original) }
+    val penStore = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project; session.replaceRenderer(renderer); session.markdownSource.value = null
+      session.pageIndex.intValue = 0; session.penStore.value = penStore; session.penPageStore.value = pageStore
+      session.penStrokes.value = listOf(original); session.penWritable.value = true; session.penTool.value = PenCanvasTool.ERASER
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(checkNotNull(findPenCanvas(composeRule.activity.window.decorView))) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.width > 0 && canvas.selectedTool == PenCanvasTool.ERASER }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      val (x, y) = geometry.toViewPoint(PenPoint(500f, 500f, 1f))
+      if (composeRule.onAllNodesWithTag("reader_menu_collapse").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+      }
+      composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { click(Offset(x, y)) }
+      composeRule.waitUntil(10_000) { pageStore.getItems(PenSide.DOCUMENT, 1).size == 2 && session.pendingPenSaves.intValue == 0 }
+      val cut = penStore.readPage(PenSide.DOCUMENT, 1)
+      assertEquals(2, cut.size)
+      assertEquals(original.points.first(), cut.first().points.first())
+      assertEquals(original.points.last(), cut.last().points.last())
+      showHandwritingCommands()
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) { pageStore.getItems(PenSide.DOCUMENT, 1) == listOf(original) && session.pendingPenSaves.intValue == 0 }
+      assertEquals(listOf(original), penStore.readPage(PenSide.DOCUMENT, 1))
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   private fun reopenCompactMenu() {
     if (ReaderMenuLayout.forWidth(composeRule.activity.resources.configuration.screenWidthDp) == ReaderMenuLayout.COMPACT_DRAWER) {
       composeRule.onNodeWithTag("reader_menu_trigger").performClick()

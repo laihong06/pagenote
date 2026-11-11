@@ -53,12 +53,24 @@ class PenCanvasView @JvmOverloads constructor(
   private var shapeDwellAnchor: Pair<Float, Float>? = null
   private var shapeDwellTask: Runnable? = null
   private var eraseModeLatched = false
+  private var eraseOriginal: List<PenStroke>? = null
+  private var lastErasePoint: PenPoint? = null
   private var activeColor = "#dc3545"
   private var activeWidth = 3.0
   private var laserTrail: List<PenPoint> = emptyList()
   private var laserColor = "#dc3545"
   private var laserWidth = 3.0
   private val clearLaser = Runnable { laserTrail = emptyList(); invalidate() }
+
+  /** Reset unfinished edits before this view is reused for a different page or project. */
+  var contentIdentity: Any? = null
+    set(value) {
+      if (field != value) {
+        discardAreaErase()
+        cancelActiveGesture()
+      }
+      field = value
+    }
 
   var pageTransform: PenCanvasPageTransform? = null
     set(value) {
@@ -99,6 +111,7 @@ class PenCanvasView @JvmOverloads constructor(
   var onStrokeAdded: ((PenStroke) -> Unit)? = null
   var onShapeRecognized: ((PenRecognizedShape, PenStroke) -> Boolean)? = null
   var onStrokeErased: ((Int) -> Unit)? = null
+  var onAreaEraseCommitted: ((List<PenStroke>) -> Unit)? = null
   var onSelectionChanged: ((Int?) -> Unit)? = null
   var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
@@ -118,6 +131,7 @@ class PenCanvasView @JvmOverloads constructor(
   var strokes: List<PenStroke>
     get() = internalStrokes
     set(value) {
+      if (eraseOriginal != null) return
       internalStrokes = value.toList()
       strokeCache.setStrokes(internalStrokes)
       invalidate()
@@ -292,10 +306,20 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   override fun onDetachedFromWindow() {
+    discardAreaErase()
     cancelActiveGesture()
     cancelShapeDwell()
     strokeCache.clear()
     super.onDetachedFromWindow()
+  }
+
+  private fun discardAreaErase() {
+    eraseOriginal?.let { original ->
+      internalStrokes = original
+      strokeCache.setStrokes(original)
+      eraseOriginal = null
+      lastErasePoint = null
+    }
   }
 
   private fun clearLaserTrail() {
@@ -520,12 +544,28 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun eraseAt(xPx: Float, yPx: Float) {
-    val index = geometry()
-      .hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
-    internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
-    strokeCache.setStrokes(internalStrokes)
-    onStrokeErased?.invoke(index)
-    invalidate()
+    if (onAreaEraseCommitted == null) {
+      val index = geometry().hitTest(internalStrokes, xPx, yPx, eraserRadiusPx) ?: return
+      internalStrokes = internalStrokes.toMutableList().also { it.removeAt(index) }
+      strokeCache.setStrokes(internalStrokes)
+      onStrokeErased?.invoke(index)
+      invalidate()
+      return
+    }
+    val geometry = geometry()
+    val point = geometry.toDocumentPoint(xPx, yPx, 1f) ?: run { lastErasePoint = null; return }
+    val radius = geometry.documentUnitsForPixels(eraserRadiusPx)
+    if (!radius.isFinite()) return
+    val next = PenAreaEraser.erase(internalStrokes, lastErasePoint ?: point, point, radius)
+    lastErasePoint = point
+    if (next != internalStrokes) {
+      if (eraseOriginal == null) eraseOriginal = internalStrokes
+      internalStrokes = next
+      strokeCache.setStrokes(next)
+      selectedIndex = null
+      onSelectionChanged?.invoke(null)
+      invalidate()
+    }
   }
 
   private fun finishStroke() {
@@ -557,6 +597,9 @@ class PenCanvasView @JvmOverloads constructor(
   }
 
   private fun resetGesture() {
+    if (eraseOriginal != null) onAreaEraseCommitted?.invoke(internalStrokes.toList())
+    eraseOriginal = null
+    lastErasePoint = null
     predictor.onUp()
     cancelShapeDwell()
     activePointerId = INVALID_POINTER

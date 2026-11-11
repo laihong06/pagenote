@@ -258,6 +258,49 @@ class PenCanvasViewInstrumentedTest {
   }
 
   @Test
+  fun areaEraserCutsLocalInkAndCommitsOnlyOncePerGesture() {
+    lateinit var canvas: PenCanvasView
+    val commits = mutableListOf<List<PenStroke>>()
+    onUi {
+      val stroke = PenStroke("pen", "#112233", 4.0,
+        listOf(PenPoint(100f, 500f, 0.2f), PenPoint(900f, 500f, 0.8f)))
+      canvas = createCanvas().apply {
+        strokes = listOf(stroke)
+        selectedTool = PenCanvasTool.ERASER
+        onAreaEraseCommitted = { commits.add(it) }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 220f, 0.5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 250f, 280f, 0.5f, 3)
+      assertTrue("erasure remains an open gesture", commits.isEmpty())
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 250f, 280f, 0.5f, 4)
+    }
+    assertEquals(1, commits.size)
+    assertEquals(2, commits.single().size)
+    assertEquals(100f, commits.single().first().points.first().x, 0.01f)
+    assertEquals(900f, commits.single().last().points.last().x, 0.01f)
+  }
+
+  @Test
+  fun changingPageCancelsUnfinishedAreaEraseWithoutCommittingToNewPage() {
+    val commits = mutableListOf<List<PenStroke>>()
+    lateinit var canvas: PenCanvasView
+    val original = PenStroke("pen", "#112233", 4.0,
+      listOf(PenPoint(100f, 500f, 1f), PenPoint(900f, 500f, 1f)))
+    onUi {
+      canvas = createCanvas().apply {
+        contentIdentity = "project:page1"
+        strokes = listOf(original); selectedTool = PenCanvasTool.ERASER
+        onAreaEraseCommitted = { commits.add(it) }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 250f, 0.5f, 2)
+      assertEquals(2, canvas.strokes.size)
+      canvas.contentIdentity = "project:page2"
+    }
+    assertTrue("An unfinished erase must not be committed to the next page", commits.isEmpty())
+    assertEquals(listOf(original), canvas.strokes)
+  }
+
+  @Test
   fun stylusSideButtonGenericMotionErasesTopmostStrokeForBothButtonMappings() {
     val buttonMappings = listOf(
       MotionEvent.BUTTON_SECONDARY,

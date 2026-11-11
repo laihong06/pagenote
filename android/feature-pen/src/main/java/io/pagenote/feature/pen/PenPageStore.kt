@@ -49,6 +49,19 @@ class PenPageStore(
     return true
   }
 
+  /** Commits one complete area-erasing gesture as a single undoable edit. */
+  fun replacePage(side: PenSide, page: Int, strokes: List<PenStroke>): Boolean {
+    require(page >= 1) { "bad page: $page" }
+    PenValidation.validateItemCount(strokes.size, side, page)
+    strokes.forEach { PenValidation.validate(it, page) }
+    val list = liveList(side, page)
+    if (list == strokes) return false
+    snapshot(side, page)
+    list.clear()
+    list.addAll(strokes)
+    return true
+  }
+
   /**
    * Rect eraser (port batch 1): removes every stroke on the given side/page
    * whose geometry intersects [rect] (document units; see [PenRectHit]).
