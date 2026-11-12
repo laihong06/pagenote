@@ -588,6 +588,7 @@
   <string name="pen_annotation_save_failed">PDF annotation was not saved: %1$s</string>
   <string name="annotation_project_changed">The project changed before the annotation could be saved.</string>
   <string name="pen_annotation_history_changed">Annotations changed; undo or redo was not applied.</string>
+  <string name="pen_annotation_edit_changed">Annotations changed; the edit was not applied.</string>
   <string name="readonly_pen_cannot_save">Read-only project: ink cannot be saved</string>
   <string name="opening_project_message">Opening project…</string>
   <string name="choose_project_message">Choose a pagenote project folder</string>

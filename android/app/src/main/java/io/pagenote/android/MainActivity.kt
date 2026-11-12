@@ -811,7 +811,7 @@ private fun ReaderHome(
     mutableStateOf(false)
   }
   var richHtmlEditorTarget by remember(project?.manifest?.id, project?.sourceDirectoryUri, pageIndex) {
-    mutableStateOf<Pair<Int, JsonObject>?>(null)
+    mutableStateOf<Triple<Int, JsonObject, JsonArray>?>(null)
   }
   var annotationDrawTool by remember { mutableStateOf<PdfAnnotationDrawTool?>(null) }
   var annotationPreview by remember { mutableStateOf<Pair<Int, PdfAnnotationOverlayItem>?>(null) }
@@ -1250,6 +1250,7 @@ private fun ReaderHome(
     var committedSelection = selectedAfter
     var shouldCommit = true
     var selectionWasStale = false
+    var pageWasStale = false
     if (backgroundAppend) pendingPenSaves += 1 else {
       isAnnotationSaving = true
       penStatus = context.getString(R.string.annotation_saving)
@@ -1276,7 +1277,7 @@ private fun ReaderHome(
             committedBefore = withContext(Dispatchers.IO) {
               store.readPage("document", targetPage)
             }
-            val transformed = transformLatest(committedBefore)
+            val transformed = withContext(Dispatchers.Default) { transformLatest(committedBefore) }
             if (transformed == null) {
               shouldCommit = false
               selectionWasStale = true
@@ -1287,12 +1288,35 @@ private fun ReaderHome(
               shouldCommit = false
               return@withLock
             }
+          } else {
+            // The ink layer may have saved since the UI snapshot was taken.
+            committedBefore = withContext(Dispatchers.IO) { store.readPage("document", targetPage) }
+            val rebased = withContext(Dispatchers.Default) {
+              AnnotationPageMerger.rebaseAnnotationHistory(committedBefore, before, after)
+            }
+            if (rebased == null) {
+              shouldCommit = false
+              selectionWasStale = true
+              pageWasStale = true
+              return@withLock
+            }
+            committedAfter = rebased
+            committedSelection = withContext(Dispatchers.Default) {
+              AnnotationPageMerger.remapAnnotationSelection(after, selectedAfter, rebased)
+            }
+            if (committedAfter == committedBefore) {
+              shouldCommit = false
+              return@withLock
+            }
           }
           if (shouldCommit) {
             withContext(Dispatchers.IO) { store.writePage("document", targetPage, committedAfter) }
           }
         }
         if (!shouldCommit) {
+          if (!selectionWasStale && resolveSelection != null) {
+            committedSelection = withContext(Dispatchers.Default) { resolveSelection(committedBefore) }
+          }
           if (readerSession.project.value?.manifest?.id == targetProjectId &&
             readerSession.pageIndex.intValue + 1 == targetPage
           ) {
@@ -1304,14 +1328,18 @@ private fun ReaderHome(
           }
           if (selectionWasStale) {
             onFailure?.invoke()
-            penStatus = conflictMessage ?: context.getString(R.string.pen_selection_required)
+            penStatus = conflictMessage ?: context.getString(
+              if (pageWasStale) R.string.pen_annotation_edit_changed else R.string.pen_selection_required,
+            )
           }
           return@nativeSave
         }
         if (recordHistory) {
           annotationEditHistory.record(targetProjectId, targetPage, committedBefore, committedAfter)
         }
-        if (resolveSelection != null) committedSelection = resolveSelection(committedAfter)
+        if (resolveSelection != null) {
+          committedSelection = withContext(Dispatchers.Default) { resolveSelection(committedAfter) }
+        }
         lastEditWasAnnotation[targetPage] = true
         if (readerSession.project.value?.manifest?.id == targetProjectId &&
           readerSession.pageIndex.intValue + 1 == targetPage
@@ -1373,12 +1401,13 @@ private fun ReaderHome(
     }
 
     if (!penWritable) return
-    val annotationIndex = selectedAnnotationIndex?.takeIf { it in annotationPageItems.indices } ?: return
-    val selected = annotationPageItems[annotationIndex] as? JsonObject ?: return
+    val before = annotationPageItems
+    val annotationIndex = selectedAnnotationIndex?.takeIf { it in before.indices } ?: return
+    val selected = before[annotationIndex] as? JsonObject ?: return
     val selectedColor = color?.let { nextStyle.color }
     val selectedWidth = width?.let { nextStyle.width }
     val after = PdfAnnotationClipboard.updateSelectedStyle(
-      annotationPageItems,
+      before,
       annotationIndex,
       selected,
       color = selectedColor,
@@ -1387,21 +1416,25 @@ private fun ReaderHome(
       selectedAnnotationIndex = null
       return
     }
-    if (after == annotationPageItems) return
+    if (after == before) return
     persistNativeAnnotationPage(
       targetPage = targetPage,
-      before = annotationPageItems,
+      before = before,
       after = after,
       selectedAfter = annotationIndex,
       transformLatest = { latest ->
+        val currentIndex = AnnotationPageMerger.findUniqueAnnotation(before, annotationIndex, latest)
+          ?: return@persistNativeAnnotationPage null
+        val current = latest[currentIndex] as? JsonObject ?: return@persistNativeAnnotationPage null
         PdfAnnotationClipboard.updateSelectedStyle(
           latest,
-          annotationIndex,
-          selected,
+          currentIndex,
+          current,
           color = selectedColor,
           width = selectedWidth,
         )
       },
+      resolveSelection = { committed -> AnnotationPageMerger.findUniqueAnnotation(after, annotationIndex, committed) },
     )
   }
 
@@ -1853,10 +1886,16 @@ private fun ReaderHome(
         }
         val safeHtml = safeRender.sanitizedHtml
         if (editing != null) {
-          val (index, expected) = editing
+          val (originalIndex, _, originalPage) = editing
           val before = annotationPageItems
+          val index = AnnotationPageMerger.findUniqueAnnotation(originalPage, originalIndex, before)
+            ?: run {
+              penStatus = context.getString(R.string.pen_annotation_edit_changed)
+              return@launch
+            }
+          val current = before[index] as JsonObject
           val after = PdfAnnotationClipboard.updateHtmlContent(
-            before, index, expected, safeHtml, safeRender.contentHeightPx,
+            before, index, current, safeHtml, safeRender.contentHeightPx,
           ) ?: run {
             penStatus = context.getString(R.string.annotation_html_failed, "HTML annotation is invalid")
             return@launch
@@ -1868,10 +1907,14 @@ private fun ReaderHome(
               after = after,
               selectedAfter = index,
               transformLatest = { latest ->
+                val latestIndex = AnnotationPageMerger.findUniqueAnnotation(before, index, latest)
+                  ?: return@persistNativeAnnotationPage null
+                val latestItem = latest[latestIndex] as? JsonObject ?: return@persistNativeAnnotationPage null
                 PdfAnnotationClipboard.updateHtmlContent(
-                  latest, index, expected, safeHtml, safeRender.contentHeightPx,
+                  latest, latestIndex, latestItem, safeHtml, safeRender.contentHeightPx,
                 )
               },
+              resolveSelection = { committed -> AnnotationPageMerger.findUniqueAnnotation(after, index, committed) },
             )
           }
         } else {
@@ -4886,6 +4929,8 @@ private fun ReaderHome(
     pageIndex,
     annotationOverlayReload,
   ) {
+    val pageBeforeReload = annotationPageItems
+    val selectionBeforeReload = selectedAnnotationIndex
     annotationOverlayItems = emptyList()
     annotationPageItems = JsonArray(emptyList())
     annotationOverlayImages.values.forEach(Bitmap::recycleAfterDrawFrames)
@@ -4962,6 +5007,10 @@ private fun ReaderHome(
         loaded.htmlBitmaps.values.forEach { if (!it.isRecycled) it.recycle() }
         return@LaunchedEffect
       }
+      val selectionSource = if (annotationPageItems.isEmpty() && selectedAnnotationIndex == selectionBeforeReload) {
+        pageBeforeReload
+      } else annotationPageItems
+      selectedAnnotationIndex = AnnotationPageMerger.remapAnnotationSelection(selectionSource, selectedAnnotationIndex, loaded.page)
       annotationPageItems = loaded.page
       annotationOverlayItems = loaded.items
       annotationOverlayImages = loaded.images
@@ -5992,7 +6041,7 @@ private fun ReaderHome(
           val isSelectedHtml = selected != null && selected["type"]
             ?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } == "html"
           richHtmlEditorTarget = if (isSelectedHtml && selected != null && selectedIndex != null) {
-            selectedIndex to selected
+            Triple(selectedIndex, selected, annotationPageItems)
           } else {
             null
           }

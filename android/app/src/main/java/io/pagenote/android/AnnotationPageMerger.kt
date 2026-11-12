@@ -23,14 +23,79 @@ object AnnotationPageMerger {
   fun rebaseAnnotationHistory(latest: JsonArray, expected: JsonArray, restored: JsonArray): JsonArray? {
     if (!isAnnotationOnlyHistory(expected, restored)) return null
     if (!jsonListsEqual(latest.filterNot(::isFreehand), expected.filterNot(::isFreehand))) return null
-    val replacements = restored.filterNot(::isFreehand).iterator()
-    val result = mutableListOf<JsonElement>()
-    latest.forEach { item ->
-      if (isFreehand(item)) result.add(item)
-      else if (replacements.hasNext()) result.add(replacements.next())
+    if (jsonListsEqual(latest, expected)) return restored
+    if (jsonListsEqual(expected, restored)) return latest
+    val oldAnnotations = expected.filterNot(::isFreehand)
+    val newAnnotations = restored.filterNot(::isFreehand)
+    var prefix = 0
+    while (prefix < oldAnnotations.size && prefix < newAnnotations.size &&
+      jsonEqual(oldAnnotations[prefix], newAnnotations[prefix])) prefix++
+    var suffix = 0
+    while (suffix < oldAnnotations.size - prefix && suffix < newAnnotations.size - prefix &&
+      jsonEqual(oldAnnotations[oldAnnotations.lastIndex - suffix], newAnnotations[newAnnotations.lastIndex - suffix])) suffix++
+    val oldEnd = oldAnnotations.size - suffix
+    val replacements = newAnnotations.subList(prefix, newAnnotations.size - suffix)
+    val removedCount = oldEnd - prefix
+    val changedOriginals = oldAnnotations.subList(prefix, oldEnd)
+    if (changedOriginals.any { target -> oldAnnotations.count { jsonEqual(it, target) } > 1 }) return null
+    if (removedCount == 0 && replacements.isNotEmpty() && prefix < oldAnnotations.size) {
+      val anchors = listOfNotNull(oldAnnotations.getOrNull(prefix - 1), oldAnnotations.getOrNull(prefix))
+      if (anchors.any { anchor -> oldAnnotations.count { jsonEqual(it, anchor) } > 1 }) return null
     }
-    while (replacements.hasNext()) result.add(replacements.next())
-    return JsonArray(result)
+    fun applyChange(page: JsonArray): JsonArray {
+      val result = mutableListOf<JsonElement>()
+      var ordinal = 0
+      var inserted = false
+      page.forEach { item ->
+        if (isFreehand(item)) result.add(item)
+        else {
+          if (removedCount == 0 && ordinal == prefix && !inserted) {
+            result.addAll(replacements)
+            inserted = true
+          }
+          if (ordinal in prefix until oldEnd) {
+            val replacementIndex = ordinal - prefix
+            replacements.getOrNull(replacementIndex)?.let(result::add)
+            if (ordinal == oldEnd - 1) {
+              if (replacements.size > removedCount) result.addAll(replacements.drop(removedCount))
+              inserted = true
+            }
+          } else result.add(item)
+          ordinal++
+        }
+      }
+      if (!inserted) result.addAll(replacements)
+      return JsonArray(result)
+    }
+    // If the proposed splice cannot reproduce the exact intended page, the
+    // insertion/removal anchor is ambiguous and must not be guessed.
+    if (!jsonListsEqual(applyChange(expected), restored)) return null
+    return applyChange(latest)
+  }
+
+  /** Translate a selected annotation's index after preserving latest freehand items. */
+  fun remapAnnotationSelection(original: JsonArray, selectedIndex: Int?, rebased: JsonArray): Int? {
+    val index = selectedIndex ?: return null
+    val item = original.getOrNull(index) ?: return null
+    if (isFreehand(item) || !jsonListsEqual(original.filterNot(::isFreehand), rebased.filterNot(::isFreehand))) return null
+    if (original.count { !isFreehand(it) && jsonEqual(item, it) } > 1 && !jsonListsEqual(original, rebased)) return null
+    val ordinal = original.take(index).count { !isFreehand(it) }
+    return rebased.indices.filter { !isFreehand(rebased[it]) }.getOrNull(ordinal)
+  }
+
+  /** Resolve the same unchanged annotation after unrelated items move or change. */
+  fun findUniqueAnnotation(original: JsonArray, selectedIndex: Int?, latest: JsonArray): Int? {
+    val index = selectedIndex ?: return null
+    val selected = original.getOrNull(index) as? JsonObject ?: return null
+    if (isFreehand(selected)) return null
+    val originalMatches = original.count { it is JsonObject && !isFreehand(it) && jsonEqual(selected, it) }
+    if (originalMatches > 1 && !jsonListsEqual(original, latest)) return null
+    val matches = latest.indices.filter { latest[it] is JsonObject && !isFreehand(latest[it]) && jsonEqual(selected, latest[it]) }
+    return when {
+      matches.size == 1 -> matches.single()
+      index in matches && jsonListsEqual(original, latest) -> index
+      else -> null
+    }
   }
 
   /**
@@ -57,6 +122,7 @@ object AnnotationPageMerger {
     val currentAnnotations = visible.filterNot(::isFreehand)
     val beforeAnnotations = expected.filterNot(::isFreehand)
     val afterAnnotations = restored.filterNot(::isFreehand)
+    if (currentAnnotations.count { jsonEqual(it, selected) } > 1) return null
     if (!jsonListsEqual(currentAnnotations, beforeAnnotations) ||
       beforeAnnotations.size != afterAnnotations.size ||
       !jsonListsEqual(committed.filterNot(::isFreehand), afterAnnotations)) return null
@@ -73,7 +139,9 @@ object AnnotationPageMerger {
   private fun jsonListsEqual(left: List<JsonElement>, right: List<JsonElement>): Boolean =
     left.size == right.size && left.indices.all { jsonEqual(left[it], right[it]) }
 
-  private fun jsonEqual(left: JsonElement, right: JsonElement): Boolean = when {
+  private fun jsonEqual(left: JsonElement, right: JsonElement): Boolean {
+    if (left === right) return true
+    return when {
     left is JsonObject && right is JsonObject ->
       left.keys == right.keys && left.keys.all { jsonEqual(left.getValue(it), right.getValue(it)) }
     left is JsonArray && right is JsonArray -> jsonListsEqual(left, right)
@@ -87,7 +155,8 @@ object AnnotationPageMerger {
         else left.content == right.content
       }
     }
-    else -> false
+      else -> false
+    }
   }
 
   fun replaceFreehandItems(

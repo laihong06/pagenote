@@ -10,6 +10,85 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 
 class AnnotationPageMergerTest {
+  @Test fun deletingOneAnnotationPreservesOtherItemsRelativeOrder() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val before = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    val after = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    val latest = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]""")
+    assertEquals(page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]"""),
+      AnnotationPageMerger.rebaseAnnotationHistory(latest, before, after))
+  }
+
+  @Test fun replacingAndAppendingAnnotationDoNotMoveExistingInk() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val before = page("""[{"type":"rect","id":"a","x":1},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    val latest = page("""[{"type":"rect","id":"a","x":1},{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]""")
+    val moved = page("""[{"type":"rect","id":"a","x":2},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    assertEquals(page("""[{"type":"rect","id":"a","x":2},{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]"""),
+      AnnotationPageMerger.rebaseAnnotationHistory(latest, before, moved))
+    val appended = page("""[{"type":"rect","id":"a","x":1},{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"line","id":"c"}]""")
+    assertEquals(page("""[{"type":"rect","id":"a","x":1},{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"},{"type":"line","id":"c"}]"""),
+      AnnotationPageMerger.rebaseAnnotationHistory(latest, before, appended))
+  }
+
+  @Test fun deletionAndUndoPreserveInterleavedIdenticalShapes() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val before = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"a"}]""")
+    val after = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"a"}]""")
+    assertEquals(after, AnnotationPageMerger.rebaseAnnotationHistory(before, before, after))
+    assertEquals(before, AnnotationPageMerger.rebaseAnnotationHistory(after, after, before))
+    val latest = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"a"},{"type":"pen","id":"new"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(latest, before, after))
+  }
+
+  @Test fun ambiguousUndoInsertionWithNewInkIsRejected() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val afterDeletion = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    val original = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    val latest = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(latest, afterDeletion, original))
+  }
+
+  @Test fun undoDeletionAfterPenSaveReordersLayersIsCurrentlyRejected() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val afterDeletion = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    val original = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
+    // A later pen save followed by pen undo can put existing ink after shapes.
+    val afterPenUndo = page("""[{"type":"rect","id":"b"},{"type":"pen","id":"ink"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(afterPenUndo, afterDeletion, original))
+  }
+
+  @Test fun duplicateShapeDeletionWithNewInterleavedInkIsRejected() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val before = page("""[{"type":"rect","id":"a"},{"type":"rect","id":"a"}]""")
+    val after = page("""[{"type":"rect","id":"a"}]""")
+    val latest = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"new"},{"type":"rect","id":"a"}]""")
+    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(latest, before, after))
+  }
+
+  @Test fun uniqueSelectionCanMoveIndexWhileOtherAnnotationChanges() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val old = page("""[{"type":"pen"},{"type":"rect","id":"a","width":3.0},{"type":"line","v":1}]""")
+    val latest = page("""[{"type":"rect","id":"a","width":3},{"type":"line","v":2},{"type":"pen"}]""")
+    assertEquals(0, AnnotationPageMerger.findUniqueAnnotation(old, 1, latest))
+    val duplicate = page("""[{"type":"rect","id":"a","width":3},{"type":"rect","id":"a","width":3}]""")
+    assertEquals(null, AnnotationPageMerger.findUniqueAnnotation(old, 1, duplicate))
+    val originalDuplicate = page("""[{"type":"rect","id":"a"},{"type":"rect","id":"a"}]""")
+    val oneRemaining = page("""[{"type":"rect","id":"a"}]""")
+    assertEquals(null, AnnotationPageMerger.findUniqueAnnotation(originalDuplicate, 0, oneRemaining))
+  }
+  @Test fun remapsSelectionAfterInkItemsMoveAcrossAnnotationPositions() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val desired = page("""[{"type":"pen"},{"type":"rect","value":1},{"type":"line","value":2}]""")
+    val rebased = page("""[{"type":"rect","value":1},{"type":"line","value":2},{"type":"pen"}]""")
+    assertEquals(1, AnnotationPageMerger.remapAnnotationSelection(desired, 2, rebased))
+    assertEquals(null, AnnotationPageMerger.remapAnnotationSelection(desired, 0, rebased))
+    val changed = page("""[{"type":"rect","value":1},{"type":"line","value":3},{"type":"pen"}]""")
+    assertEquals(null, AnnotationPageMerger.remapAnnotationSelection(desired, 2, changed))
+    val duplicates = page("""[{"type":"pen"},{"type":"rect","id":"a"},{"type":"rect","id":"a"}]""")
+    val reorderedDuplicates = page("""[{"type":"rect","id":"a"},{"type":"pen"},{"type":"rect","id":"a"}]""")
+    assertEquals(null, AnnotationPageMerger.remapAnnotationSelection(duplicates, 1, reorderedDuplicates))
+  }
   @Test
   fun annotationUndoPreservesInkSavedAfterHistorySnapshot() {
     fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
