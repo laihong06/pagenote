@@ -55,6 +55,50 @@ class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
 
+  @Test fun undoNewInkThenShapeDeletionKeepsInterleavedPage() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initial = Json.parseToJsonElement("""[{"type":"rect","color":"#185abd","width":4,"points":[[100,100],[400,400]]},{"type":"pen","color":"#000000","width":2,"points":[[50,60],[70,80]],"pressures":[1,1]},{"type":"rect","color":"#dc3545","width":4,"points":[[600,600],[800,800]]}]""") as JsonArray
+    annotations.writePage("document", 1, initial)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null && session.penStrokes.value.size == 1 }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
+      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.SELECT }
+      composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { click(Offset(geometry.toViewX(PenPoint(250f, 100f, 1f)), geometry.toViewY(PenPoint(250f, 100f, 1f)))) }
+      revealReaderMenuCommand(composeRule, "handwriting", "delete_ink")
+      composeRule.onNodeWithTag("reader_menu_command_delete_ink").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it == JsonArray(initial.drop(1)) }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      val start = PenPoint(700f, 900f, .5f)
+      val end = PenPoint(750f, 900f, .5f)
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(start), geometry.toViewY(start), .5f, time, time)
+      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, geometry.toViewX(end), geometry.toViewY(end), .5f, time, time + 10)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(end), geometry.toViewY(end), .5f, time, time + 20)
+      waitForAnnotations(annotations) { it.size == 3 }
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) { it == JsonArray(initial.drop(1)) }
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) { it == initial }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun changedAnnotationRejectsStaleDelete() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver

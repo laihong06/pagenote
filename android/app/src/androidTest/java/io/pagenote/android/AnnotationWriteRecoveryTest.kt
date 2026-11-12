@@ -31,6 +31,22 @@ class AnnotationWriteRecoveryTest {
     get() = DocumentsContract.buildDocumentUriUsingTree(treeUri, ExistingProjectSafTestProvider.ANNOTATIONS_ID)
 
   @Test
+  fun addingThenUndoingInkKeepsSavedAnnotationOrder() {
+    installFixture()
+    val annotations = ProjectAnnotationStore(resolver, sourceUri, annotationsUri)
+    val pens = ProjectPenStore(resolver, sourceUri, annotationsUri)
+    val initial = Json.parseToJsonElement("""[{"type":"rect","id":"a","color":"#112233","width":2,"points":[[10,10],[30,30]]},{"type":"pen","color":"#112233","width":2,"points":[[1,2]],"pressures":[0.5]},{"type":"rect","id":"b","color":"#112233","width":2,"points":[[40,40],[60,60]]}]""") as JsonArray
+    annotations.writePage("document", 1, initial)
+    val old = pens.readPage(PenSide.DOCUMENT, 1)
+    val added = PenStroke("pen", "#112233", 2.0, listOf(PenPoint(3f, 4f, 0.5f)))
+    pens.writePage(PenSide.DOCUMENT, 1, old + added)
+    val afterAdd = annotations.readPage("document", 1)
+    assertEquals(initial.toList(), afterAdd.take(3))
+    pens.writePage(PenSide.DOCUMENT, 1, old)
+    assertEquals(initial, annotations.readPage("document", 1))
+  }
+
+  @Test
   fun annotationWriteRestoresOriginalJsonAfterPartialProviderFailure() {
     installFixture()
     val original = readAnnotations()

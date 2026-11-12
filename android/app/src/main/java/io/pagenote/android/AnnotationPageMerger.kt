@@ -1,6 +1,8 @@
 package io.pagenote.android
 
 import io.pagenote.feature.pen.PenStroke
+import io.pagenote.feature.pen.PenPageStore
+import io.pagenote.feature.pen.PenSide
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -163,6 +165,22 @@ object AnnotationPageMerger {
     existingItems: List<Map<String, Any?>>,
     strokes: List<PenStroke>,
   ): List<Map<String, Any?>> {
+    // Append and suffix removal can retain each existing item's exact layer and
+    // original JSON. Other edits lack stable IDs, so use the existing fallback.
+    val existingInk = existingItems.filter { it["type"] in freehandTypes }
+    val parsedInk = runCatching {
+      PenPageStore().apply {
+        loadAnnotationsMap(mapOf(PenSide.DOCUMENT.key to mapOf("1" to existingInk)))
+      }.getItems(PenSide.DOCUMENT, 1)
+    }.getOrNull()
+    val shared = minOf(parsedInk?.size ?: -1, strokes.size)
+    if (parsedInk != null && parsedInk.take(shared) == strokes.take(shared)) {
+      var ordinal = 0
+      val retained = existingItems.filter { item ->
+        item["type"] !in freehandTypes || ordinal++ < strokes.size
+      }
+      return retained + strokes.drop(parsedInk.size).map(PenStroke::toAnnotationsItem)
+    }
     val retained = existingItems.filterNot { it["type"] in freehandTypes }
     return retained + strokes.map(PenStroke::toAnnotationsItem)
   }

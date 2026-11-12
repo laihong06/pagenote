@@ -10,6 +10,16 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 
 class AnnotationPageMergerTest {
+  @Test fun appendingAndUndoingInkPreservesInterleavedAnnotationOrder() {
+    val oldInk = PenStroke("pen", "#112233", 2.0, listOf(PenPoint(1f, 2f, 0.5f)))
+    val newInk = PenStroke("pen", "#112233", 2.0, listOf(PenPoint(3f, 4f, 0.5f)))
+    val a = mapOf("type" to "rect", "id" to "a")
+    val b = mapOf("type" to "rect", "id" to "b")
+    val original = listOf(a, oldInk.toAnnotationsItem(), b)
+    val appended = AnnotationPageMerger.replaceFreehandItems(original, listOf(oldInk, newInk))
+    assertEquals(original + newInk.toAnnotationsItem(), appended)
+    assertEquals(original, AnnotationPageMerger.replaceFreehandItems(appended, listOf(oldInk)))
+  }
   @Test fun deletingOneAnnotationPreservesOtherItemsRelativeOrder() {
     fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
     val before = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
