@@ -130,6 +130,26 @@ class PenCanvasViewInstrumentedTest {
       bitmap.recycle()
     }
   }
+  @Test fun sweptEraserCommitsSplitNativeOutlineAsStraightPenFragments() {
+    lateinit var canvas: PenCanvasView
+    val committed = mutableListOf<List<PenStroke>>()
+    onUi {
+      val rectangle = PenStroke("rect", "#000000", 4.0,
+        listOf(PenPoint(200f, 200f, 1f), PenPoint(800f, 800f, 1f)))
+      canvas = createCanvas().apply {
+        strokes = listOf(rectangle)
+        selectedTool = PenCanvasTool.ERASER
+        eraserRadiusPx = 24f
+        onAreaEraseCommitted = committed::add
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 80f, .5f, 1)
+      for (step in 1..15) dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 250f, 80f + step * 20f, .5f, (step + 1).toLong())
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 250f, 380f, .5f, 20)
+    }
+    assertEquals(1, committed.size)
+    assertTrue(committed.single().size >= 2)
+    assertTrue(committed.single().all { it.type == "pen" && it.extraFields[PenStroke.POLYLINE_FIELD] == true })
+  }
 
   @Test fun eraserShowsBoundaryWhileStylusHoversAndHidesOnExit() {
     onUi {

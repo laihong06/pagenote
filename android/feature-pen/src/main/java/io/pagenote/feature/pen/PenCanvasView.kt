@@ -120,6 +120,8 @@ class PenCanvasView @JvmOverloads constructor(
   var onShapeRecognized: ((PenRecognizedShape, PenStroke) -> Boolean)? = null
   var onStrokeErased: ((Int) -> Unit)? = null
   var onAreaEraseCommitted: ((List<PenStroke>) -> Unit)? = null
+  var onNativeAreaEraseSegment: ((PenPoint, PenPoint, Float) -> Unit)? = null
+  var onNativeAreaEraseFinished: ((Boolean) -> Unit)? = null
   var onSelectionChanged: ((Int?) -> Unit)? = null
   var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
@@ -287,7 +289,7 @@ class PenCanvasView @JvmOverloads constructor(
       MotionEvent.ACTION_CANCEL -> {
         val hadGesture = activePointerId != INVALID_POINTER
         discardAreaErase()
-        resetGesture()
+        resetGesture(commitNativeAreaErase = false)
         invalidate()
         return hadGesture
       }
@@ -348,7 +350,7 @@ class PenCanvasView @JvmOverloads constructor(
     }
     if (activePointerId == INVALID_POINTER) return
     discardAreaErase()
-    resetGesture()
+    resetGesture(commitNativeAreaErase = false)
     invalidate()
   }
 
@@ -613,6 +615,7 @@ class PenCanvasView @JvmOverloads constructor(
     val point = geometry.toDocumentPoint(xPx, yPx, 1f) ?: run { lastErasePoint = null; return }
     val radius = geometry.documentUnitsForPixels(eraserRadiusPx)
     if (!radius.isFinite()) return
+    onNativeAreaEraseSegment?.invoke(lastErasePoint ?: point, point, radius)
     val next = PenAreaEraser.erase(internalStrokes, lastErasePoint ?: point, point, radius)
     lastErasePoint = point
     if (next != internalStrokes) {
@@ -662,8 +665,9 @@ class PenCanvasView @JvmOverloads constructor(
     }
   }
 
-  private fun resetGesture() {
+  private fun resetGesture(commitNativeAreaErase: Boolean = true) {
     if (eraseOriginal != null) onAreaEraseCommitted?.invoke(internalStrokes.toList())
+    onNativeAreaEraseFinished?.invoke(commitNativeAreaErase)
     eraseOriginal = null
     lastErasePoint = null
     predictor.onUp()

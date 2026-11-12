@@ -14,3 +14,12 @@
 - 当前验收用例：`REF-POLYLINE-01`（折线识别并作为单个多点笔迹保存）、`REF-POLYLINE-02`（Android 折点处直线渲染）、`REF-POLYLINE-03`（单次撤销移除整条识别笔迹）、`REF-POLYLINE-04`（区域切分后扩展标记保留）。曲线与闭合形状仍需按参考分支（含 OpenCV 路径）逐项移植，不能从现有回归推断支持。
 - 曲线分支现按源码 `BezierTool.getPath` 公式执行：参考采样控制点是绘制曲线经过的中点，实际二次控制点为 `midpoint + 2 * (sampledControl - midpoint)`；生成33个等距参数采样点，保存在多点 `pen` 的 `pagenoteCurve` 扩展字段中。每段按直线渲染能被现有桌面 `pen` 解释，但桌面运行往返尚未检查。当前分类器对完全平直的长轨迹也会给出内点控制索引；参考调用链因此走 `BezierTool`，结果仍是平直曲线。验收用例 `REF-CURVE-01` 覆盖二次曲线控制点与采样，`REF-CURVE-02` 覆盖画布写入带标记单笔；阅读器文件落盘/撤销仍待端到端验证。
 - 目前需要继续确认每个分支的阈值、采样与坐标转换，适配参考材料到 PageNote 文件格式，并完成原程序差分、失败回退和真机性能验证。两个后台线程的队列改动只改善一个模拟的慢任务场景，不完成识形移植。
+
+## 原生矢量图形区域擦除（Android 适配）
+
+- 原生批注与自由笔迹分属不同的渲染层：`PenCanvasView` 的擦除回调只能直接修改自由笔迹，矩形等原生图形由 `PdfAnnotationOverlay` 读取 `annotations.json` 绘制。Android 阅读页现把同一条擦除手势的页面坐标片段送到原生批注路径，并在手势期间更新覆盖层。
+- 切分使用现有 `PenAreaEraser` 扫掠圆几何：直线直接使用端点，箭头加入两条箭头翼，矩形展开为四边闭合折线，椭圆以 64 段近似。命中的图形片段保存为现有 `type: "line"` 对象，未命中的页面元素保留原样；没有新增桌面端格式字段。
+- 这是文件格式和交互兼容适配；本次只在 Android 14 模拟器端到端验证了矩形轮廓。其他三种图形目前有几何单测，但尚无各自的阅读页落盘验收。未完成参考 App 擦除算法的运行时差分，不能据此宣称所有形状都已逐指令复刻。
+- `REF-ERASE-01`：直线、箭头、矩形、椭圆可按区域切分，页面内无关文本保留（`PdfAnnotationAreaEraserTest`）。
+- `REF-ERASE-02`：Android 14 模拟器中擦除原生矩形后，`annotations.json` 存在线段缺口；阅读器撤销一次后原矩形恢复，运行时显示擦除边界且不弹保存成功提示（`PdfAnnotationSelectionClipboardActivityTest.areaEraserCutsNativeRectangleAnnotationAndUndoRestoresIt`）。输入由测试合成的 stylus `MotionEvent` 发送到真实 `PenCanvasView`，不代表实体笔真机验收。
+- 尚未验收区域擦除与同一手势中的自由笔迹合并为一个历史事务；现有 `REF-ERASE-02` 只覆盖原生批注。跨材质统一撤销、闭合识形和多材料选择仍是独立待办。

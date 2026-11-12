@@ -3,6 +3,9 @@ package io.pagenote.feature.pen
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** Cuts freehand centerlines against the swept eraser circle in document coordinates. */
 object PenAreaEraser {
@@ -15,7 +18,7 @@ object PenAreaEraser {
     val result = ArrayList<PenStroke>()
     var changed = false
     for (stroke in strokes) {
-      if (stroke.type != "pen" && stroke.type != "highlight") { result.add(stroke); continue }
+      if (centerline(stroke) == null) { result.add(stroke); continue }
       val cut = split(stroke, from, to, radius.toDouble() + stroke.width / 2.0)
       if (cut.size != 1 || cut.firstOrNull() != stroke) changed = true
       result.addAll(cut)
@@ -25,7 +28,7 @@ object PenAreaEraser {
   }
 
   private fun split(stroke: PenStroke, from: PenPoint, to: PenPoint, radius: Double): List<PenStroke> {
-    val points = stroke.points
+    val points = centerline(stroke) ?: return listOf(stroke)
     if (points.isEmpty()) return listOf(stroke)
     val minX = min(from.x, to.x) - radius
     val maxX = max(from.x, to.x) + radius
@@ -64,7 +67,64 @@ object PenAreaEraser {
       if (cursor < 1.0 - EPS) { append(interpolate(a, b, cursor)); append(b) }
     }
     if (!changed) return listOf(stroke)
-    return pieces.filter { it.isNotEmpty() }.map { stroke.copy(points = it.toList()) }
+    val segments = pieces.filter { it.isNotEmpty() }
+    val isNativeShape = stroke.type != "pen" && stroke.type != "highlight"
+    return segments.map { piece ->
+      if (isNativeShape) {
+        stroke.copy(
+          type = "pen",
+          points = piece.toList(),
+          extraFields = stroke.extraFields + (PenStroke.POLYLINE_FIELD to true),
+        )
+      } else stroke.copy(points = piece.toList())
+    }
+  }
+
+  /** Geometry used for hit cutting; untouched shapes remain in their original native form. */
+  private fun centerline(stroke: PenStroke): List<PenPoint>? {
+    val points = stroke.points
+    if (stroke.type == "pen" || stroke.type == "highlight") return points
+    if (points.size < 2) return null
+    val a = points.first()
+    val b = points.last()
+    return when (stroke.type) {
+      "line" -> listOf(a, b)
+      "arrow" -> {
+        val angle = atan2((b.y - a.y).toDouble(), (b.x - a.x).toDouble())
+        val length = (14.0 + stroke.width * 2.0).toFloat()
+        val spread = .45
+        val wingA = PenPoint(
+          b.x - length * cos(angle - spread).toFloat(),
+          b.y - length * sin(angle - spread).toFloat(), 1f,
+        )
+        val wingB = PenPoint(
+          b.x - length * cos(angle + spread).toFloat(),
+          b.y - length * sin(angle + spread).toFloat(), 1f,
+        )
+        listOf(a, b, wingA, b, wingB)
+      }
+      "rect" -> {
+        val left = min(a.x, b.x); val right = max(a.x, b.x)
+        val top = min(a.y, b.y); val bottom = max(a.y, b.y)
+        listOf(
+          PenPoint(left, top, 1f), PenPoint(right, top, 1f),
+          PenPoint(right, bottom, 1f), PenPoint(left, bottom, 1f), PenPoint(left, top, 1f),
+        )
+      }
+      "ellipse" -> {
+        val centerX = (a.x + b.x) / 2f; val centerY = (a.y + b.y) / 2f
+        val radiusX = kotlin.math.abs(b.x - a.x) / 2f
+        val radiusY = kotlin.math.abs(b.y - a.y) / 2f
+        (0..64).map { step ->
+          val angle = step * 2.0 * Math.PI / 64.0
+          PenPoint(
+            centerX + radiusX * cos(angle).toFloat(),
+            centerY + radiusY * sin(angle).toFloat(), 1f,
+          )
+        }
+      }
+      else -> null
+    }
   }
 
   private fun interpolate(a: PenPoint, b: PenPoint, t: Double) = PenPoint(

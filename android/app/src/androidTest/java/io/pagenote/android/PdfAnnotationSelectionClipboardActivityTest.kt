@@ -19,6 +19,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -57,6 +59,82 @@ import java.util.concurrent.atomic.AtomicReference
 class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+
+  @Test fun areaEraserCutsNativeRectangleAnnotationAndUndoRestoresIt() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val original = Json.parseToJsonElement(
+      """[{"type":"rect","color":"#185abd","width":5,"points":[[220,250],[780,750]]}]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, original)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.isEmpty()
+      }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.runOnIdle { session.penTool.value = PenCanvasTool.ERASER }
+      composeRule.waitUntil(5_000) { canvas.pageTransform != null && canvas.selectedTool == PenCanvasTool.ERASER }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-area-erase-native-before.png")
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      val start = PenPoint(500f, 150f, 1f)
+      val end = PenPoint(500f, 850f, 1f)
+      val now = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(start), geometry.toViewY(start), .5f, now, now)
+      for (step in 1..14) {
+        val y = start.y + (end.y - start.y) * (step / 14f)
+        val point = PenPoint(500f, y, 1f)
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          geometry.toViewX(point),
+          geometry.toViewY(point),
+          .5f,
+          now,
+          now + step * 35,
+        )
+        if (step == 7) {
+          Thread.sleep(250)
+          composeRule.waitForIdle()
+          saveAnnotationEvidence("reference-area-erase-native-erasing.png")
+        }
+      }
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(end), geometry.toViewY(end), .5f, now, now + 600)
+      waitForAnnotations(annotations) { page ->
+        page.none { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } &&
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } >= 2
+      }
+      composeRule.waitForIdle()
+      Thread.sleep(500)
+      val lines = annotations.readPage("document", 1).filterIsInstance<JsonObject>()
+        .filter { it["type"]?.jsonPrimitive?.content == "line" }
+      assertTrue(lines.none { line ->
+        val coordinates = points(line)
+        coordinates.size == 4 && coordinates[1] == coordinates[3] &&
+          (coordinates[1] == 250.0 || coordinates[1] == 750.0) &&
+          coordinates[0] < 500.0 && coordinates[2] > 500.0
+      })
+      saveAnnotationEvidence("reference-area-erase-native-after.png")
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) { it == original }
+      composeRule.waitForIdle()
+      Thread.sleep(500)
+      assertEquals(0, composeRule.onAllNodesWithText(context.getString(R.string.pen_annotation_saved)).fetchSemanticsNodes().size)
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-area-erase-native-undo.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
 
   @Test fun referencePolylinePersistsAndUndoesAsOneStroke() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
@@ -1142,6 +1220,30 @@ class PdfAnnotationSelectionClipboardActivityTest {
     revealReaderMenuCommand(composeRule, "handwriting", tag.removePrefix("reader_menu_command_"))
     composeRule.waitUntil(10_000) {
       runCatching { composeRule.onNodeWithTag(tag).assertIsEnabled() }.isSuccess
+    }
+  }
+
+  private fun collapseReaderMenuAndWait() {
+    if (composeRule.onAllNodesWithTag("reader_menu_collapse").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+    }
+    composeRule.waitForIdle()
+    Thread.sleep(700)
+  }
+
+  private fun saveAnnotationEvidence(name: String) {
+    val target = InstrumentationRegistry.getInstrumentation().targetContext
+    val uri = target.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+      put(MediaStore.Images.Media.DISPLAY_NAME, name)
+      put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+      put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/PageNoteEvidence")
+    }) ?: error("MediaStore image insert failed for $name")
+    InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
+      target.contentResolver.openOutputStream(uri).use { stream ->
+        checkNotNull(stream)
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+      }
+      bitmap.recycle()
     }
   }
 

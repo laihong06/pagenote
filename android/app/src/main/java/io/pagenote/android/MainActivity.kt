@@ -823,6 +823,9 @@ private fun ReaderHome(
   var annotationPageItems by remember(project?.manifest?.id, pageIndex) {
     mutableStateOf(JsonArray(emptyList()))
   }
+  var nativeAreaEraseSnapshot by remember(project?.manifest?.id, project?.sourceDirectoryUri) {
+    mutableStateOf<Triple<String, Int, JsonArray>?>(null)
+  }
   var annotationOverlayImages by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
   var annotationOverlayHtmlBitmaps by remember { mutableStateOf<Map<Int, Bitmap>>(emptyMap()) }
   var annotationOverlayReload by remember { mutableIntStateOf(0) }
@@ -1384,6 +1387,42 @@ private fun ReaderHome(
         onFinished?.invoke()
       }
     }
+  }
+
+  fun eraseNativeAnnotationSegment(from: PenPoint, to: PenPoint, radius: Float) {
+    val targetProject = project ?: return
+    val targetPage = pageIndex + 1
+    val snapshot = nativeAreaEraseSnapshot ?: Triple(targetProject.manifest.id, targetPage, annotationPageItems)
+    if (snapshot.first != targetProject.manifest.id || snapshot.second != targetPage) return
+    val updated = PdfAnnotationAreaEraser.erasePage(annotationPageItems, from, to, radius)
+    if (updated === annotationPageItems) return
+    nativeAreaEraseSnapshot = snapshot
+    annotationPageItems = updated
+    annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(updated)
+    selectedAnnotationIndex = null
+    selectedPenIndex = null
+  }
+
+  fun finishNativeAnnotationErase(commit: Boolean) {
+    val snapshot = nativeAreaEraseSnapshot ?: return
+    nativeAreaEraseSnapshot = null
+    if (project?.manifest?.id != snapshot.first || pageIndex + 1 != snapshot.second) return
+    val before = snapshot.third
+    if (!commit) {
+      annotationPageItems = before
+      annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(before)
+      annotationOverlayReload++
+      return
+    }
+    val after = annotationPageItems
+    if (after == before) return
+    persistNativeAnnotationPage(
+      targetPage = snapshot.second,
+      before = before,
+      after = after,
+      selectedAfter = null,
+      showSuccess = false,
+    )
   }
 
   fun applyPenStyle(color: String? = null, width: Double? = null) {
@@ -6612,6 +6651,8 @@ private fun ReaderHome(
                 onAreaEraseCommitted = { targetPage, items ->
                   if (readerSession.project.value?.sourceUri == activeProject.sourceUri) commitAreaErase(targetPage, items)
                 },
+                onNativeAreaEraseSegment = ::eraseNativeAnnotationSegment,
+                onNativeAreaEraseFinished = ::finishNativeAnnotationErase,
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
                 onAnnotationSelectionTouch = ::handleNativeAnnotationSelectionTouch,
@@ -6758,6 +6799,8 @@ private fun ReaderHome(
                 onAreaEraseCommitted = { targetPage, items ->
                   if (readerSession.project.value?.sourceUri == activeProject.sourceUri) commitAreaErase(targetPage, items)
                 },
+                onNativeAreaEraseSegment = ::eraseNativeAnnotationSegment,
+                onNativeAreaEraseFinished = ::finishNativeAnnotationErase,
                 selectedStrokeIndex = selectedPenIndex,
                 onSelectedStrokeChanged = { selectedPenIndex = it },
                 onAnnotationSelectionTouch = ::handleNativeAnnotationSelectionTouch,
@@ -6918,7 +6961,8 @@ private fun ReaderHome(
       val saveErrorDetail = failedPenSave?.first?.let { readerSession.failedPenSaveMessages[it] }
         ?: penStatus?.takeIf { it.startsWith(saveErrorPrefix) }
       val visiblePenStatus = penStatus?.takeUnless {
-        it == context.getString(R.string.pen_saved) || it == context.getString(R.string.annotation_saving) ||
+        it == context.getString(R.string.pen_saved) || it == context.getString(R.string.pen_annotation_saved) ||
+          it == context.getString(R.string.annotation_saving) ||
           (failedPenSave != null && it.startsWith(saveErrorPrefix))
       }
       val visibleNoteStatus = noteStatus?.takeUnless { it == context.getString(R.string.note_saved) || it == context.getString(R.string.annotation_saving) }
@@ -8641,6 +8685,8 @@ internal fun PdfPageViewport(
   onShapeRecognized: (PenRecognizedShape, PenStroke) -> Boolean = { _, _ -> false },
   onStrokeErased: (Int) -> Unit,
   onAreaEraseCommitted: ((Int, List<PenStroke>) -> Unit)? = null,
+  onNativeAreaEraseSegment: (PenPoint, PenPoint, Float) -> Unit = { _, _, _ -> },
+  onNativeAreaEraseFinished: (Boolean) -> Unit = {},
   selectedStrokeIndex: Int? = null,
   onSelectedStrokeChanged: (Int?) -> Unit = {},
   onAnnotationSelectionTouch: (MotionEvent, PenCanvasGeometry, Int) -> Boolean = { _, _, _ -> false },
@@ -8680,6 +8726,8 @@ internal fun PdfPageViewport(
   val latestOnPageSwipe by rememberUpdatedState(onPageSwipe)
   val latestOnSelectedStrokeChanged by rememberUpdatedState(onSelectedStrokeChanged)
   val latestOnAnnotationSelectionTouch by rememberUpdatedState(onAnnotationSelectionTouch)
+  val latestOnNativeAreaEraseSegment by rememberUpdatedState(onNativeAreaEraseSegment)
+  val latestOnNativeAreaEraseFinished by rememberUpdatedState(onNativeAreaEraseFinished)
   var inkCanvasView by remember { mutableStateOf<PenCanvasView?>(null) }
   var pinchInProgress by remember(page) { mutableStateOf(false) }
   LaunchedEffect(page) { inkCanvasView?.cancelActiveGesture() }
@@ -8944,6 +8992,8 @@ internal fun PdfPageViewport(
             view.onShapeRecognized = onShapeRecognized
             view.onStrokeErased = onStrokeErased
             view.onAreaEraseCommitted = onAreaEraseCommitted?.let { callback -> { items -> callback(page + 1, items) } }
+            view.onNativeAreaEraseSegment = latestOnNativeAreaEraseSegment
+            view.onNativeAreaEraseFinished = latestOnNativeAreaEraseFinished
             view.onSelectionChanged = latestOnSelectedStrokeChanged
             view.onAnnotationSelectionTouch = latestOnAnnotationSelectionTouch
           },

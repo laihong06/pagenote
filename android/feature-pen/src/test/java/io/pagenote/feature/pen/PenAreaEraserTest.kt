@@ -54,12 +54,33 @@ class PenAreaEraserTest {
     assertTrue(store.redo(PenSide.DOCUMENT, 1)); assertEquals(edited, store.getItems(PenSide.DOCUMENT, 1))
   }
 
-  @Test fun outsideAndNativeShapesAreUnchanged() {
+  @Test fun outsideStrokesAreUnchangedAndCutLinesBecomePenFragments() {
     val line = PenStroke("line", "#000000", 2.0, listOf(PenPoint(0f,0f,1f), PenPoint(100f,0f,1f)))
     val freehand = line.copy(type = "pen")
     val original = listOf(line, freehand)
     assertEquals(original, PenAreaEraser.erase(original, PenPoint(50f,50f,1f), PenPoint(50f,80f,1f), 4f))
-    assertEquals(line, PenAreaEraser.erase(original, PenPoint(50f,-5f,1f), PenPoint(50f,5f,1f), 4f).first())
+    val cut = PenAreaEraser.erase(original, PenPoint(50f,-5f,1f), PenPoint(50f,5f,1f), 4f)
+    assertTrue(cut.size >= 4)
+    assertTrue(cut.take(2).all { it.type == "pen" && it.extraFields[PenStroke.POLYLINE_FIELD] == true })
+  }
+
+  @Test fun sweptAreaCutsRectangleAndEllipseOutlinesIntoCompatiblePenFragments() {
+    val rectangle = PenStroke("rect", "#000000", 2.0,
+      listOf(PenPoint(0f, 0f, 1f), PenPoint(100f, 100f, 1f)))
+    val ellipse = rectangle.copy(type = "ellipse")
+    val from = PenPoint(50f, -10f, 1f)
+    val to = PenPoint(50f, 110f, 1f)
+    listOf(rectangle, ellipse).forEach { shape ->
+      val fragments = PenAreaEraser.erase(listOf(shape), from, to, 3f)
+      assertTrue("${shape.type} outline should split where the swept eraser crosses it", fragments.size >= 2)
+      assertTrue(fragments.all { it.type == "pen" && it.extraFields[PenStroke.POLYLINE_FIELD] == true })
+      val store = PenPageStore().apply { addStroke(PenSide.DOCUMENT, 1, shape) }
+      assertTrue(store.replacePage(PenSide.DOCUMENT, 1, fragments))
+      val reloaded = PenPageStore().apply { loadAnnotationsMap(store.toAnnotationsMap()) }
+      assertEquals(fragments, reloaded.getItems(PenSide.DOCUMENT, 1))
+      assertTrue(store.undo(PenSide.DOCUMENT, 1))
+      assertEquals(listOf(shape), store.getItems(PenSide.DOCUMENT, 1))
+    }
   }
 
 }
