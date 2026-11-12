@@ -18,6 +18,20 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PenCanvasViewInstrumentedTest {
+  @Test fun sampledMovesStillRecognizeAStationaryLine() {
+    lateinit var canvas: PenCanvasView
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        onShapeRecognized = { shape, _ -> recognized.add(shape); true }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, .5f, 1)
+      for (i in 1..40) dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 40f + i * 5f, 80f, .5f, (i + 1).toLong())
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, .5f, 50) }
+    assertEquals(listOf("line"), recognized.map { it.type })
+  }
   @Test fun slowCancelledRecognitionDoesNotDelayNextCanvas() {
     val firstStarted = CountDownLatch(1)
     val releaseFirst = CountDownLatch(1)

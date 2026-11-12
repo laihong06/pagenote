@@ -58,6 +58,7 @@ class PenCanvasView @JvmOverloads constructor(
   private var shapePreview: PenRecognizedShape? = null
   private var shapeDwellAnchor: Pair<Float, Float>? = null
   private var shapeDwellTask: Runnable? = null
+  private val referenceShapeSampler = ReferenceShapeSampler()
   private var eraseModeLatched = false
   private var eraseOriginal: List<PenStroke>? = null
   private var lastErasePoint: PenPoint? = null
@@ -381,6 +382,7 @@ class PenCanvasView @JvmOverloads constructor(
       gestureTool != PenCanvasTool.PEN
     shapePreview = null
     shapeDwellAnchor = null
+    referenceShapeSampler.begin(event.getX(pointerIndex), event.getY(pointerIndex))
     if (gestureTool == PenCanvasTool.ERASER) {
       eraseAt(event.getX(pointerIndex), event.getY(pointerIndex))
     } else {
@@ -500,8 +502,7 @@ class PenCanvasView @JvmOverloads constructor(
 
   private fun updateShapeRecognition(xPx: Float, yPx: Float) {
     if (shapeRecognitionCancelled || activePointerToolType != MotionEvent.TOOL_TYPE_STYLUS ||
-      gestureTool != PenCanvasTool.PEN || selectedTool != PenCanvasTool.PEN ||
-      activePathLength < MIN_RECOGNITION_PATH
+      gestureTool != PenCanvasTool.PEN || selectedTool != PenCanvasTool.PEN
     ) {
       return
     }
@@ -513,7 +514,8 @@ class PenCanvasView @JvmOverloads constructor(
       }
       return
     }
-    if (anchor == null || distancePx(anchor, xPx, yPx) > stationaryRadiusPx()) {
+    val sampled = referenceShapeSampler.move(xPx, yPx, 5f * resources.displayMetrics.density)
+    if (sampled && activePathLength >= MIN_RECOGNITION_PATH) {
       cancelShapeDwell()
       shapeDwellAnchor = xPx to yPx
       val task = Runnable {

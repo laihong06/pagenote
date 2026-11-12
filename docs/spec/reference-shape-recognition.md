@@ -4,6 +4,7 @@
 
 - `ManagerHandler.handleMessage` 的 `MSG_PAINT_SHAPE_AUTO` 分支会检查页面图层、激光笔、触摸状态、普通/快速自动形状及设备条件，然后调用 `recogniseShape(-1f)`。Java 反编译失败，该分支以完整 smali 检查。
 - 恢复源码中的 `TouchEventManager.TIME_PAINT_SHAPE_AUTO` 为 400 ms；普通停留模式在满足位移条件并采样时重置该消息的定时。PageNote 采用同一延迟，但当前触摸采样、位移判定与参考实现仍不同；快速自动形状及设备特例也未移植。
+- `TouchEventManager.smali` 的普通单指移动分支按屏幕坐标计算位移平方，与 `dpiTopixel(getLongPressedDistance())` 比较；大于阈值时采样并重置定时，连续静止计数超过 10 时先改为 8 而不采样，计数不大于 1 时更新坐标基准。默认长按距离为 5。PageNote 已将此状态机用于普通笔的停留定时；当前识别器仍读取完整页面坐标笔迹，而非这些屏幕采样点，并保留最小路径长度和现有预览取消逻辑。参考硬件加速/4K 的密度换算、快速识形及多指条件未移植。
 - `ManagerHandler.recogniseShape` 获取 `TouchEventManager` 的触摸点并调用 `GraphUtils.recogniseShape`；成功后创建 `AddMaterialAction`、添加材料和动作，再更新屏幕与画布状态。`sendRecognize` 的 800 ms 对应另一个 `MSG_RECOGNIZE_HW` 消息，不能作为自动形状停留时间。
 - `GraphUtils.recogniseShape` 的 Java 反编译失败，smali 显示开放路径会调用 `isBrokenLine`、`isLine`、曲线识别等；闭合路径使用 OpenCV 的轮廓检测、轮廓近似和椭圆拟合等。不能把现有 `PenShapeRecognizer` 简单的路径长度、边框和简化判断称为源码复刻。
 - 当前项目已在 `feature-ocr` 使用 OpenCV 4.10.0 定制 AAR，参考调用链不一定需要引入第二套运行库。恢复源码中开放路径依次调用 `isBrokenLine`、`isLine` 和曲线创建；首尾接近且点数大于 10 的分支使用设备密度相关的闭合阈值。参考坐标是触摸屏坐标，而现有识别器输入是页面坐标，复用阈值前必须映射并验证缩放与旋转。
