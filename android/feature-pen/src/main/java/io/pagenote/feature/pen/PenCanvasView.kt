@@ -676,7 +676,9 @@ class PenCanvasView @JvmOverloads constructor(
   private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
 
   private companion object {
-    val shapeExecutor = Executors.newSingleThreadExecutor { task -> Thread(task, "pen-shape-recognition").apply { isDaemon = true } }
+    // A cancelled recognition may still be executing; let the next canvas
+    // progress without creating an unbounded number of worker threads.
+    val shapeExecutor = Executors.newFixedThreadPool(2) { task -> Thread(task, "pen-shape-recognition").apply { isDaemon = true } }
     const val INVALID_POINTER = -1
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
     const val SELECTION_INSET = 8f

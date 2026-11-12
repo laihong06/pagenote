@@ -18,6 +18,34 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PenCanvasViewInstrumentedTest {
+  @Test fun slowCancelledRecognitionDoesNotDelayNextCanvas() {
+    val firstStarted = CountDownLatch(1)
+    val releaseFirst = CountDownLatch(1)
+    val secondStarted = CountDownLatch(1)
+    lateinit var first: PenCanvasView
+    var second: PenCanvasView? = null
+    try {
+      onUi {
+        first = createCanvas().apply {
+          shapeRecognizer = { firstStarted.countDown(); releaseFirst.await(5, TimeUnit.SECONDS); null }
+        }
+        dispatchTouch(first, MotionEvent.ACTION_DOWN, 100f, 100f, .5f, 2)
+        dispatchTouch(first, MotionEvent.ACTION_MOVE, 340f, 100f, .5f, 3)
+      }
+      assertTrue(firstStarted.await(3, TimeUnit.SECONDS))
+      onUi {
+        first.cancelActiveGesture()
+        val next = createCanvas().apply { shapeRecognizer = { secondStarted.countDown(); null } }
+        second = next
+        dispatchTouch(next, MotionEvent.ACTION_DOWN, 100f, 200f, .5f, 4)
+        dispatchTouch(next, MotionEvent.ACTION_MOVE, 340f, 200f, .5f, 5)
+      }
+      assertTrue("a stale recognition must not block a new canvas", secondStarted.await(2, TimeUnit.SECONDS))
+    } finally {
+      releaseFirst.countDown()
+      second?.let { view -> onUi { view.cancelActiveGesture() } }
+    }
+  }
   @Test fun eraserShowsItsActualBoundaryWhileTouching() {
     onUi {
       val view = createCanvas().apply { selectedTool = PenCanvasTool.ERASER; eraserRadiusPx = 30f }
