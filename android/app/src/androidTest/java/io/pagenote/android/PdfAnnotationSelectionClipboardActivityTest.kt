@@ -59,6 +59,84 @@ class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
 
+  @Test fun oneAreaEraseGestureAcrossFreehandAndNativeShapeIsOneUndoStep() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val original = Json.parseToJsonElement(
+      """[{"type":"rect","color":"#185abd","width":5,"points":[[220,250],[780,750]]},""" +
+        """{"type":"pen","color":"#185abd","width":5,"points":[[300,500],[700,500]]}]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, original)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.size == 1
+      }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.runOnIdle { session.penTool.value = PenCanvasTool.ERASER }
+      composeRule.waitUntil(5_000) { canvas.pageTransform != null && canvas.selectedTool == PenCanvasTool.ERASER }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-area-erase-mixed-before.png")
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      val start = PenPoint(500f, 150f, 1f)
+      val end = PenPoint(500f, 850f, 1f)
+      val now = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(start), geometry.toViewY(start), .5f, now, now)
+      for (step in 1..14) {
+        val y = start.y + (end.y - start.y) * (step / 14f)
+        val point = PenPoint(500f, y, 1f)
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          geometry.toViewX(point),
+          geometry.toViewY(point),
+          .5f,
+          now,
+          now + step * 35,
+        )
+      }
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(end), geometry.toViewY(end), .5f, now, now + 600)
+      waitForAnnotations(annotations) { page ->
+        page.none { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } &&
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } >= 2 &&
+          session.penStrokes.value.size >= 2
+      }
+      saveAnnotationEvidence("reference-area-erase-mixed-erased.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) { page ->
+        page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } == 1 &&
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" } == 1 &&
+          session.penStrokes.value.size == 1
+      }
+      val restored = annotations.readPage("document", 1).filterIsInstance<JsonObject>()
+      assertEquals(original.first(), restored.single { it["type"]?.jsonPrimitive?.content == "rect" })
+      assertPoints(listOf(300.0, 500.0, 700.0, 500.0), points(restored.single { it["type"]?.jsonPrimitive?.content == "pen" }), .01)
+      assertEquals(2, session.penStrokes.value.single().points.size)
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-area-erase-mixed-undo.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
+      waitForAnnotations(annotations) { page ->
+        page.none { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } &&
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } >= 2 &&
+          session.penStrokes.value.size >= 2
+      }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-area-erase-mixed-redo.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun areaEraserCutsNativeRectangleAnnotationAndUndoRestoresIt() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
@@ -100,7 +178,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
           now,
           now + step * 35,
         )
-        if (step == 7) {
+        if (step == 4) {
           Thread.sleep(250)
           composeRule.waitForIdle()
           saveAnnotationEvidence("reference-area-erase-native-erasing.png")
@@ -470,9 +548,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
         val x = canvas.width * .2f
         val end = canvas.width * if (long) .75f else .23f
         dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, now, now)
-        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, end, y, .5f, now, now + 10)
+        for (step in 1..12) {
+          val progress = step / 12f
+          dispatchStylus(canvas, MotionEvent.ACTION_MOVE, x + (end - x) * progress, y, .5f, now, now + step * 10)
+        }
         if (long) Thread.sleep(650)
-        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, now, now + if (long) 700 else 20)
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, now, now + if (long) 700 else 140)
       }
       fun types(): List<String> = annotations.readPage("document", 1).map { (it as JsonObject)["type"]!!.jsonPrimitive.content }.sorted()
       fun expect(vararg expected: String) {
@@ -527,9 +608,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
         val x = canvas.width * .2f
         val end = canvas.width * if (dwell) .75f else .26f
         dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, time, time)
-        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, end, y, .5f, time, time + 10)
+        for (step in 1..12) {
+          val progress = step / 12f
+          dispatchStylus(canvas, MotionEvent.ACTION_MOVE, x + (end - x) * progress, y, .5f, time, time + step * 10)
+        }
         if (dwell) Thread.sleep(650)
-        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 20)
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 140)
       }
       stroke(canvas.height * .3f, true)
       waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" }
@@ -566,9 +650,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
         val x = canvas.width * .2f
         val end = canvas.width * if (dwell) .75f else .26f
         dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, time, time)
-        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, end, y, .5f, time, time + 10)
+        for (step in 1..12) {
+          val progress = step / 12f
+          dispatchStylus(canvas, MotionEvent.ACTION_MOVE, x + (end - x) * progress, y, .5f, time, time + step * 10)
+        }
         if (dwell) Thread.sleep(650)
-        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 20)
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 140)
       }
       runBlocking { session.penSaveMutex.lock() }; locked = true
       stroke(canvas.height * .3f, true)

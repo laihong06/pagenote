@@ -57,4 +57,49 @@ class ReaderEditHistoryOrderTest {
     assertNull(history.nextUndo("project", 3))
     assertEquals(ReaderEditHistoryOrder.Layer.ANNOTATION, history.nextUndo("project", 5))
   }
+
+  @Test
+  fun groupedCrossLayerGestureIsOneUndoAndRedoEntry() {
+    val history = ReaderEditHistoryOrder()
+    val project = "project"
+    history.record(project, 1, ReaderEditHistoryOrder.Layer.PEN)
+    val groupId = history.beginGroup(project, 1)
+    history.recordInGroup(project, 1, groupId, ReaderEditHistoryOrder.Layer.PEN)
+    history.recordInGroup(project, 1, groupId, ReaderEditHistoryOrder.Layer.ANNOTATION)
+
+    assertNull(history.nextUndo(project, 1))
+    assertTrue(history.endGroup(project, 1, groupId))
+    assertEquals(ReaderEditHistoryOrder.Layer.COMPOSITE, history.nextUndo(project, 1))
+    assertEquals(
+      listOf(ReaderEditHistoryOrder.Layer.PEN, ReaderEditHistoryOrder.Layer.ANNOTATION),
+      history.layersForUndo(project, 1),
+    )
+    assertTrue(history.completeUndo(project, 1, ReaderEditHistoryOrder.Layer.COMPOSITE))
+    assertEquals(ReaderEditHistoryOrder.Layer.COMPOSITE, history.nextRedo(project, 1))
+    assertEquals(
+      listOf(ReaderEditHistoryOrder.Layer.PEN, ReaderEditHistoryOrder.Layer.ANNOTATION),
+      history.layersForRedo(project, 1),
+    )
+    assertTrue(history.completeRedo(project, 1, ReaderEditHistoryOrder.Layer.COMPOSITE))
+    assertEquals(ReaderEditHistoryOrder.Layer.COMPOSITE, history.nextUndo(project, 1))
+  }
+
+  @Test
+  fun laterEditsStayAfterPendingGestureGroup() {
+    val history = ReaderEditHistoryOrder()
+    val project = "project"
+    val groupId = history.beginGroup(project, 1)
+    history.recordInGroup(project, 1, groupId, ReaderEditHistoryOrder.Layer.PEN)
+    history.record(project, 1, ReaderEditHistoryOrder.Layer.PEN)
+    history.recordInGroup(project, 1, groupId, ReaderEditHistoryOrder.Layer.ANNOTATION)
+    assertTrue(history.endGroup(project, 1, groupId))
+
+    assertEquals(ReaderEditHistoryOrder.Layer.PEN, history.nextUndo(project, 1))
+    assertTrue(history.completeUndo(project, 1, ReaderEditHistoryOrder.Layer.PEN))
+    assertEquals(ReaderEditHistoryOrder.Layer.COMPOSITE, history.nextUndo(project, 1))
+    assertEquals(
+      listOf(ReaderEditHistoryOrder.Layer.PEN, ReaderEditHistoryOrder.Layer.ANNOTATION),
+      history.layersForUndo(project, 1),
+    )
+  }
 }
