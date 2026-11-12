@@ -56,6 +56,52 @@ class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
 
+  @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      val startX = canvas.width * .15f
+      val increment = canvas.width * .10f
+      val y = canvas.height * .35f
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, y, .5f, time, time)
+      for (i in 1..6) dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + i * increment, y, .5f, time, time + i * 10)
+      Thread.sleep(650)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, startX + 6 * increment, y, .5f, time, time + 700)
+      waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" }
+      val saved = points(annotations.readPage("document", 1)[0] as JsonObject)
+      val expected = geometry.toDocumentPoint(startX + increment, y, 1f)!!
+      assertEquals(expected.x.toDouble(), saved[0], .1)
+      assertEquals(expected.y.toDouble(), saved[1], .1)
+      composeRule.waitForIdle()
+      val screenshot = java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "reference-sampled-line.png")
+      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
+        screenshot.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+      }
+      Thread.sleep(1500) // Allow the evidence collector to copy before test-package teardown.
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test
   @Ignore("Known defect: interleaved ink and annotation histories are not yet unified")
   fun interleavedShapesAndInkUndoInGestureOrder() {

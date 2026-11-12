@@ -38,7 +38,7 @@ class PenCanvasView @JvmOverloads constructor(
   private val activePoints = mutableListOf<PenPoint>()
   private var activePathLength = 0f
   private val shapeGeneration = AtomicLong()
-  internal var shapeRecognizer: (List<PenPoint>) -> PenRecognizedShape? = PenShapeRecognizer::recognize
+  internal var shapeRecognizer: ((List<PenPoint>) -> PenRecognizedShape?)? = null
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
   private val strokeCache = PenStrokeCache()
@@ -526,10 +526,17 @@ class PenCanvasView @JvmOverloads constructor(
         ) {
           val generation = shapeGeneration.get()
           val points = activePoints.toList()
+          val screenPoints = referenceShapeSampler.points()
+          val canvasGeometry = geometry()
+          val density = resources.displayMetrics.density
           val recognize = shapeRecognizer
           shapeExecutor.execute {
             if (generation != shapeGeneration.get()) return@execute
-            val result = runCatching { recognize(points) }.getOrNull()
+            val result = runCatching {
+              if (recognize != null) recognize(points)
+              else runCatching { ReferenceOpenShapeRecognizer.recognize(screenPoints, canvasGeometry, density) }.getOrNull()
+                ?: PenShapeRecognizer.recognize(points)
+            }.getOrNull()
             shapeHandler.post {
               if (generation == shapeGeneration.get() && inputEnabled && activePointerId != INVALID_POINTER &&
                 !shapeRecognitionCancelled && activePointerToolType == MotionEvent.TOOL_TYPE_STYLUS &&
