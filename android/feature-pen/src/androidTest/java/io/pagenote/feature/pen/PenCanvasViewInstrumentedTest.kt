@@ -339,6 +339,56 @@ class PenCanvasViewInstrumentedTest {
   }
 
   @Test
+  fun systemCancelRestoresUnfinishedAreaEraseWithoutCommitting() {
+    val commits = mutableListOf<List<PenStroke>>()
+    lateinit var canvas: PenCanvasView
+    val original = PenStroke("pen", "#112233", 4.0,
+      listOf(PenPoint(100f, 500f, 1f), PenPoint(900f, 500f, 1f)))
+    onUi {
+      canvas = createCanvas().apply {
+        strokes = listOf(original)
+        selectedTool = PenCanvasTool.ERASER
+        onAreaEraseCommitted = { commits.add(it) }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 250f, 0.5f, 2)
+      assertEquals(2, canvas.strokes.size)
+      dispatchTouch(canvas, MotionEvent.ACTION_CANCEL, 250f, 250f, 0.5f, 3)
+    }
+    assertTrue(commits.isEmpty())
+    assertEquals(listOf(original), canvas.strokes)
+    onUi {
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 250f, 0.5f, 4)
+      canvas.cancelActiveGesture()
+    }
+    assertTrue(commits.isEmpty())
+    assertEquals(listOf(original), canvas.strokes)
+    onUi {
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 250f, 0.5f, 5)
+      dispatchTouch(canvas, MotionEvent.ACTION_UP, 250f, 250f, 0.5f, 6)
+    }
+    assertEquals(1, commits.size)
+  }
+
+  @Test fun disablingInputRestoresUnfinishedAreaErase() {
+    val commits = mutableListOf<List<PenStroke>>()
+    lateinit var canvas: PenCanvasView
+    val original = PenStroke("pen", "#112233", 4.0,
+      listOf(PenPoint(100f, 500f, 1f), PenPoint(900f, 500f, 1f)))
+    onUi {
+      canvas = createCanvas().apply {
+        strokes = listOf(original)
+        selectedTool = PenCanvasTool.ERASER
+        onAreaEraseCommitted = { commits.add(it) }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 250f, 250f, 0.5f, 2)
+      assertEquals(2, canvas.strokes.size)
+      canvas.inputEnabled = false
+    }
+    assertTrue(commits.isEmpty())
+    assertEquals(listOf(original), canvas.strokes)
+  }
+
+  @Test
   fun stylusSideButtonGenericMotionErasesTopmostStrokeForBothButtonMappings() {
     val buttonMappings = listOf(
       MotionEvent.BUTTON_SECONDARY,

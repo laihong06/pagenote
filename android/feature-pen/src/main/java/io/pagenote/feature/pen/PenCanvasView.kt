@@ -124,6 +124,7 @@ class PenCanvasView @JvmOverloads constructor(
   var inputEnabled: Boolean = true
     set(value) {
       field = value
+      if (!value && activePointerId != INVALID_POINTER) cancelActiveGesture()
       if (!value && eraserPosition != null) {
         eraserPosition = null
         invalidate()
@@ -275,6 +276,7 @@ class PenCanvasView @JvmOverloads constructor(
       }
       MotionEvent.ACTION_CANCEL -> {
         val hadGesture = activePointerId != INVALID_POINTER
+        discardAreaErase()
         resetGesture()
         invalidate()
         return hadGesture
@@ -335,6 +337,7 @@ class PenCanvasView @JvmOverloads constructor(
       invalidate()
     }
     if (activePointerId == INVALID_POINTER) return
+    discardAreaErase()
     resetGesture()
     invalidate()
   }
