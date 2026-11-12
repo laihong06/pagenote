@@ -838,6 +838,9 @@ private fun ReaderHome(
   val lastEditWasAnnotation = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     mutableMapOf<Int, Boolean>()
   }
+  val editGestureVersions = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
+    mutableMapOf<Int, Long>()
+  }
   val liveAnnotationHistory = rememberUpdatedState(annotationEditHistory)
   val liveLastAnnotationEdits = rememberUpdatedState(lastEditWasAnnotation)
   var showReviews by remember { mutableStateOf(false) }
@@ -1111,6 +1114,11 @@ private fun ReaderHome(
     ))
   }
 
+  fun markPenEdit(targetPage: Int) {
+    editGestureVersions[targetPage] = (editGestureVersions[targetPage] ?: 0L) + 1L
+    lastEditWasAnnotation[targetPage] = false
+  }
+
   suspend fun savePenPage(targetPage: Int, strokes: List<PenStroke>) {
     val store = penStore ?: return
     if (!penWritable) {
@@ -1128,7 +1136,6 @@ private fun ReaderHome(
       }
       val recoveredFailedSave = readerSession.failedPenSaves.remove(targetPage) != null
       readerSession.failedPenSaveMessages.remove(targetPage)
-      lastEditWasAnnotation[targetPage] = false
       if (recovery != null) readerSession.penSaveRecoveryStatuses[recovery] = context.getString(R.string.pen_saved_recovery_copy, recovery)
       if (readerSession.failedPenSaves.isEmpty()) {
         if (recoveredFailedSave && penStatus?.startsWith(context.getString(R.string.pen_not_saved, "")) == true) penStatus = null
@@ -1145,6 +1152,7 @@ private fun ReaderHome(
   fun applyPenStroke(stroke: PenStroke, targetPage: Int = pageIndex + 1) {
     if (isRainApplyingPage) return
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
+    markPenEdit(targetPage)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
     if (targetPage == pageIndex + 1) {
       selectedPenIndex = null
@@ -1155,7 +1163,7 @@ private fun ReaderHome(
 
   fun commitAreaErase(targetPage: Int, strokes: List<PenStroke>) {
     if (penPageStore.replacePage(PenSide.DOCUMENT, targetPage, strokes)) {
-      lastEditWasAnnotation[targetPage] = false
+      markPenEdit(targetPage)
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       if (pageIndex + 1 == targetPage) {
         selectedPenIndex = null
@@ -1168,6 +1176,7 @@ private fun ReaderHome(
   fun erasePenStroke(index: Int) {
     val targetPage = pageIndex + 1
     if (penPageStore.eraseAt(PenSide.DOCUMENT, targetPage, index)) {
+      markPenEdit(targetPage)
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       selectedPenIndex = selectedPenIndex?.let { selected ->
         when {
@@ -1184,6 +1193,7 @@ private fun ReaderHome(
   fun clearPenPage() {
     val targetPage = pageIndex + 1
     if (penPageStore.clearPage(PenSide.DOCUMENT, targetPage)) {
+      markPenEdit(targetPage)
       selectedPenIndex = null
       penStrokes = emptyList()
       readerSession.launchSessionTask { savePenPage(targetPage, emptyList()) }
@@ -1245,6 +1255,8 @@ private fun ReaderHome(
   ) {
     val targetProject = project ?: return
     val targetProjectId = targetProject.manifest.id
+    val gestureVersion = (editGestureVersions[targetPage] ?: 0L) + 1L
+    editGestureVersions[targetPage] = gestureVersion
     var committedBefore = before
     var committedAfter = after
     var committedSelection = selectedAfter
@@ -1340,7 +1352,7 @@ private fun ReaderHome(
         if (resolveSelection != null) {
           committedSelection = withContext(Dispatchers.Default) { resolveSelection(committedAfter) }
         }
-        lastEditWasAnnotation[targetPage] = true
+        if (editGestureVersions[targetPage] == gestureVersion) lastEditWasAnnotation[targetPage] = true
         if (readerSession.project.value?.manifest?.id == targetProjectId &&
           readerSession.pageIndex.intValue + 1 == targetPage
         ) {
@@ -1394,7 +1406,7 @@ private fun ReaderHome(
         val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
         penStrokes = updated
         selectedAnnotationIndex = null
-        lastEditWasAnnotation[targetPage] = false
+        markPenEdit(targetPage)
         readerSession.launchSessionTask { savePenPage(targetPage, updated) }
       }
       return
@@ -1526,7 +1538,7 @@ private fun ReaderHome(
     if (penPageStore.undo(PenSide.DOCUMENT, targetPage)) {
       selectedPenIndex = null
       selectedAnnotationIndex = null
-      lastEditWasAnnotation[targetPage] = false
+      markPenEdit(targetPage)
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
@@ -1543,7 +1555,7 @@ private fun ReaderHome(
     if (penPageStore.redo(PenSide.DOCUMENT, targetPage)) {
       selectedPenIndex = null
       selectedAnnotationIndex = null
-      lastEditWasAnnotation[targetPage] = false
+      markPenEdit(targetPage)
       val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       penStrokes = updated
       readerSession.launchSessionTask { savePenPage(targetPage, updated) }
@@ -1826,6 +1838,7 @@ private fun ReaderHome(
       return
     }
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    markPenEdit(targetPage)
     selectedPenIndex = updated.lastIndex
     penStrokes = updated
     penStatus = context.getString(R.string.pen_pasted)

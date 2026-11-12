@@ -55,6 +55,84 @@ class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
 
+  @Test fun undoWhileInkSaveQueuedTargetsTheLatestInkGesture() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    var locked = false
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      fun stroke(y: Float, dwell: Boolean) {
+        val time = SystemClock.uptimeMillis()
+        val x = canvas.width * .2f
+        val end = canvas.width * if (dwell) .75f else .26f
+        dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, time, time)
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, end, y, .5f, time, time + 10)
+        if (dwell) Thread.sleep(650)
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 20)
+      }
+      stroke(canvas.height * .3f, true)
+      waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" }
+      runBlocking { session.penSaveMutex.lock() }; locked = true
+      stroke(canvas.height * .7f, false)
+      composeRule.waitUntil(5_000) { session.penStrokes.value.size == 1 }
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      session.penSaveMutex.unlock(); locked = false
+      waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" && session.penStrokes.value.isEmpty() }
+    } finally {
+      if (locked) session.penSaveMutex.unlock()
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  @Test fun lateShapeSaveDoesNotOverrideNewerInkGestureOrder() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    var locked = false
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      fun stroke(y: Float, dwell: Boolean) {
+        val time = SystemClock.uptimeMillis()
+        val x = canvas.width * .2f
+        val end = canvas.width * if (dwell) .75f else .26f
+        dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, time, time)
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, end, y, .5f, time, time + 10)
+        if (dwell) Thread.sleep(650)
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 20)
+      }
+      runBlocking { session.penSaveMutex.lock() }; locked = true
+      stroke(canvas.height * .3f, true)
+      stroke(canvas.height * .7f, false)
+      composeRule.waitUntil(5_000) { session.penStrokes.value.size == 1 }
+      session.penSaveMutex.unlock(); locked = false
+      waitForAnnotations(annotations) { it.size == 2 }
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" && session.penStrokes.value.isEmpty() }
+    } finally {
+      if (locked) session.penSaveMutex.unlock()
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun undoNewInkThenShapeDeletionKeepsInterleavedPage() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
