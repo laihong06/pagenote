@@ -6,4 +6,5 @@
 - `ManagerHandler.recogniseShape` 获取 `TouchEventManager` 的触摸点并调用 `GraphUtils.recogniseShape`；成功后创建 `AddMaterialAction`、添加材料和动作，再更新屏幕与画布状态。`sendRecognize` 的 800 ms 对应另一个 `MSG_RECOGNIZE_HW` 消息，不能作为自动形状停留时间。
 - `GraphUtils.recogniseShape` 的 Java 反编译失败，smali 显示开放路径会调用 `isBrokenLine`、`isLine`、曲线识别等；闭合路径使用 OpenCV 的轮廓检测、轮廓近似和椭圆拟合等。不能把现有 `PenShapeRecognizer` 简单的路径长度、边框和简化判断称为源码复刻。
 - 当前项目已在 `feature-ocr` 使用 OpenCV 4.10.0 定制 AAR，参考调用链不一定需要引入第二套运行库。恢复源码中开放路径依次调用 `isBrokenLine`、`isLine` 和曲线创建；首尾接近且点数大于 10 的分支使用设备密度相关的闭合阈值。参考坐标是触摸屏坐标，而现有识别器输入是页面坐标，复用阈值前必须映射并验证缩放与旋转。
+- 已将 `GraphUtils.isBrokenLine` 的拐点索引部分移植为 `ReferenceBrokenLine`，输入和最小距离显式使用屏幕坐标；保留的 Java 测试参照取自恢复源码，仅替换点类型、面板缩放依赖和日志，10,000 条固定种子合成轨迹的索引结果一致，包含产生拐点的轨迹。该对照不是原应用运行时差分，尚未接入阅读器，仍需核对采样、缩放及折线材料保存。
 - 目前需要继续确认每个分支的阈值、采样与坐标转换，适配参考材料到 PageNote 文件格式，并完成原程序差分、失败回退和真机性能验证。两个后台线程的队列改动只改善一个模拟的慢任务场景，不完成识形移植。
