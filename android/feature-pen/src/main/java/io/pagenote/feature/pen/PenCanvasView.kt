@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.DashPathEffect
 import android.util.AttributeSet
 import android.os.Handler
 import android.os.Looper
@@ -29,6 +31,12 @@ class PenCanvasView @JvmOverloads constructor(
     style = Paint.Style.STROKE
     strokeWidth = 3f
   }
+  private val selectionLassoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = Color.rgb(0, 122, 204)
+    style = Paint.Style.STROKE
+    strokeWidth = 2.5f
+    pathEffect = DashPathEffect(floatArrayOf(7f, 5f), 0f)
+  }
   private val eraserOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     color = Color.DKGRAY
     style = Paint.Style.STROKE
@@ -52,6 +60,8 @@ class PenCanvasView @JvmOverloads constructor(
   private var activePointerId = INVALID_POINTER
   private var selectionPointerId = INVALID_POINTER
   private var annotationSelectionPointerId = INVALID_POINTER
+  private val selectionLassoPoints = mutableListOf<PenPoint>()
+  private var selectionLassoActive = false
   private var gestureTool: PenCanvasTool? = null
   private var activePointerToolType = MotionEvent.TOOL_TYPE_UNKNOWN
   private var shapeRecognitionCancelled = false
@@ -123,6 +133,7 @@ class PenCanvasView @JvmOverloads constructor(
   var onNativeAreaEraseSegment: ((PenPoint, PenPoint, Float) -> Unit)? = null
   var onNativeAreaEraseFinished: ((Boolean) -> Unit)? = null
   var onSelectionChanged: ((Int?) -> Unit)? = null
+  var onSelectionRegionCommitted: ((PenSelectionRegion) -> Unit)? = null
   var onAnnotationSelectionTouch: ((MotionEvent, PenCanvasGeometry, Int) -> Boolean)? = null
   var inputEnabled: Boolean = true
     set(value) {
@@ -161,6 +172,18 @@ class PenCanvasView @JvmOverloads constructor(
     setWillNotDraw(false)
   }
 
+  var selectedStrokeIndices: Set<Int> = emptySet()
+    set(value) {
+      field = value
+      invalidate()
+    }
+
+  var selectedStrokeBoundsVisible: Boolean = true
+    set(value) {
+      field = value
+      invalidate()
+    }
+
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
     if (width <= 0 || height <= 0) return
@@ -173,7 +196,21 @@ class PenCanvasView @JvmOverloads constructor(
     if (laserTrail.isNotEmpty()) {
       PenStrokePainter.drawLaser(canvas, laserTrail, laserColor, laserWidth, geometry)
     }
-    selectedIndex?.let { index -> internalStrokes.getOrNull(index)?.let { drawSelection(canvas, it) } }
+    if (selectedStrokeBoundsVisible) {
+      val selectedStrokes = (selectedStrokeIndices + listOfNotNull(selectedIndex))
+        .mapNotNull(internalStrokes::getOrNull)
+      if (selectedStrokes.size > 1) drawSelectionBounds(canvas, selectedStrokes)
+      else selectedStrokes.firstOrNull()?.let { drawSelection(canvas, it) }
+    }
+    if (selectionLassoActive && selectionLassoPoints.isNotEmpty()) {
+      val lasso = Path().apply {
+        val first = selectionLassoPoints.first()
+        moveTo(first.x, first.y)
+        selectionLassoPoints.drop(1).forEach { lineTo(it.x, it.y) }
+        if (selectionLassoPoints.size >= 3) close()
+      }
+      canvas.drawPath(lasso, selectionLassoPaint)
+    }
     gestureTool?.takeIf { it != PenCanvasTool.ERASER }?.let { tool ->
       if (activePoints.isNotEmpty()) {
         val preview = shapePreview
@@ -349,7 +386,14 @@ class PenCanvasView @JvmOverloads constructor(
       eraserPosition = null
       invalidate()
     }
-    if (activePointerId == INVALID_POINTER) return
+    selectionPointerId = INVALID_POINTER
+    annotationSelectionPointerId = INVALID_POINTER
+    selectionLassoActive = false
+    selectionLassoPoints.clear()
+    if (activePointerId == INVALID_POINTER) {
+      invalidate()
+      return
+    }
     discardAreaErase()
     resetGesture(commitNativeAreaErase = false)
     invalidate()
@@ -433,7 +477,6 @@ class PenCanvasView @JvmOverloads constructor(
           annotationSelectionPointerId = event.getPointerId(pointerIndex)
           selectionPointerId = annotationSelectionPointerId
           selectedIndex = null
-          onSelectionChanged?.invoke(null)
           requestUnbufferedDispatch(event)
           invalidate()
           return true
@@ -443,17 +486,49 @@ class PenCanvasView @JvmOverloads constructor(
         val radius = 18f * resources.displayMetrics.density
         val nextSelection = geometry()
           .hitTest(internalStrokes, event.getX(pointerIndex), event.getY(pointerIndex), radius)
-        if (selectedIndex != nextSelection) {
+        selectionLassoPoints.clear()
+        selectionLassoActive = nextSelection == null
+        if (selectionLassoActive) {
+          selectedIndex = null
+          onSelectionChanged?.invoke(null)
+          addSelectionLassoPoint(event.getX(pointerIndex), event.getY(pointerIndex))
+        } else if (selectedIndex != nextSelection) {
           selectedIndex = nextSelection
           onSelectionChanged?.invoke(nextSelection)
         }
         invalidate()
         return true
       }
-      MotionEvent.ACTION_MOVE -> return selectionPointerId != INVALID_POINTER
+      MotionEvent.ACTION_MOVE -> {
+        if (selectionPointerId == INVALID_POINTER) return false
+        if (selectionLassoActive) {
+          val index = event.findPointerIndex(selectionPointerId)
+          if (index >= 0) {
+            for (history in 0 until event.historySize) {
+              addSelectionLassoPoint(event.getHistoricalX(index, history), event.getHistoricalY(index, history))
+            }
+            addSelectionLassoPoint(event.getX(index), event.getY(index))
+            invalidate()
+          }
+        }
+        return true
+      }
       MotionEvent.ACTION_POINTER_DOWN -> return selectionPointerId != INVALID_POINTER
       MotionEvent.ACTION_UP -> {
         if (selectionPointerId == INVALID_POINTER) return false
+        if (selectionLassoActive) {
+          val index = event.findPointerIndex(selectionPointerId)
+          if (index >= 0) addSelectionLassoPoint(event.getX(index), event.getY(index))
+          val minimumBoundsSize = geometry().documentUnitsForPixels(2f * resources.displayMetrics.density)
+          PenSelectionRegion.create(
+            selectionLassoPoints,
+            minimumWidth = minimumBoundsSize.toDouble(),
+            minimumHeight = minimumBoundsSize.toDouble(),
+          )?.let { onSelectionRegionCommitted?.invoke(it) }
+          selectionLassoActive = false
+          selectionLassoPoints.clear()
+          invalidate()
+        }
         selectionPointerId = INVALID_POINTER
         performClick()
         return true
@@ -462,6 +537,9 @@ class PenCanvasView @JvmOverloads constructor(
         val hadSelectionGesture = selectionPointerId != INVALID_POINTER
         onAnnotationSelectionTouch?.invoke(event, geometry(), event.actionIndex)
         selectionPointerId = INVALID_POINTER
+        selectionLassoActive = false
+        selectionLassoPoints.clear()
+        invalidate()
         return hadSelectionGesture
       }
     }
@@ -476,16 +554,36 @@ class PenCanvasView @JvmOverloads constructor(
     val minY = points.minOf { it.y }
     val maxY = points.maxOf { it.y }
     val inset = (stroke.width.toFloat() / 2f) + SELECTION_INSET
-    val left = minX - inset
-    val top = minY - inset
-    val right = maxX + inset
-    val bottom = maxY + inset
+    drawSelectionBounds(canvas, minX - inset, minY - inset, maxX + inset, maxY + inset)
+  }
+
+  private fun drawSelectionBounds(canvas: Canvas, strokes: List<PenStroke>) {
+    val points = strokes.flatMap { it.points }
+    if (points.isEmpty()) return
+    val inset = (strokes.maxOfOrNull { it.width.toFloat() / 2f } ?: 0f) + SELECTION_INSET
+    drawSelectionBounds(
+      canvas,
+      points.minOf { it.x } - inset,
+      points.minOf { it.y } - inset,
+      points.maxOf { it.x } + inset,
+      points.maxOf { it.y } + inset,
+    )
+  }
+
+  private fun drawSelectionBounds(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float) {
     val minimumSize = SELECTION_MIN_SIZE
     val adjustedLeft = if (right - left < minimumSize) left - (minimumSize - (right - left)) / 2f else left
     val adjustedTop = if (bottom - top < minimumSize) top - (minimumSize - (bottom - top)) / 2f else top
     val adjustedRight = if (right - left < minimumSize) right + (minimumSize - (right - left)) / 2f else right
     val adjustedBottom = if (bottom - top < minimumSize) bottom + (minimumSize - (bottom - top)) / 2f else bottom
     canvas.drawRect(adjustedLeft, adjustedTop, adjustedRight, adjustedBottom, selectionPaint)
+  }
+
+  private fun addSelectionLassoPoint(xPx: Float, yPx: Float) {
+    val point = geometry().toDocumentPoint(xPx, yPx, 1f, clampToPage = false) ?: return
+    if (selectionLassoPoints.lastOrNull()?.let { it.x == point.x && it.y == point.y } != true) {
+      selectionLassoPoints += point
+    }
   }
 
   private fun isSupportedTool(toolType: Int): Boolean =

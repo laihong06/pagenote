@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 阅读器选择工具现可用套索选择多段自由笔迹及原生图形；对混合多选执行删除后，一次撤销可恢复整页材料。用例 `referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction` 在 Android 14 API 34 横屏 `Pixel_Tablet_API34` 上验证两段笔迹与一个矩形的选择、删除及恢复。另修复粘贴单段笔迹后旧多选索引残留导致后续删除无效；回归用例 `selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage` 在同一平板通过。组复制、移动和样式编辑仍未实现，项目格式未变化。
+- 增加套索选择改前、选中、删除和撤销四张完整运行截图。环境为 ARM64 横屏平板 AVD，2560 × 1600、320 dpi、浅色主题；截图来自合成 PDF 和触控笔事件，不代表真机手写笔验收。
 - 增加闭合椭圆识形在 Android 14 API 34 横屏 Pixel Tablet 模拟器上的真实运行识别前后截图，并记录合成 stylus 输入、运行代码和未验收范围。
 - 阅读器停留识形接入参考 `GraphUtils.recogniseShape` 的闭合轮廓分支：椭圆拟合、多边形近似、直角矩形和闭合折线分别适配到现有椭圆／矩形／多点 `pen` 格式；闭合笔迹使用 `pagenotePolyline` 扩展字段，不新增文件类型。Android 14 API 34 ARM64 横屏平板模拟器覆盖椭圆落盘、闭合点和一次撤销；参考 App 运行时差分、桌面往返和实体触控笔仍未验收。
 - 阅读器撤销、重做按操作顺序跨原生图形与自由笔迹切换；Android 14 ARM64 模拟器覆盖图形—笔迹—图形序列的三次撤销和三次重做。实现仍协调两种现有页面历史，未把它们替换为参考 App 的统一动作对象栈；同一橡皮手势擦到两层时尚未作为单个历史事务。

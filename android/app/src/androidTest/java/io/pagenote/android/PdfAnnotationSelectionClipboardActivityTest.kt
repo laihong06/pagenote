@@ -307,6 +307,88 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test fun referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initial = Json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[250,350],[350,350]],"pressures":[1,1]},
+        {"type":"rect","color":"#008844","width":5,"points":[[430,320],[570,400]]},
+        {"type":"pen","color":"#185abd","width":3,"points":[[650,350],[750,350]],"pressures":[1,1]}
+      ]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, initial)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.size == 2
+      }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-selection-before.png")
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
+      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.SELECT }
+
+      val lasso = listOf(
+        PenPoint(180f, 280f, 1f),
+        PenPoint(820f, 280f, 1f),
+        PenPoint(820f, 420f, 1f),
+        PenPoint(180f, 420f, 1f),
+        PenPoint(180f, 280f, 1f),
+      )
+      val downTime = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(lasso.first()), geometry.toViewY(lasso.first()), .5f, downTime, downTime)
+      lasso.drop(1).forEachIndexed { index, point ->
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          geometry.toViewX(point),
+          geometry.toViewY(point),
+          .5f,
+          downTime,
+          downTime + (index + 1) * 20,
+        )
+      }
+      dispatchStylus(
+        canvas,
+        MotionEvent.ACTION_UP,
+        geometry.toViewX(lasso.last()),
+        geometry.toViewY(lasso.last()),
+        .5f,
+        downTime,
+        downTime + 120,
+      )
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-selection-selected.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "delete_ink")
+      composeRule.onNodeWithTag("reader_menu_command_delete_ink").assertIsEnabled()
+        .performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-selection-deleted.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled()
+        .performScrollTo().performClick()
+      waitForAnnotations(annotations) { it == initial }
+      assertEquals(2, session.penStrokes.value.size)
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-selection-undo.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
