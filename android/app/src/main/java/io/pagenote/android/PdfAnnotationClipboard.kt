@@ -356,20 +356,39 @@ internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
     existing.forEach { (key, state) -> mapping[key.second]?.let { pages[projectId to it] = state } }
   }
 
-  fun record(projectId: String, page: Int, before: JsonArray, after: JsonArray) {
+  fun record(
+    projectId: String,
+    page: Int,
+    before: JsonArray,
+    after: JsonArray,
+    includeFreehand: Boolean = false,
+  ): Boolean {
     require(projectId.isNotBlank() && page >= 1)
-    if (before == after) return
+    val historyBefore = if (includeFreehand) before else AnnotationPageMerger.annotationHistorySnapshot(before)
+    val historyAfter = if (includeFreehand) after else AnnotationPageMerger.annotationHistorySnapshot(after)
+    val sameContent = if (includeFreehand) {
+      AnnotationPageMerger.samePageContent(historyBefore, historyAfter)
+    } else {
+      AnnotationPageMerger.sameAnnotationLayer(historyBefore, historyAfter)
+    }
+    if (sameContent) return false
     val key = projectId to page
-    val state = pages.getOrPut(key) { PageState(current = before) }
-    if (state.current != before) {
+    val state = pages.getOrPut(key) { PageState(current = historyBefore) }
+    val currentMatches = if (includeFreehand) {
+      AnnotationPageMerger.samePageContent(state.current, historyBefore)
+    } else {
+      AnnotationPageMerger.sameAnnotationLayer(state.current, historyBefore)
+    }
+    if (!currentMatches) {
       state.undo.clear()
       state.redo.clear()
-      state.current = before
+      state.current = historyBefore
     }
-    state.undo.addLast(before)
+    state.undo.addLast(historyBefore)
     while (state.undo.size > maxEntries) state.undo.removeFirst()
     state.redo.clear()
-    state.current = after
+    state.current = historyAfter
+    return true
   }
 
   fun undo(projectId: String, page: Int): JsonArray? {

@@ -838,6 +838,10 @@ private fun ReaderHome(
   val annotationEditHistory = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     PdfAnnotationEditHistory()
   }
+  val readerEditHistoryOrder = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
+    ReaderEditHistoryOrder()
+  }
+  val liveReaderEditHistoryOrder = rememberUpdatedState(readerEditHistoryOrder)
   val lastEditWasAnnotation = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     mutableMapOf<Int, Boolean>()
   }
@@ -1120,6 +1124,9 @@ private fun ReaderHome(
   fun markPenEdit(targetPage: Int) {
     editGestureVersions[targetPage] = (editGestureVersions[targetPage] ?: 0L) + 1L
     lastEditWasAnnotation[targetPage] = false
+    project?.manifest?.id?.let { projectId ->
+      readerEditHistoryOrder.record(projectId, targetPage, ReaderEditHistoryOrder.Layer.PEN)
+    }
   }
 
   suspend fun savePenPage(targetPage: Int, strokes: List<PenStroke>) {
@@ -1350,7 +1357,9 @@ private fun ReaderHome(
           return@nativeSave
         }
         if (recordHistory) {
-          annotationEditHistory.record(targetProjectId, targetPage, committedBefore, committedAfter)
+          if (annotationEditHistory.record(targetProjectId, targetPage, committedBefore, committedAfter)) {
+            readerEditHistoryOrder.record(targetProjectId, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
+          }
         }
         if (resolveSelection != null) {
           committedSelection = withContext(Dispatchers.Default) { resolveSelection(committedAfter) }
@@ -1537,7 +1546,10 @@ private fun ReaderHome(
       resolveSelection = if (annotationOnly) { committed ->
         AnnotationPageMerger.rebaseHistorySelection(selectionPage, selectionIndex, expected, restored, committed)
       } else null,
-      onFailure = { annotationEditHistory.redo(targetProject.manifest.id, targetPage) },
+      onFailure = {
+        annotationEditHistory.redo(targetProject.manifest.id, targetPage)
+        readerEditHistoryOrder.rollbackUndo(targetProject.manifest.id, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
+      },
     )
     return true
   }
@@ -1564,43 +1576,86 @@ private fun ReaderHome(
       resolveSelection = if (annotationOnly) { committed ->
         AnnotationPageMerger.rebaseHistorySelection(selectionPage, selectionIndex, expected, restored, committed)
       } else null,
-      onFailure = { annotationEditHistory.undo(targetProject.manifest.id, targetPage) },
+      onFailure = {
+        annotationEditHistory.undo(targetProject.manifest.id, targetPage)
+        readerEditHistoryOrder.rollbackRedo(targetProject.manifest.id, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
+      },
     )
+    return true
+  }
+
+  fun undoPenLayer(targetPage: Int): Boolean {
+    if (!penPageStore.undo(PenSide.DOCUMENT, targetPage)) return false
+    selectedPenIndex = null
+    selectedAnnotationIndex = null
+    penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    readerSession.launchSessionTask { savePenPage(targetPage, penStrokes) }
+    return true
+  }
+
+  fun redoPenLayer(targetPage: Int): Boolean {
+    if (!penPageStore.redo(PenSide.DOCUMENT, targetPage)) return false
+    selectedPenIndex = null
+    selectedAnnotationIndex = null
+    penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
+    readerSession.launchSessionTask { savePenPage(targetPage, penStrokes) }
     return true
   }
 
   fun undoPenPage() {
     val targetPage = pageIndex + 1
     val projectId = project?.manifest?.id
-    val preferAnnotation = projectId != null && lastEditWasAnnotation[targetPage] == true
-    if (preferAnnotation && undoNativeAnnotationPage()) return
-    if (penPageStore.undo(PenSide.DOCUMENT, targetPage)) {
-      selectedPenIndex = null
-      selectedAnnotationIndex = null
-      markPenEdit(targetPage)
-      val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
-      penStrokes = updated
-      readerSession.launchSessionTask { savePenPage(targetPage, updated) }
-      return
+    var layer = projectId?.let { readerEditHistoryOrder.nextUndo(it, targetPage) }
+    if (layer == null) {
+      layer = when {
+        projectId != null && lastEditWasAnnotation[targetPage] == true && annotationEditHistory.canUndo(projectId, targetPage) ->
+          ReaderEditHistoryOrder.Layer.ANNOTATION
+        penPageStore.canUndo(PenSide.DOCUMENT, targetPage) -> ReaderEditHistoryOrder.Layer.PEN
+        projectId != null && annotationEditHistory.canUndo(projectId, targetPage) -> ReaderEditHistoryOrder.Layer.ANNOTATION
+        else -> null
+      }
     }
-    if (undoNativeAnnotationPage()) lastEditWasAnnotation[targetPage] = true
+    val completed = when (layer) {
+      ReaderEditHistoryOrder.Layer.PEN -> undoPenLayer(targetPage)
+      ReaderEditHistoryOrder.Layer.ANNOTATION -> undoNativeAnnotationPage()
+      null -> false
+    }
+    if (!completed) return
+    val completedLayer = layer ?: return
+    if (projectId != null && readerEditHistoryOrder.nextUndo(projectId, targetPage) == completedLayer) {
+      readerEditHistoryOrder.completeUndo(projectId, targetPage, completedLayer)
+    }
+    if (projectId != null) {
+      lastEditWasAnnotation[targetPage] = readerEditHistoryOrder.nextUndo(projectId, targetPage) == ReaderEditHistoryOrder.Layer.ANNOTATION
+    }
   }
 
   fun redoPenPage() {
     val targetPage = pageIndex + 1
     val projectId = project?.manifest?.id
-    val preferAnnotation = projectId != null && lastEditWasAnnotation[targetPage] == true
-    if (preferAnnotation && redoNativeAnnotationPage()) return
-    if (penPageStore.redo(PenSide.DOCUMENT, targetPage)) {
-      selectedPenIndex = null
-      selectedAnnotationIndex = null
-      markPenEdit(targetPage)
-      val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
-      penStrokes = updated
-      readerSession.launchSessionTask { savePenPage(targetPage, updated) }
-      return
+    var layer = projectId?.let { readerEditHistoryOrder.nextRedo(it, targetPage) }
+    if (layer == null) {
+      layer = when {
+        projectId != null && lastEditWasAnnotation[targetPage] == true && annotationEditHistory.canRedo(projectId, targetPage) ->
+          ReaderEditHistoryOrder.Layer.ANNOTATION
+        penPageStore.canRedo(PenSide.DOCUMENT, targetPage) -> ReaderEditHistoryOrder.Layer.PEN
+        projectId != null && annotationEditHistory.canRedo(projectId, targetPage) -> ReaderEditHistoryOrder.Layer.ANNOTATION
+        else -> null
+      }
     }
-    if (redoNativeAnnotationPage()) lastEditWasAnnotation[targetPage] = true
+    val completed = when (layer) {
+      ReaderEditHistoryOrder.Layer.PEN -> redoPenLayer(targetPage)
+      ReaderEditHistoryOrder.Layer.ANNOTATION -> redoNativeAnnotationPage()
+      null -> false
+    }
+    if (!completed) return
+    val completedLayer = layer ?: return
+    if (projectId != null && readerEditHistoryOrder.nextRedo(projectId, targetPage) == completedLayer) {
+      readerEditHistoryOrder.completeRedo(projectId, targetPage, completedLayer)
+    }
+    if (projectId != null) {
+      lastEditWasAnnotation[targetPage] = readerEditHistoryOrder.nextUndo(projectId, targetPage) == ReaderEditHistoryOrder.Layer.ANNOTATION
+    }
   }
 
   fun handleNativeAnnotationSelectionTouch(
@@ -2716,8 +2771,10 @@ private fun ReaderHome(
       }
       removedCount = removed
       withContext(Dispatchers.IO) { store.writePage("document", targetPage, next) }
-      annotationEditHistory.record(projectId, targetPage, latest, next)
-      lastEditWasAnnotation[targetPage] = true
+      if (annotationEditHistory.record(projectId, targetPage, latest, next, includeFreehand = true)) {
+        readerEditHistoryOrder.record(projectId, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
+        lastEditWasAnnotation[targetPage] = true
+      }
       after = next
     }
     val committed = after!!
@@ -3884,6 +3941,7 @@ private fun ReaderHome(
                 rainPageEpoch++
                 liveAnnotationHistory.value.remapPages(written.project.manifest.id, written.pageMap)
                 liveLastAnnotationEdits.value.clear()
+                liveReaderEditHistoryOrder.value.remapPages(written.project.manifest.id, written.pageMap)
                 annotationOverlayReload++
                 selectedAnnotationIndex = null
               }

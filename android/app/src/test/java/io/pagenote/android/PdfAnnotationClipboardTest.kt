@@ -227,6 +227,40 @@ class PdfAnnotationClipboardTest {
   }
 
   @Test
+  fun nativeAnnotationHistoryDoesNotDiscardEarlierEditsWhenInkChanges() {
+    val history = PdfAnnotationEditHistory()
+    val empty = JsonArray(emptyList())
+    val shapeA = json.parseToJsonElement("""[{"type":"line","id":"a","width":2.0}]""") as JsonArray
+    val shapeAWithInk = json.parseToJsonElement(
+      """[{"type":"line","id":"a","width":2},{"type":"pen","id":"ink"}]""",
+    ) as JsonArray
+    val shapeAWithInkAndShapeB = json.parseToJsonElement(
+      """[{"type":"line","id":"a","width":2},{"type":"pen","id":"ink"},{"type":"line","id":"b"}]""",
+    ) as JsonArray
+    val nativeShapes = json.parseToJsonElement(
+      """[{"type":"line","id":"a","width":2},{"type":"line","id":"b"}]""",
+    ) as JsonArray
+    val normalizedShapeA = json.parseToJsonElement("""[{"type":"line","id":"a","width":2}]""") as JsonArray
+
+    history.record("project", 1, empty, shapeA)
+    history.record("project", 1, shapeAWithInk, shapeAWithInkAndShapeB)
+
+    assertEquals(normalizedShapeA, history.undo("project", 1))
+    assertEquals(empty, history.undo("project", 1))
+    assertEquals(normalizedShapeA, history.redo("project", 1))
+    assertEquals(nativeShapes, history.redo("project", 1))
+  }
+
+  @Test
+  fun identicalNativeSnapshotDoesNotCreateAnUndoEntry() {
+    val history = PdfAnnotationEditHistory()
+    val same = json.parseToJsonElement("""[{"type":"line","width":2.0}]""") as JsonArray
+
+    assertFalse(history.record("project", 1, same, same))
+    assertFalse(history.canUndo("project", 1))
+  }
+
+  @Test
   fun textBoundsHonorExplicitFontSizeAndAlignment() {
     val left = item(
       """{"type":"text","color":"#123456","width":4,"points":[[100,200]],"text":"hi"}""",

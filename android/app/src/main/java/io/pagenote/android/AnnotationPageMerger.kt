@@ -21,6 +21,14 @@ object AnnotationPageMerger {
   fun isAnnotationOnlyHistory(expected: JsonArray, restored: JsonArray): Boolean =
     jsonListsEqual(expected.filter(::isFreehand), restored.filter(::isFreehand))
 
+  /** Native annotation edits keep ink out of their snapshots so separate ink edits do not reset this history. */
+  fun annotationHistorySnapshot(page: JsonArray): JsonArray = JsonArray(page.filterNot(::isFreehand))
+
+  fun sameAnnotationLayer(left: JsonArray, right: JsonArray): Boolean =
+    jsonListsEqual(annotationHistorySnapshot(left), annotationHistorySnapshot(right))
+
+  fun samePageContent(left: JsonArray, right: JsonArray): Boolean = jsonListsEqual(left, right)
+
   /** Rebase annotation-only undo/redo onto latest ink; reject changed annotations. */
   fun rebaseAnnotationHistory(latest: JsonArray, expected: JsonArray, restored: JsonArray): JsonArray? {
     if (!isAnnotationOnlyHistory(expected, restored)) return null

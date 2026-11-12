@@ -48,7 +48,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Ignore
 import org.junit.runner.RunWith
 import java.io.IOException
 import java.io.ByteArrayOutputStream
@@ -297,7 +296,6 @@ class PdfAnnotationSelectionClipboardActivityTest {
   }
 
   @Test
-  @Ignore("Known defect: interleaved ink and annotation histories are not yet unified")
   fun interleavedShapesAndInkUndoInGestureOrder() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
@@ -337,7 +335,14 @@ class PdfAnnotationSelectionClipboardActivityTest {
         dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, now, now + if (long) 700 else 20)
       }
       fun types(): List<String> = annotations.readPage("document", 1).map { (it as JsonObject)["type"]!!.jsonPrimitive.content }.sorted()
-      fun expect(vararg expected: String) { composeRule.waitUntil(10_000) { runCatching { types() == expected.sorted() }.getOrDefault(false) } }
+      fun expect(vararg expected: String) {
+        val desired = expected.sorted()
+        try {
+          composeRule.waitUntil(10_000) { runCatching { types() == desired }.getOrDefault(false) }
+        } catch (error: Throwable) {
+          throw AssertionError("expected=$desired actual=${runCatching { types() }.getOrNull()} status=${session.penStatus.value}", error)
+        }
+      }
       fun command(id: String) {
         revealReaderMenuCommand(composeRule, "handwriting", id)
         composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo().performClick()
@@ -345,9 +350,14 @@ class PdfAnnotationSelectionClipboardActivityTest {
       stroke(canvas.height * .2f, true); expect("line")
       stroke(canvas.height * .5f, false); expect("line", "pen")
       stroke(canvas.height * .7f, true); expect("line", "line", "pen")
+      composeRule.waitForIdle()
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-mixed-history-before.png")
       command("pen_undo"); expect("line", "pen")
       command("pen_undo"); expect("line")
       command("pen_undo"); expect()
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-mixed-history-undone.png")
       command("pen_redo"); expect("line")
       command("pen_redo"); expect("line", "pen")
       command("pen_redo"); expect("line", "line", "pen")
