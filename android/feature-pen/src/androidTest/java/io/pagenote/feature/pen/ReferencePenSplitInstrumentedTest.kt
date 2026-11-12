@@ -1,6 +1,7 @@
 package io.pagenote.feature.pen
 
 import android.graphics.Rect
+import android.graphics.Matrix
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.*
 import org.junit.Test
@@ -8,6 +9,25 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ReferencePenSplitInstrumentedTest {
+  @Test fun referenceEllipseUsesTwoPixelPathSamplingAndTransformedBounds() {
+    val transform = Matrix().apply { setTranslate(10f, 20f) }
+    val result = ReferenceEllipseSplit.split(
+      100f, 100f, 200f, 150f, transform, 10f, Rect(10, 70, 210, 170),
+      Rect(205, 115, 215, 125), Rect(205, 115, 215, 125),
+    )
+    assertTrue(result.split)
+    assertTrue(result.pieces.isNotEmpty())
+    assertEquals(8f, result.fragmentWidth, 0.0001f)
+  }
+
+  @Test fun referenceEllipseMissLeavesShapeIntact() {
+    val result = ReferenceEllipseSplit.split(
+      100f, 100f, 200f, 150f, Matrix(), 10f, Rect(0, 50, 200, 150),
+      Rect(300, 300, 310, 310), Rect(300, 300, 310, 310),
+    )
+    assertFalse(result.split)
+    assertTrue(result.pieces.isEmpty())
+  }
   @Test fun referenceCircleCanBeConvertedAndSplit() {
     val result = ReferenceCircleSplit.split(
       centerX = 100f, centerY = 100f, edgeX = 200f, edgeY = 100f,
