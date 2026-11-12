@@ -1,17 +1,17 @@
 # 参考直线识形运行截图
 
 - `reference-line.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题，使用测试生成的 PDF。
-- `PdfAnnotationSelectionClipboardActivityTest.referenceSampledLinePersistsAndUndoRemovesIt` 注入多段 stylus `MotionEvent` 并停留；截图在原生直线落盘后、撤销前采集。测试读取页面数据核对采样端点并检查一次撤销清除直线。运行产品代码 commit `0458e5b`。
+- `PdfAnnotationSelectionClipboardActivityTest.referenceSampledLinePersistsAndUndoRemovesIt` 注入多段 stylus `MotionEvent` 并停留；截图在原生直线落盘后、撤销前采集。测试读取页面数据核对采样端点并检查一次撤销清除直线。运行产品代码 commit `a5666a4`。
 - 此图是横屏平板上的运行结果，不含改前截图，也不代表实体触控笔、其他设备或参考应用运行时差分；桌面往返和维护者视觉对比尚未完成。
 
 ## 参考折线运行截图
 
-- `reference-polyline.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi，合成 PDF 项目。`PdfAnnotationSelectionClipboardActivityTest.referencePolylinePersistsAndUndoesAsOneStroke` 模拟先横后竖的 stylus 输入；截图在单个 `pen` 对象保存后、撤销前采集。运行产品代码 commit `0458e5b`。
+- `reference-polyline.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi，合成 PDF 项目。`PdfAnnotationSelectionClipboardActivityTest.referencePolylinePersistsAndUndoesAsOneStroke` 模拟先横后竖的 stylus 输入；截图在单个 `pen` 对象保存后、撤销前采集。运行产品代码 commit `a5666a4`。
 - 截图包含测试工作区和打开的菜单面板。端到端测试检查落盘对象仍为带 `pagenotePolyline` 的多点 `pen`，一次撤销后对象被移除。实体触控笔、真机、桌面往返和参考 App 运行时对比仍未验收；此图不证明曲线、闭合图形或多材料选择。
 
 ## 参考曲线运行截图
 
-- `reference-curve.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi，合成 PDF 项目。`PdfAnnotationSelectionClipboardActivityTest.referenceCurvePersistsAndUndoesAsOneStroke` 输入弧线；图中为参考 `BezierTool` 路径保存后的曲线。运行产品代码 commit `0458e5b`。
+- `reference-curve.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi，合成 PDF 项目。`PdfAnnotationSelectionClipboardActivityTest.referenceCurvePersistsAndUndoesAsOneStroke` 输入弧线；图中为参考 `BezierTool` 路径保存后的曲线。运行产品代码 commit `a5666a4`。
 - 阅读器端到端测试确认保存为 33 点 `pen` 对象并可一次撤销。截图来自菜单切换附近，包含打开的菜单面板；它记录实际运行状态，不代表最终菜单视觉对比。实体触控笔、桌面往返和参考 App 运行时差分仍未验收。
 
 ## 停留识形与异步保存的撤销顺序
@@ -22,7 +22,7 @@
 
 ## 参考闭合椭圆识形（横屏平板）
 
-- 运行环境：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题。页面为测试生成的 PDF；产品运行代码 commit `0458e5b`。
+- 运行环境：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题。页面为测试生成的 PDF；产品运行代码 commit `a5666a4`。
 - `reference-closed-ellipse-before.png` 是阅读器启用钢笔后、尚未输入闭合笔迹的状态；`reference-closed-ellipse.png` 是合成 stylus 输入停留识别后保存的椭圆。二者均由 `PdfAnnotationSelectionClipboardActivityTest.referenceClosedEllipsePersistsAsOneClosedPolylineAndUndoes` 从真实应用运行中采集。
 - 用例检查磁盘页面中仅有一个 `type: "pen"` 对象、带 `pagenotePolyline` 字段、首尾闭合，并检查一次撤销清空该笔迹。输入是仪器测试生成的触控笔事件，不代表实体触控笔。桌面重开保存往返、参考 App 运行时差分尚未验收。
 
