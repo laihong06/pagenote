@@ -198,6 +198,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -1264,18 +1268,30 @@ private fun ReaderHome(
     ?.toString()
     ?.takeIf { it.isNotBlank() && it.length <= RichHtmlAnnotationRenderer.MAX_HTML_CHARS }
 
+  fun annotationClipboardPayloads(): List<String>? {
+    val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return null
+    if (clip.itemCount < 2 || clip.itemCount > PenValidation.MAX_ITEMS_PER_PAGE) return null
+    val payloads = (0 until clip.itemCount).map { index ->
+      clip.getItemAt(index).text?.toString() ?: return null
+    }
+    if (payloads.any { !it.startsWith(PenClipboardCodec.MARKER) }) return null
+    return payloads
+  }
+
+  fun annotationCanBePasted(item: JsonObject): Boolean {
+    if (PdfAnnotationClipboard.decode(PdfAnnotationClipboard.MARKER + item.toString()) == null) return false
+    if (item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } != "image") return true
+    val assetName = item["url"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+      ?.let(PdfAnnotationImageReference::assetName) ?: return false
+    val targetProject = project ?: return false
+    return runCatching {
+      PdfAnnotationImageLoader(context.contentResolver, targetProject.sourceDirectoryUri).hasAsset(assetName)
+    }.getOrDefault(false)
+  }
+
   fun nativeAnnotationClipboardForPaste(): JsonObject? {
     val item = annotationClipboardText()?.let(PdfAnnotationClipboard::decode) ?: return null
-    if (item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } == "image") {
-      val assetName = item["url"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
-        ?.let(PdfAnnotationImageReference::assetName) ?: return null
-      val targetProject = project ?: return null
-      val exists = runCatching {
-        PdfAnnotationImageLoader(context.contentResolver, targetProject.sourceDirectoryUri).hasAsset(assetName)
-      }.getOrDefault(false)
-      if (!exists) return null
-    }
-    return item
+    return item.takeIf(::annotationCanBePasted)
   }
 
   fun selectedPenItems(): Set<Int> = (selectedPenIndices + listOfNotNull(selectedPenIndex))
@@ -1288,12 +1304,50 @@ private fun ReaderHome(
 
   fun selectionItemCount(): Int = selectedPenItems().size + selectedNativeItems().size
 
+  fun selectedInkClipboardEntries(): List<Pair<String, JsonObject?>> {
+    val selectedPens = selectedPenItems()
+    val selectedNative = selectedNativeItems()
+    val entries = mutableListOf<Pair<String, JsonObject?>>()
+    val emittedPens = linkedSetOf<Int>()
+    val emittedNative = linkedSetOf<Int>()
+    var penOrdinal = 0
+    annotationPageItems.forEachIndexed { annotationIndex, element ->
+      val item = element as? JsonObject ?: return@forEachIndexed
+      val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+      if (type == "pen" || type == "highlight") {
+        val stroke = penStrokes.getOrNull(penOrdinal)
+        if (penOrdinal in selectedPens && stroke != null) {
+          entries += PenClipboardCodec.encode(stroke) to null
+          emittedPens += penOrdinal
+        }
+        penOrdinal++
+      } else if (annotationIndex in selectedNative) {
+        entries += PdfAnnotationClipboard.encode(item) to item
+        emittedNative += annotationIndex
+      }
+    }
+    selectedPens.filterNot(emittedPens::contains).sorted().forEach { index ->
+      penStrokes.getOrNull(index)?.let { entries += PenClipboardCodec.encode(it) to null }
+    }
+    selectedNative.filterNot(emittedNative::contains).sorted().forEach { index ->
+      val item = annotationPageItems.getOrNull(index) as? JsonObject ?: return@forEach
+      entries += PdfAnnotationClipboard.encode(item) to item
+    }
+    return entries
+  }
+
   fun selectedInkCanBeCopied(): Boolean {
-    if (selectionItemCount() != 1) return false
-    if (selectedPenItems().isNotEmpty()) return true
-    val index = selectedNativeItems().singleOrNull() ?: return false
-    val annotation = annotationPageItems.getOrNull(index) as? JsonObject ?: return false
-    return PdfAnnotationClipboard.decode(PdfAnnotationClipboard.MARKER + annotation.toString()) != null
+    val count = selectionItemCount()
+    if (count == 0) return false
+    val entries = runCatching { selectedInkClipboardEntries() }.getOrNull() ?: return false
+    if (entries.size != count) return false
+    return entries.all { (payload, annotation) ->
+      if (annotation == null) {
+        PenClipboardCodec.decode(payload, PenPoint(80f, 90f, PenValidation.DEFAULT_PRESSURE)) != null
+      } else {
+        runCatching { PdfAnnotationClipboard.encode(annotation) }.isSuccess && annotationCanBePasted(annotation)
+      }
+    }
   }
 
   fun selectedInkCanBeDeleted(): Boolean = selectedPenItems().isNotEmpty() || selectedNativeItems().isNotEmpty()
@@ -1981,65 +2035,178 @@ private fun ReaderHome(
     return annotationGesture != null
   }
 
+  fun setInkClipboard(payloads: List<String>) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java)
+    val first = payloads.firstOrNull()
+    if (clipboard == null || first == null) {
+      penStatus = context.getString(R.string.pen_clipboard_unavailable)
+      return
+    }
+    val clip = ClipData.newPlainText(context.getString(R.string.reader_menu_copy_ink), first)
+    payloads.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+    clipboard.setPrimaryClip(clip)
+    penStatus = context.getString(R.string.pen_copied)
+  }
+
   fun copySelectedInk() {
-    val stroke = selectedPenIndex?.let(penStrokes::getOrNull)
-    val annotation = selectedAnnotationIndex?.let { annotationPageItems.getOrNull(it) as? JsonObject }
-    if (stroke == null && annotation == null) {
+    val entries = runCatching { selectedInkClipboardEntries() }.getOrNull().orEmpty()
+    if (entries.isEmpty() || entries.size != selectionItemCount()) {
       penStatus = context.getString(R.string.pen_selection_required)
       return
     }
     try {
-      val clipboard = context.getSystemService(ClipboardManager::class.java)
-      if (clipboard == null) {
+      if (context.getSystemService(ClipboardManager::class.java) == null) {
         penStatus = context.getString(R.string.pen_clipboard_unavailable)
         return
       }
-      val annotationType = annotation?.get("type")?.let {
-        runCatching { it.jsonPrimitive.content }.getOrNull()
+      val hasHtml = entries.any { (_, item) ->
+        item?.get("type")?.let { runCatching { it.jsonPrimitive.content }.getOrNull() } == "html"
       }
-      if (stroke == null && annotationType == "html") {
-        val source = checkNotNull(annotation)
-        val html = source["html"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
-          ?: throw IllegalArgumentException("HTML annotation has no content")
+      if (hasHtml) {
         val targetProjectId = project?.manifest?.id
         val targetPage = pageIndex + 1
         scope.launch {
           try {
-            val sanitized = withContext(Dispatchers.IO) {
-              val rendered = richHtmlRenderer.render(html, widthCssPx = 500, heightCssPx = 1)
-              try {
-                rendered.sanitizedHtml
-              } finally {
-                rendered.bitmap.recycle()
+            val safePayloads = withContext(Dispatchers.IO) {
+              entries.map { (payload, item) ->
+                val htmlItem = item?.takeIf {
+                  it["type"]?.let { type -> runCatching { type.jsonPrimitive.content }.getOrNull() } == "html"
+                } ?: return@map payload
+                val html = htmlItem["html"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+                  ?: throw IllegalArgumentException("HTML annotation has no content")
+                val rendered = richHtmlRenderer.render(html, widthCssPx = 500, heightCssPx = 1)
+                try {
+                  PdfAnnotationClipboard.encode(JsonObject(htmlItem + ("html" to JsonPrimitive(rendered.sanitizedHtml))))
+                } finally {
+                  rendered.bitmap.recycle()
+                }
               }
             }
             if (project?.manifest?.id != targetProjectId || pageIndex + 1 != targetPage) {
               penStatus = context.getString(R.string.annotation_html_stale)
               return@launch
             }
-            val safeAnnotation = JsonObject(source + ("html" to JsonPrimitive(sanitized)))
-            clipboard.setPrimaryClip(
-              ClipData.newPlainText(
-                context.getString(R.string.reader_menu_copy_ink),
-                PdfAnnotationClipboard.encode(safeAnnotation),
-              ),
-            )
-            penStatus = context.getString(R.string.pen_copied)
+            setInkClipboard(safePayloads)
           } catch (error: Exception) {
+            if (error is CancellationException) throw error
             penStatus = context.getString(R.string.annotation_html_failed, error.message ?: "")
           }
         }
       } else {
-        clipboard.setPrimaryClip(
-          ClipData.newPlainText(
-            context.getString(R.string.reader_menu_copy_ink),
-            stroke?.let(PenClipboardCodec::encode) ?: PdfAnnotationClipboard.encode(checkNotNull(annotation)),
-          ),
-        )
-        penStatus = context.getString(R.string.pen_copied)
+        setInkClipboard(entries.map { it.first })
       }
     } catch (_: Exception) {
       penStatus = context.getString(R.string.pen_copy_failed)
+    }
+  }
+
+  fun validGroupedClipboardItems(): List<Pair<String, JsonObject>>? {
+    val payloads = annotationClipboardPayloads() ?: return null
+    val items = payloads.map { payload ->
+      val item = runCatching {
+        Json.parseToJsonElement(payload.removePrefix(PenClipboardCodec.MARKER)).jsonObject
+      }.getOrNull() ?: return null
+      val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+      if (type == "pen" || type == "highlight") {
+        if (PenClipboardCodec.decode(payload, PenPoint(80f, 90f, PenValidation.DEFAULT_PRESSURE)) == null) return null
+      } else {
+        val decoded = PdfAnnotationClipboard.decode(payload) ?: return null
+        if (!annotationCanBePasted(decoded)) return null
+      }
+      payload to item
+    }
+    return items
+  }
+
+  fun clipboardItemBounds(item: JsonObject): PdfAnnotationBounds? {
+    val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+    if (type != "pen" && type != "highlight") return PdfAnnotationClipboard.bounds(item)
+    val coordinates = item["points"]?.let { runCatching { it.jsonArray }.getOrNull() }
+      ?.mapNotNull { point ->
+        val pair = runCatching { point.jsonArray }.getOrNull() ?: return@mapNotNull null
+        val x = pair.getOrNull(0)?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() }
+        val y = pair.getOrNull(1)?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() }
+        if (x == null || y == null) null else x to y
+      }.orEmpty()
+    if (coordinates.isEmpty()) return null
+    return PdfAnnotationBounds(
+      left = coordinates.minOf { it.first },
+      top = coordinates.minOf { it.second },
+      right = coordinates.maxOf { it.first },
+      bottom = coordinates.maxOf { it.second },
+    )
+  }
+
+  fun pasteGroupedInk(items: List<Pair<String, JsonObject>>) {
+    val targetProject = project
+    if (targetProject == null || !penWritable || markdownSource != null) {
+      penStatus = context.getString(R.string.reader_menu_read_only)
+      return
+    }
+    if (annotationPageItems.size + items.size > PenValidation.MAX_ITEMS_PER_PAGE) {
+      penStatus = context.getString(R.string.pen_paste_failed)
+      return
+    }
+    val targetProjectId = targetProject.manifest.id
+    val targetSourceUri = targetProject.sourceDirectoryUri
+    val targetPage = pageIndex + 1
+    scope.launch {
+      try {
+        val pasted = withContext(Dispatchers.IO) {
+          val bounds = items.map { (_, item) -> clipboardItemBounds(item) ?: error("Invalid clipboard geometry") }
+          val left = bounds.minOf { it.left }
+          val top = bounds.minOf { it.top }
+          val deltaX = 80.0 - left
+          val deltaY = 90.0 - top
+          items.map { (payload, item) ->
+            val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+            if (type == "pen" || type == "highlight") {
+              val first = item["points"]!!.jsonArray.first().jsonArray
+              val sourceX = first[0].jsonPrimitive.doubleOrNull!!.toFloat()
+              val sourceY = first[1].jsonPrimitive.doubleOrNull!!.toFloat()
+              val translated = PenClipboardCodec.decode(
+                payload,
+                PenPoint((sourceX + deltaX).toFloat(), (sourceY + deltaY).toFloat(), PenValidation.DEFAULT_PRESSURE),
+              ) ?: error("Invalid freehand clipboard annotation")
+              Json.parseToJsonElement(PenClipboardCodec.encode(translated).removePrefix(PenClipboardCodec.MARKER)).jsonObject
+            } else {
+              val safeItem = if (type == "html") {
+                val html = item["html"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+                  ?: error("HTML annotation has no content")
+                val rendered = richHtmlRenderer.render(html, widthCssPx = 500, heightCssPx = 1)
+                try {
+                  JsonObject(item + ("html" to JsonPrimitive(rendered.sanitizedHtml)))
+                } finally {
+                  rendered.bitmap.recycle()
+                }
+              } else item
+              PdfAnnotationClipboard.translate(safeItem, deltaX, deltaY) ?: error("Invalid vector clipboard annotation")
+            }
+          }
+        }
+        if (
+          project?.manifest?.id != targetProjectId || project?.sourceDirectoryUri != targetSourceUri ||
+          pageIndex + 1 != targetPage || !penWritable
+        ) {
+          penStatus = context.getString(R.string.annotation_html_stale)
+          return@launch
+        }
+        val before = annotationPageItems
+        val after = JsonArray(before + pasted)
+        persistNativeAnnotationPage(
+          targetPage = targetPage,
+          before = before,
+          after = after,
+          showSuccess = false,
+          includeFreehandHistory = true,
+          synchronizePenPage = true,
+          transformLatest = { latest -> JsonArray(latest + pasted) },
+        )
+      } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        android.util.Log.e("PageNoteGroupPaste", "Could not paste grouped annotations", error)
+        penStatus = context.getString(R.string.pen_paste_failed)
+      }
     }
   }
 
@@ -2055,6 +2222,10 @@ private fun ReaderHome(
   }
 
   fun pasteInk() {
+    validGroupedClipboardItems()?.let { items ->
+      pasteGroupedInk(items)
+      return
+    }
     val stroke = clipboardInkForPaste()
     if (stroke == null) {
       val item = nativeAnnotationClipboardForPaste()
@@ -5853,7 +6024,8 @@ private fun ReaderHome(
     penTool == PenCanvasTool.SELECT && annotationDrawTool == null && !annotateMode &&
     !readerInputLocked && !isAnnotationSaving
   val hasValidInkClipboard = remember(clipboardRevision, project?.sourceDirectoryUri) {
-    clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null || annotationClipboardHtml() != null
+    clipboardInkForPaste() != null || nativeAnnotationClipboardForPaste() != null ||
+      validGroupedClipboardItems() != null || annotationClipboardHtml() != null
   }
 
   fun pdfImageInsertionContextIsCurrent(pending: PendingPdfImageInsertion): Boolean =

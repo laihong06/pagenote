@@ -33,6 +33,7 @@ import io.pagenote.feature.pen.PenPageStore
 import io.pagenote.feature.pen.PenCanvasGeometry
 import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenCanvasTool
+import io.pagenote.feature.pen.PenClipboardCodec
 import io.pagenote.feature.pen.PenPoint
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
@@ -462,6 +463,113 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals(2, session.penStrokes.value.size)
       collapseReaderMenuAndWait()
       saveAnnotationEvidence("reference-region-selection-undo.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  @Test fun referenceRegionSelectionCopiesMixedMaterialsAndPastesAsOneUndoAction() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initial = Json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[250,350],[350,350]],"pressures":[1,1]},
+        {"type":"rect","color":"#008844","width":5,"points":[[430,320],[570,400]]},
+        {"type":"highlight","color":"#185abd","width":3,"points":[[650,350],[750,350]],"pressures":[1,1]}
+      ]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, initial)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.size == 2
+      }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
+      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.SELECT }
+
+      val lasso = listOf(
+        PenPoint(180f, 280f, 1f),
+        PenPoint(820f, 280f, 1f),
+        PenPoint(820f, 420f, 1f),
+        PenPoint(180f, 420f, 1f),
+        PenPoint(180f, 280f, 1f),
+      )
+      val downTime = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(lasso.first()), geometry.toViewY(lasso.first()), .5f, downTime, downTime)
+      lasso.drop(1).forEachIndexed { index, point ->
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          geometry.toViewX(point),
+          geometry.toViewY(point),
+          .5f,
+          downTime,
+          downTime + (index + 1) * 20,
+        )
+      }
+      dispatchStylus(
+        canvas,
+        MotionEvent.ACTION_UP,
+        geometry.toViewX(lasso.last()),
+        geometry.toViewY(lasso.last()),
+        .5f,
+        downTime,
+        downTime + 120,
+      )
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-copy-selected.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "copy_ink")
+      composeRule.onNodeWithTag("reader_menu_command_copy_ink").assertIsEnabled().performScrollTo().performClick()
+      val clipboard = composeRule.activity.getSystemService(android.content.ClipboardManager::class.java)
+      val clip = checkNotNull(clipboard?.primaryClip)
+      assertEquals(3, clip.itemCount)
+      val copiedPayloads = (0 until clip.itemCount).map { clip.getItemAt(it).text.toString() }
+      assertEquals(2, copiedPayloads.count { PenClipboardCodec.decode(it, PenPoint(0f, 0f, 1f)) != null })
+      assertEquals(1, copiedPayloads.count { PdfAnnotationClipboard.decode(it)?.get("type")?.jsonPrimitive?.content == "rect" })
+      assertEquals(
+        listOf("pen", "rect", "highlight"),
+        copiedPayloads.map { payload ->
+          PenClipboardCodec.decode(payload, PenPoint(0f, 0f, 1f))?.type
+            ?: PdfAnnotationClipboard.decode(payload)?.get("type")?.jsonPrimitive?.content
+        },
+      )
+
+      revealReaderMenuCommand(composeRule, "handwriting", "paste_ink")
+      composeRule.onNodeWithTag("reader_menu_command_paste_ink").assertIsEnabled().performScrollTo().performClick()
+      try {
+        waitForAnnotations(annotations) { it.size == 6 && session.penStrokes.value.size == 4 }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "page=${annotations.readPage("document", 1)} strokes=${session.penStrokes.value.size} status=${session.penStatus.value}",
+          error,
+        )
+      }
+      val pastedSnapshot = annotations.readPage("document", 1)
+      assertEquals(listOf(80.0, 120.0, 180.0, 120.0), points(pastedSnapshot[3] as JsonObject))
+      assertEquals(listOf(260.0, 90.0, 400.0, 170.0), points(pastedSnapshot[4] as JsonObject))
+      assertEquals(listOf(480.0, 120.0, 580.0, 120.0), points(pastedSnapshot[5] as JsonObject))
+      collapseReaderMenuAndWait()
+      Thread.sleep(4_000)
+      saveAnnotationEvidence("reference-region-copy-pasted.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it == initial && session.penStrokes.value.size == 2 }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.size == 6 && session.penStrokes.value.size == 4 }
+      assertEquals(pastedSnapshot, annotations.readPage("document", 1))
     } finally {
       composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
     }
