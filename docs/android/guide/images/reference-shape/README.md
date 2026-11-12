@@ -94,9 +94,11 @@
 
 - 验收用例 `REF-SELECT-01`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction`。在选择工具下套索选中两段自由笔迹和一个原生矩形，删除后执行一次撤销；用例检查页面数据为空并由一次撤销恢复原始三项。
 - 回归用例 `REF-SELECT-02`：`InkSelectionClipboardActivityTest.selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage`。选中一段笔迹、复制并粘贴，再删除粘贴项；检查旧选区不会残留，并验证一次撤销／重做和页面持久化。
-- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色界面。运行代码 commit：`0458e5b`。测试使用合成 PDF 和注入到真实阅读器 `PenCanvasView` 的 stylus `MotionEvent`，不是实体手写笔。
-- 四张 2560 × 1600 完整屏幕图均由上述 Activity 用例通过 Android `UiAutomation.takeScreenshot()` 从运行中的应用采集；不是拼接或设计稿。用例本身和笔迹模块 54 项设备测试在该横屏平板通过。全量 App 设备套件本次未完成：运行到 99/276 时已观察到 8 项失败后停止；其中单选复制粘贴回归已修复并单独重跑通过，剩余 7 项涉及书架窄屏导航节点、Markdown/Mermaid 预览超时、3D 截图像素差、笔记导入导出菜单节点和长 Markdown 编辑超时，尚未定位或单独复验。
-- 选择逻辑参照恢复源码中的 `Selector.selectMaterials`、`Material.isInRegion` 和 `SelectionManager.deleteMaterialsAction`：框选材料并聚合选择边界，删除生成可撤销操作。当前适配只实现混合材料的套索选择、删除及一次撤销；组复制、移动和样式编辑尚未实现，不能据此声称完整移植了参考项目选择器。Android 以外的平台与项目文件格式未改动。
+- 验收用例 `REF-SELECT-03`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionCopiesMixedMaterialsAndPastesAsOneUndoAction`。套索同时选中两段自由笔迹和一个原生矩形，复制得到三个独立剪贴板条目；粘贴后检查整组共同平移且相对位置不变；一次撤销恢复原页，一次重做恢复整组。
+- 本次运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色界面。运行代码 commit：`e29d535`。测试使用合成 PDF 和注入到真实阅读器 `PenCanvasView` 的 stylus `MotionEvent`，不是实体手写笔。
+- `reference-region-copy-selected.png` 与 `reference-region-copy-pasted.png` 是本次 `REF-SELECT-03` 通过 Android `UiAutomation.takeScreenshot()` 从运行中的完整 2560 × 1600 屏幕采集的图。复制后截图包含 Android 系统剪贴板预览浮层。
+- 选择逻辑参照恢复源码中的 `Selector.selectMaterials`、`Material.isInRegion` 和 `SelectionManager`。当前 Android 适配支持混合材料套索选择、组复制／粘贴、删除；组粘贴可一次撤销和重做。组移动、组样式编辑及参考选择器的其他材料仍未实现。图形与笔迹沿用现有 annotations.json 格式；Windows／macOS 和其他 Android 设备未改动或据此验收。
+- 验收命令：构建 `:app:assembleDebug :app:assembleDebugAndroidTest`；将 ARM64 app APK 与 androidTest APK 安装到 `emulator-5558`；对 `referenceRegionSelectionCopiesMixedMaterialsAndPastesAsOneUndoAction`、`referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction`、`nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems` 使用 `adb -s emulator-5558 shell am instrument` 定向运行，三项通过。未运行其他 AVD 或全量 App 测试。
 
 套索前：
 
@@ -113,3 +115,11 @@
 一次撤销后恢复三项材料：
 
 ![横屏平板上的混合材料撤销结果](reference-region-selection-undo.png)
+
+套索选中混合材料后：
+
+![横屏平板上选中两段笔迹和一个矩形，准备复制](reference-region-copy-selected.png)
+
+组粘贴后（各材料保持相对位置）：
+
+![横屏平板上混合笔迹和矩形组粘贴后的结果](reference-region-copy-pasted.png)

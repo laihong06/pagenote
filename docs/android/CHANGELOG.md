@@ -8,9 +8,9 @@
 - 参考直线、折线、曲线与闭合椭圆识形截图统一更新为 Android 14 API 34 ARM64 横屏平板 AVD 的真实运行画面；旧手机分辨率说明已移除。对应运行入口和合成 stylus 输入边界见[截图索引](guide/images/reference-shape/README.md)。
 - 直线、折线、曲线和闭合椭圆四个阅读器落盘／撤销用例已在最终运行代码 `a5666a4` 对应的 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance` 上重跑通过，截图更新为该运行版本。
 - 区域橡皮一次手势同时擦除自由笔迹和原生图形时，现可通过一次撤销恢复两层并通过一次重做再次擦除；后续手势不会因前一个异步保存延迟而并入该撤销项。`REF-ERASE-03` 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过，见[运行截图与验收记录](guide/images/reference-shape/README.md#跨层区域擦除单步撤销与重做)。原文件格式和 Windows／macOS 均未变化；除区域擦除外的跨层操作、实体手写笔及真机仍待验。本地源码与测试证据，未发布。
-- 阅读器选择工具现可用套索选择多段自由笔迹及原生图形；对混合多选执行删除后，一次撤销可恢复整页材料。用例 `referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction` 在 Android 14 API 34 横屏 ARM64 `Pixel_Tablet_API34_Acceptance` 上验证两段笔迹与一个矩形的选择、删除及恢复。另修复粘贴单段笔迹后旧多选索引残留导致后续删除无效；回归用例 `selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage` 在同一平板通过。组复制、移动和样式编辑仍未实现，项目格式未变化。
-- 指南与功能覆盖表现已标出该选择功能的入口、已验证范围、未实现操作，并链接到对应的横屏平板真实运行截图。
-- 增加套索选择改前、选中、删除和撤销四张完整运行截图。环境为 ARM64 横屏平板 AVD，2560 × 1600、320 dpi、浅色主题；截图来自合成 PDF 和触控笔事件，不代表真机手写笔验收。
+- 阅读器选择工具支持把套索选中的自由笔迹和原生矢量图形作为一组复制、粘贴和删除；组粘贴按共同偏移保留相对位置，并由一次撤销／重做整体恢复。`REF-SELECT-03` 用例 `PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionCopiesMixedMaterialsAndPastesAsOneUndoAction` 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过，检查两个自由笔迹、矩形、三个剪贴板条目、共同位移和整组撤销／重做。混合删除撤销用例与原单项复制／粘贴／移动／删除用例也在同一设备通过。Android 项目文件格式不变；组移动、组样式编辑、实体手写笔、真机及其他 AVD 未验。本地源码和测试包，未发布。
+- 更新 Android 指南与功能覆盖表，列出组复制／粘贴能力和未完成的组移动／样式编辑；补充真实运行的套索选中及组粘贴全屏截图。
+- 两张运行截图来自该混合材料 Activity 仪器测试的 `UiAutomation.takeScreenshot()`；横屏 Pixel Tablet API 34 AVD 上的画布显示系统剪贴板预览浮层。截图对应产品运行代码 `e29d535`，触控输入是合成 stylus `MotionEvent`，不代表实体手写笔验收。
 - 增加闭合椭圆识形在 Android 14 API 34 横屏 Pixel Tablet 模拟器上的真实运行识别前后截图，并记录合成 stylus 输入、运行代码和未验收范围。
 - 阅读器停留识形接入参考 `GraphUtils.recogniseShape` 的闭合轮廓分支：椭圆拟合、多边形近似、直角矩形和闭合折线分别适配到现有椭圆／矩形／多点 `pen` 格式；闭合笔迹使用 `pagenotePolyline` 扩展字段，不新增文件类型。Android 14 API 34 ARM64 横屏平板模拟器覆盖椭圆落盘、闭合点和一次撤销；参考 App 运行时差分、桌面往返和实体触控笔仍未验收。
 - 阅读器撤销、重做按操作顺序跨原生图形与自由笔迹切换；Android 14 ARM64 横屏平板覆盖图形—笔迹—图形序列的三次撤销和三次重做。实现仍协调两种现有页面历史，未把它们替换为参考 App 的统一动作对象栈；跨层区域橡皮随后通过单独事务实现，其他跨层操作仍分属各自历史。
