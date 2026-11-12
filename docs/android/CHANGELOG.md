@@ -2,8 +2,10 @@
 
 ## Unreleased
 
+- 停留识形完成后，原生图形与随后落笔的异步保存不会再颠倒撤销顺序：识形手势先预留历史位置，图形写入完成后补齐事务；待处理事务位于撤销栈顶时，不会回退到更早编辑。`REF-HISTORY-02` 及排队保存、识形失败回退和识形期间继续书写用例在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过。仅修复识形图形和后续笔迹的历史先后，不表示统一动作栈已完整移植；实体触控笔、真机和桌面往返未验。本地源码与测试证据，未发布。
+- 参考直线、折线、曲线与闭合椭圆识形截图统一更新为 Android 14 API 34 ARM64 横屏平板 AVD 的真实运行画面；旧手机分辨率说明已移除。对应运行入口和合成 stylus 输入边界见[截图索引](guide/images/reference-shape/README.md)。
 - 区域橡皮一次手势同时擦除自由笔迹和原生图形时，现可通过一次撤销恢复两层并通过一次重做再次擦除；后续手势不会因前一个异步保存延迟而并入该撤销项。`REF-ERASE-03` 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过，见[运行截图与验收记录](guide/images/reference-shape/README.md#跨层区域擦除单步撤销与重做)。原文件格式和 Windows／macOS 均未变化；除区域擦除外的跨层操作、实体手写笔及真机仍待验。本地源码与测试证据，未发布。
-- 阅读器选择工具现可用套索选择多段自由笔迹及原生图形；对混合多选执行删除后，一次撤销可恢复整页材料。用例 `referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction` 在 Android 14 API 34 横屏 `Pixel_Tablet_API34` 上验证两段笔迹与一个矩形的选择、删除及恢复。另修复粘贴单段笔迹后旧多选索引残留导致后续删除无效；回归用例 `selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage` 在同一平板通过。组复制、移动和样式编辑仍未实现，项目格式未变化。
+- 阅读器选择工具现可用套索选择多段自由笔迹及原生图形；对混合多选执行删除后，一次撤销可恢复整页材料。用例 `referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction` 在 Android 14 API 34 横屏 ARM64 `Pixel_Tablet_API34_Acceptance` 上验证两段笔迹与一个矩形的选择、删除及恢复。另修复粘贴单段笔迹后旧多选索引残留导致后续删除无效；回归用例 `selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage` 在同一平板通过。组复制、移动和样式编辑仍未实现，项目格式未变化。
 - 指南与功能覆盖表现已标出该选择功能的入口、已验证范围、未实现操作，并链接到对应的横屏平板真实运行截图。
 - 增加套索选择改前、选中、删除和撤销四张完整运行截图。环境为 ARM64 横屏平板 AVD，2560 × 1600、320 dpi、浅色主题；截图来自合成 PDF 和触控笔事件，不代表真机手写笔验收。
 - 增加闭合椭圆识形在 Android 14 API 34 横屏 Pixel Tablet 模拟器上的真实运行识别前后截图，并记录合成 stylus 输入、运行代码和未验收范围。

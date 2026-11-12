@@ -1179,10 +1179,14 @@ private fun ReaderHome(
     }
   }
 
-  fun applyPenStroke(stroke: PenStroke, targetPage: Int = pageIndex + 1) {
+  fun applyPenStroke(
+    stroke: PenStroke,
+    targetPage: Int = pageIndex + 1,
+    historyGroupId: Long? = null,
+  ) {
     if (isRainApplyingPage) return
     penPageStore.addStroke(PenSide.DOCUMENT, targetPage, stroke)
-    markPenEdit(targetPage)
+    markPenEdit(targetPage, historyGroupId)
     val updated = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
     if (targetPage == pageIndex + 1) {
       selectedPenIndex = null
@@ -1667,7 +1671,8 @@ private fun ReaderHome(
   }
 
   fun applyRecognizedShape(shape: PenRecognizedShape, sourceStroke: PenStroke): Boolean {
-    if (project == null || !penWritable) return false
+    val targetProjectId = project?.manifest?.id ?: return false
+    if (!penWritable) return false
     val targetPage = pageIndex + 1
     val draft = PdfAnnotationVectorDraft.fromRecognizedShape(
       shape = shape,
@@ -1677,6 +1682,7 @@ private fun ReaderHome(
     val before = annotationPageItems
     val item = draft.toItem().toJsonElement()
     val preview = PdfAnnotationOverlayItem.fromPage(JsonArray(listOf(item))).singleOrNull() ?: return false
+    val historyGroupId = readerEditHistoryOrder.beginGroup(targetProjectId, targetPage)
     val pendingId = pendingRecognizedShapes.add(targetPage, preview)
     persistNativeAnnotationPage(
       targetPage = targetPage,
@@ -1686,8 +1692,12 @@ private fun ReaderHome(
       appendItem = item,
       showSuccess = false,
       backgroundAppend = true,
-      onFailure = { applyPenStroke(sourceStroke, targetPage) },
-      onFinished = { pendingRecognizedShapes.remove(pendingId) },
+      historyGroupId = historyGroupId,
+      onFailure = { applyPenStroke(sourceStroke, targetPage, historyGroupId) },
+      onFinished = {
+        pendingRecognizedShapes.remove(pendingId)
+        readerEditHistoryOrder.endGroup(targetProjectId, targetPage, historyGroupId)
+      },
     )
     return true
   }
@@ -1815,6 +1825,7 @@ private fun ReaderHome(
   fun undoPenPage() {
     val targetPage = pageIndex + 1
     val projectId = project?.manifest?.id
+    if (projectId != null && readerEditHistoryOrder.hasPendingUndo(projectId, targetPage)) return
     var layer = projectId?.let { readerEditHistoryOrder.nextUndo(it, targetPage) }
     if (layer == null) {
       layer = when {

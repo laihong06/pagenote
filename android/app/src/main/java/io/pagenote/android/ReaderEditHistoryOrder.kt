@@ -80,6 +80,9 @@ internal class ReaderEditHistoryOrder(private val maxDepth: Int = 80) {
   fun nextUndo(projectId: String, page: Int): Layer? =
     pages[projectId to page]?.undo?.lastOrNull()?.historyLayer
 
+  fun hasPendingUndo(projectId: String, page: Int): Boolean =
+    pages[projectId to page]?.undo?.lastOrNull()?.pending == true
+
   fun layersForUndo(projectId: String, page: Int): List<Layer> =
     pages[projectId to page]?.undo?.lastOrNull()?.takeUnless { it.pending }?.layers.orEmpty()
 

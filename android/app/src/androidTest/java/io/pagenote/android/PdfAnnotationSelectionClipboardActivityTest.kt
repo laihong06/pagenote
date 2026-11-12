@@ -499,12 +499,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       assertEquals(expected.x.toDouble(), saved[0], .1)
       assertEquals(expected.y.toDouble(), saved[1], .1)
       composeRule.waitForIdle()
-      val screenshot = java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "reference-sampled-line.png")
-      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
-        screenshot.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
-      }
-      Thread.sleep(1500) // Allow the evidence collector to copy before test-package teardown.
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-line.png")
       revealReaderMenuCommand(composeRule, "pen", "pen_undo")
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
       waitForAnnotations(annotations) { it.isEmpty() }
@@ -663,9 +659,21 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.waitUntil(5_000) { session.penStrokes.value.size == 1 }
       session.penSaveMutex.unlock(); locked = false
       waitForAnnotations(annotations) { it.size == 2 }
+      assertEquals(
+        "expected native line followed by a newer freehand annotation",
+        listOf("line", "pen"),
+        annotations.readPage("document", 1).map { (it as JsonObject)["type"]?.jsonPrimitive?.content },
+      )
       revealReaderMenuCommand(composeRule, "pen", "pen_undo")
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
-      waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" && session.penStrokes.value.isEmpty() }
+      try {
+        waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" && session.penStrokes.value.isEmpty() }
+      } catch (error: Exception) {
+        throw AssertionError(
+          "after latest-ink undo: page=${annotations.readPage("document", 1)} strokes=${session.penStrokes.value} status=${session.penStatus.value}",
+          error,
+        )
+      }
     } finally {
       if (locked) session.penSaveMutex.unlock()
       composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
@@ -879,7 +887,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val endX = canvas.width * 0.75f
       val y = canvas.height * 0.3f
       dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, y, 0.5f, downTime, downTime)
-      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, endX, y, 0.8f, downTime, downTime + 10)
+      for (step in 1..12) {
+        val progress = step / 12f
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + (endX - startX) * progress, y, 0.8f, downTime, downTime + step * 10)
+      }
       Thread.sleep(650)
       dispatchStylus(canvas, MotionEvent.ACTION_UP, endX, y, 0.6f, downTime, downTime + 700)
 
@@ -983,9 +994,14 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val down = SystemClock.uptimeMillis()
       val y = canvas.height * 0.3f
       dispatchStylus(canvas, MotionEvent.ACTION_DOWN, canvas.width * 0.15f, y, 0.5f, down, down)
-      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, canvas.width * 0.75f, y, 0.8f, down, down + 10)
+      val startX = canvas.width * 0.15f
+      val endX = canvas.width * 0.75f
+      for (step in 1..12) {
+        val progress = step / 12f
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + (endX - startX) * progress, y, 0.8f, down, down + step * 10)
+      }
       Thread.sleep(650)
-      dispatchStylus(canvas, MotionEvent.ACTION_UP, canvas.width * 0.75f, y, 0.6f, down, down + 700)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, endX, y, 0.6f, down, down + 700)
       composeRule.waitForIdle()
       composeRule.runOnIdle {
         assertTrue("recognition save must not disable the canvas", canvas.inputEnabled)
@@ -1055,7 +1071,10 @@ class PdfAnnotationSelectionClipboardActivityTest {
         Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, 1) },
       )
       dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, y, 0.45f, downTime, downTime)
-      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, endX, y, 0.85f, downTime, downTime + 10)
+      for (step in 1..12) {
+        val progress = step / 12f
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + (endX - startX) * progress, y, 0.85f, downTime, downTime + step * 10)
+      }
       Thread.sleep(650)
       dispatchStylus(canvas, MotionEvent.ACTION_UP, endX, y, 0.65f, downTime, downTime + 700)
 

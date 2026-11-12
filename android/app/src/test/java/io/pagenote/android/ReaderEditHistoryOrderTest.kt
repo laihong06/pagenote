@@ -102,4 +102,23 @@ class ReaderEditHistoryOrderTest {
       history.layersForUndo(project, 1),
     )
   }
+
+  @Test
+  fun pendingRecognizedShapeKeepsItsGestureOrderAcrossLaterInk() {
+    val history = ReaderEditHistoryOrder()
+    val project = "project"
+    val shapeGroup = history.beginGroup(project, 1)
+    history.record(project, 1, ReaderEditHistoryOrder.Layer.PEN)
+    history.recordInGroup(project, 1, shapeGroup, ReaderEditHistoryOrder.Layer.ANNOTATION)
+
+    assertFalse(history.hasPendingUndo(project, 1))
+    assertEquals(ReaderEditHistoryOrder.Layer.PEN, history.nextUndo(project, 1))
+    assertTrue(history.completeUndo(project, 1, ReaderEditHistoryOrder.Layer.PEN))
+    assertTrue(history.hasPendingUndo(project, 1))
+    assertNull(history.nextUndo(project, 1))
+
+    assertTrue(history.endGroup(project, 1, shapeGroup))
+    assertFalse(history.hasPendingUndo(project, 1))
+    assertEquals(ReaderEditHistoryOrder.Layer.ANNOTATION, history.nextUndo(project, 1))
+  }
 }
