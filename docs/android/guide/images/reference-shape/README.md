@@ -14,3 +14,14 @@
 
 - `reference-curve.png`：Android 14 ARM64 模拟器、1080 × 2400、420 dpi，合成 PDF 项目。测试输入一段弧线；图中显示参考 `BezierTool` 路径提交后的多点曲线笔迹。
 - 对应产品源码在本次 PR 的曲线里程碑提交中。阅读器端到端测试确认保存为 33 点 `pen` 对象并可一次撤销；参考程序运行时差分、桌面打开/保存往返、真机和横屏尚未验证。截图来自菜单切换附近的运行状态，不能代表最终菜单视觉验收。
+
+## 原生矢量图形区域擦除
+
+- Android 14 API 34、ARM64 AVD、1080 × 2400、420 dpi；项目使用测试生成的 PDF，在 `annotations.json` 预置原生矩形。产品运行代码为 commit `5a66323`。
+- `reference-area-erase-native-before.png` 显示擦除前的完整矩形；`reference-area-erase-native-erasing.png` 显示手势中途的圆形擦除边界和已产生的缺口；`reference-area-erase-native-after.png` 显示擦除后保存的线段；`reference-area-erase-native-undo.png` 显示菜单撤销恢复的原矩形。
+- 由 `PdfAnnotationSelectionClipboardActivityTest.areaEraserCutsNativeRectangleAnnotationAndUndoRestoresIt` 运行时采集。测试通过 stylus `MotionEvent` 注入真实 `PenCanvasView`，并检查磁盘页面数据和一次撤销；这是模拟器交互证据，不是实体触控笔验收。关闭保存成功提示后，撤销截图中没有常规保存提示。
+
+![擦除前](reference-area-erase-native-before.png)
+![橡皮擦手势中，显示边界与缺口](reference-area-erase-native-erasing.png)
+![擦除后](reference-area-erase-native-after.png)
+![撤销恢复后](reference-area-erase-native-undo.png)
