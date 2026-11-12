@@ -15,6 +15,20 @@
 - `reference-curve.png`：Android 14 ARM64 模拟器、1080 × 2400、420 dpi，合成 PDF 项目。测试输入一段弧线；图中显示参考 `BezierTool` 路径提交后的多点曲线笔迹。
 - 对应产品源码在本次 PR 的曲线里程碑提交中。阅读器端到端测试确认保存为 33 点 `pen` 对象并可一次撤销；参考程序运行时差分、桌面打开/保存往返、真机和横屏尚未验证。截图来自菜单切换附近的运行状态，不能代表最终菜单视觉验收。
 
+## 参考闭合椭圆识形（横屏平板）
+
+- 运行环境：Android 14 API 34、ARM64 `Pixel_Tablet_API34` AVD、横屏 2560 × 1600、320 dpi、浅色主题。页面为测试生成的 PDF；产品运行代码 commit `c9fd40e`。
+- `reference-closed-ellipse-before.png` 是阅读器启用钢笔后、尚未输入闭合笔迹的状态；`reference-closed-ellipse.png` 是合成 stylus 输入停留识别后保存的椭圆。二者均由 `PdfAnnotationSelectionClipboardActivityTest.referenceClosedEllipsePersistsAsOneClosedPolylineAndUndoes` 从真实应用运行中采集。
+- 用例检查磁盘页面中仅有一个 `type: "pen"` 对象、带 `pagenotePolyline` 字段、首尾闭合，并检查一次撤销清空该笔迹。输入是仪器测试生成的触控笔事件，不代表实体触控笔。桌面重开保存往返、参考 App 运行时差分尚未验收。
+
+识别前：
+
+![横屏平板中启用钢笔、尚未画闭合图形](reference-closed-ellipse-before.png)
+
+识别后：
+
+![横屏平板中识别并保存的闭合椭圆](reference-closed-ellipse.png)
+
 ## 原生矢量图形区域擦除
 
 - Android 14 API 34、ARM64 AVD、1080 × 2400、420 dpi；项目使用测试生成的 PDF，在 `annotations.json` 预置原生矩形。产品运行代码为 commit `5a66323`。
