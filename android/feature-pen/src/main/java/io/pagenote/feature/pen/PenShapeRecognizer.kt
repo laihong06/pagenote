@@ -48,11 +48,6 @@ object PenShapeRecognizer {
   }
 
   private fun fitsRectangle(points: List<Point>, bounds: Bounds, diagonal: Float): Boolean {
-    val simplified = simplify(points, diagonal * 0.035f).toMutableList()
-    if (simplified.size > 1 && distance(simplified.first(), simplified.last()) <= diagonal * CLOSED_RATIO) {
-      simplified.removeAt(simplified.lastIndex)
-    }
-    if (simplified.size !in 4..6) return false
     val edgeTolerance = diagonal * 0.065f
     val onEdges = points.all { point ->
       minOf(
@@ -61,6 +56,11 @@ object PenShapeRecognizer {
       ) <= edgeTolerance
     }
     if (!onEdges) return false
+    val simplified = simplify(points, diagonal * 0.035f).toMutableList()
+    if (simplified.size > 1 && distance(simplified.first(), simplified.last()) <= diagonal * CLOSED_RATIO) {
+      simplified.removeAt(simplified.lastIndex)
+    }
+    if (simplified.size !in 4..6) return false
     val corners = listOf(
       Point(bounds.left, bounds.top),
       Point(bounds.right, bounds.top),
