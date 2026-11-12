@@ -31,8 +31,8 @@
 
 ## 原生矢量图形区域擦除
 
-- Android 14 API 34、ARM64 AVD、1080 × 2400、420 dpi；项目使用测试生成的 PDF，在 `annotations.json` 预置原生矩形。产品运行代码为 commit `5a66323`。
-- `reference-area-erase-native-before.png` 显示擦除前的完整矩形；`reference-area-erase-native-erasing.png` 显示手势中途的圆形擦除边界和已产生的缺口；`reference-area-erase-native-after.png` 显示擦除后保存的线段；`reference-area-erase-native-undo.png` 显示菜单撤销恢复的原矩形。
+- Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题；项目使用测试生成的 PDF，在 `annotations.json` 预置原生矩形。运行代码 commit `0458e5b`。
+- `reference-area-erase-native-before.png` 显示擦除前的完整矩形；`reference-area-erase-native-erasing.png` 显示手势中途的圆形边界及矩形上边的擦除缺口；`reference-area-erase-native-after.png` 显示擦除后保存的线段；`reference-area-erase-native-undo.png` 显示菜单撤销恢复的原矩形。
 - 由 `PdfAnnotationSelectionClipboardActivityTest.areaEraserCutsNativeRectangleAnnotationAndUndoRestoresIt` 运行时采集。测试通过 stylus `MotionEvent` 注入真实 `PenCanvasView`，并检查磁盘页面数据和一次撤销；这是模拟器交互证据，不是实体触控笔验收。关闭保存成功提示后，撤销截图中没有常规保存提示。
 
 ![擦除前](reference-area-erase-native-before.png)
@@ -42,9 +42,9 @@
 
 ## 原生图形与自由笔迹混合撤销顺序
 
-- `reference-mixed-history-before.png` 与 `reference-mixed-history-undone.png` 由 `PdfAnnotationSelectionClipboardActivityTest.interleavedShapesAndInkUndoInGestureOrder` 在 Android 14 API 34 ARM64 AVD、1080 × 2400、420 dpi 上采集；运行代码为 `b6faae1`。测试在同一页依次写入原生图形、自由笔迹、原生图形，再连续撤销三次并重做三次。
+- `reference-mixed-history-before.png` 与 `reference-mixed-history-undone.png` 由 `PdfAnnotationSelectionClipboardActivityTest.interleavedShapesAndInkUndoInGestureOrder` 在 Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi 上采集；运行代码为 `0458e5b`。测试在同一页依次写入原生图形、自由笔迹、原生图形，再连续撤销三次并重做三次。识别手势由多段 stylus 事件采样后停留触发。
 - 测试检查每一步的 `annotations.json` 类型数量；三次撤销后页面对象为空，截图显示画布已清空。重做后恢复到两个原生图形和一个自由笔迹。输入为注入到真实阅读器 `PenCanvasView` 的合成 stylus `MotionEvent`，不是实体触控笔。
-- 该实现将操作顺序路由到 Android 现有的批注历史和笔迹历史，未移植参考应用的中心 `ActionStack` 对象模型。跨层单次橡皮事务、异步保存失败竞态、OCR 与进程重建仍未完成验证。
+- 该实现将操作顺序路由到 Android 现有的批注历史和笔迹历史，未移植参考应用的中心 `ActionStack` 对象模型。区域橡皮跨层单步事务已有单独验证；其他跨层操作、保存失败竞态、OCR 与进程重建仍未完成验证。
 
 初始状态（图形—笔迹—图形）：
 
@@ -54,11 +54,34 @@
 
 ![三次撤销后画布为空](reference-mixed-history-undone.png)
 
+## 跨层区域擦除单步撤销与重做
+
+- 验收用例 `REF-ERASE-03`：`PdfAnnotationSelectionClipboardActivityTest.oneAreaEraseGestureAcrossFreehandAndNativeShapeIsOneUndoStep`。在同一条连续区域橡皮手势中擦过原生矩形和自由笔迹，检查两层都被切开；一次撤销恢复两层，一次重做再次擦除。
+- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题；测试生成的 PDF、合成 stylus `MotionEvent`，不是实体触控笔。运行代码 commit `0458e5b`。
+- 四张完整屏幕截图来自应用运行中的 `UiAutomation.takeScreenshot()`：`reference-area-erase-mixed-before.png`（擦除前）、`reference-area-erase-mixed-erased.png`（一条手势擦除两层）、`reference-area-erase-mixed-undo.png`（一次撤销恢复矩形和笔迹）、`reference-area-erase-mixed-redo.png`（一次重做再次擦除）。
+- 页面文件格式不变。实现只把同一擦除手势关联的笔迹历史和原生批注历史作为一个用户可见撤销项；它仍使用 Android 两套页面快照，并未完整移植参考项目的中心 `ActionStack`。其他跨层编辑、失败注入、进程重启和真机笔迹尚未验证。
+
+擦除前：
+
+![跨层区域擦除前的横屏平板画面](reference-area-erase-mixed-before.png)
+
+擦除后：
+
+![一次区域橡皮手势擦除原生矩形和自由笔迹](reference-area-erase-mixed-erased.png)
+
+一次撤销恢复：
+
+![一次撤销恢复跨层擦除前的矩形与笔迹](reference-area-erase-mixed-undo.png)
+
+一次重做：
+
+![一次重做再次擦除矩形与笔迹](reference-area-erase-mixed-redo.png)
+
 ## 参考区域多材料选择
 
 - 验收用例 `REF-SELECT-01`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction`。在选择工具下套索选中两段自由笔迹和一个原生矩形，删除后执行一次撤销；用例检查页面数据为空并由一次撤销恢复原始三项。
 - 回归用例 `REF-SELECT-02`：`InkSelectionClipboardActivityTest.selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage`。选中一段笔迹、复制并粘贴，再删除粘贴项；检查旧选区不会残留，并验证一次撤销／重做和页面持久化。
-- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34` AVD，横屏 2560 × 1600、320 dpi、浅色界面。运行代码 commit：`1f3080f`。测试使用合成 PDF 和注入到真实阅读器 `PenCanvasView` 的 stylus `MotionEvent`，不是实体手写笔。
+- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色界面。运行代码 commit：`0458e5b`。测试使用合成 PDF 和注入到真实阅读器 `PenCanvasView` 的 stylus `MotionEvent`，不是实体手写笔。
 - 四张 2560 × 1600 完整屏幕图均由上述 Activity 用例通过 Android `UiAutomation.takeScreenshot()` 从运行中的应用采集；不是拼接或设计稿。用例本身和笔迹模块 54 项设备测试在该横屏平板通过。全量 App 设备套件本次未完成：运行到 99/276 时已观察到 8 项失败后停止；其中单选复制粘贴回归已修复并单独重跑通过，剩余 7 项涉及书架窄屏导航节点、Markdown/Mermaid 预览超时、3D 截图像素差、笔记导入导出菜单节点和长 Markdown 编辑超时，尚未定位或单独复验。
 - 选择逻辑参照恢复源码中的 `Selector.selectMaterials`、`Material.isInRegion` 和 `SelectionManager.deleteMaterialsAction`：框选材料并聚合选择边界，删除生成可撤销操作。当前适配只实现混合材料的套索选择、删除及一次撤销；组复制、移动和样式编辑尚未实现，不能据此声称完整移植了参考项目选择器。Android 以外的平台与项目文件格式未改动。
 
