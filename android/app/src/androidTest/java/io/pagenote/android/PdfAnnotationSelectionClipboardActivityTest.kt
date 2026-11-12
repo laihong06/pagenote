@@ -44,6 +44,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Ignore
 import org.junit.runner.RunWith
 import java.io.IOException
 import java.io.ByteArrayOutputStream
@@ -54,6 +55,67 @@ import java.util.concurrent.atomic.AtomicReference
 class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+
+  @Test
+  @Ignore("Known defect: interleaved ink and annotation histories are not yet unified")
+  fun interleavedShapesAndInkUndoInGestureOrder() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val penFile = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.notesMarkdown.value = "# Note"
+      session.noteDraft.value = "# Note"
+      session.penStore.value = penFile
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      fun stroke(y: Float, long: Boolean) {
+        val now = SystemClock.uptimeMillis()
+        val x = canvas.width * .2f
+        val end = canvas.width * if (long) .75f else .23f
+        dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, now, now)
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, end, y, .5f, now, now + 10)
+        if (long) Thread.sleep(650)
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, now, now + if (long) 700 else 20)
+      }
+      fun types(): List<String> = annotations.readPage("document", 1).map { (it as JsonObject)["type"]!!.jsonPrimitive.content }.sorted()
+      fun expect(vararg expected: String) { composeRule.waitUntil(10_000) { runCatching { types() == expected.sorted() }.getOrDefault(false) } }
+      fun command(id: String) {
+        revealReaderMenuCommand(composeRule, "handwriting", id)
+        composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo().performClick()
+      }
+      stroke(canvas.height * .2f, true); expect("line")
+      stroke(canvas.height * .5f, false); expect("line", "pen")
+      stroke(canvas.height * .7f, true); expect("line", "line", "pen")
+      command("pen_undo"); expect("line", "pen")
+      command("pen_undo"); expect("line")
+      command("pen_undo"); expect()
+      command("pen_redo"); expect("line")
+      command("pen_redo"); expect("line", "pen")
+      command("pen_redo"); expect("line", "line", "pen")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
 
   @Test fun undoWhileInkSaveQueuedTargetsTheLatestInkGesture() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
