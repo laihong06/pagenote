@@ -113,6 +113,65 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test fun referenceCurvePersistsAndUndoesAsOneStroke() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      val startX = canvas.width * .15f
+      val endX = canvas.width * .8f
+      val startY = canvas.height * .4f
+      val controlY = startY - canvas.height * .45f
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, startY, .5f, time, time)
+      for (step in 1..40) {
+        val t = step / 40f
+        val inverse = 1f - t
+        val x = startX * inverse * inverse + ((startX + endX) / 2f) * 2f * inverse * t + endX * t * t
+        val y = startY * inverse * inverse + controlY * 2f * inverse * t + startY * t * t
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, x, y, .5f, time, time + step * 10)
+      }
+      Thread.sleep(650)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, endX, startY, .5f, time, time + 1100)
+      waitForAnnotations(annotations) { items -> items.size == 1 && (items[0] as JsonObject)[PenStroke.CURVE_FIELD]?.jsonPrimitive?.content == "true" }
+      val saved = annotations.readPage("document", 1)[0] as JsonObject
+      assertEquals("pen", saved["type"]?.jsonPrimitive?.content)
+      assertEquals(33, saved["points"]!!.jsonArray.size)
+      val target = InstrumentationRegistry.getInstrumentation().targetContext
+      val screenshotUri = target.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, "reference-curve.png")
+        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/PageNoteEvidence")
+      })
+      checkNotNull(screenshotUri)
+      composeRule.waitForIdle()
+      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
+        target.contentResolver.openOutputStream(screenshotUri).use { stream ->
+          checkNotNull(stream)
+          bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+        }
+        bitmap.recycle()
+      }
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)

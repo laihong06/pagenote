@@ -9,3 +9,8 @@
 - `reference-polyline.png`：Android 14 ARM64 模拟器、1080 × 2400、420 dpi，合成 PDF 项目。通过 `PdfAnnotationSelectionClipboardActivityTest.referencePolylinePersistsAndUndoesAsOneStroke` 模拟先横后竖的手写笔输入；截图在一个 `pen` 对象保存后、撤销前采集。
 - 本截图展示运行后的折线渲染，底部笔记编辑面板是测试项目工作区的一部分。对应产品代码 commit 记录在本文件的 Git 历史中；相同轨迹的基线截图尚未采集。
 - 端到端测试验证落盘仍为单个多点 `pen` 对象且带 `pagenotePolyline`，一次撤销后该对象被移除。桌面运行/重开、真机、横屏及参考 App 运行时对比仍未验证。此截图不证明曲线、闭合图形、统一动作历史或多材料选择。
+
+## 参考曲线运行截图
+
+- `reference-curve.png`：Android 14 ARM64 模拟器、1080 × 2400、420 dpi，合成 PDF 项目。测试输入一段弧线；图中显示参考 `BezierTool` 路径提交后的多点曲线笔迹。
+- 对应产品源码在本次 PR 的曲线里程碑提交中。阅读器端到端测试确认保存为 33 点 `pen` 对象并可一次撤销；参考程序运行时差分、桌面打开/保存往返、真机和横屏尚未验证。截图来自菜单切换附近的运行状态，不能代表最终菜单视觉验收。

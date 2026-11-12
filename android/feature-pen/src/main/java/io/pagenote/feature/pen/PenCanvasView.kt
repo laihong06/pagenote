@@ -178,13 +178,17 @@ class PenCanvasView @JvmOverloads constructor(
         if (tool == PenCanvasTool.LASER) {
           PenStrokePainter.drawLaser(canvas, activePoints, activeColor, activeWidth, geometry)
         } else if (preview != null) {
-          val isPolyline = preview.type == "polyline"
+          val isSegmentPath = preview.type == "polyline" || preview.type == "curve"
           PenStrokePainter.drawStroke(
             canvas,
             PenStroke(
-              if (isPolyline) "pen" else preview.type,
+              if (isSegmentPath) "pen" else preview.type,
               activeColor, activeWidth, preview.points,
-              extraFields = if (isPolyline) mapOf(PenStroke.POLYLINE_FIELD to true) else emptyMap(),
+              extraFields = when (preview.type) {
+                "polyline" -> mapOf(PenStroke.POLYLINE_FIELD to true)
+                "curve" -> mapOf(PenStroke.CURVE_FIELD to true)
+                else -> emptyMap()
+              },
             ),
             geometry,
           )
@@ -639,12 +643,13 @@ class PenCanvasView @JvmOverloads constructor(
     )
     PenValidation.validate(stroke, 1)
     val shape = shapePreview
-    if (shape?.type == "polyline") {
-      val polyline = stroke.copy(points = shape.points, extraFields = mapOf(PenStroke.POLYLINE_FIELD to true))
-      PenValidation.validate(polyline, 1)
-      internalStrokes = internalStrokes + polyline
-      strokeCache.appendStroke(polyline, geometry())
-      onStrokeAdded?.invoke(polyline)
+    if (shape?.type == "polyline" || shape?.type == "curve") {
+      val field = if (shape.type == "curve") PenStroke.CURVE_FIELD else PenStroke.POLYLINE_FIELD
+      val segmentPath = stroke.copy(points = shape.points, extraFields = mapOf(field to true))
+      PenValidation.validate(segmentPath, 1)
+      internalStrokes = internalStrokes + segmentPath
+      strokeCache.appendStroke(segmentPath, geometry())
+      onStrokeAdded?.invoke(segmentPath)
       return
     }
     val consumed = shape != null && runCatching {

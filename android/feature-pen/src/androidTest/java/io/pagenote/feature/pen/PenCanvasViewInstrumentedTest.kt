@@ -34,6 +34,28 @@ class PenCanvasViewInstrumentedTest {
     assertEquals(true, added.single().extraFields["pagenotePolyline"])
     assertEquals(3, added.single().points.size)
   }
+  @Test fun referenceCurveCommitsTheBezierAsOneMarkedStroke() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    onUi {
+      canvas = createCanvas().apply { onStrokeAdded = added::add }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 50f, 300f, .5f, 1)
+      for (step in 1..40) {
+        val t = step / 40f
+        val inverse = 1f - t
+        val x = 50f * inverse * inverse + 250f * 2f * inverse * t + 450f * t * t
+        val y = 300f * inverse * inverse + 50f * 2f * inverse * t + 300f * t * t
+        dispatchTouch(canvas, MotionEvent.ACTION_MOVE, x, y, .5f, (step + 1).toLong())
+      }
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 450f, 300f, .5f, 42) }
+    assertEquals(1, added.size)
+    assertEquals("pen", added.single().type)
+    assertEquals(true, added.single().extraFields[PenStroke.CURVE_FIELD])
+    assertEquals(33, added.single().points.size)
+    assertEquals(350f, added.single().points[16].y, 2f)
+  }
   @Test fun referenceLineUsesSampledScreenEndpoints() {
     lateinit var canvas: PenCanvasView
     val recognized = mutableListOf<PenRecognizedShape>()
@@ -51,19 +73,19 @@ class PenCanvasViewInstrumentedTest {
     assertEquals(160f, recognized.single().first.x, .01f)
     assertEquals(480f, recognized.single().second.x, .01f)
   }
-  @Test fun sampledMovesStillRecognizeAStationaryLine() {
+  @Test fun sampledFlatLineUsesTheReferenceBezierBranch() {
     lateinit var canvas: PenCanvasView
-    val recognized = mutableListOf<PenRecognizedShape>()
+    val added = mutableListOf<PenStroke>()
     onUi {
-      canvas = createCanvas().apply {
-        onShapeRecognized = { shape, _ -> recognized.add(shape); true }
-      }
+      canvas = createCanvas().apply { onStrokeAdded = added::add }
       dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, .5f, 1)
       for (i in 1..40) dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 40f + i * 5f, 80f, .5f, (i + 1).toLong())
     }
     Thread.sleep(650)
     onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, .5f, 50) }
-    assertEquals(listOf("line"), recognized.map { it.type })
+    assertEquals(1, added.size)
+    assertEquals(true, added.single().extraFields[PenStroke.CURVE_FIELD])
+    assertTrue(added.single().points.all { kotlin.math.abs(it.y - added.single().points.first().y) < .01f })
   }
   @Test fun slowCancelledRecognitionDoesNotDelayNextCanvas() {
     val firstStarted = CountDownLatch(1)

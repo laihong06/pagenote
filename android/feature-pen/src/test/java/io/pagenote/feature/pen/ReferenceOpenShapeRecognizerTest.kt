@@ -24,6 +24,28 @@ class ReferenceOpenShapeRecognizerTest {
     assertTrue(ReferenceBrokenLine.find(screenPoints, 15f).isNotEmpty())
     assertEquals("polyline", ReferenceOpenShapeRecognizer.recognize(sampled, geometry, 1f)?.type)
   }
+  @Test fun referenceCurveUsesTheDetectedControlPoint() {
+    val geometry = PenCanvasGeometry(1000f, 800f)
+    val sampled = (0..40).map { step ->
+      val t = step / 40f
+      val u = 1f - t
+      val x = 100f * u * u + 500f * 2f * u * t + 900f * t * t
+      val y = 600f * u * u + 100f * 2f * u * t + 600f * t * t
+      x to y
+    }
+    val shape = ReferenceOpenShapeRecognizer.recognize(sampled, geometry, 1f)
+    assertEquals("curve", shape?.type)
+    assertEquals(33, shape?.points?.size)
+    assertEquals(350f, shape!!.points[16].y, 1f)
+  }
+  @Test fun sampledFlatLineFollowsTheReferenceBezierBranch() {
+    val points = (0..40).map { (40f + it * 5f) to 80f }
+    val classified = ReferenceLineClassifier.classify(points.map { (x, y) -> PenPoint(x, y, 1f) })
+    assertEquals(6, classified.controlIndex)
+    val shape = ReferenceOpenShapeRecognizer.recognize(points, PenCanvasGeometry(500f, 500f), 3f)
+    assertEquals("curve", shape?.type)
+    assertTrue(shape!!.points.all { kotlin.math.abs(it.y - shape.points.first().y) < .01f })
+  }
   @Test fun convertsSampledScreenEndpointsThroughZoomPanAndRotation() {
     val geometry = PenCanvasGeometry(600f, 800f,
       PenCanvasPageTransform(400f, 600f, scale = 1.5f, translationX = 15f, rotationDegrees = 90f))

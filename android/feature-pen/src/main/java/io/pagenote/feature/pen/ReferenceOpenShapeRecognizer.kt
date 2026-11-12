@@ -2,6 +2,7 @@ package io.pagenote.feature.pen
 
 import kotlin.math.hypot
 import kotlin.math.abs
+import kotlin.math.min
 
 /** Open straight/arrow branch of GraphUtils.recogniseShape and createLine. */
 internal object ReferenceOpenShapeRecognizer {
@@ -39,7 +40,31 @@ internal object ReferenceOpenShapeRecognizer {
       return PenRecognizedShape("polyline", result.first(), result.last(), result)
     }
     val classification = ReferenceLineClassifier.classify(points)
-    if (classification.controlIndex != 0) return null
+    if (classification.controlIndex != 0) {
+      if (classification.arrow || classification.controlIndex !in 1 until points.lastIndex) return null
+      val left = points.minOf { it.x }
+      val right = points.maxOf { it.x }
+      val top = points.minOf { it.y }
+      val bottom = points.maxOf { it.y }
+      val direct = hypot(last.x - first.x, last.y - first.y)
+      if (direct <= min(right - left, bottom - top)) return null
+
+      // GraphUtils creates BezierTool(start, detected point, end). BezierTool
+      // turns that on-curve midpoint into the quadratic's control point.
+      val detected = points[classification.controlIndex]
+      val midpointX = (first.x + last.x) / 2f
+      val midpointY = (first.y + last.y) / 2f
+      val controlX = midpointX + 2f * (detected.x - midpointX)
+      val controlY = midpointY + 2f * (detected.y - midpointY)
+      val curvePoints = (0..32).map { step ->
+        val t = step / 32f
+        val inverse = 1f - t
+        val x = inverse * inverse * first.x + 2f * inverse * t * controlX + t * t * last.x
+        val y = inverse * inverse * first.y + 2f * inverse * t * controlY + t * t * last.y
+        geometry.toDocumentPoint(x, y, 1f) ?: return null
+      }
+      return PenRecognizedShape("curve", curvePoints.first(), curvePoints.last(), curvePoints)
+    }
     val endExclusive = if (classification.arrow) classification.arrowPosition else points.size
     if (endExclusive <= 3 || endExclusive > points.size) return null
     val end = points[endExclusive - 1]

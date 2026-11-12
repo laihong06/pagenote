@@ -43,6 +43,7 @@ data class PenStroke(
 
   companion object {
     const val POLYLINE_FIELD = "pagenotePolyline"
+    const val CURVE_FIELD = "pagenoteCurve"
     internal val CANONICAL_ANNOTATION_FIELDS = setOf(
       "type", "color", "width", "points", "pressures", "text", "html", "url",
     )

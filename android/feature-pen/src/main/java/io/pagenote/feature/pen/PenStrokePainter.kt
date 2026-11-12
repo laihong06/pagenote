@@ -67,7 +67,8 @@ object PenStrokePainter {
         }
       }
       "pen" -> {
-        if (stroke.extraFields[PenStroke.POLYLINE_FIELD] == true && points.size >= 2) {
+        if ((stroke.extraFields[PenStroke.POLYLINE_FIELD] == true ||
+              stroke.extraFields[PenStroke.CURVE_FIELD] == true) && points.size >= 2) {
           scratchPath.rewind()
           scratchPath.moveTo(points.first().x, points.first().y)
           points.drop(1).forEach { scratchPath.lineTo(it.x, it.y) }
