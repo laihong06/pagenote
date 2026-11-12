@@ -25,4 +25,5 @@ dependencies {
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
   implementation(project(":core-project"))
+  implementation("io.pagenote.thirdparty:opencv-android:4.10.0-pagenote.1")
 }

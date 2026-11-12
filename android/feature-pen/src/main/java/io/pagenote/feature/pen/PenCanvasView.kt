@@ -180,7 +180,7 @@ class PenCanvasView @JvmOverloads constructor(
         if (tool == PenCanvasTool.LASER) {
           PenStrokePainter.drawLaser(canvas, activePoints, activeColor, activeWidth, geometry)
         } else if (preview != null) {
-          val isSegmentPath = preview.type == "polyline" || preview.type == "curve"
+          val isSegmentPath = preview.type == "polyline" || preview.type == "curve" || preview.type == "closedPath"
           PenStrokePainter.drawStroke(
             canvas,
             PenStroke(
@@ -189,6 +189,7 @@ class PenCanvasView @JvmOverloads constructor(
               extraFields = when (preview.type) {
                 "polyline" -> mapOf(PenStroke.POLYLINE_FIELD to true)
                 "curve" -> mapOf(PenStroke.CURVE_FIELD to true)
+                "closedPath" -> mapOf(PenStroke.POLYLINE_FIELD to true)
                 else -> emptyMap()
               },
             ),
@@ -545,8 +546,8 @@ class PenCanvasView @JvmOverloads constructor(
             if (generation != shapeGeneration.get()) return@execute
             val result = runCatching {
               if (recognize != null) recognize(points)
-              else runCatching { ReferenceOpenShapeRecognizer.recognize(screenPoints, canvasGeometry, density) }.getOrNull()
-                ?: PenShapeRecognizer.recognize(points)
+              else ReferenceOpenShapeRecognizer.recognize(screenPoints, canvasGeometry, density)
+                ?: ReferenceClosedShapeRecognizer.recognize(screenPoints, canvasGeometry, density)
             }.getOrNull()
             shapeHandler.post {
               if (generation == shapeGeneration.get() && inputEnabled && activePointerId != INVALID_POINTER &&
@@ -646,7 +647,7 @@ class PenCanvasView @JvmOverloads constructor(
     )
     PenValidation.validate(stroke, 1)
     val shape = shapePreview
-    if (shape?.type == "polyline" || shape?.type == "curve") {
+    if (shape?.type == "polyline" || shape?.type == "curve" || shape?.type == "closedPath") {
       val field = if (shape.type == "curve") PenStroke.CURVE_FIELD else PenStroke.POLYLINE_FIELD
       val segmentPath = stroke.copy(points = shape.points, extraFields = mapOf(field to true))
       PenValidation.validate(segmentPath, 1)

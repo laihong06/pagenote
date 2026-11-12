@@ -249,6 +249,64 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test fun referenceClosedEllipsePersistsAsOneClosedPolylineAndUndoes() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      saveAnnotationEvidence("reference-closed-ellipse-before.png")
+
+      val centerX = canvas.width * .5f
+      val centerY = canvas.height * .4f
+      val radiusX = canvas.width * .16f
+      val radiusY = canvas.width * .07f
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, centerX + radiusX, centerY, .5f, time, time)
+      for (step in 1..64) {
+        val angle = step / 64.0 * 2.0 * Math.PI
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          centerX + kotlin.math.cos(angle).toFloat() * radiusX,
+          centerY + kotlin.math.sin(angle).toFloat() * radiusY,
+          .5f,
+          time,
+          time + step * 10,
+        )
+      }
+      Thread.sleep(900)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, centerX + radiusX, centerY, .5f, time, time + 1000)
+      waitForAnnotations(annotations) { items ->
+        items.size == 1 && (items[0] as? JsonObject)?.get(PenStroke.POLYLINE_FIELD)?.jsonPrimitive?.content == "true"
+      }
+      val saved = annotations.readPage("document", 1).single() as JsonObject
+      val points = points(saved)
+      assertEquals("pen", saved["type"]?.jsonPrimitive?.content)
+      assertTrue(points.size >= 20)
+      assertEquals(points[0], points[points.lastIndex - 1], 1.0)
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-closed-ellipse.png")
+
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)

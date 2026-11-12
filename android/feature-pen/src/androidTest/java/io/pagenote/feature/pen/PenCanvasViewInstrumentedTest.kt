@@ -56,6 +56,33 @@ class PenCanvasViewInstrumentedTest {
     assertEquals(33, added.single().points.size)
     assertEquals(350f, added.single().points[16].y, 2f)
   }
+  @Test fun referenceEllipseDwellCommitsOneMarkedClosedStroke() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    onUi {
+      canvas = createCanvas().apply { onStrokeAdded = added::add }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 410f, 250f, .5f, 1)
+      for (step in 1..64) {
+        val angle = step / 64f * (2f * Math.PI.toFloat())
+        dispatchTouch(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          250f + kotlin.math.cos(angle) * 160f,
+          250f + kotlin.math.sin(angle) * 75f,
+          .5f,
+          (step + 1).toLong(),
+        )
+      }
+    }
+    Thread.sleep(700)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 410f, 250f, .5f, 66) }
+
+    assertEquals(1, added.size)
+    assertEquals("pen", added.single().type)
+    assertEquals(true, added.single().extraFields[PenStroke.POLYLINE_FIELD])
+    assertEquals(added.single().points.first(), added.single().points.last())
+    assertTrue(added.single().points.size >= 20)
+  }
   @Test fun referenceLineUsesSampledScreenEndpoints() {
     lateinit var canvas: PenCanvasView
     val recognized = mutableListOf<PenRecognizedShape>()
@@ -297,10 +324,12 @@ class PenCanvasViewInstrumentedTest {
         }
       }
       dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 80f, 0.5f, 2)
-      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 240f, 80f, 0.7f, 3)
+      for (step in 1..5) {
+        dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 40f + step * 40f, 80f, 0.7f, (step + 2).toLong())
+      }
     }
     Thread.sleep(650)
-    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.6f, 4) }
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 240f, 80f, 0.6f, 8) }
 
     assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
     assertTrue("recognized shape must not also be persisted as freehand", added.isEmpty())
