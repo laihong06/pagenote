@@ -44,7 +44,6 @@ class PenCanvasView @JvmOverloads constructor(
   }
   private var eraserPosition: Pair<Float, Float>? = null
   private val activePoints = mutableListOf<PenPoint>()
-  private var activePathLength = 0f
   private val shapeGeneration = AtomicLong()
   internal var shapeRecognizer: ((List<PenPoint>) -> PenRecognizedShape?)? = null
   private val shapeHandler = Handler(Looper.getMainLooper())
@@ -605,7 +604,6 @@ class PenCanvasView @JvmOverloads constructor(
     if (gestureTool != nextTool) {
       clearShapeRecognition(cancelled = true)
       activePoints.clear()
-      activePathLength = 0f
       gestureTool = nextTool
     }
   }
@@ -625,7 +623,9 @@ class PenCanvasView @JvmOverloads constructor(
       return
     }
     val sampled = referenceShapeSampler.move(xPx, yPx, 5f * resources.displayMetrics.density)
-    if (sampled && activePathLength >= MIN_RECOGNITION_PATH) {
+    if (sampled) {
+      // GraphUtils applies its minimums in sampled screen coordinates per shape branch. A
+      // generic document-space path-length gate here incorrectly rejects short valid lines.
       cancelShapeDwell()
       shapeDwellAnchor = xPx to yPx
       val task = Runnable {
@@ -692,11 +692,7 @@ class PenCanvasView @JvmOverloads constructor(
   private fun addPoint(xPx: Float, yPx: Float, pressure: Float) {
     val point = geometry()
       .toDocumentPoint(xPx, yPx, (gestureTool ?: selectedTool).pointPressure(pressure)) ?: return
-    val previous = activePoints.lastOrNull()
-    if (previous != point) {
-      if (previous != null) activePathLength += hypot(previous.x - point.x, previous.y - point.y)
-      activePoints.add(point)
-    }
+    if (activePoints.lastOrNull() != point) activePoints.add(point)
   }
 
   private fun eraseAt(xPx: Float, yPx: Float) {
@@ -778,7 +774,6 @@ class PenCanvasView @JvmOverloads constructor(
     eraserPosition = null
     activePoints.clear()
     liveStrokeCache.clear()
-    activePathLength = 0f
     shapePreview = null
     shapeDwellAnchor = null
     shapeRecognitionCancelled = false
@@ -813,7 +808,6 @@ class PenCanvasView @JvmOverloads constructor(
     const val ERASER_BUTTONS = MotionEvent.BUTTON_SECONDARY or MotionEvent.BUTTON_STYLUS_SECONDARY
     const val SELECTION_INSET = 8f
     const val SELECTION_MIN_SIZE = 24f
-    const val MIN_RECOGNITION_PATH = 48f
     // TouchEventManager.TIME_PAINT_SHAPE_AUTO in the supplied reference.
     const val SHAPE_DWELL_MS = 400L
   }

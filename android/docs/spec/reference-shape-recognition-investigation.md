@@ -11,6 +11,6 @@
 
 ## 当前缺口
 
-`GraphUtils.recogniseShape` 反编译结果含 `??` 类型、未解析变量和不可编译分支，并依赖原应用的 `PanelManager`、页面材料、坐标变换和 OpenCV。`ManagerHandler.handleMessage` 也只能从 smali 确认细节。必须逐段核对原 DEX、恢复可编译控制流，建立原实现与移植实现对同一输入的结果对照，再接入生产识形路径。
+生产路径位于 `PenCanvasView`，开放图形由 `ReferenceOpenShapeRecognizer` 处理，闭合轮廓由 `ReferenceClosedShapeRecognizer` 处理；结果再适配为现有 `annotations.json` 类型。2026-11-13 修正一处与参考阈值不符的额外门槛：原 `GraphUtils.isLine` 在采样端点距离超过 15px 后才继续判断，`createLine` 还要求长度超过 6dp；Android 原先另要求累计笔迹达到 48 个文档单位，导致符合参考屏幕阈值的短线漏识别。现在由对应识形分支执行阈值判定，`REF-SHAPE-05` 在 Android 14/API 34 横屏平板上覆盖 16px 采样端距、落盘为原生直线和一次撤销。
 
-目前生产代码仍是既有 `PenShapeRecognizer`，不是参考源码级实现；本次不将其行为或效果宣称为复刻完成。源码恢复、不同笔型与图形的基准样本、真机延迟与跨平台保存仍待完成。
+这不是完整源码级移植的完成声明。`GraphUtils.recogniseShape` 反编译结果仍含 `??` 类型、未解析变量和不可编译分支，并依赖原应用的 `PanelManager`、页面材料、坐标变换和 OpenCV；`ManagerHandler.handleMessage` 也只能从 smali 确认部分控制流。仍需与参考 App 的同组真实输入逐项运行差分，并覆盖不同笔型、真机性能和桌面重开文件验证。用户提供的研究包中 `BasePenExtend.onTouchEvent` 与 `ManagerHandler.handleMessage` 的缺失控制流也仍在待恢复清单内。

@@ -509,6 +509,50 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test fun referenceMinimumLengthLinePersistsAndUndoesAsNativeLine() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+
+      val startX = canvas.width * .15f
+      val y = canvas.height * .35f
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, y, .5f, time, time)
+      for (step in 1..4) {
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + step * 6f, y, .5f, time, time + step * 10)
+      }
+      Thread.sleep(650)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, startX + 24f, y, .5f, time, time + 700)
+      waitForAnnotations(annotations) {
+        it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line"
+      }
+      val saved = annotations.readPage("document", 1).single() as JsonObject
+      assertEquals("line", saved["type"]?.jsonPrimitive?.content)
+
+      composeRule.waitForIdle()
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-short-line.png")
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test
   fun interleavedShapesAndInkUndoInGestureOrder() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext

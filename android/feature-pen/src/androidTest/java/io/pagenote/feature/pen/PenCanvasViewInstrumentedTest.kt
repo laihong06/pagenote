@@ -100,6 +100,24 @@ class PenCanvasViewInstrumentedTest {
     assertEquals(160f, recognized.single().first.x, .01f)
     assertEquals(480f, recognized.single().second.x, .01f)
   }
+  @Test fun referenceMinimumLengthLineIsNotRejectedByDocumentSpaceGate() {
+    lateinit var canvas: PenCanvasView
+    val recognized = mutableListOf<PenRecognizedShape>()
+    onUi {
+      canvas = createCanvas().apply {
+        onShapeRecognized = { shape, _ -> recognized.add(shape); true }
+      }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 100f, 120f, .5f, 1)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 104f, 120f, .5f, 2)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 108f, 120f, .5f, 3)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 112f, 120f, .5f, 4)
+      dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 120f, 120f, .5f, 5)
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 120f, 120f, .5f, 6) }
+
+    assertEquals(listOf("line"), recognized.map(PenRecognizedShape::type))
+  }
   @Test fun sampledFlatLineUsesTheReferenceBezierBranch() {
     lateinit var canvas: PenCanvasView
     val added = mutableListOf<PenStroke>()
