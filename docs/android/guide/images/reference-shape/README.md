@@ -53,3 +53,27 @@
 连续撤销三次后的空白画布：
 
 ![三次撤销后画布为空](reference-mixed-history-undone.png)
+
+## 参考区域多材料选择
+
+- 验收用例 `REF-SELECT-01`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction`。在选择工具下套索选中两段自由笔迹和一个原生矩形，删除后执行一次撤销；用例检查页面数据为空并由一次撤销恢复原始三项。
+- 回归用例 `REF-SELECT-02`：`InkSelectionClipboardActivityTest.selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage`。选中一段笔迹、复制并粘贴，再删除粘贴项；检查旧选区不会残留，并验证一次撤销／重做和页面持久化。
+- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34` AVD，横屏 2560 × 1600、320 dpi、浅色界面。运行代码 commit：`1f3080f`。测试使用合成 PDF 和注入到真实阅读器 `PenCanvasView` 的 stylus `MotionEvent`，不是实体手写笔。
+- 四张 2560 × 1600 完整屏幕图均由上述 Activity 用例通过 Android `UiAutomation.takeScreenshot()` 从运行中的应用采集；不是拼接或设计稿。用例本身和笔迹模块 54 项设备测试在该横屏平板通过。全量 App 设备套件本次未完成：运行到 99/276 时已观察到 8 项失败后停止；其中单选复制粘贴回归已修复并单独重跑通过，剩余 7 项涉及书架窄屏导航节点、Markdown/Mermaid 预览超时、3D 截图像素差、笔记导入导出菜单节点和长 Markdown 编辑超时，尚未定位或单独复验。
+- 选择逻辑参照恢复源码中的 `Selector.selectMaterials`、`Material.isInRegion` 和 `SelectionManager.deleteMaterialsAction`：框选材料并聚合选择边界，删除生成可撤销操作。当前适配只实现混合材料的套索选择、删除及一次撤销；组复制、移动和样式编辑尚未实现，不能据此声称完整移植了参考项目选择器。Android 以外的平台与项目文件格式未改动。
+
+套索前：
+
+![横屏平板上启用选择工具，页面有两段笔迹和一个矩形](reference-region-selection-before.png)
+
+套索选中两段笔迹和原生矩形：
+
+![横屏平板上的混合材料聚合选框](reference-region-selection-selected.png)
+
+删除后：
+
+![横屏平板上的材料删除结果](reference-region-selection-deleted.png)
+
+一次撤销后恢复三项材料：
+
+![横屏平板上的混合材料撤销结果](reference-region-selection-undo.png)
