@@ -15,6 +15,17 @@ import org.junit.runner.RunWith
 class PenStrokeCacheInstrumentedTest {
   private val size = 500
 
+  @Test fun markedPolylineDrawsSharpCorner() {
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val stroke = PenStroke("pen", "#000000", 8.0,
+      listOf(PenPoint(100f, 100f, 1f), PenPoint(200f, 100f, 1f), PenPoint(200f, 200f, 1f)),
+      extraFields = mapOf(PenStroke.POLYLINE_FIELD to true))
+    PenStrokePainter.drawStroke(Canvas(bitmap), stroke, PenCanvasGeometry(500f, 500f))
+    assertTrue(android.graphics.Color.alpha(bitmap.getPixel(200, 100)) > 0)
+    assertEquals(0, android.graphics.Color.alpha(bitmap.getPixel(180, 120)))
+    bitmap.recycle()
+  }
+
   @Test
   fun pinchReusesInkRasterAndFinalFrameReturnsToExactRendering() {
     val list = strokes()

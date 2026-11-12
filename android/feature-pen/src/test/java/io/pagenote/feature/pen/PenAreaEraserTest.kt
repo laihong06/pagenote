@@ -4,6 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PenAreaEraserTest {
+  @Test fun polylineFragmentsKeepStraightRenderingAfterSaveAndUndo() {
+    val stroke = PenStroke("pen", "#000000", 2.0,
+      listOf(PenPoint(0f, 0f, 1f), PenPoint(100f, 0f, 1f), PenPoint(100f, 100f, 1f)),
+      extraFields = mapOf(PenStroke.POLYLINE_FIELD to true))
+    val store = PenPageStore().apply { addStroke(PenSide.DOCUMENT, 1, stroke) }
+    val edited = PenAreaEraser.erase(listOf(stroke), PenPoint(50f, 0f, 1f), PenPoint(50f, 0f, 1f), 4f)
+    assertEquals(2, edited.size)
+    assertTrue(edited.all { it.extraFields[PenStroke.POLYLINE_FIELD] == true })
+    assertTrue(store.replacePage(PenSide.DOCUMENT, 1, edited))
+    val loaded = PenPageStore().apply { loadAnnotationsMap(store.toAnnotationsMap()) }
+    assertEquals(edited, loaded.getItems(PenSide.DOCUMENT, 1))
+    assertTrue(store.undo(PenSide.DOCUMENT, 1))
+    assertEquals(listOf(stroke), store.getItems(PenSide.DOCUMENT, 1))
+  }
   @Test fun crossingStrokeKeepsBothSidesAndInterpolatesPressure() {
     val stroke = PenStroke("pen", "#000000", 2.0, listOf(PenPoint(0f, 0f, 0.2f), PenPoint(100f, 0f, 0.8f)))
     val result = PenAreaEraser.erase(listOf(stroke), PenPoint(50f,-10f,1f), PenPoint(50f,10f,1f), 4f)

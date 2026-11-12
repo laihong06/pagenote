@@ -6,6 +6,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReferenceOpenShapeRecognizerTest {
+  @Test fun referenceBrokenLineProducesOnePolyline() {
+    val geometry = PenCanvasGeometry(600f, 600f)
+    val horizontal = (0..20).map { 50f + it * 5f to 100f }
+    val vertical = (1..20).map { 150f to 100f + it * 5f }
+    val shape = ReferenceOpenShapeRecognizer.recognize(horizontal + vertical, geometry, 1f)
+    assertEquals("polyline", shape?.type)
+  }
   @Test fun arrowLikePolylineKeepsReferenceBrokenLinePriority() {
     val geometry = PenCanvasGeometry(600f, 600f)
     val shaft = (0..30).map { 40f + it * 10f to 300f }
@@ -15,7 +22,7 @@ class ReferenceOpenShapeRecognizerTest {
     val sampled = shaft + wing + returnToTip + otherWing
     val screenPoints = sampled.map { (x, y) -> PenPoint(x, y, 1f) }
     assertTrue(ReferenceBrokenLine.find(screenPoints, 15f).isNotEmpty())
-    assertNull(ReferenceOpenShapeRecognizer.recognize(sampled, geometry, 1f))
+    assertEquals("polyline", ReferenceOpenShapeRecognizer.recognize(sampled, geometry, 1f)?.type)
   }
   @Test fun convertsSampledScreenEndpointsThroughZoomPanAndRotation() {
     val geometry = PenCanvasGeometry(600f, 800f,

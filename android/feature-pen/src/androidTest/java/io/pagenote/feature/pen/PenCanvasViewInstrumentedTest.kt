@@ -18,6 +18,22 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class PenCanvasViewInstrumentedTest {
+  @Test fun referencePolylineCommitsAsOneStraightSegmentStroke() {
+    lateinit var canvas: PenCanvasView
+    val added = mutableListOf<PenStroke>()
+    onUi {
+      canvas = createCanvas().apply { onStrokeAdded = added::add }
+      dispatchTouch(canvas, MotionEvent.ACTION_DOWN, 40f, 100f, .5f, 1)
+      for (i in 1..20) dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 40f + i * 5f, 100f, .5f, (i + 1).toLong())
+      for (i in 1..20) dispatchTouch(canvas, MotionEvent.ACTION_MOVE, 140f, 100f + i * 5f, .5f, (i + 21).toLong())
+    }
+    Thread.sleep(650)
+    onUi { dispatchTouch(canvas, MotionEvent.ACTION_UP, 140f, 200f, .5f, 42) }
+    assertEquals(1, added.size)
+    assertEquals("pen", added.single().type)
+    assertEquals(true, added.single().extraFields["pagenotePolyline"])
+    assertEquals(3, added.single().points.size)
+  }
   @Test fun referenceLineUsesSampledScreenEndpoints() {
     lateinit var canvas: PenCanvasView
     val recognized = mutableListOf<PenRecognizedShape>()

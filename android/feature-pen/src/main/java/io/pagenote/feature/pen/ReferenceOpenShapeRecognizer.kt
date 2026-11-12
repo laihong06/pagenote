@@ -1,6 +1,7 @@
 package io.pagenote.feature.pen
 
 import kotlin.math.hypot
+import kotlin.math.abs
 
 /** Open straight/arrow branch of GraphUtils.recogniseShape and createLine. */
 internal object ReferenceOpenShapeRecognizer {
@@ -15,7 +16,28 @@ internal object ReferenceOpenShapeRecognizer {
     val last = points.last()
     if (points.size > 10 && hypot(first.x - last.x, first.y - last.y) < 12f * density) return null
     // PageNote's viewport scale approximates the reference image-to-screen scale.
-    if (ReferenceBrokenLine.find(points, 15f * geometry.scale).isNotEmpty()) return null
+    val corners = ReferenceBrokenLine.find(points, 15f * geometry.scale)
+    if (corners.isNotEmpty()) {
+      val result = mutableListOf<PenPoint>()
+      val alignment = geometry.documentUnitsForPixels(20f)
+      for (index in listOf(0) + corners + points.lastIndex) {
+        val point = points[index]
+        result.add(geometry.toDocumentPoint(point.x, point.y, 1f) ?: return null)
+        if (result.size >= 3) {
+          val a = result[result.lastIndex - 2]
+          var b = result[result.lastIndex - 1]
+          var c = result[result.lastIndex]
+          if (abs(a.x - b.x) < alignment) b = b.copy(x = a.x)
+          if (abs(a.y - b.y) < alignment) b = b.copy(y = a.y)
+          if (abs(b.x - c.x) < alignment) c = c.copy(x = b.x)
+          if (abs(b.y - c.y) < alignment) c = c.copy(y = b.y)
+          result[result.lastIndex - 1] = b
+          result[result.lastIndex] = c
+        }
+      }
+      if (result.distinct().size < 2) return null
+      return PenRecognizedShape("polyline", result.first(), result.last(), result)
+    }
     val classification = ReferenceLineClassifier.classify(points)
     if (classification.controlIndex != 0) return null
     val endExclusive = if (classification.arrow) classification.arrowPosition else points.size

@@ -10,6 +10,7 @@ data class PenRecognizedShape(
   val type: String,
   val first: PenPoint,
   val second: PenPoint,
+  val points: List<PenPoint> = listOf(first, second),
 )
 
 object PenShapeRecognizer {

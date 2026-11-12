@@ -178,9 +178,14 @@ class PenCanvasView @JvmOverloads constructor(
         if (tool == PenCanvasTool.LASER) {
           PenStrokePainter.drawLaser(canvas, activePoints, activeColor, activeWidth, geometry)
         } else if (preview != null) {
+          val isPolyline = preview.type == "polyline"
           PenStrokePainter.drawStroke(
             canvas,
-            PenStroke(preview.type, activeColor, activeWidth, listOf(preview.first, preview.second)),
+            PenStroke(
+              if (isPolyline) "pen" else preview.type,
+              activeColor, activeWidth, preview.points,
+              extraFields = if (isPolyline) mapOf(PenStroke.POLYLINE_FIELD to true) else emptyMap(),
+            ),
             geometry,
           )
         } else if (tool == PenCanvasTool.PEN || tool == PenCanvasTool.BALLPOINT) {
@@ -634,6 +639,14 @@ class PenCanvasView @JvmOverloads constructor(
     )
     PenValidation.validate(stroke, 1)
     val shape = shapePreview
+    if (shape?.type == "polyline") {
+      val polyline = stroke.copy(points = shape.points, extraFields = mapOf(PenStroke.POLYLINE_FIELD to true))
+      PenValidation.validate(polyline, 1)
+      internalStrokes = internalStrokes + polyline
+      strokeCache.appendStroke(polyline, geometry())
+      onStrokeAdded?.invoke(polyline)
+      return
+    }
     val consumed = shape != null && runCatching {
       onShapeRecognized?.invoke(shape, stroke) == true
     }.getOrDefault(false)

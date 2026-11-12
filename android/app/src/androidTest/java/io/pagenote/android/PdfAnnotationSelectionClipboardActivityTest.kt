@@ -7,6 +7,8 @@ import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
+import android.provider.MediaStore
+import android.content.ContentValues
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -55,6 +57,61 @@ import java.util.concurrent.atomic.AtomicReference
 class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+
+  @Test fun referencePolylinePersistsAndUndoesAsOneStroke() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      val x = canvas.width * .2f
+      val y = canvas.height * .2f
+      val dx = canvas.width * .012f
+      val dy = canvas.height * .012f
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, x, y, .5f, time, time)
+      for (i in 1..20) dispatchStylus(canvas, MotionEvent.ACTION_MOVE, x + i * dx, y, .5f, time, time + i * 10)
+      for (i in 1..20) dispatchStylus(canvas, MotionEvent.ACTION_MOVE, x + 20 * dx, y + i * dy, .5f, time, time + (20 + i) * 10)
+      Thread.sleep(650)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, x + 20 * dx, y + 20 * dy, .5f, time, time + 1100)
+      waitForAnnotations(annotations) { items -> items.size == 1 && (items[0] as JsonObject)[PenStroke.POLYLINE_FIELD]?.jsonPrimitive?.content == "true" }
+      val saved = annotations.readPage("document", 1)[0] as JsonObject
+      assertEquals("pen", saved["type"]?.jsonPrimitive?.content)
+      assertTrue(saved["points"]!!.jsonArray.size >= 3)
+      composeRule.waitForIdle()
+      val target = InstrumentationRegistry.getInstrumentation().targetContext
+      val screenshotUri = target.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, "reference-polyline.png")
+        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/PageNoteEvidence")
+      })
+      checkNotNull(screenshotUri)
+      InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().also { bitmap ->
+        target.contentResolver.openOutputStream(screenshotUri).use { stream ->
+          checkNotNull(stream)
+          bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+        }
+        bitmap.recycle()
+      }
+      Thread.sleep(300) // Let MediaStore finish indexing the evidence image.
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
 
   @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
