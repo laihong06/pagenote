@@ -25,3 +25,17 @@
 ![橡皮擦手势中，显示边界与缺口](reference-area-erase-native-erasing.png)
 ![擦除后](reference-area-erase-native-after.png)
 ![撤销恢复后](reference-area-erase-native-undo.png)
+
+## 原生图形与自由笔迹混合撤销顺序
+
+- `reference-mixed-history-before.png` 与 `reference-mixed-history-undone.png` 由 `PdfAnnotationSelectionClipboardActivityTest.interleavedShapesAndInkUndoInGestureOrder` 在 Android 14 API 34 ARM64 AVD、1080 × 2400、420 dpi 上采集；运行代码为 `b6faae1`。测试在同一页依次写入原生图形、自由笔迹、原生图形，再连续撤销三次并重做三次。
+- 测试检查每一步的 `annotations.json` 类型数量；三次撤销后页面对象为空，截图显示画布已清空。重做后恢复到两个原生图形和一个自由笔迹。输入为注入到真实阅读器 `PenCanvasView` 的合成 stylus `MotionEvent`，不是实体触控笔。
+- 该实现将操作顺序路由到 Android 现有的批注历史和笔迹历史，未移植参考应用的中心 `ActionStack` 对象模型。跨层单次橡皮事务、异步保存失败竞态、OCR 与进程重建仍未完成验证。
+
+初始状态（图形—笔迹—图形）：
+
+![原生图形与笔迹交错编辑](reference-mixed-history-before.png)
+
+连续撤销三次后的空白画布：
+
+![三次撤销后画布为空](reference-mixed-history-undone.png)
