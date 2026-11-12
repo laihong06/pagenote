@@ -531,11 +531,11 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val y = canvas.height * .35f
       val time = SystemClock.uptimeMillis()
       dispatchStylus(canvas, MotionEvent.ACTION_DOWN, startX, y, .5f, time, time)
-      for (step in 1..4) {
-        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + step * 6f, y, .5f, time, time + step * 10)
+      listOf(4f, 8f, 12f, 20f).forEachIndexed { index, offset ->
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, startX + offset, y, .5f, time, time + (index + 1) * 10)
       }
       Thread.sleep(650)
-      dispatchStylus(canvas, MotionEvent.ACTION_UP, startX + 24f, y, .5f, time, time + 700)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, startX + 20f, y, .5f, time, time + 700)
       waitForAnnotations(annotations) {
         it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line"
       }

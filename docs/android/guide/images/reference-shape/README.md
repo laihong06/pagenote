@@ -4,6 +4,14 @@
 - `PdfAnnotationSelectionClipboardActivityTest.referenceSampledLinePersistsAndUndoRemovesIt` 注入多段 stylus `MotionEvent` 并停留；截图在原生直线落盘后、撤销前采集。测试读取页面数据核对采样端点并检查一次撤销清除直线。运行产品代码 commit `a5666a4`。
 - 此图是横屏平板上的运行结果，不含改前截图，也不代表实体触控笔、其他设备或参考应用运行时差分；桌面往返和维护者视觉对比尚未完成。
 
+## 参考阈值内的短直线
+
+- 验收用例 `REF-SHAPE-05`：`PdfAnnotationSelectionClipboardActivityTest.referenceMinimumLengthLinePersistsAndUndoesAsNativeLine`。16px 采样端点在旧的 48 文档单位门槛下会退回自由笔迹；移除额外门槛后按参考 `GraphUtils.isLine` / `createLine` 阈值识别为 `line`，保存后一次撤销清除。
+- `reference-short-line.png` 由 Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` 横屏 AVD（2560 × 1600、320 dpi）中的真实阅读器通过 `UiAutomation.takeScreenshot()` 采集，画面为短直线保存后、撤销前；运行产品代码 commit `fca9d56`。测试输入为合成 stylus `MotionEvent`，不是实体手写笔。
+- 本次只改识形候选门槛，界面布局和已有线条渲染不变；此截图展示短线落盘结果，不代表参考 App 运行时逐帧差分或其他平台往返。
+
+![横屏平板上按参考阈值识别并保存的短直线](reference-short-line.png)
+
 ## 参考折线运行截图
 
 - `reference-polyline.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi，合成 PDF 项目。`PdfAnnotationSelectionClipboardActivityTest.referencePolylinePersistsAndUndoesAsOneStroke` 模拟先横后竖的 stylus 输入；截图在单个 `pen` 对象保存后、撤销前采集。运行产品代码 commit `a5666a4`。
