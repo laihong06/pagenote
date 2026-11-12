@@ -684,6 +684,7 @@ class PenCanvasView @JvmOverloads constructor(
     const val SELECTION_INSET = 8f
     const val SELECTION_MIN_SIZE = 24f
     const val MIN_RECOGNITION_PATH = 48f
-    const val SHAPE_DWELL_MS = 550L
+    // TouchEventManager.TIME_PAINT_SHAPE_AUTO in the supplied reference.
+    const val SHAPE_DWELL_MS = 400L
   }
 }
