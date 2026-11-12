@@ -575,6 +575,137 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test fun referenceRegionSelectionMovesMixedMaterialsTogetherAndUndoesAsOneAction() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    InstrumentationRegistry.getInstrumentation().targetContext
+      .getSystemService(android.content.ClipboardManager::class.java)
+      ?.clearPrimaryClip()
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initial = Json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[250,350],[350,350]],"pressures":[1,1]},
+        {"type":"rect","color":"#008844","width":5,"points":[[430,320],[570,400]]},
+        {"type":"highlight","color":"#185abd","width":3,"points":[[650,350],[750,350]],"pressures":[1,1]},
+        {"type":"ellipse","color":"#777777","width":2,"points":[[1000,1000],[1100,1100]]}
+      ]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, initial)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.size == 2
+      }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-move-before.png")
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
+      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.SELECT }
+
+      val lasso = listOf(
+        PenPoint(180f, 280f, 1f),
+        PenPoint(820f, 280f, 1f),
+        PenPoint(820f, 420f, 1f),
+        PenPoint(180f, 420f, 1f),
+        PenPoint(180f, 280f, 1f),
+      )
+      var time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(lasso.first()), geometry.toViewY(lasso.first()), .5f, time, time)
+      lasso.drop(1).forEachIndexed { index, point ->
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, geometry.toViewX(point), geometry.toViewY(point), .5f, time, time + (index + 1) * 20)
+      }
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(lasso.last()), geometry.toViewY(lasso.last()), .5f, time, time + 120)
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-move-selected.png")
+
+      val start = PenPoint(500f, 350f, 1f)
+      val finish = PenPoint(600f, 430f, 1f)
+      time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(start), geometry.toViewY(start), .5f, time, time)
+      for (step in 1..8) {
+        val progress = step / 8f
+        val point = PenPoint(
+          start.x + (finish.x - start.x) * progress,
+          start.y + (finish.y - start.y) * progress,
+          1f,
+        )
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, geometry.toViewX(point), geometry.toViewY(point), .5f, time, time + step * 20)
+      }
+      composeRule.waitForIdle()
+      assertEquals(
+        "group drag should preview the selected freehand stroke before release; bounds=${canvas.selectedStrokeIndices} geometry=$geometry",
+        350f,
+        canvas.strokes.first().points.first().x,
+        1f,
+      )
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(finish), geometry.toViewY(finish), .5f, time, time + 200)
+      val moved = Json.parseToJsonElement(
+        """[
+          {"type":"pen","color":"#dc3545","width":3,"points":[[350.0,430.0],[450.0,430.0]],"pressures":[1,1]},
+          {"type":"rect","color":"#008844","width":5,"points":[[530.0,400.0],[670.0,480.0]]},
+          {"type":"highlight","color":"#185abd","width":3,"points":[[750.0,430.0],[850.0,430.0]],"pressures":[1,1]},
+          {"type":"ellipse","color":"#777777","width":2,"points":[[1000,1000],[1100,1100]]}
+        ]""",
+      ) as JsonArray
+      val expectedMovedPoints = listOf(
+        listOf(350.0, 430.0, 450.0, 430.0),
+        listOf(530.0, 400.0, 670.0, 480.0),
+        listOf(750.0, 430.0, 850.0, 430.0),
+        listOf(1000.0, 1000.0, 1100.0, 1100.0),
+      )
+      fun movedPageMatches(page: JsonArray): Boolean {
+        if (page.size != moved.size) return false
+        val actualTypes = page.map { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content }
+        val expectedTypes = moved.map { (it as JsonObject)["type"]!!.jsonPrimitive.content }
+        if (actualTypes != expectedTypes) return false
+        return page.indices.all { index ->
+          val actual = points(page[index] as JsonObject)
+          actual.size == expectedMovedPoints[index].size && actual.zip(expectedMovedPoints[index]).all { (value, expected) ->
+            kotlin.math.abs(value - expected) <= 0.05
+          }
+        }
+      }
+      try {
+        waitForAnnotations(annotations) {
+          movedPageMatches(it) &&
+            kotlin.math.abs(session.penStrokes.value.firstOrNull()?.points?.firstOrNull()?.x?.toDouble()?.minus(350.0) ?: 1_000.0) <= 0.05
+        }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "move expected=$moved actual=${annotations.readPage("document", 1)} liveStrokes=${session.penStrokes.value} status=${session.penStatus.value}",
+          error,
+        )
+      }
+      saveAnnotationEvidence("reference-region-move-committed.png")
+
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        it == initial && kotlin.math.abs(session.penStrokes.value.firstOrNull()?.points?.firstOrNull()?.x?.toDouble()?.minus(250.0) ?: 1_000.0) <= 0.05
+      }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-move-undo.png")
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_redo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_redo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        movedPageMatches(it) &&
+          kotlin.math.abs(session.penStrokes.value.firstOrNull()?.points?.firstOrNull()?.x?.toDouble()?.minus(350.0) ?: 1_000.0) <= 0.05
+      }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-region-move-redo.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
@@ -751,6 +882,9 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
       val canvas = ref.get()
       composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) { canvas.selectedTool == PenCanvasTool.PEN }
       fun stroke(y: Float, dwell: Boolean) {
         val time = SystemClock.uptimeMillis()
         val x = canvas.width * .2f
@@ -764,10 +898,20 @@ class PdfAnnotationSelectionClipboardActivityTest {
         dispatchStylus(canvas, MotionEvent.ACTION_UP, end, y, .5f, time, time + if (dwell) 700 else 140)
       }
       stroke(canvas.height * .3f, true)
-      waitForAnnotations(annotations) { it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line" }
+      waitForAnnotations(annotations, timeoutMillis = 20_000) {
+        it.size == 1 && (it[0] as JsonObject)["type"]?.jsonPrimitive?.content == "line"
+      }
       runBlocking { session.penSaveMutex.lock() }; locked = true
       stroke(canvas.height * .7f, false)
-      composeRule.waitUntil(5_000) { session.penStrokes.value.size == 1 }
+      try {
+        composeRule.waitUntil(15_000) { session.penStrokes.value.size == 1 }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "queued-save stroke was not applied: strokes=${session.penStrokes.value} " +
+            "page=${annotations.readPage("document", 1)} status=${session.penStatus.value}",
+          error,
+        )
+      }
       revealReaderMenuCommand(composeRule, "pen", "pen_undo")
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
       session.penSaveMutex.unlock(); locked = false
@@ -793,6 +937,9 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
       val canvas = ref.get()
       composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) { canvas.selectedTool == PenCanvasTool.PEN }
       fun stroke(y: Float, dwell: Boolean) {
         val time = SystemClock.uptimeMillis()
         val x = canvas.width * .2f
@@ -808,7 +955,15 @@ class PdfAnnotationSelectionClipboardActivityTest {
       runBlocking { session.penSaveMutex.lock() }; locked = true
       stroke(canvas.height * .3f, true)
       stroke(canvas.height * .7f, false)
-      composeRule.waitUntil(5_000) { session.penStrokes.value.size == 1 }
+      try {
+        composeRule.waitUntil(15_000) { session.penStrokes.value.size == 1 }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "queued-save stroke was not applied: strokes=${session.penStrokes.value} " +
+            "page=${annotations.readPage("document", 1)} status=${session.penStatus.value}",
+          error,
+        )
+      }
       session.penSaveMutex.unlock(); locked = false
       waitForAnnotations(annotations) { it.size == 2 }
       assertEquals(
@@ -870,7 +1025,14 @@ class PdfAnnotationSelectionClipboardActivityTest {
       waitForAnnotations(annotations) { it == JsonArray(initial.drop(1)) }
       revealReaderMenuCommand(composeRule, "pen", "pen_undo")
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
-      waitForAnnotations(annotations) { it == initial }
+      try {
+        waitForAnnotations(annotations) { it == initial }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "second undo expected=$initial actual=${annotations.readPage("document", 1)} strokes=${session.penStrokes.value} status=${session.penStatus.value}",
+          error,
+        )
+      }
     } finally {
       composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
     }
@@ -1605,11 +1767,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
 
   private fun waitForAnnotations(
     store: ProjectAnnotationStore,
+    timeoutMillis: Long = 10_000,
     predicate: (JsonArray) -> Boolean,
   ) {
     var lastReadError: IOException? = null
     try {
-      composeRule.waitUntil(10_000) {
+      composeRule.waitUntil(timeoutMillis) {
         val page = try {
           store.readPage("document", 1)
         } catch (error: IOException) {

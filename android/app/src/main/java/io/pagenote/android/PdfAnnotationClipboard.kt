@@ -340,12 +340,25 @@ internal object PdfAnnotationClipboard {
   }
 }
 
+internal data class PdfAnnotationHistoryRestore(
+  val page: JsonArray,
+  val orderContext: JsonArray,
+  /** Whether the edit being replayed changes both the annotation and ink layers. */
+  val includesFreehand: Boolean,
+)
+
 /** In-memory undo/redo snapshots isolated by project identity and document page. */
 internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
+  private data class Snapshot(
+    val page: JsonArray,
+    val orderContext: JsonArray,
+    val includesFreehand: Boolean,
+  )
+
   private data class PageState(
-    val undo: ArrayDeque<JsonArray> = ArrayDeque(),
-    val redo: ArrayDeque<JsonArray> = ArrayDeque(),
-    var current: JsonArray,
+    val undo: ArrayDeque<Snapshot> = ArrayDeque(),
+    val redo: ArrayDeque<Snapshot> = ArrayDeque(),
+    var current: Snapshot,
   )
 
   private val pages = mutableMapOf<Pair<String, Int>, PageState>()
@@ -373,41 +386,54 @@ internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
     }
     if (sameContent) return false
     val key = projectId to page
-    val state = pages.getOrPut(key) { PageState(current = historyBefore) }
+    val state = pages.getOrPut(key) { PageState(current = Snapshot(historyBefore, before, includesFreehand = false)) }
     val currentMatches = if (includeFreehand) {
-      AnnotationPageMerger.samePageContent(state.current, historyBefore)
+      AnnotationPageMerger.samePageContent(state.current.page, historyBefore)
     } else {
-      AnnotationPageMerger.sameAnnotationLayer(state.current, historyBefore)
+      AnnotationPageMerger.sameAnnotationLayer(state.current.page, historyBefore)
     }
     if (!currentMatches) {
       state.undo.clear()
       state.redo.clear()
-      state.current = historyBefore
+      state.current = Snapshot(historyBefore, before, includesFreehand = false)
     }
-    state.undo.addLast(historyBefore)
+    state.undo.addLast(Snapshot(historyBefore, before, state.current.includesFreehand))
     while (state.undo.size > maxEntries) state.undo.removeFirst()
     state.redo.clear()
-    state.current = historyAfter
+    state.current = Snapshot(historyAfter, after, includesFreehand = includeFreehand)
     return true
   }
 
-  fun undo(projectId: String, page: Int): JsonArray? {
+  fun undo(projectId: String, page: Int): JsonArray? = undoWithContext(projectId, page)?.page
+
+  fun undoWithContext(projectId: String, page: Int): PdfAnnotationHistoryRestore? {
     val state = pages[projectId to page] ?: return null
     if (state.undo.isEmpty()) return null
     state.redo.addLast(state.current)
+    val actionIncludesFreehand = state.current.includesFreehand
     state.current = state.undo.removeLast()
-    return state.current
+    return PdfAnnotationHistoryRestore(
+      page = state.current.page,
+      orderContext = state.current.orderContext,
+      includesFreehand = actionIncludesFreehand,
+    )
   }
 
-  fun redo(projectId: String, page: Int): JsonArray? {
+  fun redo(projectId: String, page: Int): JsonArray? = redoWithContext(projectId, page)?.page
+
+  fun redoWithContext(projectId: String, page: Int): PdfAnnotationHistoryRestore? {
     val state = pages[projectId to page] ?: return null
     if (state.redo.isEmpty()) return null
     state.undo.addLast(state.current)
     state.current = state.redo.removeLast()
-    return state.current
+    return PdfAnnotationHistoryRestore(
+      page = state.current.page,
+      orderContext = state.current.orderContext,
+      includesFreehand = state.current.includesFreehand,
+    )
   }
 
   fun canUndo(projectId: String, page: Int): Boolean = pages[projectId to page]?.undo?.isNotEmpty() == true
   fun canRedo(projectId: String, page: Int): Boolean = pages[projectId to page]?.redo?.isNotEmpty() == true
-  fun current(projectId: String, page: Int): JsonArray? = pages[projectId to page]?.current
+  fun current(projectId: String, page: Int): JsonArray? = pages[projectId to page]?.current?.page
 }

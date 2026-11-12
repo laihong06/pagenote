@@ -51,21 +51,22 @@ class AnnotationPageMergerTest {
     assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(latest, before, after))
   }
 
-  @Test fun ambiguousUndoInsertionWithNewInkIsRejected() {
+  @Test fun undoInsertionUsesSavedInkAnchorAndKeepsLaterInk() {
     fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
     val afterDeletion = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
     val original = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
     val latest = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]""")
-    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(latest, afterDeletion, original))
+    assertEquals(page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"},{"type":"pen","id":"new"}]"""),
+      AnnotationPageMerger.rebaseAnnotationHistory(latest, afterDeletion, original))
   }
 
-  @Test fun undoDeletionAfterPenSaveReordersLayersIsCurrentlyRejected() {
+  @Test fun undoDeletionRestoresPenPositionAfterPenSaveReordersLayers() {
     fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
     val afterDeletion = page("""[{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
     val original = page("""[{"type":"rect","id":"a"},{"type":"pen","id":"ink"},{"type":"rect","id":"b"}]""")
     // A later pen save followed by pen undo can put existing ink after shapes.
     val afterPenUndo = page("""[{"type":"rect","id":"b"},{"type":"pen","id":"ink"}]""")
-    assertEquals(null, AnnotationPageMerger.rebaseAnnotationHistory(afterPenUndo, afterDeletion, original))
+    assertEquals(original, AnnotationPageMerger.rebaseAnnotationHistory(afterPenUndo, afterDeletion, original))
   }
 
   @Test fun duplicateShapeDeletionWithNewInterleavedInkIsRejected() {

@@ -241,7 +241,6 @@ class PdfAnnotationClipboardTest {
       """[{"type":"line","id":"a","width":2},{"type":"line","id":"b"}]""",
     ) as JsonArray
     val normalizedShapeA = json.parseToJsonElement("""[{"type":"line","id":"a","width":2}]""") as JsonArray
-
     history.record("project", 1, empty, shapeA)
     history.record("project", 1, shapeAWithInk, shapeAWithInkAndShapeB)
 
@@ -249,6 +248,30 @@ class PdfAnnotationClipboardTest {
     assertEquals(empty, history.undo("project", 1))
     assertEquals(normalizedShapeA, history.redo("project", 1))
     assertEquals(nativeShapes, history.redo("project", 1))
+  }
+
+  @Test
+  fun annotationUndoRestoresTheOriginalPositionAroundInterleavedInk() {
+    val history = PdfAnnotationEditHistory()
+    val before = json.parseToJsonElement(
+      """[{"type":"rect","id":"first"},{"type":"pen","id":"ink"},{"type":"rect","id":"second"}]""",
+    ) as JsonArray
+    val after = json.parseToJsonElement(
+      """[{"type":"pen","id":"ink"},{"type":"rect","id":"second"}]""",
+    ) as JsonArray
+
+    assertTrue(history.record("project", 1, before, after))
+    val expected = history.current("project", 1)!!
+    val restore = history.undoWithContext("project", 1)!!
+
+    assertEquals(AnnotationPageMerger.annotationHistorySnapshot(before), restore.page)
+    assertEquals(before, restore.orderContext)
+    assertEquals(before, AnnotationPageMerger.rebaseAnnotationHistory(
+      after,
+      expected,
+      restore.page,
+      restoredContext = restore.orderContext,
+    ))
   }
 
   @Test

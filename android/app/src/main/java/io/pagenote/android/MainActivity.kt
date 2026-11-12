@@ -236,17 +236,6 @@ private const val FLASHCARD_FOCUS_POLL_MS = 50L
 /** 可入索引的 OCR 状态（与区域 OCR 缓存口径一致：ok / partial）。 */
 internal val OCR_INDEXABLE_STATUSES = setOf("ok", "partial")
 
-private data class PdfAnnotationSelectionGesture(
-  val sourceIndex: Int,
-  val startX: Double,
-  val startY: Double,
-  val originalItem: JsonObject,
-  val originalPage: JsonArray,
-  val bounds: PdfAnnotationBounds,
-  val resizing: Boolean,
-  val moved: Boolean = false,
-)
-
 class MainActivity : ComponentActivity() {
   private lateinit var readerSession: ReaderSessionViewModel
   internal var readerShortcutHandler: ((KeyEvent) -> Boolean)? = null
@@ -1432,6 +1421,8 @@ private fun ReaderHome(
     backgroundAppend: Boolean = false,
     includeFreehandHistory: Boolean = false,
     synchronizePenPage: Boolean = false,
+    selectedPenAfter: Set<Int>? = null,
+    selectedAnnotationAfter: Set<Int>? = null,
     conflictMessage: String? = null,
     resolveSelection: ((JsonArray) -> Int?)? = null,
     historyGroupId: Long? = null,
@@ -1566,10 +1557,17 @@ private fun ReaderHome(
         ) {
           annotationPageItems = committedAfter
           annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(committedAfter)
-          selectedAnnotationIndex = committedSelection
-          selectedAnnotationIndices = committedSelection?.let(::setOf) ?: emptySet()
-          selectedPenIndex = null
-          selectedPenIndices = emptySet()
+          if (selectedPenAfter != null || selectedAnnotationAfter != null) {
+            selectedPenIndices = selectedPenAfter.orEmpty()
+            selectedPenIndex = selectedPenAfter?.singleOrNull()
+            selectedAnnotationIndices = selectedAnnotationAfter.orEmpty()
+            selectedAnnotationIndex = selectedAnnotationAfter?.singleOrNull()
+          } else {
+            selectedAnnotationIndex = committedSelection
+            selectedAnnotationIndices = committedSelection?.let(::setOf) ?: emptySet()
+            selectedPenIndex = null
+            selectedPenIndices = emptySet()
+          }
           if (synchronizePenPage) penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
           if (!backgroundAppend) annotationOverlayReload++
         }
@@ -1760,8 +1758,9 @@ private fun ReaderHome(
     val targetProject = project ?: return false
     val targetPage = pageIndex + 1
     val expected = annotationEditHistory.current(targetProject.manifest.id, targetPage) ?: return false
-    val restored = annotationEditHistory.undo(targetProject.manifest.id, targetPage) ?: return false
-    val annotationOnly = AnnotationPageMerger.isAnnotationOnlyHistory(expected, restored)
+    val restore = annotationEditHistory.undoWithContext(targetProject.manifest.id, targetPage) ?: return false
+    val restored = restore.page
+    val annotationOnly = !restore.includesFreehand
     val selectionPage = annotationPageItems
     val selectionIndex = selectedAnnotationIndex
     persistNativeAnnotationPage(
@@ -1772,7 +1771,12 @@ private fun ReaderHome(
       recordHistory = false,
       synchronizePenPage = !annotationOnly,
       transformLatest = { latest ->
-        if (annotationOnly) AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+        if (annotationOnly) AnnotationPageMerger.rebaseAnnotationHistory(
+          latest,
+          expected,
+          restored,
+          restoredContext = restore.orderContext,
+        )
         else AnnotationPageMerger.rebaseMixedHistory(latest, expected, restored)
       },
       conflictMessage = context.getString(R.string.pen_annotation_history_changed),
@@ -1792,8 +1796,9 @@ private fun ReaderHome(
     val targetProject = project ?: return false
     val targetPage = pageIndex + 1
     val expected = annotationEditHistory.current(targetProject.manifest.id, targetPage) ?: return false
-    val restored = annotationEditHistory.redo(targetProject.manifest.id, targetPage) ?: return false
-    val annotationOnly = AnnotationPageMerger.isAnnotationOnlyHistory(expected, restored)
+    val restore = annotationEditHistory.redoWithContext(targetProject.manifest.id, targetPage) ?: return false
+    val restored = restore.page
+    val annotationOnly = !restore.includesFreehand
     val selectionPage = annotationPageItems
     val selectionIndex = selectedAnnotationIndex
     persistNativeAnnotationPage(
@@ -1804,7 +1809,12 @@ private fun ReaderHome(
       recordHistory = false,
       synchronizePenPage = !annotationOnly,
       transformLatest = { latest ->
-        if (annotationOnly) AnnotationPageMerger.rebaseAnnotationHistory(latest, expected, restored)
+        if (annotationOnly) AnnotationPageMerger.rebaseAnnotationHistory(
+          latest,
+          expected,
+          restored,
+          restoredContext = restore.orderContext,
+        )
         else AnnotationPageMerger.rebaseMixedHistory(latest, expected, restored)
       },
       conflictMessage = context.getString(R.string.pen_annotation_history_changed),
@@ -1940,99 +1950,72 @@ private fun ReaderHome(
     geometry: PenCanvasGeometry,
     pointerIndex: Int,
   ): Boolean {
-    if (!geometry.isValid) return false
-    if (pointerIndex !in 0 until event.pointerCount && event.actionMasked != MotionEvent.ACTION_CANCEL) return false
-    val safePointerIndex = pointerIndex.takeIf { it in 0 until event.pointerCount } ?: 0
-    val point = if (event.pointerCount > 0) {
-      geometry.toDocumentPoint(
-        event.getX(safePointerIndex),
-        event.getY(safePointerIndex),
-        pressure = null,
-        clampToPage = false,
-      )
-    } else {
-      null
+    val effect = PdfAnnotationSelectionGestureReducer.handle(
+      event = event,
+      geometry = geometry,
+      pointerIndex = pointerIndex,
+      densityScale = densityScale,
+      page = annotationPageItems,
+      penStrokes = penStrokes,
+      selectedPens = selectedPenItems(),
+      selectedAnnotations = selectedNativeItems(),
+      activeAnnotationIndex = selectedAnnotationIndex,
+      selectionBounds = selectedInkSelectionBounds(),
+      gesture = annotationGesture,
+    )
+    annotationGesture = effect.gesture
+    effect.selection?.let { selection ->
+      selectedPenIndex = selection.selectedPenIndex
+      selectedPenIndices = selection.selectedPenIndices
+      selectedAnnotationIndex = selection.selectedAnnotationIndex
+      selectedAnnotationIndices = selection.selectedAnnotationIndices
     }
-    val x = point?.x?.toDouble() ?: 0.0
-    val y = point?.y?.toDouble() ?: 0.0
-    when (event.actionMasked) {
-      MotionEvent.ACTION_DOWN -> {
-        val activeIndex = selectedAnnotationIndex
-        val activeBounds = activeIndex?.let { index ->
-          (annotationPageItems.getOrNull(index) as? JsonObject)?.let(PdfAnnotationClipboard::bounds)
-        }
-        val handleRadius = 24.0
-        val resize = activeBounds?.let { bounds ->
-          hypot(x - bounds.right - 5.0, y - bounds.bottom - 5.0) <= handleRadius
-        } == true
-        val hit = if (resize) activeIndex else PdfAnnotationClipboard.hitTest(
-          annotationPageItems,
-          x,
-          y,
-          tolerance = geometry.documentUnitsForPixels(18f * densityScale).toDouble().coerceAtLeast(0.1),
+    effect.previewPage?.let { preview ->
+      annotationPageItems = preview
+      annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(preview)
+    }
+    effect.previewPenStrokes?.let { penStrokes = it }
+    effect.restorePage?.let { restored ->
+      annotationPageItems = restored
+      annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(restored)
+    }
+    effect.restorePenStrokes?.let { penStrokes = it }
+    val committedGesture = effect.commitGesture
+    val committedPage = effect.commitPage
+    if (committedGesture != null && committedPage != null) {
+      if (committedGesture.movingPageIndices.isNotEmpty()) {
+        val selectedAnnotationsAfter = selectedNativeItems()
+        persistNativeAnnotationPage(
+          targetPage = pageIndex + 1,
+          before = committedGesture.originalPage,
+          after = committedPage,
+          showSuccess = false,
+          backgroundAppend = true,
+          includeFreehandHistory = true,
+          synchronizePenPage = true,
+          selectedPenAfter = committedGesture.movingPenIndices,
+          selectedAnnotationAfter = selectedAnnotationsAfter,
+          transformLatest = { latest ->
+            AnnotationPageMerger.rebaseMixedHistory(latest, committedGesture.originalPage, committedPage)
+          },
+          onFailure = {
+            penStrokes = penPageStore.getItems(PenSide.DOCUMENT, pageIndex + 1)
+            selectedPenIndex = null
+            selectedPenIndices = emptySet()
+            selectedAnnotationIndex = null
+            selectedAnnotationIndices = emptySet()
+          },
         )
-        if (hit == null) {
-          selectedAnnotationIndex = null
-          selectedAnnotationIndices = emptySet()
-          annotationGesture = null
-          return false
-        }
-        val item = annotationPageItems.getOrNull(hit) as? JsonObject ?: return false
-        val bounds = PdfAnnotationClipboard.bounds(item) ?: return false
-        selectedAnnotationIndex = hit
-        selectedAnnotationIndices = setOf(hit)
-        selectedPenIndex = null
-        selectedPenIndices = emptySet()
-        annotationGesture = PdfAnnotationSelectionGesture(
-          sourceIndex = hit,
-          startX = x,
-          startY = y,
-          originalItem = item,
-          originalPage = annotationPageItems,
-          bounds = bounds,
-          resizing = resize && item["type"]?.let { it.jsonPrimitive.content } != "text",
+      } else {
+        persistNativeAnnotationPage(
+          targetPage = pageIndex + 1,
+          before = committedGesture.originalPage,
+          after = committedPage,
+          selectedAfter = committedGesture.sourceIndex,
         )
-        return true
-      }
-      MotionEvent.ACTION_MOVE -> {
-        val gesture = annotationGesture ?: return false
-        val moved = kotlin.math.hypot(x - gesture.startX, y - gesture.startY) > 3.0
-        if (!moved) return true
-        val updated = if (gesture.resizing) {
-          PdfAnnotationClipboard.resize(gesture.originalItem, gesture.bounds, x, y)
-        } else {
-          PdfAnnotationClipboard.translate(gesture.originalItem, x - gesture.startX, y - gesture.startY)
-        } ?: return true
-        val page = gesture.originalPage.toMutableList().apply { this[gesture.sourceIndex] = updated }
-        annotationPageItems = JsonArray(page)
-        annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(annotationPageItems)
-        annotationGesture = gesture.copy(moved = true)
-        return true
-      }
-      MotionEvent.ACTION_UP -> {
-        val gesture = annotationGesture
-        annotationGesture = null
-        if (gesture?.moved == true) {
-          persistNativeAnnotationPage(
-            targetPage = pageIndex + 1,
-            before = gesture.originalPage,
-            after = annotationPageItems,
-            selectedAfter = gesture.sourceIndex,
-          )
-        }
-        return gesture != null
-      }
-      MotionEvent.ACTION_CANCEL -> {
-        val gesture = annotationGesture
-        annotationGesture = null
-        if (gesture?.moved == true) {
-          annotationPageItems = gesture.originalPage
-          annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(gesture.originalPage)
-        }
-        return gesture != null
       }
     }
-    return annotationGesture != null
+    return effect.handled
   }
 
   fun setInkClipboard(payloads: List<String>) {

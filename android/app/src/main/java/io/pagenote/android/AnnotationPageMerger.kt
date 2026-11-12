@@ -30,13 +30,20 @@ object AnnotationPageMerger {
   fun samePageContent(left: JsonArray, right: JsonArray): Boolean = jsonListsEqual(left, right)
 
   /** Rebase annotation-only undo/redo onto latest ink; reject changed annotations. */
-  fun rebaseAnnotationHistory(latest: JsonArray, expected: JsonArray, restored: JsonArray): JsonArray? {
+  fun rebaseAnnotationHistory(
+    latest: JsonArray,
+    expected: JsonArray,
+    restored: JsonArray,
+    restoredContext: JsonArray = restored,
+  ): JsonArray? {
     if (!isAnnotationOnlyHistory(expected, restored)) return null
     if (!jsonListsEqual(latest.filterNot(::isFreehand), expected.filterNot(::isFreehand))) return null
+    if (!jsonListsEqual(restoredContext.filterNot(::isFreehand), restored.filterNot(::isFreehand))) return null
     if (jsonListsEqual(latest, expected)) return restored
     if (jsonListsEqual(expected, restored)) return latest
     val oldAnnotations = expected.filterNot(::isFreehand)
     val newAnnotations = restored.filterNot(::isFreehand)
+    if (jsonListsEqual(oldAnnotations, newAnnotations)) return latest
     var prefix = 0
     while (prefix < oldAnnotations.size && prefix < newAnnotations.size &&
       jsonEqual(oldAnnotations[prefix], newAnnotations[prefix])) prefix++
@@ -46,40 +53,69 @@ object AnnotationPageMerger {
     val oldEnd = oldAnnotations.size - suffix
     val replacements = newAnnotations.subList(prefix, newAnnotations.size - suffix)
     val removedCount = oldEnd - prefix
+    val targetAnnotations = oldAnnotations.take(prefix) + replacements + oldAnnotations.drop(oldEnd)
+    if (!jsonListsEqual(targetAnnotations, newAnnotations)) return null
     val changedOriginals = oldAnnotations.subList(prefix, oldEnd)
     if (changedOriginals.any { target -> oldAnnotations.count { jsonEqual(it, target) } > 1 }) return null
     if (removedCount == 0 && replacements.isNotEmpty() && prefix < oldAnnotations.size) {
       val anchors = listOfNotNull(oldAnnotations.getOrNull(prefix - 1), oldAnnotations.getOrNull(prefix))
       if (anchors.any { anchor -> oldAnnotations.count { jsonEqual(it, anchor) } > 1 }) return null
     }
+    val restoredInk = restoredContext.filter(::isFreehand)
+    val restoredInkSlots = mutableListOf<Int>()
+    var restoredAnnotationOrdinal = 0
+    restoredContext.forEach { item ->
+      if (isFreehand(item)) restoredInkSlots.add(restoredAnnotationOrdinal)
+      else restoredAnnotationOrdinal++
+    }
+    if (restoredInkSlots.size != restoredInk.size) return null
+
+    fun remapUnmatchedInkSlot(oldSlot: Int): Int {
+      val delta = replacements.size - removedCount
+      val newSlot = when {
+        oldSlot <= prefix -> oldSlot
+        oldSlot >= oldEnd -> oldSlot + delta
+        else -> prefix + replacements.size
+      }
+      return newSlot.coerceIn(0, newAnnotations.size)
+    }
+
     fun applyChange(page: JsonArray): JsonArray {
-      val result = mutableListOf<JsonElement>()
-      var ordinal = 0
-      var inserted = false
+      val inkAtSlots = Array(newAnnotations.size + 1) { mutableListOf<JsonElement>() }
+      val matchedRestoredInk = BooleanArray(restoredInk.size)
+      var annotationOrdinal = 0
+      var previousInkSlot = 0
       page.forEach { item ->
-        if (isFreehand(item)) result.add(item)
-        else {
-          if (removedCount == 0 && ordinal == prefix && !inserted) {
-            result.addAll(replacements)
-            inserted = true
+        if (!isFreehand(item)) {
+          annotationOrdinal++
+        } else {
+          val restoredInkIndex = restoredInk.indices.firstOrNull { index ->
+            !matchedRestoredInk[index] && jsonEqual(restoredInk[index], item)
           }
-          if (ordinal in prefix until oldEnd) {
-            val replacementIndex = ordinal - prefix
-            replacements.getOrNull(replacementIndex)?.let(result::add)
-            if (ordinal == oldEnd - 1) {
-              if (replacements.size > removedCount) result.addAll(replacements.drop(removedCount))
-              inserted = true
-            }
-          } else result.add(item)
-          ordinal++
+          val targetSlot = if (restoredInkIndex != null) {
+            matchedRestoredInk[restoredInkIndex] = true
+            restoredInkSlots[restoredInkIndex]
+          } else {
+            remapUnmatchedInkSlot(annotationOrdinal)
+          }
+          // Keep latest freehand ordering even if a changed stroke no longer
+          // matches its history snapshot exactly.
+          val slot = maxOf(previousInkSlot, targetSlot).coerceIn(0, newAnnotations.size)
+          inkAtSlots[slot].add(item)
+          previousInkSlot = slot
         }
       }
-      if (!inserted) result.addAll(replacements)
+      val result = mutableListOf<JsonElement>()
+      newAnnotations.indices.forEach { index ->
+        result.addAll(inkAtSlots[index])
+        result.add(newAnnotations[index])
+      }
+      result.addAll(inkAtSlots.last())
       return JsonArray(result)
     }
-    // If the proposed splice cannot reproduce the exact intended page, the
-    // insertion/removal anchor is ambiguous and must not be guessed.
-    if (!jsonListsEqual(applyChange(expected), restored)) return null
+    // The stored context must agree on the annotation result before it is
+    // used to rebase onto the current page and its current ink.
+    if (!jsonListsEqual(applyChange(expected).filterNot(::isFreehand), newAnnotations)) return null
     return applyChange(latest)
   }
 
