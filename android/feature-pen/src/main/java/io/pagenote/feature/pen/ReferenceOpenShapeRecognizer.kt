@@ -10,6 +10,7 @@ internal object ReferenceOpenShapeRecognizer {
     sampledScreenPoints: List<Pair<Float, Float>>,
     geometry: PenCanvasGeometry,
     density: Float,
+    strokeWidth: Float = 4f,
   ): PenRecognizedShape? {
     if (!geometry.isValid || !density.isFinite() || density <= 0f || sampledScreenPoints.size < 4) return null
     val points = sampledScreenPoints.map { (x, y) -> PenPoint(x, y, 1f) }
@@ -82,6 +83,7 @@ internal object ReferenceOpenShapeRecognizer {
       points = points,
       density = density,
       arrowPosition = classification.arrow.takeIf { it }?.let { classification.arrowPosition },
+      strokeWidth = strokeWidth,
     )
     if (fittedCurve != null) {
       val curvePoints = fittedCurve.map { (x, y) -> geometry.toDocumentPoint(x, y, 1f) ?: return null }

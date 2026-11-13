@@ -15,6 +15,8 @@
 - 曲线分支现按源码 `BezierTool.getPath` 公式执行：参考采样控制点是绘制曲线经过的中点，实际二次控制点为 `midpoint + 2 * (sampledControl - midpoint)`；生成33个等距参数采样点，保存在多点 `pen` 的 `pagenoteCurve` 扩展字段中。每段按直线渲染能被现有桌面 `pen` 解释；尚未验证桌面实际运行打开／保存往返。当前分类器对完全平直的长轨迹也会给出内点控制索引；参考调用链因此走 `BezierTool`，结果仍是平直曲线。
 - 当 `isLine` 未返回直线，且检测到的贝塞尔控制点不满足 `directDistance > min(boundsWidth, boundsHeight)` 时，参考实现会进入 `GraphUtils.isCurveAndCreate`。Android `ReferenceCurveFitter` 已按该方法移植六系数五次最小二乘拟合、分别拟合 `y(x)`／`x(y)`、单调采样、5dp 偏差过滤、越界计数、候选比较和面积比校验；拟合输入仍是屏幕采样点，结果适配为兼容多点 `pen` + `pagenoteCurve`。为避免原始坐标高次方病态，Android 在求解前将自变量归一化，使用稳定高斯消元，因此这是结构级移植，仍可能与参考浮点舍入结果有差异。
 - `REF-CURVE-04`（`PdfAnnotationSelectionClipboardActivityTest.referenceCurveLeastSquaresFallbackPersistsAndUndoesAsOneStroke`）用端到端阅读器轨迹落入该回退分支，检查保存为超过固定 33 点贝塞尔采样数的曲线材料、截图和一次撤销清除。运行验收是合成 stylus 输入，不代表实体触控笔、原参考应用运行时差分或桌面往返。
+- 当 `isLine` 把输入标记为箭头，但它未被前置折线／直线分支消费而继续落入曲线回退时，若 `arrowPosition >= 8`、拟合点数大于 10，Android 会从拟合曲线尾部按参考 `GraphUtils.d(...)` 规则生成并追加三段采样箭头头部；箭头大小随当前笔宽缩放。`REF-CURVE-05`（`ReferenceOpenShapeRecognizerTest.curveFallbackRetainsArrowHeadWhenOpenShapeRecognizerHandlesTheStroke`）验证箭头分类路径确实进入该回退并保留头部点。该箭头特例目前有识别器级回归，没有单独的阅读器落盘截图；`REF-CURVE-04` 的阅读器截图、保存及撤销覆盖非箭头曲线。
+- Android 拟合器至少需要 6 个点，才能解六系数模型。参考方法入口允许 3 个点，但其最小二乘系数在 3–5 点时为空，后续拟合会退化；PageNote 将该输入明确拒绝，而不复现退化输出。`ReferenceOpenShapeRecognizerTest.curveFallbackRejectsInputsTooShortForItsSixCoefficientFit` 固定该边界。
 - 目前还需要验证参考采样和坐标映射在不同屏幕缩放、旋转和边缘位置下的差异，完成原程序运行时差分、桌面读写往返及真机性能验证。两个后台线程的队列改动只改善一个模拟的慢任务场景，不代替这些验收。
 
 ## 参考闭合形状识别（Android 适配）

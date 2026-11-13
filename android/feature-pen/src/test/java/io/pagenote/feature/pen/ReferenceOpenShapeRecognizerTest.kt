@@ -80,6 +80,50 @@ class ReferenceOpenShapeRecognizerTest {
     assertTrue(shape!!.points.size > 20)
   }
 
+  @Test fun curveFallbackAppendsReferenceArrowHeadForArrowClassifiedInput() {
+    val shaft = (0..40).map { step ->
+      val t = step / 40f
+      100f + 100f * t to 100f + 105f * 4f * t * (1f - t)
+    }
+    val arrowHead = (1..12).map { step ->
+      200f - step * 0.8f to 100f - step * 0.8f
+    }
+    val shaftPoints = shaft.map { (x, y) -> PenPoint(x, y, 1f) }
+    val inputPoints = (shaft + arrowHead).map { (x, y) -> PenPoint(x, y, 1f) }
+    val shaftFit = ReferenceCurveFitter.fit(shaftPoints, density = 2f, arrowPosition = shaft.size)
+    val arrowFit = ReferenceCurveFitter.fit(inputPoints, density = 2f, arrowPosition = shaft.size)
+
+    assertTrue("the reference app appends a generated arrow head after the fitted shaft", arrowFit!!.size > shaftFit!!.size)
+  }
+
+  @Test fun curveFallbackRetainsArrowHeadWhenOpenShapeRecognizerHandlesTheStroke() {
+    val shaft = (0..40).map { step ->
+      val t = step / 40f
+      100f + 100f * t to 100f + 105f * 4f * t * (1f - t)
+    }
+    val tip = shaft.last()
+    val upperWing = (1..12).map { step -> tip.first - step * (4f / 12f) to tip.second - step * (4f / 12f) }
+    val returnToTip = (1..12).map { step -> tip.first - 4f + step * (4f / 12f) to tip.second - 4f + step * (4f / 12f) }
+    val lowerWing = (1..12).map { step -> tip.first - step * (4f / 12f) to tip.second + step * (4f / 12f) }
+    val sampled = shaft + upperWing + returnToTip + lowerWing
+    val classification = ReferenceLineClassifier.classify(sampled.map { (x, y) -> PenPoint(x, y, 1f) })
+    val geometry = PenCanvasGeometry(1000f, 800f)
+
+    assertTrue(classification.arrow)
+    assertTrue(classification.controlIndex != 0)
+    assertTrue(ReferenceBrokenLine.find(sampled.map { (x, y) -> PenPoint(x, y, 1f) }, 15f * geometry.pixelsPerDocumentUnit).isEmpty())
+    val shape = ReferenceOpenShapeRecognizer.recognize(sampled, geometry, density = 2f)
+
+    assertEquals("curve", shape?.type)
+    assertTrue(requireNotNull(shape).points.size > shaft.size)
+  }
+
+  @Test fun curveFallbackRejectsInputsTooShortForItsSixCoefficientFit() {
+    val points = (0..4).map { PenPoint(it * 10f, it * 5f, 1f) }
+
+    assertNull(ReferenceCurveFitter.fit(points, density = 2f))
+  }
+
   @Test fun sampledFlatLineFollowsTheReferenceBezierBranch() {
     val points = (0..40).map { (40f + it * 5f) to 80f }
     val classified = ReferenceLineClassifier.classify(points.map { (x, y) -> PenPoint(x, y, 1f) })

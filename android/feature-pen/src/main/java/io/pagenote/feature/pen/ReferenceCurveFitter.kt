@@ -1,8 +1,11 @@
 package io.pagenote.feature.pen
 
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.sqrt
+import kotlin.math.atan
 
 /** Least-squares fallback used by GraphUtils.isCurveAndCreate after isLine. */
 internal object ReferenceCurveFitter {
@@ -29,6 +32,7 @@ internal object ReferenceCurveFitter {
     points: List<PenPoint>,
     density: Float,
     arrowPosition: Int? = null,
+    strokeWidth: Float = 4f,
   ): List<Pair<Float, Float>>? {
     if (points.size < POLYNOMIAL_COEFFICIENTS || !density.isFinite() || density <= 0f) return null
     val fitPoints = if (arrowPosition == null || arrowPosition !in 1 until points.size) {
@@ -102,7 +106,66 @@ internal object ReferenceCurveFitter {
     if (chosen.points.size < 2 || validationDeviation > distance(start, end)) return null
     val fittedBounds = boundsOfCoordinates(chosen.points)
     if (bounds.area > fittedBounds.area * 2.5) return null
-    return chosen.points
+    val result = chosen.points.toMutableList()
+    if (arrowPosition != null && arrowPosition >= 8 && arrowPosition < points.size && result.size > 10) {
+      result += referenceArrowHead(
+        previous = result[result.lastIndex - 2],
+        tip = result.last(),
+        density = density,
+        strokeWidth = strokeWidth,
+      )
+    }
+    return result
+  }
+
+  /** Mirrors GraphUtils' three sampled arrowhead segments appended after a fitted shaft. */
+  private fun referenceArrowHead(
+    previous: Pair<Float, Float>,
+    tip: Pair<Float, Float>,
+    density: Float,
+    strokeWidth: Float,
+  ): List<Pair<Float, Float>> {
+    if (!strokeWidth.isFinite() || strokeWidth <= 0f) return emptyList()
+    val scale = density * strokeWidth / 4.0
+    val halfWidth = 3.0 * scale
+    val length = 5.0 * scale
+    val angle = atan(halfWidth / length)
+    val vectorX = tip.first - previous.first
+    val vectorY = tip.second - previous.second
+    val vectorLength = hypot(vectorX.toDouble(), vectorY.toDouble())
+    if (vectorLength <= 1e-9) return emptyList()
+    val headLength = sqrt(halfWidth * halfWidth + length * length)
+    fun rotate(radians: Double): Pair<Float, Float> {
+      val rotatedX = vectorX * kotlin.math.cos(radians) - vectorY * kotlin.math.sin(radians)
+      val rotatedY = vectorX * kotlin.math.sin(radians) + vectorY * kotlin.math.cos(radians)
+      return (rotatedX / vectorLength * headLength).toFloat() to
+        (rotatedY / vectorLength * headLength).toFloat()
+    }
+    val firstVector = rotate(angle)
+    val secondVector = rotate(-angle)
+    val firstBase = (tip.first - firstVector.first).toInt().toFloat() to
+      (tip.second - firstVector.second).toInt().toFloat()
+    val secondBase = (tip.first - secondVector.first).toInt().toFloat() to
+      (tip.second - secondVector.second).toInt().toFloat()
+    val spacing = 3.0 * density
+    return sampleSegment(tip, firstBase, spacing) +
+      sampleSegment(firstBase, tip, spacing) +
+      sampleSegment(tip, secondBase, spacing)
+  }
+
+  private fun sampleSegment(
+    start: Pair<Float, Float>,
+    end: Pair<Float, Float>,
+    spacing: Double,
+  ): List<Pair<Float, Float>> {
+    val dx = end.first - start.first
+    val dy = end.second - start.second
+    val distance = hypot(dx.toDouble(), dy.toDouble())
+    val steps = ceil(distance / spacing).toInt().coerceAtLeast(1)
+    return (0 until steps).map { step ->
+      val ratio = step * spacing / distance
+      (start.first + dx * ratio).toFloat() to (start.second + dy * ratio).toFloat()
+    }
   }
 
   private fun candidate(

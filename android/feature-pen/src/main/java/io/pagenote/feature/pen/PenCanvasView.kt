@@ -650,12 +650,18 @@ class PenCanvasView @JvmOverloads constructor(
           val screenPoints = referenceShapeSampler.points()
           val canvasGeometry = geometry()
           val density = resources.displayMetrics.density
+          val recognitionStrokeWidth = activeWidth.toFloat() * 1.3f
           val recognize = shapeRecognizer
           shapeExecutor.execute {
             if (generation != shapeGeneration.get()) return@execute
             val result = runCatching {
               if (recognize != null) recognize(points)
-              else ReferenceOpenShapeRecognizer.recognize(screenPoints, canvasGeometry, density)
+              else ReferenceOpenShapeRecognizer.recognize(
+                screenPoints,
+                canvasGeometry,
+                density,
+                strokeWidth = recognitionStrokeWidth,
+              )
                 ?: ReferenceClosedShapeRecognizer.recognize(screenPoints, canvasGeometry, density)
             }.getOrNull()
             shapeHandler.post {
