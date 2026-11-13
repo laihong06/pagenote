@@ -7,8 +7,10 @@ import android.graphics.Rect
 import android.graphics.RectF
 import kotlin.math.abs
 
-/** EllipseTool.split in reference material coordinates; not yet connected to the reader. */
+/** Reader port of EllipseTool.split in reference material coordinates. */
 internal object ReferenceEllipseSplit {
+  const val AUTO_SHAPE_LINE_FACTOR = 0.8f
+
   data class Result(
     val split: Boolean,
     val pieces: List<List<ReferencePenSplit.Position>>,
@@ -25,7 +27,7 @@ internal object ReferenceEllipseSplit {
     shapeBounds: Rect,
     previous: Rect,
     current: Rect,
-    autoShapeLineFactor: Float = 0.8f,
+    autoShapeLineFactor: Float = AUTO_SHAPE_LINE_FACTOR,
   ): Result {
     val fragmentWidth = strokeWidth * autoShapeLineFactor
     val margin = (strokeWidth / 3f).toInt()

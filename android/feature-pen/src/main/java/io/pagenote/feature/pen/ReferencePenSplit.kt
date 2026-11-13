@@ -6,11 +6,11 @@ import android.graphics.Rect
 import android.graphics.Region
 
 /**
- * Geometry stage of reference Pen.split_v2, using its integer region and one-pixel
- * PathMeasure sampling. Input bounds use the reference pen's pre-built segment
- * bounds; the default unsmoothed construction is available below. Mapping the
- * reference material model and other smoothing modes remains separate work.
- * Not connected to editing or persistence.
+ * Reader geometry port of reference Pen.split_v2, using its integer region and
+ * one-pixel PathMeasure sampling. The reader reconstructs reference segment
+ * bounds from the serialized points using the default PathHelp smoothing rule;
+ * non-default source pen smoothing metadata is not currently represented in the
+ * cross-platform file format.
  */
 internal object ReferencePenSplit {
   data class Point(val x: Float, val y: Float, val bounds: Rect)

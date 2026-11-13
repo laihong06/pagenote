@@ -1,5 +1,9 @@
 package io.pagenote.feature.pen
 
+import android.graphics.Matrix
+import android.graphics.Path
+import android.graphics.PathMeasure
+import android.graphics.Rect
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -26,6 +30,132 @@ object PenAreaEraser {
     }
     return if (changed) result else strokes
   }
+
+  /**
+   * Uses the recovered material split path for reader annotations. The reference
+   * receives the eraser's previous/current rectangles and expands each by width/3.
+   */
+  fun eraseReferenceMaterial(
+    stroke: PenStroke,
+    from: PenPoint,
+    to: PenPoint,
+    radius: Float,
+  ): List<PenStroke> {
+    require(radius.isFinite() && radius >= 0f)
+    if (!from.x.isFinite() || !from.y.isFinite() || !to.x.isFinite() || !to.y.isFinite()) return listOf(stroke)
+    if (stroke.points.size < 2) return listOf(stroke)
+
+    val previous = eraserRect(from, radius)
+    val current = eraserRect(to, radius)
+    if (stroke.type == "ellipse") {
+      val start = stroke.points.first()
+      val end = stroke.points.last()
+      val bounds = Rect(
+        min(start.x, end.x).toInt(),
+        min(start.y, end.y).toInt(),
+        max(start.x, end.x).toInt(),
+        max(start.y, end.y).toInt(),
+      )
+      val result = ReferenceEllipseSplit.split(
+        centerX = (start.x + end.x) / 2f,
+        centerY = (start.y + end.y) / 2f,
+        horizontalX = end.x,
+        verticalY = end.y,
+        transform = Matrix(),
+        strokeWidth = stroke.width.toFloat(),
+        shapeBounds = bounds,
+        previous = previous,
+        current = current,
+      )
+      if (!result.split) return listOf(stroke)
+      return result.pieces.map { piece ->
+        stroke.asReferenceFragment(piece.map { PenPoint(it.x, it.y, 1f) }, result.fragmentWidth)
+      }
+    }
+
+    val pathPoints = when (stroke.type) {
+      "line", "arrow", "rect" -> sampleReferenceShapePath(stroke) ?: return listOf(stroke)
+      else -> centerline(stroke) ?: return listOf(stroke)
+    }
+    val fragmentWidth = stroke.width.toFloat() * ReferenceEllipseSplit.AUTO_SHAPE_LINE_FACTOR
+    val referencePoints = ReferencePenSplit.buildDefaultBounds(
+      pathPoints.map { ReferencePenSplit.Position(it.x, it.y) },
+      fragmentWidth,
+    )
+    val result = ReferencePenSplit.split(referencePoints, fragmentWidth, previous, current)
+    if (!result.split) return listOf(stroke)
+    return result.pieces.map { piece ->
+      stroke.asReferenceFragment(piece.map { PenPoint(it.x, it.y, 1f) }, fragmentWidth)
+    }
+  }
+
+  /** ShapeTool.split first samples its native PathMeasure path at 2px intervals. */
+  private fun sampleReferenceShapePath(stroke: PenStroke): List<PenPoint>? {
+    val first = stroke.points.firstOrNull() ?: return null
+    val last = stroke.points.lastOrNull() ?: return null
+    val path = Path()
+    when (stroke.type) {
+      "line" -> {
+        path.moveTo(first.x, first.y)
+        path.lineTo(last.x, last.y)
+      }
+      "arrow" -> {
+        val angle = kotlin.math.atan2((last.y - first.y).toDouble(), (last.x - first.x).toDouble())
+        val length = (14.0 + stroke.width * 2.0).toFloat()
+        val wingA = PenPoint(
+          last.x - length * kotlin.math.cos(angle - .45).toFloat(),
+          last.y - length * kotlin.math.sin(angle - .45).toFloat(), 1f,
+        )
+        val wingB = PenPoint(
+          last.x - length * kotlin.math.cos(angle + .45).toFloat(),
+          last.y - length * kotlin.math.sin(angle + .45).toFloat(), 1f,
+        )
+        path.moveTo(first.x, first.y)
+        path.lineTo(last.x, last.y)
+        path.lineTo(wingA.x, wingA.y)
+        path.lineTo(last.x, last.y)
+        path.lineTo(wingB.x, wingB.y)
+      }
+      "rect" -> {
+        val left = min(first.x, last.x)
+        val right = max(first.x, last.x)
+        val top = min(first.y, last.y)
+        val bottom = max(first.y, last.y)
+        path.moveTo(left, top)
+        path.lineTo(right, top)
+        path.lineTo(right, bottom)
+        path.lineTo(left, bottom)
+        path.close()
+      }
+      else -> return null
+    }
+    val measure = PathMeasure(path, false)
+    val lastDistance = (measure.length - 1f).toInt()
+    if (lastDistance < 0) return emptyList()
+    val coordinates = FloatArray(2)
+    val samples = ArrayList<PenPoint>(lastDistance / 2 + 1)
+    var distance = 0
+    while (distance <= lastDistance) {
+      measure.getPosTan(distance.toFloat(), coordinates, null)
+      samples += PenPoint(coordinates[0], coordinates[1], 1f)
+      distance += 2
+    }
+    return samples
+  }
+
+  private fun PenStroke.asReferenceFragment(points: List<PenPoint>, width: Float) = copy(
+    type = "pen",
+    width = width.toDouble().coerceIn(PenValidation.MIN_WIDTH, PenValidation.MAX_WIDTH),
+    points = points,
+    extraFields = extraFields + (PenStroke.POLYLINE_FIELD to true),
+  )
+
+  private fun eraserRect(point: PenPoint, radius: Float) = Rect(
+    (point.x - radius).toInt(),
+    (point.y - radius).toInt(),
+    (point.x + radius).toInt(),
+    (point.y + radius).toInt(),
+  )
 
   private fun split(stroke: PenStroke, from: PenPoint, to: PenPoint, radius: Double): List<PenStroke> {
     val points = centerline(stroke) ?: return listOf(stroke)

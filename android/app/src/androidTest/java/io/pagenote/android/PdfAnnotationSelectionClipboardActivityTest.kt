@@ -83,6 +83,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.runOnIdle { session.penTool.value = PenCanvasTool.ERASER }
       composeRule.waitUntil(5_000) { canvas.pageTransform != null && canvas.selectedTool == PenCanvasTool.ERASER }
       collapseReaderMenuAndWait()
+      Thread.sleep(2_500) // Let any prior transient status clear before capturing the initial state.
       saveAnnotationEvidence("reference-area-erase-mixed-before.png")
       val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
       val start = PenPoint(500f, 150f, 1f)
@@ -105,8 +106,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(end), geometry.toViewY(end), .5f, now, now + 600)
       waitForAnnotations(annotations) { page ->
         page.none { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } &&
-          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } >= 2 &&
-          session.penStrokes.value.size >= 2
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" } >= 3 &&
+          session.penStrokes.value.size == page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" }
       }
       saveAnnotationEvidence("reference-area-erase-mixed-erased.png")
 
@@ -128,8 +129,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().performClick()
       waitForAnnotations(annotations) { page ->
         page.none { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } &&
-          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } >= 2 &&
-          session.penStrokes.value.size >= 2
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" } >= 3 &&
+          session.penStrokes.value.size == page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" }
       }
       collapseReaderMenuAndWait()
       saveAnnotationEvidence("reference-area-erase-mixed-redo.png")
@@ -179,7 +180,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
           now,
           now + step * 35,
         )
-        if (step == 4) {
+        if (step == 8) {
           Thread.sleep(250)
           composeRule.waitForIdle()
           saveAnnotationEvidence("reference-area-erase-native-erasing.png")
@@ -188,17 +189,19 @@ class PdfAnnotationSelectionClipboardActivityTest {
       dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(end), geometry.toViewY(end), .5f, now, now + 600)
       waitForAnnotations(annotations) { page ->
         page.none { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "rect" } &&
-          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "line" } >= 2
+          page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" } >= 2 &&
+          session.penStrokes.value.size == page.count { (it as? JsonObject)?.get("type")?.jsonPrimitive?.content == "pen" }
       }
       composeRule.waitForIdle()
       Thread.sleep(500)
-      val lines = annotations.readPage("document", 1).filterIsInstance<JsonObject>()
-        .filter { it["type"]?.jsonPrimitive?.content == "line" }
-      assertTrue(lines.none { line ->
-        val coordinates = points(line)
-        coordinates.size == 4 && coordinates[1] == coordinates[3] &&
-          (coordinates[1] == 250.0 || coordinates[1] == 750.0) &&
-          coordinates[0] < 500.0 && coordinates[2] > 500.0
+      val fragments = annotations.readPage("document", 1).filterIsInstance<JsonObject>()
+        .filter { it["pagenotePolyline"]?.jsonPrimitive?.content == "true" }
+      assertTrue(fragments.size >= 2)
+      assertTrue(fragments.none { fragment ->
+        points(fragment).chunked(2).zipWithNext().any { (a, b) ->
+          a[1] == b[1] && (a[1] == 250.0 || a[1] == 750.0) &&
+            a[0] < 500.0 && b[0] > 500.0
+        }
       })
       saveAnnotationEvidence("reference-area-erase-native-after.png")
       revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
@@ -464,6 +467,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled()
         .performScrollTo().performClick()
       waitForAnnotations(annotations) { it == initial }
+      composeRule.waitUntil(5_000) { session.penStrokes.value.size == 2 }
       assertEquals(2, session.penStrokes.value.size)
       collapseReaderMenuAndWait()
       saveAnnotationEvidence("reference-region-selection-undo.png")

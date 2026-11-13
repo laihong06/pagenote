@@ -1190,6 +1190,11 @@ private fun ReaderHome(
   }
 
   fun commitAreaErase(targetPage: Int, strokes: List<PenStroke>) {
+    if (nativeAreaEraseSnapshot?.second == targetPage) {
+      // Native fragments and freehand cuts share one page snapshot and one undo entry.
+      penStrokes = strokes
+      return
+    }
     if (penPageStore.replacePage(PenSide.DOCUMENT, targetPage, strokes)) {
       val groupId = project?.manifest?.id?.let { projectId ->
         readerEditHistoryOrder.beginGroup(projectId, targetPage).also { id ->
@@ -1634,21 +1639,26 @@ private fun ReaderHome(
     if (!commit) {
       annotationPageItems = before
       annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(before)
+      penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       annotationOverlayReload++
       pendingGroup?.let { (projectId, groupId) -> readerEditHistoryOrder.endGroup(projectId, targetPage, groupId) }
       return
     }
-    val after = annotationPageItems
+    val after = PdfAnnotationAreaEraser.preparePageForCommit(annotationPageItems, penStrokes)
     if (after == before) {
       pendingGroup?.let { (projectId, groupId) -> readerEditHistoryOrder.endGroup(projectId, targetPage, groupId) }
       return
     }
+    annotationPageItems = after
     persistNativeAnnotationPage(
       targetPage = snapshot.second,
       before = before,
       after = after,
       selectedAfter = null,
       showSuccess = false,
+      includeFreehandHistory = true,
+      synchronizePenPage = true,
+      transformLatest = { latest -> AnnotationPageMerger.rebaseMixedHistory(latest, before, after) },
       historyGroupId = pendingGroup?.second,
       onFinished = {
         pendingGroup?.let { (projectId, groupId) ->

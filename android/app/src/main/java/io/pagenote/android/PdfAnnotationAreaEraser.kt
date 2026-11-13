@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonPrimitive
 internal object PdfAnnotationAreaEraser {
   private val nativeShapeTypes = setOf("line", "arrow", "rect", "ellipse")
   private val canonicalKeys = setOf("type", "color", "width", "points", "pressures", "text", "html", "url")
+  internal const val PREVIEW_FIELD = "pagenoteAreaEraserPreview"
 
   fun erasePage(page: JsonArray, from: PenPoint, to: PenPoint, radius: Float): JsonArray {
     val result = ArrayList<JsonElement>(page.size)
@@ -24,40 +25,56 @@ internal object PdfAnnotationAreaEraser {
       val item = element as? JsonObject
       val type = item?.get("type")?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
       val nativeShape = type in nativeShapeTypes
-      val stroke = if (nativeShape) item?.toStroke() else null
+      val isPreviewFragment = type == "pen" && item?.get(PREVIEW_FIELD)
+        ?.let { (it as? JsonPrimitive)?.booleanOrNull } == true
+      val stroke = if (nativeShape || isPreviewFragment) item?.toStroke() else null
       if (stroke == null) {
         result.add(element)
         return@forEach
       }
 
-      val pieces = PenAreaEraser.erase(listOf(stroke), from, to, radius)
+      val pieces = PenAreaEraser.eraseReferenceMaterial(stroke, from, to, radius)
       if (pieces.size == 1 && pieces.single() == stroke) {
         result.add(element)
         return@forEach
       }
 
       changed = true
-      pieces.forEach { piece ->
-        piece.points.zipWithNext().forEach { (start, end) ->
-          result.add(
-            JsonObject(
-              mapOf(
-                "type" to JsonPrimitive("line"),
-                "color" to JsonPrimitive(piece.color),
-                "width" to JsonPrimitive(piece.width),
-                "points" to JsonArray(
-                  listOf(
-                    JsonArray(listOf(JsonPrimitive(start.x), JsonPrimitive(start.y))),
-                    JsonArray(listOf(JsonPrimitive(end.x), JsonPrimitive(end.y))),
-                  ),
-                ),
-              ),
-            ),
-          )
-        }
+      pieces.filter { it.points.size >= 2 }.forEach { piece ->
+        val fields = piece.toAnnotationsItem().mapValues { (_, value) -> value.toJsonElement() }
+          .toMutableMap()
+        fields[PREVIEW_FIELD] = JsonPrimitive(true)
+        result.add(JsonObject(fields))
       }
     }
     return if (changed) JsonArray(result) else page
+  }
+
+  /**
+   * Commits transient native-shape fragments as ordinary multi-point Pen items,
+   * combining them with the current freehand layer for one grouped history edit.
+   */
+  fun preparePageForCommit(page: JsonArray, currentPens: List<PenStroke>): JsonArray {
+    val retained = mutableListOf<JsonElement>()
+    val fragments = mutableListOf<JsonElement>()
+    page.forEach { element ->
+      val item = element as? JsonObject
+      val type = item?.get("type")?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+      val isPreviewFragment = item?.get(PREVIEW_FIELD)
+        ?.let { (it as? JsonPrimitive)?.booleanOrNull } == true
+      when {
+        isPreviewFragment -> fragments.add(
+          JsonObject(item.filterKeys { it != PREVIEW_FIELD }),
+        )
+        type == "pen" || type == "highlight" -> Unit
+        else -> retained.add(element)
+      }
+    }
+    return JsonArray(
+      retained + currentPens.map { stroke ->
+        JsonObject(stroke.toAnnotationsItem().mapValues { (_, value) -> value.toJsonElement() })
+      } + fragments,
+    )
   }
 
   private fun JsonObject.toStroke(): PenStroke? {
@@ -97,5 +114,17 @@ internal object PdfAnnotationAreaEraser {
     is JsonPrimitive -> booleanOrNull ?: doubleOrNull ?: content
     is JsonArray -> map { it.toNativeValue() }
     is JsonObject -> entries.associate { (key, value) -> key to value.toNativeValue() }
+  }
+
+  private fun Any?.toJsonElement(): JsonElement = when (this) {
+    null -> JsonNull
+    is Boolean -> JsonPrimitive(this)
+    is Number -> JsonPrimitive(this)
+    is String -> JsonPrimitive(this)
+    is Iterable<*> -> JsonArray(map { it.toJsonElement() })
+    is Map<*, *> -> JsonObject(entries.mapNotNull { (key, value) ->
+      (key as? String)?.let { it to value.toJsonElement() }
+    }.toMap())
+    else -> JsonPrimitive(toString())
   }
 }
