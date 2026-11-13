@@ -2664,6 +2664,19 @@ private fun ReaderHome(
 
   suspend fun saveCurrentNote(): Boolean {
     val activeProject = readerSession.project.value ?: return false
+    fun isActiveProject(): Boolean {
+      val currentProject = readerSession.project.value
+      return readerProjectIdentityMatches(
+        expectedProjectId = activeProject.manifest.id,
+        expectedDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+        currentProjectId = currentProject?.manifest?.id,
+        currentDirectoryUri = currentProject?.sourceDirectoryUri?.toString(),
+      )
+    }
+    fun updateStatusIfActiveProject(status: String) {
+      if (isActiveProject()) noteStatus = status
+    }
+
     val targetPage = readerSession.pageIndex.intValue + 1
     val draftToSave = readerSession.noteDraft.value
     val savedPage = NotePage.pageAt(readerSession.notesMarkdown.value, targetPage)
@@ -2679,72 +2692,83 @@ private fun ReaderHome(
     val expectedRevision = readerSession.noteBaseRevision.value
     return readerSession.asyncSessionTask {
       readerSession.noteSaveMutex.withLock {
-        isSaving = true
-        noteStatus = null
-        try {
-        val (result, recoveryCopyName) = withContext(Dispatchers.IO) {
-          val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
-          val latest = store.read()
-          val edited = PageNoteEditor.replacePage(
-            latestMarkdown = latest,
-            page = targetPage,
-            replacement = draftToSave,
-            expectedRevision = expectedRevision,
-          )
-          val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
-          edited to retainedCopy
+        if (isActiveProject()) {
+          isSaving = true
+          noteStatus = null
         }
-        notesMarkdown = result.markdown
-        readerSession.completeContinuousPageSave(
-          projectId = activeProject.manifest.id,
-          sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
-          page = targetPage,
-          savedMarkdown = NotePage.pageAt(result.markdown, targetPage),
-          baseRevision = result.pageRevision,
-        )
-        readerSession.refreshDraftRecoveryAfterSave(
-          targetPage,
-          NotePage.pageAt(result.markdown, targetPage),
-        )
-        noteStatus = recoveryCopyName?.let { name ->
-          context.getString(R.string.note_saved_recovery_copy, name)
-        } ?: context.getString(R.string.note_saved)
-        withContext(Dispatchers.IO) {
-          runCatching {
-            NoteHistoryMirror.snapshotPage(
-              context.filesDir, activeProject.manifest.id, targetPage,
+        try {
+          val (result, recoveryCopyName) = withContext(Dispatchers.IO) {
+            val store = ProjectNoteStore(context.contentResolver, activeProject.notesUri)
+            val latest = store.read()
+            val edited = PageNoteEditor.replacePage(
+              latestMarkdown = latest,
+              page = targetPage,
+              replacement = draftToSave,
+              expectedRevision = expectedRevision,
+            )
+            val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
+            edited to retainedCopy
+          }
+          val isStillCurrentProject = isActiveProject()
+          if (isStillCurrentProject) {
+            notesMarkdown = result.markdown
+            readerSession.completeContinuousPageSave(
+              projectId = activeProject.manifest.id,
+              sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+              page = targetPage,
+              savedMarkdown = NotePage.pageAt(result.markdown, targetPage),
+              baseRevision = result.pageRevision,
+            )
+            readerSession.refreshDraftRecoveryAfterSave(
+              targetPage,
               NotePage.pageAt(result.markdown, targetPage),
             )
+            noteStatus = recoveryCopyName?.let { name ->
+              context.getString(R.string.note_saved_recovery_copy, name)
+            } ?: context.getString(R.string.note_saved)
           }
-        }
-        // 批次 7：保存成功的页面变更钩子 → 增量索引（非阻塞）。
-        search.indexSavedNotePage(activeProject.manifest.id, targetPage, draftToSave, result.pageRevision)
-        true
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (conflict: PageNoteConflictException) {
-        noteStatus = conflict.message
-        false
-      } catch (conflict: NoteDocumentConflictException) {
-        noteStatus = conflict.recoveryCopyName?.let { name ->
-          context.getString(R.string.note_conflict_recovery_copy, name)
-        } ?: context.getString(R.string.note_conflict)
-        false
-      } catch (recovery: NoteRecoveryCopyRetainedException) {
-        noteStatus = context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName)
-        false
-      } catch (recovery: NoteWriteRecoveryException) {
-        noteStatus = recovery.recoveryCopyName?.let { name ->
-          context.getString(
-            if (recovery.rollbackSucceeded) R.string.note_write_recovery_rollback
-            else R.string.note_write_recovery_failed,
-            name,
+          withContext(Dispatchers.IO) {
+            runCatching {
+              NoteHistoryMirror.snapshotPage(
+                context.filesDir, activeProject.manifest.id, targetPage,
+                NotePage.pageAt(result.markdown, targetPage),
+              )
+            }
+          }
+          // 批次 7：保存成功的页面变更钩子 → 增量索引（非阻塞）。
+          search.indexSavedNotePage(activeProject.manifest.id, targetPage, draftToSave, result.pageRevision)
+          isStillCurrentProject
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (conflict: PageNoteConflictException) {
+          updateStatusIfActiveProject(conflict.message.orEmpty())
+          false
+        } catch (conflict: NoteDocumentConflictException) {
+          updateStatusIfActiveProject(
+            conflict.recoveryCopyName?.let { name ->
+              context.getString(R.string.note_conflict_recovery_copy, name)
+            } ?: context.getString(R.string.note_conflict),
           )
-        } ?: context.getString(R.string.note_save_failed, recovery.message ?: "")
-        false
-      } catch (error: Exception) {
-        noteStatus = context.getString(R.string.note_save_failed, error.message ?: "")
-        false
+          false
+        } catch (recovery: NoteRecoveryCopyRetainedException) {
+          updateStatusIfActiveProject(
+            context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName),
+          )
+          false
+        } catch (recovery: NoteWriteRecoveryException) {
+          updateStatusIfActiveProject(
+            recovery.recoveryCopyName?.let { name ->
+              context.getString(
+                if (recovery.rollbackSucceeded) R.string.note_write_recovery_rollback
+                else R.string.note_write_recovery_failed,
+                name,
+              )
+            } ?: context.getString(R.string.note_save_failed, recovery.message ?: ""),
+          )
+          false
+        } catch (error: Exception) {
+          updateStatusIfActiveProject(context.getString(R.string.note_save_failed, error.message ?: ""))
+          false
         } finally {
           isSaving = false
         }
