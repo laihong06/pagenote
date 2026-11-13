@@ -42,7 +42,7 @@
               <div class="command-row">
                 <button
                   id="importNote"
-                  title="导入本页 Markdown，或恢复整份 JSON 笔记备份"
+                  title="导入 Markdown、支持的 HTML 教学模板，或恢复 JSON 笔记备份"
                 >
                   导入笔记</button
                 ><button
@@ -122,8 +122,7 @@
           </details>
           <button id="noteReturn" class="return-button">返回双栏</button>
         </div>
-        <span id="saveStatus">就绪</span
-        ><button id="settingsButton" class="tab">设置</button
+        <button id="settingsButton" class="tab">设置</button
         ><button id="helpButton" class="tab">使用说明</button>
       </nav>
       <div class="ribbon">
@@ -262,7 +261,11 @@
         </div>
         <div class="pane-footer">
           <span id="wordCount">0 字</span
-          ><span>Markdown · LaTeX · Mermaid</span>
+          ><span id="noteSaveControls">
+            <span id="saveStatus" role="status" aria-live="polite">就绪</span>
+            <button id="retryNoteSave" hidden>重试保存</button>
+            <button id="resolveNoteConflict" hidden>查看保存冲突</button> </span
+          ><span class="note-formats">Markdown · LaTeX · Mermaid</span>
         </div>
       </section>
     </main>
@@ -279,7 +282,7 @@
     /><input id="attachmentInput" type="file" hidden /><input
       id="noteInput"
       type="file"
-      accept=".md,.markdown,.txt,.json"
+      accept=".md,.markdown,.txt,.json,.html,.htm"
       hidden
     />
     <div id="toast" role="status" hidden></div>
@@ -426,6 +429,7 @@
         <option value="entry">入口与路由</option>
         <option value="generation">初次生成</option>
         <option value="learning">学习讲解</option>
+        <option value="representation">表达与交互</option>
         <option value="page-tutor">逐页精讲</option>
         <option value="output">输出格式</option>
         <option value="tag-edit">AI Tag 修改</option>
@@ -570,6 +574,31 @@
         </button>
         <button id="rainLiveStop" hidden>停止采集</button>
         <button id="rainLiveRetry" hidden>重试失败页面</button>
+    <dialog id="noteConflictDialog" aria-labelledby="noteConflictTitle">
+      <h2 id="noteConflictTitle">保存冲突</h2>
+      <p>
+        已有内容在编辑期间发生变化。当前草稿已备份到本页历史版本，没有覆盖已保存内容。
+      </p>
+      <div class="note-conflict-columns">
+        <label
+          >我的草稿<textarea
+            id="noteConflictDraft"
+            readonly
+            rows="12"
+          ></textarea>
+        </label>
+        <label
+          >已保存内容<textarea
+            id="noteConflictSaved"
+            readonly
+            rows="12"
+          ></textarea>
+        </label>
+      </div>
+      <div class="history-actions">
+        <button id="downloadConflictDraft">下载我的草稿</button>
+        <button id="reloadConflictSaved">重新载入已保存内容</button>
+        <button id="closeNoteConflict">继续查看草稿</button>
       </div>
     </dialog>
     <script type="module" src="/src/main.js"></script>

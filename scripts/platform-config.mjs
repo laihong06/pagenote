@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export const platformIds = ['windows', 'macos', 'android'];
+export const platformIds = ['windows', 'macos', 'linux', 'android'];
 
 export async function loadPlatform(root, id) {
   if (!platformIds.includes(id)) throw Error('Unsupported platform: ' + id);

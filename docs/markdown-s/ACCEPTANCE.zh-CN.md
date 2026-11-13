@@ -1,6 +1,8 @@
 # Markdown S 验收标准与记录模板
 
-当前状态：桌面通用 Markdown S 仍未整体验收或放行；Android 遗传实验有单独的实验性实现和局部验收记录，见本文末。普通 PageNote 的历史测试与本功能测试分开记录。
+当前原生阶段及实际结果见 [2026-10-30 原生验收记录](VALIDATION-NATIVE-2026-10-30.md)。下文保留历史通用／沙盒验收方案，不能把 iframe 验证替代原生验收，也不能把方案本身记为通过。普通 PageNote 的历史测试与本功能测试分开记录。
+
+原生核心用例：N-01 原生组件内 iframe 为零；N-02 SVG／Canvas／图表／WebGL 各模块截图与真实操作；N-03 修改自动写回同一 Markdown 且围栏外字节保留；N-04 完整关闭重开恢复；N-05 唯一标识／过期状态／非法数据拒绝错误写入；N-06 离屏销毁重建及 GPU 丢失诊断。已执行范围与平台逐项按本轮记录核对；未实现的任意网页转换不是已支持能力。
 
 ## 1. 如何使用
 
@@ -139,41 +141,4 @@ ________ | _____________________ | __________ | _____________ | ____
 稳定晋级批准：未申请/未批准/明确批准记录链接
 ```
 
-## 11. Android 遗传实验局部记录（2026-11-07）
-
-```text
-日期：2026-11-07
-PR / runtime SHA：无 PR；本地未提交工作区，基线 android/beta b9ba3e2b8d07e08d675ffacc54436d7d03133661
-阶段：Android M4 原生实验原型；平台：Android
-环境：AVD root34，Android 14/API 34，1080×2400，420 dpi，arm64-v8a，SwiftShader
-版本：debug，io.pagenote.android.debug，1.0.0-beta.6-dev.1
-范围：version 1 / genetic-lab；普通 Markdown 与项目读写只验证本记录列出的代表路径
-```
-
-| 用例 | 状态 | 本次证据与边界 |
-| --- | --- | --- |
-| F04 | 部分 | instrumentation 证明前后正文及 `mds-html` 中的 script 源码在基因修改后仍保留；未覆盖 emoji、所有特殊属性及保存后逐字节重开比较。 |
-| F06 | 部分 | 单测覆盖非法 JSON、未闭合围栏解析；未覆盖混合后续正文在 Android UI 中的完整降级展示。 |
-| E01 | 未执行完整项 | `ProjectNoteStore` 保存后由 `ProjectDocumentOpener` 重新读取同一项目文件，尚未关闭项目界面或重启应用。 |
-| E06 | 部分 | 文件级测试确认第 2 页原文未变；未覆盖历史恢复、真实切页及跨项目操作。 |
-| P04 | 通过（代表样本） | NotePanel 内操作基因、沿用现有保存入口写入项目 Markdown，并重新打开项目存储读取；截图见 Android 指南。此结论不等同于完整 Activity 关闭重开或发布包验收。 |
-| R02 / R03 / R04 / R06 | 不适用 | Android 对应部分用原生 Canvas 绘制声明式遗传实验；不执行 SVG/Canvas 用户脚本或 Three.js/WebGL，不据此宣称通过桌面引擎验收。 |
-
-验证命令：
-
-```sh
-ANDROID_HOME=/Users/broccoli/Library/Android/sdk ./gradlew :feature-notes:testDebugUnitTest :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin
-ANDROID_HOME=/Users/broccoli/Library/Android/sdk ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.pagenote.android.MarkdownSNoteRendererTest
-```
-
-结果：notes 单测、主代码和 instrumentation 编译通过；`MarkdownSNoteRendererTest` 3/3 通过。Android 真机、主流程完整回归、深色/缩放/辅助功能及完整关闭重开未执行。M4 视觉维护者审查未做；截图证明运行态，不代表视觉放行。当前只能标为 Android 实验性原型，不能据此宣称 Markdown S 总体验收完成或发布。
-
-2026-10-30 文档阶段记录：此前交付指导与验收文件，桌面运行专项、生产包和跨平台执行均未完成；本节只追加 Android 本地专项证据，不追溯改变旧记录。
-
-### 2026-11-08：Android 原生 3D 局部验收
-
-M4 Android 实验原型在 `genetic-lab` 第 8 章接入 SceneView 2.3.0 / Filament。AVD root34（Android 14、arm64-v8a、SwiftShader）的 `MarkdownSNoteRendererTest` 7/7 通过，覆盖场景节点、真实触摸命中、围栏变更、拖动/暂停及重复挂载释放；项目保存回读测试随后扩展并单独通过，验证旋转角写入同一文件。运行截图、基线和哈希见 [Android 指南](../android/guide/markdown-s.md)。
-
-随后两个 instrumentation 类合计 13/13 通过：增加强制初始化异常降级、基因更新时复用场景并更新材质、不可见和后台时暂停旋转、屏幕不被强制常亮、实际 MainActivity 的保存、Activity 重建、返回书架重开项目和角度恢复，并以截图区域比较验证笔记滚动不会覆盖文档区域。另在同一模拟器通过系统输入验证场景横向拖动和纵向滚动；主界面按钮在自动化测试中使用 Compose 语义操作。详见 [Android 指南](../android/guide/markdown-s.md)。
-
-E01 增加模拟器代表路径：保存 3D 角度后强制停止应用进程，重新启动并从书架打开项目，确认 UI 与保存文件的角度一致；再使用系统输入拖动并保存，前后正文与第二页仍保留。F04、P04、E01 仍仅有上述代表路径证据；Android 真机 GPU 和触控、辅助功能、主题和维护者视觉审查未完成。此记录不宣称桌面执行引擎验收、完整跨平台一致性或发布批准。
+本次记录：2026-10-30，交付指导与验收文件；Markdown S 运行专项、生产包、跨平台执行和视觉验收均未完成。已有未验收原型不计为测试通过。

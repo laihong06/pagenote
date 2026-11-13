@@ -3,10 +3,15 @@
 Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下项目是风险与待办记录，不代表都已复现为产品缺陷，也不自动阻塞本次 Windows 发布。当前发布依据见 [发布基准](docs/RELEASE-POLICY.md)。
 
 | 项目 | 状态与后续处理 |
+| Android 笔迹与批注跨层历史 | 区域橡皮单手势已在横屏 API 34 平板验证为一个撤销项；其他跨层编辑仍由笔迹和批注两套历史协调，完整参考 `ActionStack` 未移植。跨应用 SAF 并发和进程重建后的历史未验。 |
+| Android 停留识形性能 | 直线、折线、曲线、箭头和闭合图形已接入参考分类分支；参考 `ManagerHandler.handleMessage` 尚未可靠恢复，完整延迟策略仍未逐分支移植。目标平板仪器回归通过，但实体笔、真机和密集书写性能未测。 |
 |---|---|
-| Android 混合笔迹与批注历史 | 涉及笔迹和批注同时变化的历史恢复会检查已保存页面及其顺序，但恢复后尚未同步笔迹内存模型，后续笔迹保存或失败保存重试可能覆盖恢复结果；写入期间的新输入、两套历史的统一顺序及跨应用 SAF 并发也未解决。避免将该路径作为图形区域擦除事务使用，继续实现并验证统一事务。 |
-| Android 图形编辑与撤销 | 追加和撤销末尾笔迹已保留现有文件顺序；修改、擦除、恢复其他笔迹仍可能重排图层，图形之间书写也可能清除较早图形撤销记录，两套历史尚未统一；最近操作顺序保护不覆盖所有失败或无变化的并发情形。存在相同图形时编辑可能保守拒绝，需要重新选择。跨应用 SAF 读写仍可能在读取和写入之间发生竞争；慢速存储和大量笔迹的保存及交互性能尚未完成验证。 |
-| Android 停留识形 | 开放直线和箭头已接入参考采样与分类，其折线阈值使用 PageNote 缩放近似参考图像缩放；折线、曲线、闭合形状和其他分支仍未复刻，未命中时暂用原识别器。两个后台识别任务同时长时间占用时后续任务仍可能排队，尚未与参考应用做运行时差分或测量用户设备上的识形延迟和密集输入性能。 |
+| Markdown S 原生作品实验 | 已实现遗传算法模板及声明式数据保存，不是任意 HTML／JS 自动转换器。Windows 源码运行交互和项目重开已验证；本轮 Mac 实机、生产安装包、长期 CPU／内存／显存及全部触摸场景未验收。旧沙盒仅保留兼容，不等同原生组件能力。 |
+| Windows 主机上的 Android JVM DataStore 测试 | 2026-10-23 布局预览验收中，345 项应用 JVM 测试通过 342 项；`AgentPromptCustomizationTest` 两项及 `RecentProjectsStoreTest` 一项在 DataStore 重开文件时失败，切换 D 盘临时目录仍复现。2026-11-06 的 Linux CI 也在相同的 DataStore 活跃文件检查处失败；相关测试现等待旧作用域完全关闭后再重开，本机相关测试通过，Linux CI 及 Windows 主机仍需复测。此前 5 项工具栏 Android 14 模拟器测试通过。 |
+| Android 手工新增形状无法立即撤销（2026-10-30 复现） | API 34、源码 `6388245`：新页选择形状并拖出矩形，保存后打开编辑菜单，撤销仍禁用。`MainActivity.kt` 的 `handleAnnotationDrag` 直接写页，没有记录 `annotationEditHistory`；选中对象后的删除及撤销删除另行成功。本轮仅补文档，未改行为。[操作和原图](docs/android/guide/canvas.md)，不能将所有形状操作称为可撤销。 |
+| Android 悬浮窗可读性与服务语言（2026-10-30 复现） | API 34、中文应用／浅色设置：悬浮笔记深底黑字低对比，标题和 Clipboard 等英文标签换行拥挤；服务未沿用应用中文设置。面板打开、切换和关闭有实图，布局仍需调整。[编号截图](docs/android/guide/floating.md)。未验证计时完成通知、其他应用及真机窗口边界。 |
+| Mac 原生采集脚本退出全屏超时 | `6388245` 本机原生采集在等待 `!document.fullscreenElement` 时超时，后续自动断言未执行；手动同一路径返回笔记成功，不据此确定故障仅属于脚本。基础采集和部分原生交互另行成功。[验证记录](docs/review/PR13-evidence-2026-10-30.md)。 |
+| Markdown S 原生作品实验 | 已实现遗传算法模板及声明式数据保存，不是任意 HTML／JS 自动转换器。Windows 源码运行交互和项目重开已有验证；2026-10-30 补充 Mac 实机 SVG／Canvas／图表／三维交互及三个值的文件读回，完整重启与全部状态仍未验收。生产安装包、长期 CPU／内存／显存及全部触摸场景未验收。旧沙盒仅保留兼容，不等同原生组件能力。 |
 | Windows 主机上的 Android JVM DataStore 测试 | 2026-10-23 布局预览验收中，345 项应用 JVM 测试通过 342 项；`AgentPromptCustomizationTest` 两项及 `RecentProjectsStoreTest` 一项在 DataStore 覆盖重命名时失败，切换 D 盘临时目录仍复现。此为主机 JVM 测试结果，尚未证实为 Android 运行时缺陷；独立记录，预览版不宣称全部测试通过。5 项工具栏 Android 14 模拟器测试通过。 |
 | 历史长测约 54 分钟时窗口关闭 | 原因未明；重开后已保存内容恢复。历史中断不记作一小时通过，保留后续排查。 |
 | Mac 全流程与环境覆盖 | 贡献者报告部分实机测试，维护者未独立复验全部 Mac 环境；继续测试版。 |
@@ -14,7 +19,7 @@ Windows v1.0 已由发起人批准正式发布，macOS 仍为测试版。以下�
 | 桌面书架验证范围 | Windows/Mac 共用实现已接入；Mac arm64 本地包完成隔离书架流程验证，Windows 运行未验证。Mac 新增原生设置目录行未手工逐控件验收；具体测试与边界见 [书架验证记录](docs/spec/bookshelf-desktop/validation.md)。本轮未发布新安装包。 |
 | 雨课堂账号与实时课堂 | 桌面/Android 协议回归通过；Android 14 平板 AVD 已完成真实账号登录及 82 页历史导入，且经用户授权验证中途加入真实课堂补采 18 页。观察期间没有新的实时翻页，真实连续追加尚未完整验收；多页追加、去重、保留笔记已通过本地 SAF 回归。Mac arm64 已冷启动并通过打包应用内模拟课堂采集；桌面应用内真实账号导入、Windows 运行尚未验证。此前 Windows 目录包构建提示 `mcp-dist/mcp-node.exe` 缺失，本轮未重建 Windows 包。真实课堂测试需用户明确确认可能产生的签到记录。 |
 | Android 实机与完整服务流程 | 以 Android 14/API 34 平板 AVD 做常规验收；小米 Pad 5 Pro 上的长时间笔迹/延迟、侧键、真实 DocumentsUI 持久授权、用户的 69 页项目及 OpenAI 服务端到端仍未全部验证。Office 进程内编辑尚未实现；不宣称与桌面端全量等价。 |
-| Android API 34 平板 AVD 仪器测试 | 上一轮 `Pixel_Tablet_API34` 定向套件 13/13 通过；最新完整连接套件共 211 项，4 项跳过、1 项失败，失败在 PDF 矩形批注点选及后续编辑集成流程。修正前的更早全量结果有 41 项测试前置/菜单选择器失败。本轮让书架用例从书架导航，隔离的 PDF 批注用例在进入 reader session 前直接授予 SAF 目录权限，避免重复书架/菜单切换污染批注加载；`:app:compileDebugKotlin` 与 `:app:compileDebugAndroidTestKotlin` 编译通过。该批注用例尚未在这次调整后重跑。 / The previous `Pixel_Tablet_API34` focused suite passed 13/13; the latest completed full connected suite ran 211 tests with 4 skipped and 1 failure in PDF rectangle annotation selection and its edit integration flow. An earlier full run had 41 failures from stale test setup/menu selectors. Shelf tests now navigate through the bookshelf; the isolated PDF annotation test grants its SAF tree before attaching the reader session, avoiding repeated shelf/menu transitions during annotation loading. Both `:app:compileDebugKotlin` and `:app:compileDebugAndroidTestKotlin` compile successfully. The annotation test has not been rerun after this adjustment. |
+| Android API 34 平板 AVD 仪器测试 | 历史记录：2026-10-26 在 #13 的源码系列修复 PDF 批注测试前置后，完整 connectedDebugAndroidTest 报告 0 失败、4 跳过，见 [#13 验证记录](https://github.com/laihong06/pagenote/pull/13)。此前的 41 项前置／选择器失败及 1 项 PDF 批注集成失败属于修复前记录，不再作为最新结果。2026-10-30 共享源码6388245本轮只做三个定向截图流程，没有重跑全套UI；形状创建撤销缺陷另列，不用历史通过覆盖。 |
 | Android 窄笔盒尺寸 | 笔工具带采用 44dp，按 Android 参考密度约 7 毫米；尚未在小米平板上进行本轮物理宽度测量或新增圆珠笔/激光笔的实体笔验收。API 34 平板模拟器可代替本轮功能验收，不作为阻塞源码 PR 的全设备门槛。 |
 | 多种 Office、DPI、双屏和低配置设备 | 未穷尽环境；报告具体条件后逐项处理。 |
 | Windows 签名与安全软件 | 当前未签名。早期 NSIS 安装包曾被火绒查杀，未取得厂商复核结论；不将其宣称为误报。新文件以实际检测为准。 |
@@ -33,3 +38,7 @@ Windows stable is founder-approved; macOS remains experimental. Android is an An
 
 - 新分层工作流覆盖材料准备、缓存、分页续读、Tag 范围、意见凭据、用户偏好版本保护及实时入口编辑。
 - 完整 MCP 回归在“静默更新后通过页码输入跳到第 3 页”的等待断言发生超时；记录显示页码输入为 3、阅读状态仍为 1，已保存的第 3 页笔记存在。两次结果和截图保留在本机 tmp；最小翻页复现未重现，根因尚未确认。不得将此轮完整 MCP 套件写为通过，后续继续排查。正式 v1.0 未被本次 beta 改动覆盖。
+
+## Local Linux beta adaptation
+
+Linux Office conversion requires LibreOffice; Microsoft Office embedded editing is unavailable. AppImage/deb installers and live external AI/Yuketang services are not verified in this local sync. Beta uses a separate user profile (`~/.config/pagenote-beta`).

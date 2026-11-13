@@ -1,0 +1,125 @@
+{
+  "platform": "linux",
+  "os": "6.8.0-138-generic",
+  "architecture": "x64",
+  "viewport": {
+    "width": 1440,
+    "height": 928,
+    "density": 1
+  },
+  "capturedAt": "2026-10-30T08:17:55.628Z",
+  "sourceCommit": "9b403d8811c11b3a517f90b8ba065738c1e20982",
+  "workingTree": "modified integration worktree",
+  "version": "1.1.0-beta.5-dev.3",
+  "targetPackageVersion": "1.1.0-beta.5-dev.3",
+  "sample": "synthetic, no account or network AI request",
+  "captures": [
+    "bookshelf",
+    "reading",
+    "native-focus-overview",
+    "native-svg",
+    "native-canvas",
+    "native-population",
+    "native-wheel",
+    "native-crossover",
+    "native-mutation",
+    "native-chart",
+    "native-three",
+    "native-focus-three",
+    "native-brush",
+    "native-gpu-fallback",
+    "native-note-saved"
+  ],
+  "captureViewports": {
+    "bookshelf": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "reading": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-focus-overview": {
+      "width": 2560,
+      "height": 1440,
+      "density": 1,
+      "fullscreen": true
+    },
+    "native-svg": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-canvas": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-population": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-wheel": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-crossover": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-mutation": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-chart": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-three": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-focus-three": {
+      "width": 2560,
+      "height": 1440,
+      "density": 1,
+      "fullscreen": true
+    },
+    "native-brush": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-gpu-fallback": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    },
+    "native-note-saved": {
+      "width": 1440,
+      "height": 928,
+      "density": 1,
+      "fullscreen": false
+    }
+  }
+}

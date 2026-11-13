@@ -1,0 +1,133 @@
+{
+  "platform": "macos",
+  "capturedOn": "2026-10-30",
+  "sourceCommit": "6388245cbc919ca7b1335fbf59f36abc6cf5a5be",
+  "workingTree": "Documentation and capture helpers modified; application runtime tracked source matches sourceCommit",
+  "version": "1.1.0-beta.5-dev.2",
+  "targetPackageVersion": "1.1.0-beta.5-dev.1",
+  "architecture": "arm64",
+  "os": "macOS 26.5.1 (25F80); Darwin 25.5.0",
+  "device": "Apple Silicon Mac",
+  "density": 2,
+  "theme": "Light system; paper-colored genetic-lab example",
+  "language": "zh-CN",
+  "sample": "Original synthetic offline lesson, no personal projects, credentials or network AI requests",
+  "processing": "Original capture bytes; no crop, resize, compositing or retouching; extension matches actual format",
+  "images": [
+    {
+      "file": "native-canvas-after.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "8cc5cc12b6e69e0f188bbbb5c163cc87c3bd3c1b354a096a84adf56868d65610"
+    },
+    {
+      "file": "native-canvas-before.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "be92fff2c2b8ea2b9976d8f1f5d3c92df579c1e4f12f192df1819a14aaaab8b6"
+    },
+    {
+      "file": "native-chart-after.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "22d26ad629952b102c21af10129c0ee2810e7772e74aa8a1c1466a69c709070f"
+    },
+    {
+      "file": "native-chart-before.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "ca10ae21cc24fad498b52c6ff309ac36ad2aee46465fa8e2c5cdbf7523cd7645"
+    },
+    {
+      "file": "native-return-to-note.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "91a51f65462baaf802e1608e2aab19566a700ee73617f72dc7256cdaa603a472"
+    },
+    {
+      "file": "native-svg-after.jpg",
+      "format": "jpeg",
+      "width": 2940,
+      "height": 1846,
+      "logicalWidth": 1470,
+      "logicalHeight": 923,
+      "sha256": "7cda9f1b368edea6785775fa968aaae384c80063fc52e98f4fc36be71590aaf2"
+    },
+    {
+      "file": "native-svg-before.jpg",
+      "format": "jpeg",
+      "width": 2940,
+      "height": 1846,
+      "logicalWidth": 1470,
+      "logicalHeight": 923,
+      "sha256": "cb632fdd186ec4e4a07c057c66856a8a882e7fe1c292484d6d62afcd12c0c33b"
+    },
+    {
+      "file": "native-three-after.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "3c831ab9b0ccc993bdecf26de6d1e2c0e331aa3c5d044edc14d9c0f0b138e200"
+    },
+    {
+      "file": "native-three-before.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "3c831ab9b0ccc993bdecf26de6d1e2c0e331aa3c5d044edc14d9c0f0b138e200"
+    },
+    {
+      "file": "native-three-running.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "3c831ab9b0ccc993bdecf26de6d1e2c0e331aa3c5d044edc14d9c0f0b138e200"
+    }
+  ],
+  "electron": "44.7.2",
+  "captureMethod": "Actual macOS UI capture (JPEG), manual numbered interactions",
+  "savedFile": {
+    "file": "saved-notes.md",
+    "sha256": "2036d1b518942344ce258c60a27967630ee34041968d5e86f45126fab8a150ea",
+    "verifiedFields": {
+      "genes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "position": 51,
+      "generation": 1
+    },
+    "notVerified": "Full application restart, all states, paused-state persistence"
+  }
+}

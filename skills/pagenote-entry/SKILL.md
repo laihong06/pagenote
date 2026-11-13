@@ -5,6 +5,8 @@ description: Pagenote 文档教学任务入口，按生成或修改场景发现�
 # 入口与路由
 尊重上层原厂 Agent 的规划、会话、子代理、并发、记忆和上下文管理能力。软件不规定会话数量、单次装载量或固定调用流程；由 Agent 自主调配。逐页要求约束成果，不强制一页一个会话或请求。不要声称执行了未实际调用的子代理。
 
+先分别判断 workflow（generation／revision／direct）与 intent（explain／summarize／translate／edit／annotate），合并索引两轴模块。涉及解释、演示、举例、补讲或改善理解时，必须读取 learning、representation、output、learner、profile；初次生成、知识性修改和临时问答共用同一质量标准。纯错字、符号、格式修复只修用户范围，不自动扩写。
+
 依据用户的任务与范围选择路由：初次生成、补讲指定页使用 generation；按 Tag 或直接修改意见使用 tag-edit。混合任务按页分别处理。共用 learning、page-tutor、output、learner 和 profile；按需加载并依 revision 复用，不要求一次装入全部材料。已有笔记不能当作空白覆盖。本次要求优先于用户画像，画像优先于默认表达。
 
 先查看本索引的 routes 与 capabilities。page_notes_prepare_task 提供相应的本地材料包，软件负责提取、OCR、图像与版本缓存。包是可选择的获取入口，不是强制上下文配额；可批量规划、分批读取、委派或续读。按 nextOffset / hasMore 补齐需要的材料，不把截断当完整。图片用 page_notes_prepare_page(output=image) 直接取得；需要时调用截图或拼图。工具名称以本次 MCP 发现为准。

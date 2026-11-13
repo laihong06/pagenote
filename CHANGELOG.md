@@ -220,6 +220,68 @@
 
 - Add a manual cloud-to-draft Mac upload workflow that verifies the successful CI commit, exact beta tag, draft status and package checksums. It never publishes a release or replaces published files. / 增加云端直传草稿发布流程，核对 CI 提交、Beta 标签和校验值，不自动公开发布、不替换已发布文件。
 
+- Adopt the "A · 灵感记录" design as the official PageNote icon: an ivory page whose folded corner forms a paper plane with a hidden pen nib, plus a warm handwritten stroke, on an indigo-violet rounded square. The icon source now lives at `assets/brand/pagenote-icon.svg`, and `scripts/create-icon.mjs` renders that SVG into `build/icon.ico` (16–256px), `build/icon.png` and `build/icon.svg` instead of redrawing the old procedural shapes, so future redesigns only replace the SVG. / 正式采用「A · 灵感记录」为 PageNote 图标：象牙白纸页的折角构成藏着钢笔尖的纸飞机，配暖橙色手写笔迹，置于靛蓝紫圆角底上。图标源文件固定为 `assets/brand/pagenote-icon.svg`，`scripts/create-icon.mjs` 改为渲染该 SVG 生成 `build/icon.ico`（16–256px）、`build/icon.png` 与 `build/icon.svg`，不再逐像素重绘旧图形；后续换标只需替换 SVG。
+
+- Add a founder-review proposal for PageNote's teacher-Agent system, covering instructional decisions, prompt routing, learner evidence, native interactions, reliability, evaluation and staged competition delivery. / 新增供创始人审查的教师 Agent 体系与优化总方案，覆盖教学决策、提示路由、学习证据、原生交互、可靠性、分层评估及参赛实施；仅方案，不声明新增运行能力。
+
+- Organize StudyHack competition preparation under competitions/qoder-2026: requirements and gaps, existing-feature evidence, a forum-post draft, a web demo plan and Qoder/submission records, with copied historical Windows screenshots and provenance. Documentation only; no Qoder development, public deployment or submission is claimed. / 新增 Qoder 高校创造力大赛 StudyHack 参赛材料目录，整理需求缺口、已有成果证据、作品帖草稿、网页演示计划与过程／提交记录，归档历史 Windows 截图及来源；仅材料整理，不宣称已用 Qoder 开发、完成公网部署或参赛提交。
+
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
+- Make the legacy preview lifecycle test focus its window before checking macOS minimize behavior. / 旧预览生命周期测试在检查 macOS 最小化前先确保应用窗口可见并获得焦点。
+
+- Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
+
+- Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
+
+- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+
+- Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+- Update Multer, body-parser and qs to fixed production versions; production dependency audit reports no vulnerabilities. / 将 Multer、body-parser、qs 更新到已修复版本；生产依赖审计不再报告漏洞。
+- Resubmit platform documentation and review evidence for merged PR #13 under the new contribution standard: add 30 Android API 34 and 20 actual Mac captures, numbered workflows, per-module coverage and provenance; retain Windows capture origins and disclose shape-undo/floating-window defects and validation gaps. No runtime, format, version or public download changes. / 按新规范补交 #13 的平台 README、功能表与配图教程；新增 Android 30 张、Mac 20 张真实运行图及操作过程和来源，保留 Windows 原图来源，如实列出形状撤销、悬浮窗布局与验证缺口；不改程序、格式、版本或公开下载。
+- Supplement the Linux port with packaged runtime screenshots, per-module native interaction evidence and current validation records; extend Office conversion coverage to real DOCX/PPTX fixtures. No release or runtime behavior change.
+
+- Add the first Linux desktop port from shared beta 6388245: isolated Linux entry/version and packaging, LibreOffice conversion, browser/source launch, Linux regression tests and platform guide with runtime evidence. Linux development version 1.1.0-beta.5-dev.3; no public release or changes to other platform versions.
+
+- Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
+
+- Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
+
+- Correct Markdown S's primary architecture to native PageNote SVG/Canvas/chart/WebGL components; serialize interaction state into the existing Markdown fence and reuse project autosave, without creating or resaving HTML documents. / 按发起人修正改为原生组件直绘笔记，交互状态写回同一 Markdown 并复用项目自动保存；不以独立 HTML 或 iframe 代替。
+
+- Add a native genetic-algorithm work with 36 individuals, 40 generations, SVG/Canvas/WebGL, chapter navigation, focus mode and recognized-template-to-data import; document per-module screenshots and visual differences from the reference. Preserve source bytes outside the changed data fence and avoid replacing live source views during layout changes. / 新增原生遗传算法作品，包含36个体、40代、章节导航、专注模式和已识别模板转数据导入；附逐模块截图及视觉差距，保留数据围栏外源码，修复排版变化打断源文档交互的问题。
+
+- Verify 20 real preview start/stop cycles preserve surrounding prose and release iframe nodes, and runtime errors remain visible and restartable. / 验证二十次真实运行停止不改变正文、释放 iframe，运行错误可见且可重新启动；不据此宣称无内存泄漏。
+
+- Verify Android notes-module tests including six Markdown S fence-preservation paths after restoring official test dependencies; document JVM-only scope. / Android 笔记模块测试通过，包含六种增强围栏源码保真；明确仅 JVM 数据路径，未宣称移动端交互执行。
+
+- Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。
+
+- Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
+
+- Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。
+
+- Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
+
+- Fix desktop preview suspension when minimize does not update document visibility: native minimize/hide events now suspend Markdown S previews; real window minimize/restore and explicit restart pass. / 修复最小化不触发网页可见性变化时预览不停的问题；宿主最小化／隐藏通知负责停止，真实窗口恢复后手动重跑通过。
+
+- Verify Markdown S source persistence through real project files and a full application restart; dispose removed previews and stop on document backgrounding. / 验证真实项目文件保存及完整应用重启后源码保留；清理被删除的运行组件并接入后台停止，后台系统行为仍待实测。
+
+- Validate preview replacement cleanup, concurrency and network/navigation isolation; add renderer contracts and real Electron checks to platform CI, with scoped acceptance evidence. / 验证预览替换清理、并发限制及网络／导航隔离，接入平台 CI 并按验收项记录证据与未完成范围。
+
+- Add a reproducible Markdown S learning demo and real Windows tutorial screenshots; verify component source editing, undo and redo. / 新增可复现的学习演示笔记、真实 Windows 配图教程，并验证组件源码编辑和撤销重做；开发功能未发布。
+
+- Verify offline SVG, Canvas pixels, charts and Three.js WebGL drawing, restore local build dependencies and pass production build plus formula/code/editor regression; limit concurrent previews per view to two. / 验证多引擎实际绘制，补齐本地构建依赖并通过生产构建及公式／代码／编辑回归，每视图最多运行两个演示；仍未发布。
+
+- Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
+
+- Begin the confirmed render-kernel guidance: introduce task scopes with monotonic generations and cancellation, and invalidate Markdown S preparation when its view is replaced. Add ABA/disposal contract checks. / 按确认的内核指导开始统一任务代次和取消，视图替换时失效 Markdown S 旧任务，增加异步竞争与销毁检查；尚未完成整个内核迁移。
+
+- Add an experimental offline Markdown S preview for HTML/CSS/JS, SVG, Canvas, Three.js and simple data charts, explicit start/stop and source-preserving serialization; validate real Electron interaction and parent isolation. Remaining acceptance stays open; no public release. / 新增 Markdown S 离线交互预览原型、运行停止和源码保真，已通过真实 Electron 交互及父页面隔离测试；其余验收仍待完成，不公开发布。
+- Record completed integration PR #15, merged predecessor PRs, passing Windows/macOS/Android CI and actual platform branch routing; distinguish pending package and stable-baseline validation. / 记录整合合并、多平台检查通过与实际分支入口，明确安装包及未获批稳定线的剩余范围。
+
 ## 1.1.0-beta.4 — 2026-10-17
 
 - Keep the Windows executable-name override off macOS: electron-builder uses it for the entire app bundle name. Mac beta now builds as pagenote Beta.app with a matching binary path, alongside stable pagenote.app. / Windows 的可执行文件名覆盖不再影响 Mac；Mac 测试版正确生成独立的 pagenote Beta.app，避免与正式应用重名。
