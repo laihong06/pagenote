@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Android 阅读器套索的自由笔迹命中现在按恢复源码 `Pen.isInRegion()` 的首个采样点决定；笔迹首点在套索外、后续穿过选区时会保留，混合组删除与一次撤销也保留／恢复该笔迹。`referenceRegionSelectionUsesFirstPenSampleAndUndoesMixedDeleteAsOneAction` 与选择／剪贴板仪器测试类 23/23 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 662 项、feature-pen JVM 单测 153 项通过。更新前／套索／删除／撤销全屏截图见[Android 横屏平板验收记录](docs/android/guide/images/reference-shape/README.md#参考区域多材料选择)。annotations.json 格式不变，Windows／macOS 未改；参考完整统一动作栈、真机实体笔及桌面往返仍未验。本地源码与 debug 包，未发布。
 - Android 阅读器选择工具现在可给套索选中的混合自由笔迹和原生图形统一改色；笔迹与图形保存在同一页面事务中，一次撤销／重做恢复整组颜色。`referenceMixedSelectionChangesColorAndUndoesAsOneAction` 与选择／剪贴板仪器测试类 23/23 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 662 项通过。前后、撤销和重做截图见[Android 横屏平板验收记录](docs/android/guide/images/reference-shape/README.md#混合材料组改色与单步撤销重做)。annotations.json 格式不变，Windows／macOS 未改；组粗细修改、参考统一动作栈完整移植、实体笔／真机及桌面往返未验。本地未发布源码与 debug 构建。
 - Android 阅读器多材料套索组移动现在保留移动预览与提交间追加的内容、既有笔迹撤销历史，并在活动指针抬起时提交或取消手势时还原预览；删除、粘贴等改变条数的混合撤销仍可工作。`REF-SELECT-04/05` 与选择／剪贴板仪器测试类 22/22 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 661 项、feature-pen JVM 单测 153 项均通过。五张横屏运行截图及边界见[Android 验收记录](docs/android/guide/images/reference-shape/README.md#混合材料组移动与单步撤销重做)。annotations.json 格式未改，Windows／macOS 未改；输入为合成 stylus／多点 MotionEvent，实体触控笔、真机和桌面往返未验。本地源码及 APK，未发布。
 - 补充 `REF-SHAPE-05` 短直线识形的实际阅读器截图，阅读器回归改为精确使用 16px 采样端距；注明 Android 14 API 34 ARM64 横屏平板、合成触控笔边界和运行代码 `fca9d56`。截图只记录识形后原生直线，不表示桌面往返或实体笔验收。
