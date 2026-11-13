@@ -13,6 +13,8 @@
 - 参考 `isBrokenLine` 返回折点时，阅读器现在按原调用次序将首点、折点、尾点转为页面坐标并应用 `toImageWidth(20)` 轴吸附。为保留跨端旧文件形式，折线落盘为单个多点 `type: "pen"` 对象，附 `pagenotePolyline: true`；Android 识别预览及持久化渲染按这些点直连，普通 `pen` 仍沿用原平滑曲线。区域橡皮切分该笔迹后保留扩展标记。端到端模拟器回归覆盖识形保存为单对象及一次撤销移除；桌面源码现有 `pen` 分支按点连接且校验允许扩展字段，但桌面运行/重新打开往返尚未验证。这仍不等同于参考 `ShapeTool` 材料：笔迹样式、选择、统一历史和编辑语义仍有差异。
 - 当前验收用例：`REF-POLYLINE-01..04` 覆盖折线单笔保存、直连渲染、单步撤销和擦除后标记保留；`REF-CURVE-01/02` 覆盖曲线公式、33 点采样及画布写入，`REF-CURVE-03`（`referenceCurvePersistsAndUndoesAsOneStroke`）覆盖阅读器落盘和单步撤销。曲线及折线保持 `pen` 主类型并使用 PageNote 扩展字段。
 - 曲线分支现按源码 `BezierTool.getPath` 公式执行：参考采样控制点是绘制曲线经过的中点，实际二次控制点为 `midpoint + 2 * (sampledControl - midpoint)`；生成33个等距参数采样点，保存在多点 `pen` 的 `pagenoteCurve` 扩展字段中。每段按直线渲染能被现有桌面 `pen` 解释；尚未验证桌面实际运行打开／保存往返。当前分类器对完全平直的长轨迹也会给出内点控制索引；参考调用链因此走 `BezierTool`，结果仍是平直曲线。
+- 当 `isLine` 未返回直线，且检测到的贝塞尔控制点不满足 `directDistance > min(boundsWidth, boundsHeight)` 时，参考实现会进入 `GraphUtils.isCurveAndCreate`。Android `ReferenceCurveFitter` 已按该方法移植六系数五次最小二乘拟合、分别拟合 `y(x)`／`x(y)`、单调采样、5dp 偏差过滤、越界计数、候选比较和面积比校验；拟合输入仍是屏幕采样点，结果适配为兼容多点 `pen` + `pagenoteCurve`。为避免原始坐标高次方病态，Android 在求解前将自变量归一化，使用稳定高斯消元，因此这是结构级移植，仍可能与参考浮点舍入结果有差异。
+- `REF-CURVE-04`（`PdfAnnotationSelectionClipboardActivityTest.referenceCurveLeastSquaresFallbackPersistsAndUndoesAsOneStroke`）用端到端阅读器轨迹落入该回退分支，检查保存为超过固定 33 点贝塞尔采样数的曲线材料、截图和一次撤销清除。运行验收是合成 stylus 输入，不代表实体触控笔、原参考应用运行时差分或桌面往返。
 - 目前还需要验证参考采样和坐标映射在不同屏幕缩放、旋转和边缘位置下的差异，完成原程序运行时差分、桌面读写往返及真机性能验证。两个后台线程的队列改动只改善一个模拟的慢任务场景，不代替这些验收。
 
 ## 参考闭合形状识别（Android 适配）

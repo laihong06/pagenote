@@ -22,6 +22,24 @@
 - `reference-curve.png`：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi，合成 PDF 项目。`PdfAnnotationSelectionClipboardActivityTest.referenceCurvePersistsAndUndoesAsOneStroke` 输入弧线；图中为参考 `BezierTool` 路径保存后的曲线。运行产品代码 commit `a5666a4`。
 - 阅读器端到端测试确认保存为 33 点 `pen` 对象并可一次撤销。截图来自菜单切换附近，包含打开的菜单面板；它记录实际运行状态，不代表最终菜单视觉对比。实体触控笔、桌面往返和参考 App 运行时差分仍未验收。
 
+## 参考曲线最小二乘回退
+
+- 验收项 `REF-CURVE-04`：`PdfAnnotationSelectionClipboardActivityTest.referenceCurveLeastSquaresFallbackPersistsAndUndoesAsOneStroke`。输入让端点距离不大于包围盒短边，触发 `GraphUtils.isCurveAndCreate` 对直接 Bezier 分支的回退；页面数据保存为兼容 `pen` + `pagenoteCurve`，拟合采样点数超过固定 33 点 Bezier 分支，并由一次撤销整项移除。
+- 运行环境：Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题；测试 PDF 和合成 stylus `MotionEvent`。截图均来自完整应用屏幕的 `UiAutomation.takeScreenshot()`，运行代码提交 SHA 待代码提交后补入。
+- 输入前截图展示空白测试页面，保存后截图展示拟合曲线，撤销后截图展示曲线已清除；非实体笔、非参考 App 运行时差分，也未验证 Windows／macOS 重新打开与保存往返。
+
+识别前：
+
+![最小二乘回退识别前的横屏平板页面](reference-curve-fallback-before.png)
+
+拟合保存后：
+
+![最小二乘回退保存的曲线](reference-curve-fallback-saved.png)
+
+一次撤销后：
+
+![一次撤销清除回退拟合曲线](reference-curve-fallback-undo.png)
+
 ## 停留识形与异步保存的撤销顺序
 
 - 验收用例 `REF-HISTORY-02`：`PdfAnnotationSelectionClipboardActivityTest.lateShapeSaveDoesNotOverrideNewerInkGestureOrder`。锁住异步笔迹保存，先完成一条停留识别直线，再写入较新的自由笔迹并放开保存队列；撤销一次应只移除后写的自由笔迹，保留直线。

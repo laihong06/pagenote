@@ -24,6 +24,22 @@ class ReferenceOpenShapeRecognizerTest {
     assertTrue(ReferenceBrokenLine.find(screenPoints, 15f).isNotEmpty())
     assertEquals("polyline", ReferenceOpenShapeRecognizer.recognize(sampled, geometry, 1f)?.type)
   }
+
+  @Test fun brokenLineThresholdUsesThePageToScreenScaleFromReference() {
+    val geometry = PenCanvasGeometry(
+      400f,
+      600f,
+      PenCanvasPageTransform(pageWidthPx = 400f, pageHeightPx = 600f),
+    )
+    val sampled = (0..10).map { 100f + it to 100f } +
+      (1..30).map { 110f to 100f + it }
+
+    val shape = ReferenceOpenShapeRecognizer.recognize(sampled, geometry, density = 2f)
+
+    assertEquals("polyline", shape?.type)
+    assertEquals(3, shape?.points?.size)
+  }
+
   @Test fun referenceCurveUsesTheDetectedControlPoint() {
     val geometry = PenCanvasGeometry(1000f, 800f)
     val sampled = (0..40).map { step ->
@@ -38,6 +54,32 @@ class ReferenceOpenShapeRecognizerTest {
     assertEquals(33, shape?.points?.size)
     assertEquals(350f, shape!!.points[16].y, 1f)
   }
+
+  @Test fun referenceCurveFallbackFitsAnOpenCurveRejectedByTheBezierBranch() {
+    val geometry = PenCanvasGeometry(2000f, 2000f)
+    val sampled = (0..40).map { step ->
+      val t = step / 40f
+      val x = 100f + 100f * t
+      val y = 100f + 105f * 4f * t * (1f - t)
+      x to y
+    }
+    val classified = ReferenceLineClassifier.classify(sampled.map { (x, y) -> PenPoint(x, y, 1f) })
+    assertTrue(classified.controlIndex in 1 until sampled.lastIndex)
+    assertTrue(
+      "reference fitter should accept the curve before integration",
+      ReferenceCurveFitter.fit(sampled.map { (x, y) -> PenPoint(x, y, 1f) }, density = 2f) != null,
+    )
+    assertEquals(
+      sampled.size,
+      ReferenceCurveFitter.fit(sampled.map { (x, y) -> PenPoint(x, y, 1f) }, density = 2f)?.size,
+    )
+
+    val shape = ReferenceOpenShapeRecognizer.recognize(sampled, geometry, density = 2f)
+
+    assertEquals("curve", shape?.type)
+    assertTrue(shape!!.points.size > 20)
+  }
+
   @Test fun sampledFlatLineFollowsTheReferenceBezierBranch() {
     val points = (0..40).map { (40f + it * 5f) to 80f }
     val classified = ReferenceLineClassifier.classify(points.map { (x, y) -> PenPoint(x, y, 1f) })
