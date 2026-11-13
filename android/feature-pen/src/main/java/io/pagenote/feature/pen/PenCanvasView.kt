@@ -170,6 +170,8 @@ class PenCanvasView @JvmOverloads constructor(
     isFocusable = true
     setWillNotDraw(false)
   }
+  /** In continuous PDF readers, fingers scroll the document and only a pen writes ink. */
+  var stylusOnlyInput: Boolean = false
 
   var selectedStrokeIndices: Set<Int> = emptySet()
     set(value) {
@@ -253,6 +255,23 @@ class PenCanvasView @JvmOverloads constructor(
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
     if (!inputEnabled) return false
+    if (stylusOnlyInput) {
+      val pointerIndex = if (activePointerId != INVALID_POINTER) {
+        event.findPointerIndex(activePointerId)
+      } else {
+        event.actionIndex
+      }
+      if (pointerIndex >= 0) {
+        val toolType = event.getToolType(pointerIndex)
+        if (toolType != MotionEvent.TOOL_TYPE_STYLUS && toolType != MotionEvent.TOOL_TYPE_ERASER) {
+          if (activePointerId != INVALID_POINTER) {
+            resetGesture(commitNativeAreaErase = false)
+            invalidate()
+          }
+          return false
+        }
+      }
+    }
     if (selectedTool == PenCanvasTool.SELECT) return handleSelectionTouch(event)
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> return beginGesture(event, event.actionIndex)
