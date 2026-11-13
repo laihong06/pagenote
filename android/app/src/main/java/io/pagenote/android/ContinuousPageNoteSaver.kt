@@ -41,10 +41,18 @@ internal class ContinuousPageNoteSaver(
               val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
               edited to retainedCopy
             }
-            updateNotes(result.markdown)
+            val activeProject = readerSession.project.value
+            val isStillCurrentProject = readerProjectIdentityMatches(
+              expectedProjectId = projectId,
+              expectedDirectoryUri = project.sourceDirectoryUri.toString(),
+              currentProjectId = activeProject?.manifest?.id,
+              currentDirectoryUri = activeProject?.sourceDirectoryUri?.toString(),
+            )
+            if (isStillCurrentProject) updateNotes(result.markdown)
             val savedPage = NotePage.pageAt(result.markdown, page)
             readerSession.completeContinuousPageSave(
               projectId = projectId,
+              sourceDirectoryUri = project.sourceDirectoryUri.toString(),
               page = page,
               savedMarkdown = savedPage,
               baseRevision = result.pageRevision,
@@ -55,26 +63,43 @@ internal class ContinuousPageNoteSaver(
               }
             }
             search.indexSavedNotePage(projectId, page, savedPage, result.pageRevision)
-            if (recoveryCopyName != null) {
+            if (recoveryCopyName != null && isStillCurrentProject) {
               updateStatus(context.getString(R.string.note_saved_recovery_copy, recoveryCopyName))
             }
           } catch (cancelled: CancellationException) {
             throw cancelled
           } catch (conflict: PageNoteConflictException) {
-            updateStatus(conflict.message.orEmpty())
+            updateStatusIfCurrent(project, projectId, conflict.message.orEmpty())
           } catch (conflict: NoteDocumentConflictException) {
-            updateStatus(
-              conflict.recoveryCopyName?.let { name ->
+            updateStatusIfCurrent(
+              project = project,
+              projectId = projectId,
+              status = conflict.recoveryCopyName?.let { name ->
                 context.getString(R.string.note_conflict_recovery_copy, name)
               } ?: context.getString(R.string.note_conflict),
             )
           } catch (error: Exception) {
-            updateStatus(context.getString(R.string.note_save_failed, error.message ?: ""))
+            updateStatusIfCurrent(
+              project,
+              projectId,
+              context.getString(R.string.note_save_failed, error.message ?: ""),
+            )
           }
         }
       } finally {
         queuedPages.remove(page)
       }
     }
+  }
+
+  private fun updateStatusIfCurrent(project: OpenedProject, projectId: String, status: String) {
+    val activeProject = readerSession.project.value
+    if (readerProjectIdentityMatches(
+        expectedProjectId = projectId,
+        expectedDirectoryUri = project.sourceDirectoryUri.toString(),
+        currentProjectId = activeProject?.manifest?.id,
+        currentDirectoryUri = activeProject?.sourceDirectoryUri?.toString(),
+      )
+    ) updateStatus(status)
   }
 }

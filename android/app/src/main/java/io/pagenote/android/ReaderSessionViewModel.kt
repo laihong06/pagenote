@@ -68,8 +68,8 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   private val recoveryMutex = Any()
   private val draftGeneration = AtomicLong()
   private val continuousDraftLock = Any()
-  private val continuousDrafts = LinkedHashMap<Pair<String, Int>, ContinuousPageNoteDraft>()
-  private val pageRecoveryGeneration = mutableMapOf<Pair<String, Int>, Long>()
+  private val continuousDrafts = LinkedHashMap<ContinuousPageDraftKey, ContinuousPageNoteDraft>()
+  private val pageRecoveryGeneration = mutableMapOf<ContinuousPageDraftKey, Long>()
   private var activeTarget: ProjectOpenTarget? = ReaderSessionCheckpoint.restoreFrom(savedStateHandle)
     ?.toProjectOpenTarget()
   private var restorationCheckpoint = ReaderSessionCheckpoint.restoreFrom(savedStateHandle)
@@ -230,18 +230,40 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   }
 
   fun setNoteDraft(value: String) {
+    setNoteDraftForPage(pageIndex.intValue + 1, value)
+  }
+
+  private fun setNoteDraftForPage(page: Int, value: String) {
     noteDraft.value = value
-    project.value?.manifest?.id?.let { projectId ->
-      rememberContinuousNoteDraft(projectId, pageIndex.intValue + 1, value, noteBaseRevision.value)
+    project.value?.let { activeProject ->
+      rememberContinuousNoteDraft(
+        projectId = activeProject.manifest.id,
+        sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+        page = page,
+        markdown = value,
+        baseRevision = noteBaseRevision.value,
+      )
     }
     scheduleDraftRecoveryWrite()
   }
 
-  internal fun continuousNoteDraft(projectId: String, page: Int): ContinuousPageNoteDraft? =
-    synchronized(continuousDraftLock) { continuousDrafts[projectId to page] }
+  internal fun activateSinglePageNote(nextPageIndex: Int, markdown: String) {
+    pageIndex.intValue = nextPageIndex
+    noteBaseRevision.value = PageNotes.revision(markdown)
+    setNoteDraftForPage(nextPageIndex + 1, markdown)
+  }
+
+  internal fun continuousNoteDraft(
+    projectId: String,
+    sourceDirectoryUri: String,
+    page: Int,
+  ): ContinuousPageNoteDraft? = synchronized(continuousDraftLock) {
+    continuousDrafts[ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)]
+  }
 
   internal fun rememberContinuousNoteDraft(
     projectId: String,
+    sourceDirectoryUri: String,
     page: Int,
     markdown: String,
     baseRevision: String,
@@ -249,7 +271,7 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
     if (page < 1) return
     val savedPage = NotePage.pageAt(notesMarkdown.value, page)
     synchronized(continuousDraftLock) {
-      val key = projectId to page
+      val key = ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)
       if (markdown == savedPage) continuousDrafts.remove(key)
       else continuousDrafts[key] = ContinuousPageNoteDraft(markdown, baseRevision)
     }
@@ -262,17 +284,25 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   /** Persist the exact outgoing page draft asynchronously so a scroll never waits for SAF. */
   internal fun preserveContinuousPageDraft(
     projectId: String,
+    sourceDirectoryUri: String,
     page: Int,
     markdown: String,
     baseRevision: String,
     savedMarkdown: String,
   ) {
-    rememberContinuousNoteDraft(projectId, page, markdown, baseRevision)
-    val currentProject = project.value?.takeIf { it.manifest.id == projectId } ?: return
+    rememberContinuousNoteDraft(projectId, sourceDirectoryUri, page, markdown, baseRevision)
+    val currentProject = project.value ?: return
+    if (!readerProjectIdentityMatches(
+        expectedProjectId = projectId,
+        expectedDirectoryUri = sourceDirectoryUri,
+        currentProjectId = currentProject.manifest.id,
+        currentDirectoryUri = currentProject.sourceDirectoryUri.toString(),
+      )
+    ) return
     val target = activeTarget ?: return
     val store = recoveryStore ?: return
     val key = recoveryKey(target, projectId, page)
-    val generationKey = projectId to page
+    val generationKey = ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)
     val generation = synchronized(continuousDraftLock) {
       (pageRecoveryGeneration[generationKey] ?: 0L).plus(1L).also {
         pageRecoveryGeneration[generationKey] = it
@@ -287,7 +317,14 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
             val stillCurrent = synchronized(continuousDraftLock) {
               pageRecoveryGeneration[generationKey] == generation
             }
-            if (!stillCurrent || project.value?.manifest?.id != currentProject.manifest.id) return@synchronized
+            val activeProject = project.value
+            if (!stillCurrent || !readerProjectIdentityMatches(
+                expectedProjectId = projectId,
+                expectedDirectoryUri = sourceDirectoryUri,
+                currentProjectId = activeProject?.manifest?.id,
+                currentDirectoryUri = activeProject?.sourceDirectoryUri?.toString(),
+              )
+            ) return@synchronized
             if (markdown == savedMarkdown) {
               store.clear(key)
             } else {
@@ -330,6 +367,7 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
     val outgoingRevision = noteBaseRevision.value
     preserveContinuousPageDraft(
       projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
       page = outgoingPage,
       markdown = outgoingDraft,
       baseRevision = outgoingRevision,
@@ -340,7 +378,11 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
     pageIndex.intValue = nextPage
     val targetPage = nextPage + 1
     val savedPage = NotePage.pageAt(savedNotes, targetPage)
-    val cachedDraft = continuousNoteDraft(activeProject.manifest.id, targetPage)
+    val cachedDraft = continuousNoteDraft(
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+      page = targetPage,
+    )
     noteBaseRevision.value = cachedDraft?.baseRevision ?: PageNotes.revision(savedPage)
     setNoteDraft(cachedDraft?.markdown ?: savedPage)
     onPageActivated(targetPage)
@@ -349,24 +391,33 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
 
   internal fun completeContinuousPageSave(
     projectId: String,
+    sourceDirectoryUri: String,
     page: Int,
     savedMarkdown: String,
     baseRevision: String,
   ) {
-    val key = projectId to page
+    val key = ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)
     val latestDraft = synchronized(continuousDraftLock) { continuousDrafts[key]?.markdown }
       ?: savedMarkdown
     synchronized(continuousDraftLock) {
       if (latestDraft == savedMarkdown) continuousDrafts.remove(key)
       else continuousDrafts[key] = ContinuousPageNoteDraft(latestDraft, baseRevision)
     }
+    val activeProject = project.value
+    if (!readerProjectIdentityMatches(
+        expectedProjectId = projectId,
+        expectedDirectoryUri = sourceDirectoryUri,
+        currentProjectId = activeProject?.manifest?.id,
+        currentDirectoryUri = activeProject?.sourceDirectoryUri?.toString(),
+      )
+    ) return
     if (pageIndex.intValue + 1 == page) {
       noteBaseRevision.value = baseRevision
       if (noteDraft.value == savedMarkdown) noteDraft.value = savedMarkdown
     }
-    val currentProject = project.value?.takeIf { it.manifest.id == projectId } ?: return
     preserveContinuousPageDraft(
       projectId = projectId,
+      sourceDirectoryUri = sourceDirectoryUri,
       page = page,
       markdown = latestDraft,
       baseRevision = baseRevision,
@@ -502,3 +553,16 @@ internal data class ContinuousPageNoteDraft(
   val markdown: String,
   val baseRevision: String,
 )
+
+private data class ContinuousPageDraftKey(
+  val projectId: String,
+  val sourceDirectoryUri: String,
+  val page: Int,
+)
+
+internal fun readerProjectIdentityMatches(
+  expectedProjectId: String,
+  expectedDirectoryUri: String,
+  currentProjectId: String?,
+  currentDirectoryUri: String?,
+): Boolean = expectedProjectId == currentProjectId && expectedDirectoryUri == currentDirectoryUri

@@ -190,6 +190,43 @@ class ReaderSessionRestorationTest {
     }
   }
 
+  @Test
+  fun activatingSinglePageAssociatesItsNoteWithTheTargetPage() {
+    val projectId = "d".repeat(64)
+    val projectUri = Uri.parse("content://reader-session-test/project/$projectId")
+    val session = ReaderSessionViewModel(SavedStateHandle()).apply {
+      project.value = OpenedProject(
+        manifest = ProjectManifest(
+          format = "pagenote-project",
+          version = 1,
+          id = projectId,
+          name = "Single-page note fixture",
+          left = "src/source.pdf",
+          right = "src/notes.md",
+        ),
+        sourceUri = projectUri,
+        notesUri = Uri.parse("content://reader-session-test/notes/$projectId"),
+        sourceDirectoryUri = projectUri,
+        annotationsUri = null,
+        reviewsUri = null,
+        handoffsUri = null,
+        sourceName = "source.pdf",
+        sourceExtension = "pdf",
+      )
+      notesMarkdown.value = PageNotes.join(
+        listOf("# Page 1 saved note", "# Page 2 saved note", "# Page 3 saved note"),
+      )
+      pageIndex.intValue = 1
+    }
+
+    session.activateSinglePageNote(2, "# Page 3 saved note")
+
+    assertEquals(2, session.pageIndex.intValue)
+    assertEquals("# Page 3 saved note", session.noteDraft.value)
+    assertEquals(null, session.continuousNoteDraft(projectId, projectUri.toString(), 2))
+    assertEquals(null, session.continuousNoteDraft(projectId, projectUri.toString(), 3))
+  }
+
   private fun minimalPdf(pageCount: Int): ByteArray {
     val output = ByteArrayOutputStream()
     val offsets = mutableListOf(0)

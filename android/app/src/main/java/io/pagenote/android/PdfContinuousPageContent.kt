@@ -37,6 +37,25 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
+import java.util.concurrent.atomic.AtomicReference
+
+internal suspend fun <T : Any> withCancellationSafeContextResult(
+  context: CoroutineContext,
+  dispose: (T) -> Unit,
+  block: suspend () -> T,
+): T {
+  val pendingResult = AtomicReference<T?>()
+  try {
+    val result = withContext(context) {
+      block().also(pendingResult::set)
+    }
+    pendingResult.compareAndSet(result, null)
+    return result
+  } finally {
+    pendingResult.getAndSet(null)?.let(dispose)
+  }
+}
 
 @Composable
 internal fun PdfContinuousPageContent(
@@ -50,22 +69,21 @@ internal fun PdfContinuousPageContent(
   var bitmap by remember(renderer, pageIndex) { mutableStateOf<Bitmap?>(null) }
 
   LaunchedEffect(renderer, pageIndex, renderMutex) {
-    var rendered: Bitmap? = null
     try {
-      rendered = withContext(Dispatchers.IO) {
+      val rendered = withCancellationSafeContextResult(
+        context = Dispatchers.IO,
+        dispose = Bitmap::recycleAfterDrawFrames,
+      ) {
         renderMutex.withLock {
           currentCoroutineContext().ensureActive()
           renderer.render(pageIndex)
         }
       }
       bitmap = rendered
-      rendered = null
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: Exception) {
       // Keep the page placeholder in its measured position if this page cannot render.
-    } finally {
-      rendered?.recycleAfterDrawFrames()
     }
   }
 
@@ -190,7 +208,10 @@ private fun PdfContinuousReaderPage(
     targetPage,
     state.annotationReload,
   ) {
-    val loaded = withContext(Dispatchers.IO) {
+    val loaded = withCancellationSafeContextResult(
+      context = Dispatchers.IO,
+      dispose = AnnotationOverlayLoad::recycleBitmaps,
+    ) {
       runCatching {
         loadPdfAnnotationOverlay(
           context = state.context,
@@ -292,4 +313,9 @@ private fun PdfContinuousReaderPage(
       modifier = Modifier.fillMaxSize(),
     )
   }
+}
+
+private fun AnnotationOverlayLoad.recycleBitmaps() {
+  images.values.forEach(Bitmap::recycleAfterDrawFrames)
+  htmlBitmaps.values.forEach(Bitmap::recycleAfterDrawFrames)
 }

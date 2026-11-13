@@ -2697,6 +2697,7 @@ private fun ReaderHome(
         notesMarkdown = result.markdown
         readerSession.completeContinuousPageSave(
           projectId = activeProject.manifest.id,
+          sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
           page = targetPage,
           savedMarkdown = NotePage.pageAt(result.markdown, targetPage),
           baseRevision = result.pageRevision,
@@ -2751,7 +2752,7 @@ private fun ReaderHome(
     }.await()
   }
 
-  val continuousPageNoteSaver = remember(project?.manifest?.id) {
+  val continuousPageNoteSaver = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     ContinuousPageNoteSaver(
       context = context,
       readerSession = readerSession,
@@ -3022,11 +3023,9 @@ private fun ReaderHome(
     noteStatus = null
     showOcrResult = false
     val targetPageNote = NotePage.pageAt(notesMarkdown, nextPage + 1)
-    readerSession.setNoteDraft(targetPageNote)
-    noteBaseRevision = PageNotes.revision(targetPageNote)
     penStrokes = penPageStore.getItems(PenSide.DOCUMENT, nextPage + 1)
     readerSession.viewportBookmark.value = PdfViewportBookmark.DEFAULT
-    pageIndex = nextPage
+    readerSession.activateSinglePageNote(nextPage, targetPageNote)
     return true
   }
 
