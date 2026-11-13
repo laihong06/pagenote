@@ -149,5 +149,5 @@
 - [x] **Step 1: Capture real reader screenshots** on `Pixel_Tablet_API34_Acceptance`, Android 14/API 34 ARM64, landscape 2560 × 1600 at 320 dpi. Include continuous scrolling across pages, active page/note synchronization, and the single-page setting; record runtime commit.
 - [x] **Step 2: Update the root and Android changelogs and the Android navigation guide** with mode behavior and any remaining limits.
 - [x] **Step 3: Run Android unit tests, the focused horizontal-tablet instrumentation class, and `git diff --check`**
-- [ ] **Step 4: Build the latest local debug APKs into `/Users/broccoli/Project/pagenote/android/build/apk-latest`** and record checksums/build info.
-- [ ] **Step 5: Update PR #36 with acceptance IDs, screenshots, test results, APK details, and unverified limitations; push commits to the existing PR branch.**
+- [x] **Step 4: Build the latest local debug APKs into `/Users/broccoli/Project/pagenote/android/build/apk-latest`** and record checksums/build info.
+- [x] **Step 5: Update PR #36 with acceptance IDs, screenshots, test results, APK details, and unverified limitations; push commits to the existing PR branch.**
