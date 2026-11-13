@@ -90,6 +90,26 @@ class PdfAnnotationVectorDraftTest {
   }
 
   @Test
+  fun preservesRecognizedCircleKindWhenAdaptingToTheExistingAnnotationSchema() {
+    val draft = requireNotNull(
+      PdfAnnotationVectorDraft.fromRecognizedShape(
+        PenRecognizedShape(
+          type = "ellipse",
+          first = PenPoint(10f, 20f, 0.5f),
+          second = PenPoint(40f, 50f, 0.5f),
+          shapeKind = "circle",
+        ),
+        color = "#185abd",
+        width = 3.0,
+      ),
+    )
+
+    assertEquals("ellipse", draft.toItem()["type"])
+    assertEquals("circle", draft.toItem()["shape"])
+    assertEquals(listOf(listOf(10.0, 20.0), listOf(40.0, 50.0)), draft.toItem()["points"])
+  }
+
+  @Test
   fun serializesCatalogShapeKindsAsShapeExtensionOnBaseTypes() {
     // 目录扩展项（D5）：type 取基类型，kind id 写入 extension 字段 `shape`，两点保持不变。
     val draft = requireNotNull(

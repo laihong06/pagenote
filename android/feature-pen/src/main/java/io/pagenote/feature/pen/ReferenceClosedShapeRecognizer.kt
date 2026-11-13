@@ -139,7 +139,7 @@ internal object ReferenceClosedShapeRecognizer {
     val (center, radius) = circle ?: return null
     val first = geometry.toDocumentPoint(center.x - radius, center.y - radius, 1f) ?: return null
     val second = geometry.toDocumentPoint(center.x + radius, center.y + radius, 1f) ?: return null
-    return PenRecognizedShape("ellipse", first, second)
+    return PenRecognizedShape("ellipse", first, second, shapeKind = "circle")
   }
 
   private fun recognizeClosedPolygon(

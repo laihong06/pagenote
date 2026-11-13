@@ -11,6 +11,8 @@ data class PenRecognizedShape(
   val first: PenPoint,
   val second: PenPoint,
   val points: List<PenPoint> = listOf(first, second),
+  /** Optional existing annotation catalog kind for native vector shapes. */
+  val shapeKind: String? = null,
 )
 
 object PenShapeRecognizer {

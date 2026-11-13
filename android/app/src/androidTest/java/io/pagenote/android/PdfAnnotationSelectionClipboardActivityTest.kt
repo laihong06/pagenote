@@ -389,6 +389,153 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test fun referenceClosedCirclePersistsAsCircleMaterialAndUndoes() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      saveAnnotationEvidence("reference-closed-circle-before.png")
+
+      val centerX = canvas.width * .5f
+      val centerY = canvas.height * .4f
+      val radius = minOf(canvas.width, canvas.height) * .10f
+      val time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, centerX + radius, centerY, .5f, time, time)
+      for (step in 1..64) {
+        val angle = step / 64.0 * 2.0 * Math.PI
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          centerX + kotlin.math.cos(angle).toFloat() * radius,
+          centerY + kotlin.math.sin(angle).toFloat() * radius,
+          .5f,
+          time,
+          time + step * 10,
+        )
+      }
+      Thread.sleep(900)
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, centerX + radius, centerY, .5f, time, time + 1000)
+      waitForAnnotations(annotations) { it.size == 1 }
+      val saved = annotations.readPage("document", 1).single() as JsonObject
+      assertEquals("ellipse", saved["type"]?.jsonPrimitive?.content)
+      assertEquals("circle", saved["shape"]?.jsonPrimitive?.content)
+      assertEquals(2, saved["points"]!!.jsonArray.size)
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-closed-circle.png")
+
+      revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+      waitForAnnotations(annotations) { it.isEmpty() }
+      collapseReaderMenuAndWait()
+      saveAnnotationEvidence("reference-closed-circle-undo.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  @Test fun referenceClosedRectangleAndTrianglePersistAndUndoAsOneMaterialEach() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+
+      fun recognize(
+        label: String,
+        vertices: List<Pair<Float, Float>>,
+        expectedType: String,
+        expectedExtension: Pair<String, String>? = null,
+      ) {
+        saveAnnotationEvidence("reference-closed-$label-before.png")
+        val path = vertices.zipWithNext().flatMapIndexed { edge, (start, end) ->
+          (0 until 64).map { step ->
+            val fraction = step / 64f
+            (start.first + (end.first - start.first) * fraction) to
+              (start.second + (end.second - start.second) * fraction)
+          } + if (edge == vertices.lastIndex - 1) listOf(vertices.last()) else emptyList()
+        }
+        val downTime = SystemClock.uptimeMillis()
+        dispatchStylus(canvas, MotionEvent.ACTION_DOWN, path.first().first, path.first().second, .5f, downTime, downTime)
+        path.drop(1).forEachIndexed { index, point ->
+          dispatchStylus(canvas, MotionEvent.ACTION_MOVE, point.first, point.second, .5f, downTime, downTime + (index + 1) * 10)
+        }
+        Thread.sleep(900)
+        val last = path.last()
+        dispatchStylus(canvas, MotionEvent.ACTION_UP, last.first, last.second, .5f, downTime, downTime + 1000)
+        waitForAnnotations(annotations) { it.size == 1 }
+        val saved = annotations.readPage("document", 1).single() as JsonObject
+        assertEquals(expectedType, saved["type"]?.jsonPrimitive?.content)
+        expectedExtension?.let { (field, value) -> assertEquals(value, saved[field]?.jsonPrimitive?.content) }
+        if (expectedType == "pen") {
+          val coordinates = points(saved)
+          assertTrue(coordinates.size >= 8)
+          assertEquals(coordinates.first(), coordinates[coordinates.lastIndex - 1], 1.0)
+          assertEquals(coordinates[1], coordinates.last(), 1.0)
+        } else {
+          assertEquals(2, saved["points"]!!.jsonArray.size)
+        }
+        collapseReaderMenuAndWait()
+        saveAnnotationEvidence("reference-closed-$label.png")
+        revealReaderMenuCommand(composeRule, "pen", "pen_undo")
+        composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsEnabled().performScrollTo().performClick()
+        waitForAnnotations(annotations) { it.isEmpty() }
+        collapseReaderMenuAndWait()
+        saveAnnotationEvidence("reference-closed-$label-undo.png")
+        revealReaderMenuCommand(composeRule, "handwriting", "pen")
+        composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+        composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+      }
+
+      recognize(
+        label = "rectangle",
+        vertices = listOf(
+          canvas.width * .24f to canvas.height * .24f,
+          canvas.width * .56f to canvas.height * .24f,
+          canvas.width * .56f to canvas.height * .54f,
+          canvas.width * .24f to canvas.height * .54f,
+          canvas.width * .24f to canvas.height * .24f,
+        ),
+        expectedType = "rect",
+      )
+      recognize(
+        label = "triangle",
+        vertices = listOf(
+          canvas.width * .22f to canvas.height * .64f,
+          canvas.width * .50f to canvas.height * .27f,
+          canvas.width * .78f to canvas.height * .64f,
+          canvas.width * .22f to canvas.height * .64f,
+        ),
+        expectedType = "pen",
+        expectedExtension = PenStroke.POLYLINE_FIELD to "true",
+      )
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun referenceRegionSelectionUsesFirstPenSampleAndUndoesMixedDeleteAsOneAction() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
