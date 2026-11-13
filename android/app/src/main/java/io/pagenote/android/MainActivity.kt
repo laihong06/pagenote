@@ -1660,7 +1660,36 @@ private fun ReaderHome(
 
   fun applyPenStyle(color: String? = null, width: Double? = null) {
     if (selectionItemCount() > 1) {
-      penStatus = context.getString(R.string.pen_selection_required)
+      if (color == null || width != null) {
+        penStatus = context.getString(R.string.pen_selection_required)
+        return
+      }
+      val nextColor = PenStyle.create(color, penWidth)?.color ?: return
+      if (!penWritable) return
+      val selectedPens = selectedPenItems()
+      val selectedAnnotations = selectedNativeItems()
+      val before = annotationPageItems
+      val after = PdfAnnotationClipboard.updateSelectedColors(
+        before,
+        selectedFreehandIndices = selectedPens,
+        selectedAnnotationIndices = selectedAnnotations,
+        color = nextColor,
+      ) ?: run {
+        penStatus = context.getString(R.string.pen_selection_required)
+        return
+      }
+      if (after == before) return
+      persistNativeAnnotationPage(
+        targetPage = pageIndex + 1,
+        before = before,
+        after = after,
+        showSuccess = false,
+        includeFreehandHistory = true,
+        synchronizePenPage = true,
+        selectedPenAfter = selectedPens,
+        selectedAnnotationAfter = selectedAnnotations,
+        transformLatest = { latest -> AnnotationPageMerger.rebaseMixedHistory(latest, before, after) },
+      )
       return
     }
     val nextStyle = PenStyle.create(color ?: penColor, width ?: penWidth) ?: return

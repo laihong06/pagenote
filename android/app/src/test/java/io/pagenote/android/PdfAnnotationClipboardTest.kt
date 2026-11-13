@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -143,6 +144,33 @@ class PdfAnnotationClipboardTest {
       expected = selected,
       color = "#2e7d32",
     ))
+  }
+
+  @Test
+  fun selectedColorPatchAppliesMixedFreehandAndNativeIndicesOnly() {
+    val page = json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[10,20],[30,40]],"pressures":[0.4,0.8],"custom":"keep"},
+        {"type":"rect","color":"#008844","width":5,"points":[[40,50],[60,70]]},
+        {"type":"highlight","color":"#185abd","width":4,"points":[[80,90],[100,110]],"pressures":[0.6,0.9]},
+        {"type":"ellipse","color":"#777777","width":2,"points":[[120,130],[140,150]]}
+      ]""",
+    ) as JsonArray
+
+    val updated = PdfAnnotationClipboard.updateSelectedColors(
+      page,
+      selectedFreehandIndices = setOf(0, 1),
+      selectedAnnotationIndices = setOf(1),
+      color = "#2e7d32",
+    )!!
+
+    assertEquals(
+      listOf("#2e7d32", "#2e7d32", "#2e7d32", "#777777"),
+      updated.map { (it as JsonObject)["color"]!!.jsonPrimitive.content },
+    )
+    assertEquals(page[0].jsonObject["pressures"], updated[0].jsonObject["pressures"])
+    assertEquals("keep", updated[0].jsonObject["custom"]!!.jsonPrimitive.content)
+    assertEquals(page[3], updated[3])
   }
 
   @Test

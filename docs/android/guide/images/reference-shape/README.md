@@ -97,7 +97,7 @@
 - 验收用例 `REF-SELECT-03`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionCopiesMixedMaterialsAndPastesAsOneUndoAction`。套索同时选中两段自由笔迹和一个原生矩形，复制得到三个独立剪贴板条目；粘贴后检查整组共同平移且相对位置不变；一次撤销恢复原页，一次重做恢复整组。
 - 本次运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色界面。运行代码 commit：`e29d535`。测试使用合成 PDF 和注入到真实阅读器 `PenCanvasView` 的 stylus `MotionEvent`，不是实体手写笔。
 - `reference-region-copy-selected.png` 与 `reference-region-copy-pasted.png` 是本次 `REF-SELECT-03` 通过 Android `UiAutomation.takeScreenshot()` 从运行中的完整 2560 × 1600 屏幕采集的图。复制后截图包含 Android 系统剪贴板预览浮层。
-- 选择逻辑参照恢复源码中的 `Selector.selectMaterials`、`Material.isInRegion` 和 `SelectionManager`。当前 Android 适配支持混合材料套索选择、组复制／粘贴、删除；组粘贴可一次撤销和重做。组移动、组样式编辑及参考选择器的其他材料仍未实现。图形与笔迹沿用现有 annotations.json 格式；Windows／macOS 和其他 Android 设备未改动或据此验收。
+- 选择逻辑参照恢复源码中的 `Selector.selectMaterials`、`Material.isInRegion` 和 `SelectionManager`。当前 Android 适配支持混合材料套索选择、组复制／粘贴、移动、改色和删除；移动、改色及组粘贴可单步撤销和重做。组粗细修改及参考选择器的其他材料仍未实现。图形与笔迹沿用现有 annotations.json 格式；Windows／macOS 和其他 Android 设备未改动或据此验收。
 - 验收命令：构建 `:app:assembleDebug :app:assembleDebugAndroidTest`；将 ARM64 app APK 与 androidTest APK 安装到 `emulator-5558`；对 `referenceRegionSelectionCopiesMixedMaterialsAndPastesAsOneUndoAction`、`referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction`、`nativeAnnotationSelectCopyPasteMoveDeleteUndoAndRedoPreserveFreehandItems` 使用 `adb -s emulator-5558 shell am instrument` 定向运行，三项通过。未运行其他 AVD 或全量 App 测试。
 
 套索前：
@@ -131,7 +131,7 @@
 - 混合历史也允许动作本身删除或新增项目，并保留手势期间新追加在页面尾部的其他材料；套索快照中的内容若被更改或重排，则拒绝用旧预览覆盖。原生编辑撤销后返回混合页顺序上下文；同步笔迹模型时不清空已有笔迹撤销／重做栈，新混合笔迹编辑才清除过时的笔迹重做分支。
 - 选择／剪贴板仪器测试类 22/22 通过，包含混合材料删除、复制／粘贴、移动、多指抬起／取消、撤销／重做和混合历史顺序回归。JVM 测试：`:app:testDebugUnitTest` 661 项、`:feature-pen:testDebugUnitTest` 153 项，均通过。
 - 五张图由本次运行中的 Android 应用经 `UiAutomation.takeScreenshot()` 采集：移动前、套索选中、拖动提交后、一次撤销和一次重做。运行代码 commit：`a6b2d0a`。设备：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。项目和 PDF 为仪器测试生成的合成数据；输入为合成 stylus 与多点 `MotionEvent`，不是实体触控笔。
-- 移动只平移所选材料的点坐标，不更改 annotations.json 结构；未选材料保留原坐标。Windows／macOS 未改动。实体手写笔、真机触控、参考 App 运行时差分、桌面重开与往返保存、组样式编辑尚未验收。
+- 移动只平移所选材料的点坐标，不更改 annotations.json 结构；未选材料保留原坐标。Windows／macOS 未改动。实体手写笔、真机触控、参考 App 运行时差分、桌面重开与往返保存、组粗细修改尚未验收。
 - 验收命令（仅目标横屏平板）：`ANDROID_HOME=... ANDROID_SERIAL=emulator-5558 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.pagenote.android.PdfAnnotationSelectionClipboardActivityTest`。运行结果：`Pixel_Tablet_API34_Acceptance(AVD) - 14`，22 项完成、0 失败、0 跳过。
 
 移动前：
@@ -153,3 +153,27 @@
 一次重做：
 
 ![一次重做将混合材料组移回新位置](reference-region-move-redo.png)
+
+### 混合材料组改色与单步撤销重做
+
+- 在选择工具下套索圈住自由笔迹和原生图形，再打开浮动笔盒的通用样式按钮并选颜色；本次实现会统一更改被选材料的颜色，未选中的图形保持不变。多选粗细修改仍未实现。
+- `PdfAnnotationSelectionClipboardActivityTest.referenceMixedSelectionChangesColorAndUndoesAsOneAction` 使用两段自由笔迹、一个原生矩形和一个选区外椭圆验证改色、页面保存、单步撤销及重做。压力点和非样式字段保持不变。
+- 四张全屏截图由 Android 应用经 `UiAutomation.takeScreenshot()` 采集，设备为 Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。测试材料为生成的 PDF 和合成笔迹；这是合成 stylus 事件输入，不代表实体触控笔。
+- 选择／剪贴板仪器测试类 23/23 通过，`:app:testDebugUnitTest` 662 项通过。运行代码 commit SHA 将在最终 PR 记录中补齐。
+- 项目 `annotations.json` 格式未变；改色作为包含笔迹及原生图形的单一页面历史项，因此一次撤销／重做作用于整组选中材料。参考应用运行时差分、真机、桌面打开／保存往返及完整统一动作栈未验收。
+
+套索选中、改色前：
+
+![横屏平板上混合材料改色前的套索选区](reference-region-color-before.png)
+
+改色后：
+
+![横屏平板上自由笔迹和原生矩形统一改色后的画面](reference-region-color-after.png)
+
+一次撤销：
+
+![横屏平板上一次撤销恢复原始混合材料颜色](reference-region-color-undo.png)
+
+一次重做：
+
+![横屏平板上一次重做重新应用混合材料颜色](reference-region-color-redo.png)

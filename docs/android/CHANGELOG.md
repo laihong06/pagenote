@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 阅读器选择工具支持对套索选中的自由笔迹与原生图形统一改色，混合页面作为一条历史事务提交，一次撤销／重做恢复整组选中材料。选择／剪贴板仪器测试类 23/23 与 App JVM 单测 662 项通过；验收设备为 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）。合成输入和完整屏幕截图见[混合材料组改色验收](guide/images/reference-shape/README.md#混合材料组改色与单步撤销重做)。文件格式未变，Windows／macOS 未改；多选粗细修改、参考统一动作栈、真机实体笔和桌面往返未验，本地源码与 debug 包未发布。
 - 阅读器选择工具支持混合材料组拖动并维持先前笔迹撤销历史；拖动保存与撤销可保留套索之后追加的材料，多指活动指针抬起时提交，取消时恢复预览。混合删除／粘贴等增删内容的撤销继续可用。`REF-SELECT-04/05` 与选择／剪贴板仪器测试类 22/22 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 661 项、feature-pen JVM 单测 153 项均通过。见[五态运行截图与验收](guide/images/reference-shape/README.md#混合材料组移动与单步撤销重做)。annotations.json 格式不变；Windows／macOS 未改，使用合成 stylus／多点 MotionEvent，实体手写笔、真机与桌面往返未验。本地开发和测试包，未发布。
 - 增加短直线识形的真实应用全屏结果图，阅读器仪器用例与笔迹模块回归均按合成采样端距 16px 验证；记录运行代码 `fca9d56` 和横屏 API 34 平板环境。只展示受影响的识形结果，不表示真机触控笔或参考 App 运行差分。
 - 移除识形前额外的 48 文档单位长度筛选，短直线按参考 `GraphUtils` 屏幕采样阈值进入分类；`REF-SHAPE-05` 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance` 验证 16px 采样端距识别、保存为原生 `line`、一次撤销移除。包括画布级 24 项仪器测试及阅读器短线端到端用例；完整全应用设备测试未运行。项目文件格式、Windows 和 macOS 不变；参考 App 运行时差分、实体手写笔与桌面往返未验。本地源码和测试，未发布。

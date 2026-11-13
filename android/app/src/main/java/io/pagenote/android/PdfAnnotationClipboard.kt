@@ -190,6 +190,48 @@ internal object PdfAnnotationClipboard {
     })
   }
 
+  /** Applies one color to mixed freehand ordinals and native page indexes. */
+  fun updateSelectedColors(
+    page: JsonArray,
+    selectedFreehandIndices: Set<Int>,
+    selectedAnnotationIndices: Set<Int>,
+    color: String,
+  ): JsonArray? {
+    if (selectedFreehandIndices.isEmpty() && selectedAnnotationIndices.isEmpty()) return null
+    val freehandCount = page.count { element ->
+      val type = (element as? JsonObject)?.type()
+      type == "pen" || type == "highlight"
+    }
+    if (selectedFreehandIndices.any { it !in 0 until freehandCount }) return null
+    if (selectedAnnotationIndices.any { index ->
+        val item = page.getOrNull(index) as? JsonObject ?: return@any true
+        item.type() in setOf("pen", "highlight") || !isSupported(item)
+      }
+    ) return null
+
+    val selectedColor = color.lowercase()
+    val updated = mutableListOf<JsonElement>()
+    var freehandOrdinal = 0
+    page.forEachIndexed { index, element ->
+      val item = element as? JsonObject
+      val type = item?.type()
+      val isFreehand = type == "pen" || type == "highlight"
+      val selected = if (isFreehand) {
+        selectedFreehandIndices.contains(freehandOrdinal++ )
+      } else {
+        index in selectedAnnotationIndices
+      }
+      if (selected && item != null) {
+        val existingColor = (item["color"] as? JsonPrimitive)?.content
+        updated += if (existingColor?.equals(selectedColor, ignoreCase = true) == true) item
+          else JsonObject(item + ("color" to JsonPrimitive(selectedColor)))
+      } else {
+        updated += element
+      }
+    }
+    return if (updated == page) page else JsonArray(updated)
+  }
+
   /**
    * Updates the HTML content of one selected rich text annotation (port batch
    * 4, the confirm path of the rich text editing window) and re-fits its
