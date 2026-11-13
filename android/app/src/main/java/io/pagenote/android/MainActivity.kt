@@ -839,10 +839,10 @@ private fun ReaderHome(
   val annotationEditHistory = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     PdfAnnotationEditHistory()
   }
-  val readerEditHistoryOrder = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
-    ReaderEditHistoryOrder()
+  val readerActionStack = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
+    ReaderActionStack()
   }
-  val liveReaderEditHistoryOrder = rememberUpdatedState(readerEditHistoryOrder)
+  val liveReaderActionStack = rememberUpdatedState(readerActionStack)
   val lastEditWasAnnotation = remember(project?.manifest?.id, project?.sourceDirectoryUri) {
     mutableMapOf<Int, Boolean>()
   }
@@ -1135,9 +1135,9 @@ private fun ReaderHome(
     lastEditWasAnnotation[targetPage] = false
     project?.manifest?.id?.let { projectId ->
       if (historyGroupId == null) {
-        readerEditHistoryOrder.record(projectId, targetPage, ReaderEditHistoryOrder.Layer.PEN)
+        readerActionStack.record(projectId, targetPage, ReaderActionStack.Layer.PEN)
       } else {
-        readerEditHistoryOrder.recordInGroup(projectId, targetPage, historyGroupId, ReaderEditHistoryOrder.Layer.PEN)
+        readerActionStack.recordInGroup(projectId, targetPage, historyGroupId, ReaderActionStack.Layer.PEN)
       }
     }
   }
@@ -1197,7 +1197,7 @@ private fun ReaderHome(
     }
     if (penPageStore.replacePage(PenSide.DOCUMENT, targetPage, strokes)) {
       val groupId = project?.manifest?.id?.let { projectId ->
-        readerEditHistoryOrder.beginGroup(projectId, targetPage).also { id ->
+        readerActionStack.beginGroup(projectId, targetPage).also { id ->
           pendingAreaEraseHistoryGroups[targetPage] = projectId to id
         }
       }
@@ -1539,13 +1539,13 @@ private fun ReaderHome(
             )
           ) {
             if (historyGroupId == null) {
-              readerEditHistoryOrder.record(targetProjectId, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
+              readerActionStack.record(targetProjectId, targetPage, ReaderActionStack.Layer.ANNOTATION)
             } else {
-              readerEditHistoryOrder.recordInGroup(
+              readerActionStack.recordInGroup(
                 targetProjectId,
                 targetPage,
                 historyGroupId,
-                ReaderEditHistoryOrder.Layer.ANNOTATION,
+                ReaderActionStack.Layer.ANNOTATION,
               )
             }
           }
@@ -1628,11 +1628,11 @@ private fun ReaderHome(
     val snapshot = nativeAreaEraseSnapshot
     nativeAreaEraseSnapshot = null
     if (snapshot == null) {
-      pendingGroup?.let { (projectId, groupId) -> readerEditHistoryOrder.endGroup(projectId, targetPage, groupId) }
+      pendingGroup?.let { (projectId, groupId) -> readerActionStack.endGroup(projectId, targetPage, groupId) }
       return
     }
     if (project?.manifest?.id != snapshot.first || pageIndex + 1 != snapshot.second) {
-      pendingGroup?.let { (projectId, groupId) -> readerEditHistoryOrder.endGroup(projectId, targetPage, groupId) }
+      pendingGroup?.let { (projectId, groupId) -> readerActionStack.endGroup(projectId, targetPage, groupId) }
       return
     }
     val before = snapshot.third
@@ -1641,12 +1641,12 @@ private fun ReaderHome(
       annotationOverlayItems = PdfAnnotationOverlayItem.fromPage(before)
       penStrokes = penPageStore.getItems(PenSide.DOCUMENT, targetPage)
       annotationOverlayReload++
-      pendingGroup?.let { (projectId, groupId) -> readerEditHistoryOrder.endGroup(projectId, targetPage, groupId) }
+      pendingGroup?.let { (projectId, groupId) -> readerActionStack.endGroup(projectId, targetPage, groupId) }
       return
     }
     val after = PdfAnnotationAreaEraser.preparePageForCommit(annotationPageItems, penStrokes)
     if (after == before) {
-      pendingGroup?.let { (projectId, groupId) -> readerEditHistoryOrder.endGroup(projectId, targetPage, groupId) }
+      pendingGroup?.let { (projectId, groupId) -> readerActionStack.endGroup(projectId, targetPage, groupId) }
       return
     }
     annotationPageItems = after
@@ -1662,7 +1662,7 @@ private fun ReaderHome(
       historyGroupId = pendingGroup?.second,
       onFinished = {
         pendingGroup?.let { (projectId, groupId) ->
-          readerEditHistoryOrder.endGroup(projectId, snapshot.second, groupId)
+          readerActionStack.endGroup(projectId, snapshot.second, groupId)
         }
       },
     )
@@ -1779,7 +1779,7 @@ private fun ReaderHome(
     val before = annotationPageItems
     val item = draft.toItem().toJsonElement()
     val preview = PdfAnnotationOverlayItem.fromPage(JsonArray(listOf(item))).singleOrNull() ?: return false
-    val historyGroupId = readerEditHistoryOrder.beginGroup(targetProjectId, targetPage)
+    val historyGroupId = readerActionStack.beginGroup(targetProjectId, targetPage)
     val pendingId = pendingRecognizedShapes.add(targetPage, preview)
     persistNativeAnnotationPage(
       targetPage = targetPage,
@@ -1793,13 +1793,16 @@ private fun ReaderHome(
       onFailure = { applyPenStroke(sourceStroke, targetPage, historyGroupId) },
       onFinished = {
         pendingRecognizedShapes.remove(pendingId)
-        readerEditHistoryOrder.endGroup(targetProjectId, targetPage, historyGroupId)
+        readerActionStack.endGroup(targetProjectId, targetPage, historyGroupId)
       },
     )
     return true
   }
 
-  fun undoNativeAnnotationPage(onFailureAfterRollback: () -> Unit = {}): Boolean {
+  fun undoNativeAnnotationPage(
+    onFailureAfterRollback: () -> Unit = {},
+    onFinishedAfterPersistence: () -> Unit = {},
+  ): Boolean {
     val targetProject = project ?: return false
     val targetPage = pageIndex + 1
     val expected = annotationEditHistory.current(targetProject.manifest.id, targetPage) ?: return false
@@ -1830,14 +1833,17 @@ private fun ReaderHome(
       } else null,
       onFailure = {
         annotationEditHistory.redo(targetProject.manifest.id, targetPage)
-        readerEditHistoryOrder.rollbackUndo(targetProject.manifest.id, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
         onFailureAfterRollback()
       },
+      onFinished = onFinishedAfterPersistence,
     )
     return true
   }
 
-  fun redoNativeAnnotationPage(onFailureAfterRollback: () -> Unit = {}): Boolean {
+  fun redoNativeAnnotationPage(
+    onFailureAfterRollback: () -> Unit = {},
+    onFinishedAfterPersistence: () -> Unit = {},
+  ): Boolean {
     val targetProject = project ?: return false
     val targetPage = pageIndex + 1
     val expected = annotationEditHistory.current(targetProject.manifest.id, targetPage) ?: return false
@@ -1868,9 +1874,9 @@ private fun ReaderHome(
       } else null,
       onFailure = {
         annotationEditHistory.undo(targetProject.manifest.id, targetPage)
-        readerEditHistoryOrder.rollbackRedo(targetProject.manifest.id, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
         onFailureAfterRollback()
       },
+      onFinished = onFinishedAfterPersistence,
     )
     return true
   }
@@ -1897,34 +1903,50 @@ private fun ReaderHome(
     return true
   }
 
-  fun undoCompositeEdit(targetPage: Int, projectId: String): Boolean {
-    val layers = readerEditHistoryOrder.layersForUndo(projectId, targetPage)
+  fun undoCompositeEdit(
+    targetPage: Int,
+    layers: List<ReaderActionStack.Layer>,
+    onFailureAfterRollback: () -> Unit = {},
+    onFinishedAfterPersistence: () -> Unit = {},
+  ): Boolean {
     if (layers.size < 2) return false
-    val penEdits = layers.count { it == ReaderEditHistoryOrder.Layer.PEN }
+    val penEdits = layers.count { it == ReaderActionStack.Layer.PEN }
     for (layer in layers.asReversed()) {
       val completed = when (layer) {
-        ReaderEditHistoryOrder.Layer.PEN -> undoPenLayer(targetPage)
-        ReaderEditHistoryOrder.Layer.ANNOTATION -> undoNativeAnnotationPage {
-          repeat(penEdits) { redoPenLayer(targetPage) }
-        }
-        ReaderEditHistoryOrder.Layer.COMPOSITE -> false
+        ReaderActionStack.Layer.PEN -> undoPenLayer(targetPage)
+        ReaderActionStack.Layer.ANNOTATION -> undoNativeAnnotationPage(
+          onFailureAfterRollback = {
+            repeat(penEdits) { redoPenLayer(targetPage) }
+            onFailureAfterRollback()
+          },
+          onFinishedAfterPersistence = onFinishedAfterPersistence,
+        )
+        ReaderActionStack.Layer.COMPOSITE -> false
       }
       if (!completed) return false
     }
     return true
   }
 
-  fun redoCompositeEdit(targetPage: Int, projectId: String): Boolean {
-    val layers = readerEditHistoryOrder.layersForRedo(projectId, targetPage)
+  fun redoCompositeEdit(
+    targetPage: Int,
+    layers: List<ReaderActionStack.Layer>,
+    onFailureAfterRollback: () -> Unit = {},
+    onFinishedAfterPersistence: () -> Unit = {},
+  ): Boolean {
     if (layers.size < 2) return false
-    val penEdits = layers.count { it == ReaderEditHistoryOrder.Layer.PEN }
+    val penEdits = layers.count { it == ReaderActionStack.Layer.PEN }
     for (layer in layers) {
       val completed = when (layer) {
-        ReaderEditHistoryOrder.Layer.PEN -> redoPenLayer(targetPage)
-        ReaderEditHistoryOrder.Layer.ANNOTATION -> redoNativeAnnotationPage {
-          repeat(penEdits) { undoPenLayer(targetPage) }
-        }
-        ReaderEditHistoryOrder.Layer.COMPOSITE -> false
+        ReaderActionStack.Layer.PEN -> redoPenLayer(targetPage)
+        ReaderActionStack.Layer.ANNOTATION -> redoNativeAnnotationPage(
+          onFailureAfterRollback = {
+            repeat(penEdits) { undoPenLayer(targetPage) }
+            onFailureAfterRollback()
+          },
+          onFinishedAfterPersistence = onFinishedAfterPersistence,
+        )
+        ReaderActionStack.Layer.COMPOSITE -> false
       }
       if (!completed) return false
     }
@@ -1934,59 +1956,97 @@ private fun ReaderHome(
   fun undoPenPage() {
     val targetPage = pageIndex + 1
     val projectId = project?.manifest?.id
-    if (projectId != null && readerEditHistoryOrder.hasPendingUndo(projectId, targetPage)) return
-    var layer = projectId?.let { readerEditHistoryOrder.nextUndo(it, targetPage) }
-    if (layer == null) {
-      layer = when {
-        projectId != null && lastEditWasAnnotation[targetPage] == true && annotationEditHistory.canUndo(projectId, targetPage) ->
-          ReaderEditHistoryOrder.Layer.ANNOTATION
-        penPageStore.canUndo(PenSide.DOCUMENT, targetPage) -> ReaderEditHistoryOrder.Layer.PEN
-        projectId != null && annotationEditHistory.canUndo(projectId, targetPage) -> ReaderEditHistoryOrder.Layer.ANNOTATION
-        else -> null
-      }
+    if (projectId != null && readerActionStack.hasPendingUndo(projectId, targetPage)) return
+    val ticket = projectId?.let { readerActionStack.beginUndo(it, targetPage) }
+    if (projectId != null && ticket == null && readerActionStack.nextUndo(projectId, targetPage) != null) return
+    val layer = ticket?.action?.layer ?: when {
+      projectId != null && lastEditWasAnnotation[targetPage] == true && annotationEditHistory.canUndo(projectId, targetPage) ->
+        ReaderActionStack.Layer.ANNOTATION
+      penPageStore.canUndo(PenSide.DOCUMENT, targetPage) -> ReaderActionStack.Layer.PEN
+      projectId != null && annotationEditHistory.canUndo(projectId, targetPage) -> ReaderActionStack.Layer.ANNOTATION
+      else -> null
     }
+    val awaitingPersistence = ticket?.action?.operations?.any { it.layer == ReaderActionStack.Layer.ANNOTATION } == true
+    if (ticket != null && awaitingPersistence && !readerActionStack.completeUndo(ticket, awaitPersistence = true)) {
+      readerActionStack.rollbackUndo(ticket)
+      return
+    }
+    val rollback = { ticket?.let(readerActionStack::rollbackUndo); Unit }
+    val finalize = { ticket?.let(readerActionStack::finalize); Unit }
     val completed = when (layer) {
-      ReaderEditHistoryOrder.Layer.PEN -> undoPenLayer(targetPage)
-      ReaderEditHistoryOrder.Layer.ANNOTATION -> undoNativeAnnotationPage()
-      ReaderEditHistoryOrder.Layer.COMPOSITE -> projectId?.let { undoCompositeEdit(targetPage, it) } == true
+      ReaderActionStack.Layer.PEN -> undoPenLayer(targetPage)
+      ReaderActionStack.Layer.ANNOTATION -> undoNativeAnnotationPage(
+        onFailureAfterRollback = rollback,
+        onFinishedAfterPersistence = { if (awaitingPersistence) finalize() },
+      )
+      ReaderActionStack.Layer.COMPOSITE -> ticket?.let {
+        undoCompositeEdit(
+          targetPage,
+          it.action.operations.map(ReaderEditAction.Single::layer),
+          onFailureAfterRollback = rollback,
+          onFinishedAfterPersistence = { if (awaitingPersistence) finalize() },
+        )
+      } == true
       null -> false
     }
-    if (!completed) return
-    val completedLayer = layer ?: return
-    if (projectId != null && readerEditHistoryOrder.nextUndo(projectId, targetPage) == completedLayer) {
-      readerEditHistoryOrder.completeUndo(projectId, targetPage, completedLayer)
+    if (!completed) {
+      ticket?.let(readerActionStack::rollbackUndo)
+      return
+    }
+    if (ticket != null && !awaitingPersistence && !readerActionStack.completeUndo(ticket)) {
+      readerActionStack.rollbackUndo(ticket)
+      return
     }
     if (projectId != null) {
-      lastEditWasAnnotation[targetPage] = readerEditHistoryOrder.nextUndo(projectId, targetPage) == ReaderEditHistoryOrder.Layer.ANNOTATION
+      lastEditWasAnnotation[targetPage] = readerActionStack.nextUndo(projectId, targetPage) == ReaderActionStack.Layer.ANNOTATION
     }
   }
 
   fun redoPenPage() {
     val targetPage = pageIndex + 1
     val projectId = project?.manifest?.id
-    var layer = projectId?.let { readerEditHistoryOrder.nextRedo(it, targetPage) }
-    if (layer == null) {
-      layer = when {
-        projectId != null && lastEditWasAnnotation[targetPage] == true && annotationEditHistory.canRedo(projectId, targetPage) ->
-          ReaderEditHistoryOrder.Layer.ANNOTATION
-        penPageStore.canRedo(PenSide.DOCUMENT, targetPage) -> ReaderEditHistoryOrder.Layer.PEN
-        projectId != null && annotationEditHistory.canRedo(projectId, targetPage) -> ReaderEditHistoryOrder.Layer.ANNOTATION
-        else -> null
-      }
+    val ticket = projectId?.let { readerActionStack.beginRedo(it, targetPage) }
+    if (projectId != null && ticket == null && readerActionStack.nextRedo(projectId, targetPage) != null) return
+    val layer = ticket?.action?.layer ?: when {
+      projectId != null && lastEditWasAnnotation[targetPage] == true && annotationEditHistory.canRedo(projectId, targetPage) ->
+        ReaderActionStack.Layer.ANNOTATION
+      penPageStore.canRedo(PenSide.DOCUMENT, targetPage) -> ReaderActionStack.Layer.PEN
+      projectId != null && annotationEditHistory.canRedo(projectId, targetPage) -> ReaderActionStack.Layer.ANNOTATION
+      else -> null
     }
+    val awaitingPersistence = ticket?.action?.operations?.any { it.layer == ReaderActionStack.Layer.ANNOTATION } == true
+    if (ticket != null && awaitingPersistence && !readerActionStack.completeRedo(ticket, awaitPersistence = true)) {
+      readerActionStack.rollbackRedo(ticket)
+      return
+    }
+    val rollback = { ticket?.let(readerActionStack::rollbackRedo); Unit }
+    val finalize = { ticket?.let(readerActionStack::finalize); Unit }
     val completed = when (layer) {
-      ReaderEditHistoryOrder.Layer.PEN -> redoPenLayer(targetPage)
-      ReaderEditHistoryOrder.Layer.ANNOTATION -> redoNativeAnnotationPage()
-      ReaderEditHistoryOrder.Layer.COMPOSITE -> projectId?.let { redoCompositeEdit(targetPage, it) } == true
+      ReaderActionStack.Layer.PEN -> redoPenLayer(targetPage)
+      ReaderActionStack.Layer.ANNOTATION -> redoNativeAnnotationPage(
+        onFailureAfterRollback = rollback,
+        onFinishedAfterPersistence = { if (awaitingPersistence) finalize() },
+      )
+      ReaderActionStack.Layer.COMPOSITE -> ticket?.let {
+        redoCompositeEdit(
+          targetPage,
+          it.action.operations.map(ReaderEditAction.Single::layer),
+          onFailureAfterRollback = rollback,
+          onFinishedAfterPersistence = { if (awaitingPersistence) finalize() },
+        )
+      } == true
       null -> false
     }
-    if (!completed) return
-    val completedLayer = layer ?: return
-    if (projectId != null && readerEditHistoryOrder.nextRedo(projectId, targetPage) == completedLayer) {
-      readerEditHistoryOrder.completeRedo(projectId, targetPage, completedLayer)
+    if (!completed) {
+      ticket?.let(readerActionStack::rollbackRedo)
+      return
+    }
+    if (ticket != null && !awaitingPersistence && !readerActionStack.completeRedo(ticket)) {
+      readerActionStack.rollbackRedo(ticket)
+      return
     }
     if (projectId != null) {
-      lastEditWasAnnotation[targetPage] = readerEditHistoryOrder.nextUndo(projectId, targetPage) == ReaderEditHistoryOrder.Layer.ANNOTATION
+      lastEditWasAnnotation[targetPage] = readerActionStack.nextUndo(projectId, targetPage) == ReaderActionStack.Layer.ANNOTATION
     }
   }
 
@@ -3249,7 +3309,7 @@ private fun ReaderHome(
       removedCount = removed
       withContext(Dispatchers.IO) { store.writePage("document", targetPage, next) }
       if (annotationEditHistory.record(projectId, targetPage, latest, next, includeFreehand = true)) {
-        readerEditHistoryOrder.record(projectId, targetPage, ReaderEditHistoryOrder.Layer.ANNOTATION)
+        readerActionStack.record(projectId, targetPage, ReaderActionStack.Layer.ANNOTATION)
         lastEditWasAnnotation[targetPage] = true
       }
       after = next
@@ -4419,7 +4479,7 @@ private fun ReaderHome(
                 rainPageEpoch++
                 liveAnnotationHistory.value.remapPages(written.project.manifest.id, written.pageMap)
                 liveLastAnnotationEdits.value.clear()
-                liveReaderEditHistoryOrder.value.remapPages(written.project.manifest.id, written.pageMap)
+                liveReaderActionStack.value.remapPages(written.project.manifest.id, written.pageMap)
                 annotationOverlayReload++
                 selectedAnnotationIndex = null
                 selectedAnnotationIndices = emptySet()

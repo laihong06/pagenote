@@ -9,7 +9,9 @@
 
 ## 当前移植状态
 
-- Android 阅读器现用 `ReaderEditHistoryOrder` 记录每页最近的编辑层，并把撤销/重做路由到现有 `PdfAnnotationEditHistory` 或 `PenPageStore`。这让图形—笔迹—图形序列按用户操作顺序撤销和重做，但不是参考 App 的动作对象 `ActionStack` 移植，也还不是一个承载所有类型动作数据的中心栈。
+- Android 阅读器现用 `ReaderActionStack` 按项目和页面保存 `ReaderEditAction.Single`／`Group` 列表及游标。普通笔迹、原生图形以及由同一手势改动的混合材料进入同一时间线；撤销／重做按游标取出动作，再交给现有 `PenPageStore` 或 `PdfAnnotationEditHistory` 快照适配器执行。
+- 识形、区域擦除等异步编辑在保存完成前先预留动作位置。成功后提交历史游标；保存失败则回滚并保留重试入口。若等待期间出现较新的编辑，回滚会保留新编辑并恢复正确的时间线位置。动作列表同时支持分支截断、最大深度、页面隔离和页面重映射。
+- 这移植了参考 `ActionStack` 的列表／游标编排方式，但不是完整手写笔内核移植：动作仍以 PageNote 的图层适配器和页面快照为实际执行体，参考应用的其他动作对象、图层模型及跨进程历史保存没有接入。
 - 原生图形历史默认只保存非笔迹项目；落盘 JSON 数字的文本形式不同时按数值比较，避免新增笔迹或 `2.0`/`2` 格式差异清空此前图形历史。需要同时恢复笔迹和图形的 OCR 转换历史仍可显式保存整页。
-- `REF-HISTORY-01`：在 Android 14 ARM64 模拟器依次创建图形、笔迹、图形；三次撤销按图形、笔迹、图形移除，三次重做按原顺序恢复（`PdfAnnotationSelectionClipboardActivityTest.interleavedShapesAndInkUndoInGestureOrder`，通过）。`ReaderEditHistoryOrderTest` 覆盖跨类型顺序、分支清除、页面隔离与页面重映射。
-- 仍需处理异步保存失败时跨层历史原子回滚、容量一致性、OCR 等整页变更与旧笔迹历史对齐、同一擦除手势跨自由笔迹/原生图形的单事务，以及应用进程生命周期。区域橡皮的一次手势若同时改了两个层，目前还不能保证只需一次撤销。
+- `REF-HISTORY-01`：在横屏平板验收 AVD 依次创建图形、笔迹、图形；撤销和重做均按发生顺序移除／恢复（`PdfAnnotationSelectionClipboardActivityTest.interleavedShapesAndInkUndoInGestureOrder`）。`ReaderActionStackTest` 覆盖跨类型游标、重做分支清除、延迟失败回滚、保存期间追加新编辑、空手势、历史容量、页面隔离与重映射。
+- 当前范围仍不包含进程重启后的撤销历史、实体手写笔／真机、桌面往返和参考 App 完整运行时差分。区域橡皮跨自由笔迹与原生图形单步恢复另由 `REF-ERASE-03/04` 仪器用例验证；本次历史数据不写入项目文件。
