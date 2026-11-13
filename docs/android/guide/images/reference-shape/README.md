@@ -25,8 +25,8 @@
 ## 参考曲线最小二乘回退
 
 - 验收项 `REF-CURVE-04`：`PdfAnnotationSelectionClipboardActivityTest.referenceCurveLeastSquaresFallbackPersistsAndUndoesAsOneStroke`。输入让端点距离不大于包围盒短边，触发 `GraphUtils.isCurveAndCreate` 对直接 Bezier 分支的回退；页面数据保存为兼容 `pen` + `pagenoteCurve`，拟合采样点数超过固定 33 点 Bezier 分支，并由一次撤销整项移除。
-- 运行环境：Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题；测试 PDF 和合成 stylus `MotionEvent`。截图均来自完整应用屏幕的 `UiAutomation.takeScreenshot()`，运行代码提交 `bbd4fb7780a5dc9615b27e1eae7d1851a1527b45`。
-- 输入前截图展示空白测试页面，保存后截图展示拟合曲线，撤销后截图展示曲线已清除；非实体笔、非参考 App 运行时差分，也未验证 Windows／macOS 重新打开与保存往返。
+- 运行环境：Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题；测试 PDF 和合成 stylus `MotionEvent`。截图均来自完整应用屏幕的 `UiAutomation.takeScreenshot()`，运行代码提交 `1f7f7a5`。
+- 输入前截图展示空白测试页面，保存后截图展示拟合曲线，撤销后截图展示曲线已清除。非箭头曲线回退通过阅读器保存／撤销与截图验收；箭头分类进入该回退的分支由 `REF-CURVE-05` 识别器级单测覆盖，尚无箭头特例的阅读器落盘截图。拟合器要求至少 6 个点；参考实现 3–5 点的空系数退化输出被明确拒绝。非实体笔、非参考 App 运行时差分，也未验证 Windows／macOS 重新打开与保存往返。
 
 识别前：
 
