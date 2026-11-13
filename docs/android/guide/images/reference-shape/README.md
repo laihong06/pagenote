@@ -158,8 +158,8 @@
 
 - 在选择工具下套索圈住自由笔迹和原生图形，再打开浮动笔盒的通用样式按钮并选颜色；本次实现会统一更改被选材料的颜色，未选中的图形保持不变。多选粗细修改仍未实现。
 - `PdfAnnotationSelectionClipboardActivityTest.referenceMixedSelectionChangesColorAndUndoesAsOneAction` 使用两段自由笔迹、一个原生矩形和一个选区外椭圆验证改色、页面保存、单步撤销及重做。压力点和非样式字段保持不变。
-- 四张全屏截图由 Android 应用经 `UiAutomation.takeScreenshot()` 采集，设备为 Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。测试材料为生成的 PDF 和合成笔迹；这是合成 stylus 事件输入，不代表实体触控笔。
-- 选择／剪贴板仪器测试类 23/23 通过，`:app:testDebugUnitTest` 662 项通过。运行代码 commit SHA 将在最终 PR 记录中补齐。
+- 四张全屏截图由 Android 应用经 `UiAutomation.takeScreenshot()` 采集，设备为 Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。测试材料为生成的 PDF 和合成笔迹；这是合成 stylus 事件输入，不代表实体触控笔。产品运行代码 commit：`7544395d6dd3f4c4319056e5988970c646c92117`。
+- 选择／剪贴板仪器测试类 23/23 通过，`:app:testDebugUnitTest` 662 项通过。
 - 项目 `annotations.json` 格式未变；改色作为包含笔迹及原生图形的单一页面历史项，因此一次撤销／重做作用于整组选中材料。参考应用运行时差分、真机、桌面打开／保存往返及完整统一动作栈未验收。
 
 套索选中、改色前：
