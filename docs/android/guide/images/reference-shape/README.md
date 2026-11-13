@@ -44,9 +44,12 @@
 
 ## 原生矢量图形区域擦除
 
-- Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题；项目使用测试生成的 PDF，在 `annotations.json` 预置原生矩形。运行代码 commit `0458e5b`。
-- `reference-area-erase-native-before.png` 显示擦除前的完整矩形；`reference-area-erase-native-erasing.png` 显示手势中途的圆形边界及矩形上边的擦除缺口；`reference-area-erase-native-after.png` 显示擦除后保存的线段；`reference-area-erase-native-undo.png` 显示菜单撤销恢复的原矩形。
-- 由 `PdfAnnotationSelectionClipboardActivityTest.areaEraserCutsNativeRectangleAnnotationAndUndoRestoresIt` 运行时采集。测试通过 stylus `MotionEvent` 注入真实 `PenCanvasView`，并检查磁盘页面数据和一次撤销；这是模拟器交互证据，不是实体触控笔验收。关闭保存成功提示后，撤销截图中没有常规保存提示。
+- 验收用例 `REF-ERASE-04`：`PdfAnnotationAreaEraserInstrumentedTest.referenceVectorPathIsSampledBeforePenSplitAndFragmentsStayContinuous` 与 `referenceAreaEraserSplitsEveryNativeVectorShapeKind`。参考路径采样后生成的擦除碎片仍保存为连续多点笔迹；图形种类覆盖直线、箭头、矩形与椭圆。
+- 参考源码 `ShapeTool.split` 先用 `PathMeasure` 每 2px 采样，再按 `autoShapeLineFactor`（0.8）创建 Pen 并调用 `Pen.split_v2`；后者把两端擦除矩形按笔宽的三分之一扩展，构造擦除走廊并按 1px 路径采样拆分连续片段。`EllipseTool.split` 先将椭圆轮廓每 2px 采样，再走同一 Pen 切分流程。Android 阅读器现把切开的片段临时显示为多点折线，提交时保存为现有 `pen` + `pagenotePolyline` 格式并同步到笔迹层。
+- 运行环境：Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。测试项目使用生成的 PDF；截图由运行中的 Android 应用 `UiAutomation.takeScreenshot()` 采集。产品运行代码 commit `dc1c5b8`。
+- `reference-area-erase-native-before.png` 显示擦除前的完整矩形；`reference-area-erase-native-erasing.png` 显示手势中途的圆形边界及矩形上边的擦除缺口；`reference-area-erase-native-after.png` 显示擦除后保存的连续笔迹片段；`reference-area-erase-native-undo.png` 显示菜单撤销恢复的原矩形。
+- `REF-ERASE-04` 相关几何用例 5/5 通过；`PdfAnnotationSelectionClipboardActivityTest` 在同一 AVD 上 23/23 通过，覆盖擦除预览、原生矩形落盘、一次撤销及自由笔迹／原生图形混合擦除的一次撤销和重做。测试用 stylus `MotionEvent` 驱动真实 `PenCanvasView`，不代表实体触控笔验收。
+- 片段点列按参考默认 `PathHelp` 规则重建；annotations.json 不保存笔迹平滑模式，因此非默认参考平滑配置未移植。箭头轮廓按当前 annotations 端点数据重建。参考中心 `ActionStack` 仍未整体移植；本次只把该区域擦除手势作为一条跨笔迹层和批注层的撤销事务。
 
 ![擦除前](reference-area-erase-native-before.png)
 ![橡皮擦手势中，显示边界与缺口](reference-area-erase-native-erasing.png)
@@ -70,7 +73,7 @@
 ## 跨层区域擦除单步撤销与重做
 
 - 验收用例 `REF-ERASE-03`：`PdfAnnotationSelectionClipboardActivityTest.oneAreaEraseGestureAcrossFreehandAndNativeShapeIsOneUndoStep`。在同一条连续区域橡皮手势中擦过原生矩形和自由笔迹，检查两层都被切开；一次撤销恢复两层，一次重做再次擦除。
-- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题；测试生成的 PDF、合成 stylus `MotionEvent`，不是实体触控笔。运行代码 commit `0458e5b`。
+- 运行环境：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题；测试生成的 PDF 与合成 stylus `MotionEvent`，不是实体触控笔。产品运行代码 commit `dc1c5b8`。
 - 四张完整屏幕截图来自应用运行中的 `UiAutomation.takeScreenshot()`：`reference-area-erase-mixed-before.png`（擦除前）、`reference-area-erase-mixed-erased.png`（一条手势擦除两层）、`reference-area-erase-mixed-undo.png`（一次撤销恢复矩形和笔迹）、`reference-area-erase-mixed-redo.png`（一次重做再次擦除）。
 - 页面文件格式不变。实现只把同一擦除手势关联的笔迹历史和原生批注历史作为一个用户可见撤销项；它仍使用 Android 两套页面快照，并未完整移植参考项目的中心 `ActionStack`。其他跨层编辑、失败注入、进程重启和真机笔迹尚未验证。
 

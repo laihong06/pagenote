@@ -13,7 +13,7 @@
 | 选区、Tag 与批注 | 选择文字或框选区域，添加意见，定位到原文 | 阅读器选区工具与 Tag | [教程](guide/README.md#module-5)；当前截图待补 | 测试开发功能，设备权限／模型按模块要求 |
 | AI 工作台 | 连接自己的兼容服务或外部 Agent，按页生成与修改讲解 | AI 工作台／连接设置 | [教程](guide/README.md#module-6)；当前截图待补 | 需要可用的模型配置，未执行真实付费请求 |
 | 提示词和模型设置 | 配置模型与教学偏好，密钥留在本机 | 设置 → AI 设置 | [教程](guide/README.md#module-7)；当前截图待补 | 测试开发功能，设备权限／模型按模块要求 |
-| 笔与荧光标记 | 使用画布内悬浮笔盒选择笔、颜色、粗细并配置笔槽和笔盒组；停留后识别直线、折线、曲线与闭合图形，保存期间可继续书写，撤销按手势先后工作；区域橡皮显示边界并局部擦除自由笔迹与原生图形，同一手势擦除两层可单步撤销／重做 | 阅读器笔工具 | [教程](guide/README.md#module-8)；[笔盒模拟器截图](guide/images/floating-penbox/README.md)；[横屏平板识形与撤销顺序](guide/images/reference-shape/README.md#停留识形与异步保存的撤销顺序)；[参考阈值短直线验收](guide/images/reference-shape/README.md#参考阈值内的短直线)；[跨层区域擦除验收](guide/images/reference-shape/README.md#跨层区域擦除单步撤销与重做) | Android 14 API 34 横屏平板模拟器已验证识形及排队保存顺序、16px 采样端距短直线落盘与撤销、矩形跨层擦除与撤销／重做；参考统一动作栈未完整移植，实体手写笔、真机触控和压感待验 |
+| 笔与荧光标记 | 使用画布内悬浮笔盒选择笔、颜色、粗细并配置笔槽和笔盒组；停留后识别直线、折线、曲线与闭合图形，保存期间可继续书写，撤销按手势先后工作；区域橡皮显示边界，沿参考路径采样切分自由笔迹与原生线条／图形；同一手势擦除两层可单步撤销／重做 | 阅读器笔工具 | [教程](guide/README.md#module-8)；[笔盒模拟器截图](guide/images/floating-penbox/README.md)；[横屏平板识形与撤销顺序](guide/images/reference-shape/README.md#停留识形与异步保存的撤销顺序)；[参考阈值短直线验收](guide/images/reference-shape/README.md#参考阈值内的短直线)；[图形路径切分与运行截图](guide/images/reference-shape/README.md#原生矢量图形区域擦除)；[跨层区域擦除验收](guide/images/reference-shape/README.md#跨层区域擦除单步撤销与重做) | Android 14 API 34 横屏平板模拟器验证了识形及排队保存顺序、16px 采样端距短直线落盘与撤销、原生直线／箭头／矩形／椭圆路径切分及混合擦除单步撤销／重做；参考中心动作栈未完整移植，非默认平滑元数据、实体手写笔、真机触控和压感待验 |
 | OCR | 识别扫描页或选区文字，结果用于讲解 | OCR／页面工具 | [教程](guide/README.md#module-9)；当前截图待补 | 需要本地模型，质量与材料相关 |
 | Office 转换 | 调用已实现的转换服务；不等于内置完整 Office 编辑器 | 导入／转换设置 | [教程](guide/README.md#module-10)；当前截图待补 | 需要外部软件／服务；完整原生编辑不承诺 |
 | 雨课堂 | 授权账号后导入或采集课件；需要联网 | 雨课堂入口 | [教程](guide/README.md#module-11)；当前截图待补 | 测试开发功能，设备权限／模型按模块要求 |

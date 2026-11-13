@@ -70,7 +70,7 @@
 
 从 **阅读器笔工具** 进入。笔盒覆盖在画布上，拖动可吸附到四边；点击手柄收起或展开，长按手柄锁定或解锁位置。点击笔选择，再次点击打开颜色和粗细设置；可添加、复制或移除笔槽，长按笔槽拖动排序。点击笔盒组按钮可新建、切换或复制一组，在编辑入口重命名或删除。选中已有笔迹后，可使用笔盒中的样式按钮调整颜色和粗细。笔槽、笔盒组和位置存于本机，不改变笔迹文件格式。钢笔停留 400ms 后按参考识形分支判断直线、折线、曲线及闭合图形；现在不会再被额外的文档坐标总长度门槛挡掉，16px 采样端距短线的落盘和撤销已在横屏 API 34 平板验收（[运行截图与验收项](images/reference-shape/README.md#参考阈值内的短直线)）。选择工具下可在空白处拖动套索，混合选择自由笔迹与原生图形；自由笔迹是否被选中按首个采样点是否落入区域判定，与恢复源码一致。混合选区可组复制、粘贴、移动、改色和删除，颜色修改、移动及组粘贴都可一次撤销或重做，并保留选中材料之间的相对位置。组粗细修改暂未实现（[横屏平板运行截图与验收项](images/reference-shape/README.md#参考区域多材料选择)）。橡皮触摸或支持的触控笔悬停时显示擦除范围，可局部擦除自由笔迹和原生图形；一次手势跨两层擦除可用一次撤销恢复、一次重做再次擦除。矩形跨层擦除已在横屏平板模拟器验证，其他原生图形种类和实体触控笔仍待验；切页或切换项目时未结束的擦除会取消。参考应用的贴纸等尚未移植；真机笔迹、触控与视觉效果仍需验证。
 
-截图：[改前](images/floating-penbox/before.png)、[改后](images/floating-penbox/after.png)、[样式菜单](images/floating-penbox/style.png)、[笔盒组](images/floating-penbox/groups.png)、[收起](images/floating-penbox/collapsed.png)，[环境与运行版本](images/floating-penbox/README.md)。[横屏平板上的混合材料套索、删除与撤销](images/reference-shape/README.md#参考区域多材料选择)；[区域橡皮跨层擦除、单步撤销与重做](images/reference-shape/README.md#跨层区域擦除单步撤销与重做)。维护者视觉审查仍待完成。
+截图：[改前](images/floating-penbox/before.png)、[改后](images/floating-penbox/after.png)、[样式菜单](images/floating-penbox/style.png)、[笔盒组](images/floating-penbox/groups.png)、[收起](images/floating-penbox/collapsed.png)，[环境与运行版本](images/floating-penbox/README.md)。[横屏平板上的混合材料套索、删除与撤销](images/reference-shape/README.md#参考区域多材料选择)；[按参考路径切分原生图形](images/reference-shape/README.md#原生矢量图形区域擦除)；[区域橡皮跨层擦除、单步撤销与重做](images/reference-shape/README.md#跨层区域擦除单步撤销与重做)。维护者视觉审查仍待完成。
 
 <a id="module-9"></a>
 
