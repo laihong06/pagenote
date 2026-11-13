@@ -23,7 +23,7 @@ PageNote 的 Android 版是 **Kotlin／Jetpack Compose 原生应用**，围绕�
 
 ## Android 截图与验证状态
 
-本轮各模块平板截图待补。不得以 Windows／Mac 截图替代；现有模拟器／真机验证范围见[已知问题](KNOWN_ISSUES.md)和[发布说明](android/docs/RELEASE-1.0.0-beta.5.md)。最新共享 CI 的 Android 单测／编译任务失败，未将其称为全绿。
+除[功能覆盖表](docs/android/features.md)明确列出的模块外，其他 Android 模块的平板截图仍待补。不得以 Windows／Mac 截图替代；现有模拟器／真机验证范围见[已知问题](KNOWN_ISSUES.md)和[发布说明](android/docs/RELEASE-1.0.0-beta.5.md)。本地选择／剪贴板回归测试通过不代表共享 CI 全绿；共享 CI 近期的 Android 单测／编译任务失败仍需另行处理。
 
 ## 教程与版本记录
 

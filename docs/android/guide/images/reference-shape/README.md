@@ -123,3 +123,33 @@
 组粘贴后（各材料保持相对位置）：
 
 ![横屏平板上混合笔迹和矩形组粘贴后的结果](reference-region-copy-pasted.png)
+
+### 混合材料组移动与单步撤销重做
+
+- 验收用例 `REF-SELECT-04`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionSelectionMovesMixedMaterialsTogetherAndUndoesAsOneAction`。套索选中两段自由笔迹和一个原生矩形，在选框内拖动；拖动中两层立即预览同一偏移，保存后检查三项坐标均增加文档坐标 `(100, 80)`，选区外的椭圆保持不变；一次撤销恢复原页，一次重做再次移动整组并保留选中状态。
+- 验收用例 `REF-SELECT-05`：`PdfAnnotationSelectionClipboardActivityTest.referenceRegionMovePreservesEarlierPenUndoHistory` 和 `referenceMixedSelectionCommitsOnOwnerPointerUpAndRestoresOnCancel`。在同一文档先追加新笔迹再移动原混合组；验证组移动保留先前笔迹撤销记录，第一次撤销恢复组、第二次撤销移除新笔迹。多指手势中活动 stylus 指针抬起会提交组移动；调用 `cancelActiveGesture()` 会回滚预览且不写入页面。
+- 混合历史也允许动作本身删除或新增项目，并保留手势期间新追加在页面尾部的其他材料；套索快照中的内容若被更改或重排，则拒绝用旧预览覆盖。原生编辑撤销后返回混合页顺序上下文；同步笔迹模型时不清空已有笔迹撤销／重做栈，新混合笔迹编辑才清除过时的笔迹重做分支。
+- 选择／剪贴板仪器测试类 22/22 通过，包含混合材料删除、复制／粘贴、移动、多指抬起／取消、撤销／重做和混合历史顺序回归。JVM 测试：`:app:testDebugUnitTest` 661 项、`:feature-pen:testDebugUnitTest` 153 项，均通过。
+- 五张图由本次运行中的 Android 应用经 `UiAutomation.takeScreenshot()` 采集：移动前、套索选中、拖动提交后、一次撤销和一次重做。运行代码 commit：`a6b2d0a`。设备：Android 14/API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。项目和 PDF 为仪器测试生成的合成数据；输入为合成 stylus 与多点 `MotionEvent`，不是实体触控笔。
+- 移动只平移所选材料的点坐标，不更改 annotations.json 结构；未选材料保留原坐标。Windows／macOS 未改动。实体手写笔、真机触控、参考 App 运行时差分、桌面重开与往返保存、组样式编辑尚未验收。
+- 验收命令（仅目标横屏平板）：`ANDROID_HOME=... ANDROID_SERIAL=emulator-5558 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.pagenote.android.PdfAnnotationSelectionClipboardActivityTest`。运行结果：`Pixel_Tablet_API34_Acceptance(AVD) - 14`，22 项完成、0 失败、0 跳过。
+
+移动前：
+
+![横屏平板上两段自由笔迹和一个原生矩形的初始位置](reference-region-move-before.png)
+
+套索选中：
+
+![横屏平板上套索框同时包住两段笔迹与原生矩形](reference-region-move-selected.png)
+
+拖动提交后：
+
+![选中笔迹与矩形移动相同偏移并保留相对位置](reference-region-move-committed.png)
+
+一次撤销：
+
+![一次撤销将混合材料组恢复至原位置](reference-region-move-undo.png)
+
+一次重做：
+
+![一次重做将混合材料组移回新位置](reference-region-move-redo.png)
