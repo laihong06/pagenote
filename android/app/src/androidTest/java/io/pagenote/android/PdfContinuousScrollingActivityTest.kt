@@ -23,6 +23,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
@@ -60,7 +61,7 @@ class PdfContinuousScrollingActivityTest {
   fun continuousScrollPreservesOutgoingDraftAndLoadsTargetNote() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     val projectName = installFixture(resolver)
-    openFixtureProjectFromBookshelf(composeRule, treeUri, projectName)
+    openReaderFixture(projectName)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
 
     assertTrue(
@@ -80,7 +81,7 @@ class PdfContinuousScrollingActivityTest {
         activePage + 1,
       )
     }
-    captureEvidence("continuous-page-2-note")
+    captureEvidence("continuous-active-page-note")
 
     assertTrue("scrolling to another page should update the reader checkpoint", session.saveCheckpoint()!!.pageIndex >= 1)
     repeat(4) {
@@ -97,9 +98,8 @@ class PdfContinuousScrollingActivityTest {
   fun continuousModeToggleAndCheckpointKeepActivePage() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     val projectName = installFixture(resolver)
-    openFixtureProjectFromBookshelf(composeRule, treeUri, projectName)
+    openReaderFixture(projectName)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
-    val settingsStore = readerSettingsStore(composeRule.activity)
     composeRule.onNodeWithTag("pdf_continuous_page_list").assertIsDisplayed()
     repeat(4) {
       composeRule.onNodeWithTag("pdf_continuous_page_list").performTouchInput { swipeUp() }
@@ -116,17 +116,15 @@ class PdfContinuousScrollingActivityTest {
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("continuous_pdf_scrolling_switch").fetchSemanticsNodes().isNotEmpty()
     }
+    composeRule.onNodeWithTag("continuous_pdf_scrolling_switch").performScrollTo()
+    composeRule.onNodeWithTag("continuous_pdf_scrolling_switch").assertIsDisplayed()
     composeRule.onNodeWithTag("continuous_pdf_scrolling_switch").performClick()
-    runBlocking {
-      settingsStore.save(settingsStore.settings.first().copy(continuousPdfScrolling = false))
-    }
     captureEvidence("setting-single-page")
-    composeRule.runOnUiThread {
-      composeRule.activity.onBackPressedDispatcher.onBackPressed()
-    }
+    composeRule.onNodeWithTag("reader_settings_save").performClick()
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("pdf_continuous_page_list").fetchSemanticsNodes().isEmpty()
     }
+    collapseReaderMenuIfOpen()
     assertEquals("single-page mode should keep the current page", activePage, session.pageIndex.intValue)
     assertEquals("checkpoint should keep the current page", activePage, session.saveCheckpoint()?.pageIndex)
     captureEvidence("single-page-mode")
@@ -140,17 +138,15 @@ class PdfContinuousScrollingActivityTest {
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("continuous_pdf_scrolling_switch").fetchSemanticsNodes().isNotEmpty()
     }
+    composeRule.onNodeWithTag("continuous_pdf_scrolling_switch").performScrollTo()
+    composeRule.onNodeWithTag("continuous_pdf_scrolling_switch").assertIsDisplayed()
     composeRule.onNodeWithTag("continuous_pdf_scrolling_switch").performClick()
-    runBlocking {
-      settingsStore.save(settingsStore.settings.first().copy(continuousPdfScrolling = true))
-    }
     captureEvidence("setting-continuous")
-    composeRule.runOnUiThread {
-      composeRule.activity.onBackPressedDispatcher.onBackPressed()
-    }
+    composeRule.onNodeWithTag("reader_settings_save").performClick()
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("pdf_continuous_page_list").fetchSemanticsNodes().isNotEmpty()
     }
+    collapseReaderMenuIfOpen()
     assertEquals(activePage, session.pageIndex.intValue)
     captureEvidence("continuous-mode-setting")
   }
@@ -159,7 +155,7 @@ class PdfContinuousScrollingActivityTest {
   fun continuousReaderSeparatesTouchScrollFromStylusAndPinch() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     val projectName = installFixture(resolver)
-    openFixtureProjectFromBookshelf(composeRule, treeUri, projectName)
+    openReaderFixture(projectName)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
     assertTrue(
       "continuous mode should expose a vertically scrollable PDF list",
@@ -220,6 +216,17 @@ class PdfContinuousScrollingActivityTest {
       }
     }
     return null
+  }
+
+  private fun openReaderFixture(projectName: String) {
+    openFixtureProjectFromBookshelf(composeRule, treeUri, projectName)
+    collapseReaderMenuIfOpen()
+  }
+
+  private fun collapseReaderMenuIfOpen() {
+    if (composeRule.onAllNodesWithTag("reader_menu_sidebar").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+    }
   }
 
   private fun dispatchStylus(
@@ -289,6 +296,7 @@ class PdfContinuousScrollingActivityTest {
 
   private fun captureEvidence(name: String) {
     composeRule.waitForIdle()
+    SystemClock.sleep(500)
     val resolver = InstrumentationRegistry.getInstrumentation().targetContext.contentResolver
     val image = resolver.insert(
       MediaStore.Images.Media.EXTERNAL_CONTENT_URI,

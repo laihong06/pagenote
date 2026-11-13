@@ -7,7 +7,7 @@
 | 批次／模块 | 通俗用途 | 实际入口 | 操作与退出／撤回 | 教程 | 真实截图 | 状态与限制 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 基础：书架与项目 | 授权一个课件目录，再查找和打开笔记本 | 启动书架、阅读器左上角主页 | 选择目录→打开封面；主页返回书架 | [阅读](guide/reading.md#书架与目录授权) | [01](guide/images/current/01-bookshelf.png) | 本轮已打开合成 SAF 项目；长期授权、真实外置存储另验 |
-| 基础：PDF 与逐页笔记 | 原文和当前页笔记并排阅读 | 阅读器页码、编辑／预览页签 | 翻页切换对应笔记；编辑后保存，失败时保留草稿 | [阅读](guide/reading.md) | [02](guide/images/current/02-reading.png)、[17](guide/images/current/17-editing-keyboard.png) | 本轮已显示 PDF、公式、代码、Mermaid；键盘展开另有整屏图 |
+| 基础：PDF 与逐页笔记 | 原文和当前页笔记并排阅读 | 阅读器页码、编辑／预览页签 | 默认连续上下滚动；页码与笔记跟随视口中心页；阅读设置可切回单页；编辑后保存，离页时保留草稿 | [阅读](guide/reading.md) | [原有阅读画面](guide/images/current/02-reading.png)；[连续阅读验收](guide/images/pdf-continuous/README.md) | Android 14/API 34 横屏平板已验连续滚动、页／笔记同步、草稿恢复和单页切换；恢复页码与所有导航组合未覆盖；Windows／macOS 未改 |
 | 0：批注格式兼容 | 保留笔迹、压力样本和未知扩展字段 | 项目 `src/annotations.json`，无单独按钮 | 应用通过原有存储路径读写 | [格式边界](guide/advanced.md#项目与文件兼容) | 不适用：数据约定 | 底层能力；不能用截图替代往返兼容测试 |
 | 1：笔、荧光笔与橡皮 | 在 PDF 上做手写标记，并按参考路径局部切分自由笔迹和原生图形 | 左侧笔工具／菜单→手写 | 选择笔型、颜色和粗细后书写；区域橡皮边界随手势显示；普通手势用撤销／重做 | [画布](guide/canvas.md)；[参考路径切分与横屏验收](guide/images/reference-shape/README.md#原生矢量图形区域擦除) | [02](guide/images/current/02-reading.png)；[八态擦除证据](guide/images/reference-shape/README.md#原生矢量图形区域擦除) | API 34 横屏平板已验收直线／箭头／矩形／椭圆切分及跨笔迹层单步撤销／重做；实体笔、压感、真机和桌面往返未验 |
 | 1：停留识形 | 把钢笔手绘的开放线条和闭合图案识别为可保存材料 | 阅读器工具栏→钢笔 | 画直线、折线、箭头、曲线或闭合图形后短暂停留；用撤销移除整项 | [曲线与闭合形状](guide/images/reference-shape/README.md#参考曲线最小二乘回退)；[擦除与混合历史](guide/images/reference-shape/README.md#跨层区域擦除单步撤销与重做) | [参考识形横屏验收](guide/images/reference-shape/README.md#参考曲线最小二乘回退) | API 34 横屏平板已验收开放 Bezier 与最小二乘曲线、闭合椭圆／圆／矩形／三角形落盘和单步撤销；局部 OpenCV ROI、合成笔输入、参考 App 运行时差分、实体笔和桌面往返未验 |

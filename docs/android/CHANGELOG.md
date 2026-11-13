@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- PDF 阅读现在默认连续上下滚动，可在阅读设置切回原有单页模式。连续模式按视口中心同步页码和笔记，保留每页笔迹／批注；跨页保存不阻塞滚动，也不逐页弹出保存成功提示。API 34 横屏平板的 `PDF-CONT-01`、`02`、`04` 已验证；`03`、`05`、`06` 部分覆盖，进程重启恢复、每类批注及全部导航边界未覆盖。环境、截图和限制见[连续翻页验收记录](guide/images/pdf-continuous/README.md)。项目文件格式未变化，Windows／macOS 未改；本地未发布源码与 debug 包。
 - 阅读器停留识形现在在直接 Bezier 分支拒绝输入时继续走参考 `GraphUtils.isCurveAndCreate` 五次最小二乘回退；两个方向分别拟合并按源码边界、越界计数与候选规则筛选。箭头分类进入回退且达到参考阈值时，拟合后追加按笔宽缩放的三段采样箭头头部。归一化求解仅保证算法结构相近，不宣称浮点逐位一致；少于 6 个点时拒绝五次拟合。`REF-CURVE-04` 阅读器曲线保存／单步撤销和 `REF-CURVE-05` 箭头回退识别器回归通过；阅读器仪器类 26/26、app JVM 661/661、feature-pen JVM 158/158 通过。完整屏幕非箭头曲线三态图及限制见[验收索引](guide/images/reference-shape/README.md#参考曲线最小二乘回退)。文件格式、Windows／macOS 未改；箭头回退尚无阅读器落盘截图；实体笔、参考 App 运行差分、桌面往返和其他设备缩放未验。本地未发布源码与 debug 构建。
 - 增加闭合圆形、矩形、三角形在横屏平板阅读器中的实际运行截图，分别记录识形输入前、保存后和一次撤销后；同步修正文档里已经过时的曲线端到端、跨层区域擦除与统一选择／历史状态。Android 14 API 34 ARM64、2560 × 1600、320 dpi；测试用合成 stylus 输入，未做实体笔或桌面往返验收。本地源码，未发布。
 - 停留识别现在会保留参考圆形材料类别：圆形以兼容的 `ellipse` 注释及 `shape: "circle"` 扩展字段落盘；同批横屏阅读器验收还覆盖原生矩形 `rect` 与闭合多点三角形笔迹，并确认各自可一步撤销。`PdfAnnotationSelectionClipboardActivityTest` 25/25、`PdfAnnotationAreaEraserInstrumentedTest` 5/5、`ReferenceClosedShapeRecognizerInstrumentedTest` 4/4 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；app 与 feature-pen JVM 回归通过。主文件类型未增加，Windows／macOS 未改；参考 App 运行时差分、实体笔和桌面往返未验。本地未发布源码与 debug 构建。
