@@ -13,6 +13,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 internal data class PdfAnnotationSelectionGesture(
+  val pointerId: Int,
   val sourceIndex: Int,
   val startX: Double,
   val startY: Double,
@@ -76,15 +77,19 @@ internal object PdfAnnotationSelectionGestureReducer {
     val y = point?.y?.toDouble() ?: 0.0
     return when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> down(
-        x, y, geometry, densityScale, page, penStrokes, selectedPens, selectedAnnotations,
+        event.getPointerId(safePointerIndex), x, y, geometry, densityScale, page, penStrokes, selectedPens, selectedAnnotations,
         activeAnnotationIndex, selectionBounds,
       )
       MotionEvent.ACTION_MOVE -> move(x, y, gesture)
-      MotionEvent.ACTION_UP -> PdfAnnotationSelectionGestureEffect(
-        handled = gesture != null,
-        commitGesture = gesture?.takeIf { it.moved },
-        commitPage = page.takeIf { gesture?.moved == true },
-      )
+      MotionEvent.ACTION_UP -> commit(page, gesture)
+      MotionEvent.ACTION_POINTER_UP -> {
+        val active = gesture ?: return PdfAnnotationSelectionGestureEffect(false)
+        if (event.getPointerId(event.actionIndex) != active.pointerId) {
+          PdfAnnotationSelectionGestureEffect(handled = true, gesture = active)
+        } else {
+          commit(page, active)
+        }
+      }
       MotionEvent.ACTION_CANCEL -> PdfAnnotationSelectionGestureEffect(
         handled = gesture != null,
         restorePage = gesture?.originalPage?.takeIf { gesture.moved },
@@ -95,6 +100,7 @@ internal object PdfAnnotationSelectionGestureReducer {
   }
 
   private fun down(
+    pointerId: Int,
     x: Double,
     y: Double,
     geometry: PenCanvasGeometry,
@@ -119,6 +125,7 @@ internal object PdfAnnotationSelectionGestureReducer {
         return PdfAnnotationSelectionGestureEffect(
           handled = true,
           gesture = PdfAnnotationSelectionGesture(
+            pointerId = pointerId,
             sourceIndex = -1,
             startX = x,
             startY = y,
@@ -159,6 +166,7 @@ internal object PdfAnnotationSelectionGestureReducer {
     return PdfAnnotationSelectionGestureEffect(
       handled = true,
       gesture = PdfAnnotationSelectionGesture(
+        pointerId = pointerId,
         sourceIndex = hit,
         startX = x,
         startY = y,
@@ -170,6 +178,13 @@ internal object PdfAnnotationSelectionGestureReducer {
       selection = PdfAnnotationSelectionState(null, emptySet(), hit, setOf(hit)),
     )
   }
+
+  private fun commit(page: JsonArray, gesture: PdfAnnotationSelectionGesture?): PdfAnnotationSelectionGestureEffect =
+    PdfAnnotationSelectionGestureEffect(
+      handled = gesture != null,
+      commitGesture = gesture?.takeIf { it.moved },
+      commitPage = page.takeIf { gesture?.moved == true },
+    )
 
   private fun move(
     x: Double,

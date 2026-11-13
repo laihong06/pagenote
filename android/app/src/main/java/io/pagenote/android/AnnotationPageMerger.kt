@@ -145,13 +145,15 @@ object AnnotationPageMerger {
   }
 
   /**
-   * Prepare an all-or-nothing mixed history restore. The entire ordered page
-   * must still match the snapshot from which the history action starts.
-   * This does not write the page or update the live pen model.
+   * Prepare an all-or-nothing mixed history change. Items appended after the
+   * gesture snapshot are retained, while any edit or reorder inside that
+   * snapshot rejects the stale operation. This does not write the page or
+   * update the live pen model.
    */
   fun rebaseMixedHistory(latest: JsonArray, expected: JsonArray, restored: JsonArray): JsonArray? {
-    if (!jsonListsEqual(latest, expected)) return null
-    return restored
+    if (latest.size < expected.size) return null
+    if (!jsonListsEqual(latest.take(expected.size), expected)) return null
+    return JsonArray(restored + latest.drop(expected.size))
   }
 
   /** Keep selection only when the same annotation is unambiguous across a history edit. */

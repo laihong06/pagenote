@@ -2,6 +2,7 @@
 
 ## Unreleased / 尚未发布
 
+- Android 阅读器多材料套索组移动现在保留移动预览与提交间追加的内容、既有笔迹撤销历史，并在活动指针抬起时提交或取消手势时还原预览；删除、粘贴等改变条数的混合撤销仍可工作。`REF-SELECT-04/05` 与选择／剪贴板仪器测试类 22/22 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 661 项、feature-pen JVM 单测 153 项均通过。五张横屏运行截图及边界见[Android 验收记录](docs/android/guide/images/reference-shape/README.md#混合材料组移动与单步撤销重做)。annotations.json 格式未改，Windows／macOS 未改；输入为合成 stylus／多点 MotionEvent，实体触控笔、真机和桌面往返未验。本地源码及 APK，未发布。
 - 补充 `REF-SHAPE-05` 短直线识形的实际阅读器截图，阅读器回归改为精确使用 16px 采样端距；注明 Android 14 API 34 ARM64 横屏平板、合成触控笔边界和运行代码 `fca9d56`。截图只记录识形后原生直线，不表示桌面往返或实体笔验收。
 - 移除停留识形前多余的 48 文档单位笔迹长度门槛，改由参考 `GraphUtils` 对应分支按屏幕采样点判断；原来会被换算坐标门槛挡掉的短直线现在可识别并保存为原生直线，撤销一次即可移除。`REF-SHAPE-05` 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance` 上验证了 16px 采样端距的阅读器落盘与撤销。文件格式未改；完整参考源码差分、真机手写笔及桌面往返仍待验。本地源码和测试，未发布。
 - 修复停留识形后原生图形异步落盘晚于后续笔迹时，撤销顺序可能倒置的问题：识形手势先占据其历史位置，持久化完成后再完成历史事务。验收用例 `REF-HISTORY-02` 在 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance` 上覆盖排队保存、后续落笔与一次撤销；相关识形端到端回归均在该 AVD 运行。该修正不代表参考 App 的统一动作栈已完整移植；桌面往返、真机手写笔仍待验。本地源码和测试，未发布。

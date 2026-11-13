@@ -706,6 +706,267 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
+  @Test
+  fun referenceRegionMovePreservesEarlierPenUndoHistory() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initial = Json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[250,350],[350,350]],"pressures":[1,1]},
+        {"type":"rect","color":"#008844","width":5,"points":[[430,320],[570,400]]},
+        {"type":"highlight","color":"#185abd","width":3,"points":[[650,350],[750,350]],"pressures":[1,1]},
+        {"type":"ellipse","color":"#777777","width":2,"points":[[1000,1000],[1100,1100]]}
+      ]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, initial)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.size == 2
+      }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.PEN }
+
+      val strayStart = PenPoint(900f, 600f, 1f)
+      val strayEnd = PenPoint(960f, 650f, 1f)
+      var time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(strayStart), geometry.toViewY(strayStart), .5f, time, time)
+      for (step in 1..4) {
+        val progress = step / 4f
+        val point = PenPoint(
+          strayStart.x + (strayEnd.x - strayStart.x) * progress,
+          strayStart.y + (strayEnd.y - strayStart.y) * progress,
+          1f,
+        )
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          geometry.toViewX(point),
+          geometry.toViewY(point),
+          .5f,
+          time,
+          time + step * 20,
+        )
+      }
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(strayEnd), geometry.toViewY(strayEnd), .5f, time, time + 100)
+      waitForAnnotations(annotations) { it.size == initial.size + 1 }
+      assertTrue("the newly drawn stroke should be independently undoable", session.penPageStore.value.canUndo(PenSide.DOCUMENT, 1))
+
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
+      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.SELECT }
+      val lasso = listOf(
+        PenPoint(180f, 280f, 1f), PenPoint(820f, 280f, 1f), PenPoint(820f, 420f, 1f),
+        PenPoint(180f, 420f, 1f), PenPoint(180f, 280f, 1f),
+      )
+      time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(lasso.first()), geometry.toViewY(lasso.first()), .5f, time, time)
+      lasso.drop(1).forEachIndexed { index, point ->
+        dispatchStylus(canvas, MotionEvent.ACTION_MOVE, geometry.toViewX(point), geometry.toViewY(point), .5f, time, time + (index + 1) * 20)
+      }
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(lasso.last()), geometry.toViewY(lasso.last()), .5f, time, time + 120)
+      composeRule.waitForIdle()
+      assertEquals("the lasso should exclude the newly appended stroke", setOf(0, 1), canvas.selectedStrokeIndices)
+
+      val start = PenPoint(500f, 350f, 1f)
+      val finish = PenPoint(600f, 430f, 1f)
+      time = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(start), geometry.toViewY(start), .5f, time, time)
+      for (step in 1..8) {
+        val progress = step / 8f
+        val point = PenPoint(
+          start.x + (finish.x - start.x) * progress,
+          start.y + (finish.y - start.y) * progress,
+          1f,
+        )
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_MOVE,
+          geometry.toViewX(point),
+          geometry.toViewY(point),
+          .5f,
+          time,
+          time + step * 20,
+        )
+      }
+      dispatchStylus(canvas, MotionEvent.ACTION_UP, geometry.toViewX(finish), geometry.toViewY(finish), .5f, time, time + 200)
+      try {
+        waitForAnnotations(annotations) {
+          val page = it.filterIsInstance<JsonObject>()
+          page.size == initial.size + 1 &&
+            kotlin.math.abs(points(page.first { item -> item["type"]?.jsonPrimitive?.content == "pen" })[0] - 350.0) <= .05
+        }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "page=${annotations.readPage("document", 1)} strokes=${session.penStrokes.value} " +
+            "canUndo=${session.penPageStore.value.canUndo(PenSide.DOCUMENT, 1)} " +
+            "selectedPens=${canvas.selectedStrokeIndices} status=${session.penStatus.value}",
+          error,
+        )
+      }
+      assertTrue("mixed movement must preserve the earlier ink undo entry", session.penPageStore.value.canUndo(PenSide.DOCUMENT, 1))
+
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      waitForAnnotations(annotations) {
+        it.size == initial.size + 1 && points(it.filterIsInstance<JsonObject>().first { item -> item["type"]?.jsonPrimitive?.content == "pen" })[0] == 250.0
+      }
+      composeRule.waitUntil(5_000) {
+        session.penStrokes.value.size == 3 &&
+          session.penStrokes.value.firstOrNull()?.points?.firstOrNull()?.x == 250f
+      }
+      assertTrue("undoing the mixed move must retain the previous pen undo entry", session.penPageStore.value.canUndo(PenSide.DOCUMENT, 1))
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      try {
+        waitForAnnotations(annotations) { it == initial && session.penStrokes.value.size == 2 }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "expected=${initial} actual=${annotations.readPage("document", 1)} strokes=${session.penStrokes.value} " +
+            "canUndo=${session.penPageStore.value.canUndo(PenSide.DOCUMENT, 1)} " +
+            "canRedo=${session.penPageStore.value.canRedo(PenSide.DOCUMENT, 1)} status=${session.penStatus.value}",
+          error,
+        )
+      }
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  @Test
+  fun referenceMixedSelectionCommitsOnOwnerPointerUpAndRestoresOnCancel() {
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initial = Json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[250,350],[350,350]],"pressures":[1,1]},
+        {"type":"rect","color":"#008844","width":5,"points":[[430,320],[570,400]]},
+        {"type":"highlight","color":"#185abd","width":3,"points":[[650,350],[750,350]],"pressures":[1,1]},
+        {"type":"ellipse","color":"#777777","width":2,"points":[[1000,1000],[1100,1100]]}
+      ]""",
+    ) as JsonArray
+    annotations.writePage("document", 1, initial)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    try {
+      composeRule.waitUntil(15_000) {
+        composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 &&
+          session.penStrokes.value.size == 2
+      }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.pageTransform != null }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
+      composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { canvas.selectedTool == PenCanvasTool.SELECT }
+
+      fun lasso(points: List<PenPoint>) {
+        val downTime = SystemClock.uptimeMillis()
+        dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(points.first()), geometry.toViewY(points.first()), .5f, downTime, downTime)
+        points.drop(1).forEachIndexed { index, point ->
+          dispatchStylus(
+            canvas,
+            MotionEvent.ACTION_MOVE,
+            geometry.toViewX(point),
+            geometry.toViewY(point),
+            .5f,
+            downTime,
+            downTime + (index + 1) * 20,
+          )
+        }
+        dispatchStylus(
+          canvas,
+          MotionEvent.ACTION_UP,
+          geometry.toViewX(points.last()),
+          geometry.toViewY(points.last()),
+          .5f,
+          downTime,
+          downTime + points.size * 20L,
+        )
+        composeRule.waitForIdle()
+      }
+
+      lasso(listOf(
+        PenPoint(180f, 280f, 1f), PenPoint(820f, 280f, 1f), PenPoint(820f, 420f, 1f),
+        PenPoint(180f, 420f, 1f), PenPoint(180f, 280f, 1f),
+      ))
+      assertEquals(setOf(0, 1), canvas.selectedStrokeIndices)
+      val start = PenPoint(500f, 350f, 1f)
+      val finish = PenPoint(550f, 390f, 1f)
+      val downTime = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(start), geometry.toViewY(start), .5f, downTime, downTime)
+      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, geometry.toViewX(finish), geometry.toViewY(finish), .5f, downTime, downTime + 60)
+      dispatchMultiplePointers(
+        canvas,
+        action = MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+        pointers = listOf(
+          TestPointer(0, MotionEvent.TOOL_TYPE_STYLUS, geometry.toViewX(finish), geometry.toViewY(finish), .5f),
+          TestPointer(1, MotionEvent.TOOL_TYPE_FINGER, geometry.toViewX(PenPoint(900f, 900f, 1f)), geometry.toViewY(PenPoint(900f, 900f, 1f))),
+        ),
+        downTime = downTime,
+        eventTime = downTime + 70,
+      )
+      dispatchMultiplePointers(
+        canvas,
+        action = MotionEvent.ACTION_POINTER_UP,
+        pointers = listOf(
+          TestPointer(0, MotionEvent.TOOL_TYPE_STYLUS, geometry.toViewX(finish), geometry.toViewY(finish), .5f),
+          TestPointer(1, MotionEvent.TOOL_TYPE_FINGER, geometry.toViewX(PenPoint(900f, 900f, 1f)), geometry.toViewY(PenPoint(900f, 900f, 1f))),
+        ),
+        downTime = downTime,
+        eventTime = downTime + 80,
+      )
+      try {
+        waitForAnnotations(annotations) {
+          val actual = points(it.filterIsInstance<JsonObject>().first { item -> item["type"]?.jsonPrimitive?.content == "pen" })
+          val expected = listOf(300.0, 390.0, 400.0, 390.0)
+          actual.size == expected.size && actual.zip(expected).all { (value, target) -> kotlin.math.abs(value - target) <= 0.05 }
+        }
+      } catch (error: Throwable) {
+        throw AssertionError(
+          "pointer-up move was not committed: page=${annotations.readPage("document", 1)} " +
+            "liveStrokes=${session.penStrokes.value} selected=${canvas.selectedStrokeIndices} status=${session.penStatus.value}",
+          error,
+        )
+      }
+
+      lasso(listOf(
+        PenPoint(230f, 320f, 1f), PenPoint(870f, 320f, 1f), PenPoint(870f, 460f, 1f),
+        PenPoint(230f, 460f, 1f), PenPoint(230f, 320f, 1f),
+      ))
+      assertEquals(setOf(0, 1), canvas.selectedStrokeIndices)
+      val cancelStart = PenPoint(550f, 400f, 1f)
+      val cancelFinish = PenPoint(600f, 450f, 1f)
+      val cancelDownTime = SystemClock.uptimeMillis()
+      dispatchStylus(canvas, MotionEvent.ACTION_DOWN, geometry.toViewX(cancelStart), geometry.toViewY(cancelStart), .5f, cancelDownTime, cancelDownTime)
+      dispatchStylus(canvas, MotionEvent.ACTION_MOVE, geometry.toViewX(cancelFinish), geometry.toViewY(cancelFinish), .5f, cancelDownTime, cancelDownTime + 60)
+      composeRule.waitForIdle()
+      assertEquals(350f, canvas.strokes.first().points.first().x, .1f)
+      composeRule.runOnUiThread { canvas.cancelActiveGesture() }
+      composeRule.waitForIdle()
+      assertEquals("cancel must restore the original live preview", 300f, canvas.strokes.first().points.first().x, .1f)
+      assertEquals("cancel must not write the preview", 300.0, points(
+        annotations.readPage("document", 1).filterIsInstance<JsonObject>().first { it["type"]?.jsonPrimitive?.content == "pen" },
+      )[0], .05)
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
   @Test fun referenceSampledLinePersistsAndUndoRemovesIt() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
@@ -1854,6 +2115,58 @@ class PdfAnnotationSelectionClipboardActivityTest {
       1,
       arrayOf(properties),
       arrayOf(coordinates),
+      0,
+      0,
+      1f,
+      1f,
+      0,
+      0,
+      InputDevice.SOURCE_STYLUS,
+      0,
+    )
+    try {
+      composeRule.runOnUiThread { canvas.dispatchTouchEvent(event) }
+    } finally {
+      event.recycle()
+    }
+  }
+
+  private data class TestPointer(
+    val id: Int,
+    val toolType: Int,
+    val x: Float,
+    val y: Float,
+    val pressure: Float = 1f,
+  )
+
+  private fun dispatchMultiplePointers(
+    canvas: PenCanvasView,
+    action: Int,
+    pointers: List<TestPointer>,
+    downTime: Long,
+    eventTime: Long,
+  ) {
+    val properties = pointers.map { pointer ->
+      MotionEvent.PointerProperties().apply {
+        id = pointer.id
+        toolType = pointer.toolType
+      }
+    }.toTypedArray()
+    val coordinates = pointers.map { pointer ->
+      MotionEvent.PointerCoords().apply {
+        x = pointer.x
+        y = pointer.y
+        pressure = pointer.pressure
+        size = 0.1f
+      }
+    }.toTypedArray()
+    val event = MotionEvent.obtain(
+      downTime,
+      eventTime,
+      action,
+      pointers.size,
+      properties,
+      coordinates,
       0,
       0,
       1f,

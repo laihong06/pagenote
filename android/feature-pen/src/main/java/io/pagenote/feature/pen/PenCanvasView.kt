@@ -385,6 +385,7 @@ class PenCanvasView @JvmOverloads constructor(
       eraserPosition = null
       invalidate()
     }
+    if (annotationSelectionPointerId != INVALID_POINTER) cancelAnnotationSelectionGesture()
     selectionPointerId = INVALID_POINTER
     annotationSelectionPointerId = INVALID_POINTER
     selectionLassoActive = false
@@ -396,6 +397,16 @@ class PenCanvasView @JvmOverloads constructor(
     discardAreaErase()
     resetGesture(commitNativeAreaErase = false)
     invalidate()
+  }
+
+  private fun cancelAnnotationSelectionGesture() {
+    val now = android.os.SystemClock.uptimeMillis()
+    val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+    try {
+      onAnnotationSelectionTouch?.invoke(cancel, geometry(), 0)
+    } finally {
+      cancel.recycle()
+    }
   }
 
   override fun onDetachedFromWindow() {

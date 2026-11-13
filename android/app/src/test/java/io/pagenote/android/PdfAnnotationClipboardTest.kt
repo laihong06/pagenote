@@ -275,6 +275,40 @@ class PdfAnnotationClipboardTest {
   }
 
   @Test
+  fun undoingAnnotationEditAfterMixedMoveKeepsTheMixedMoveUndoable() {
+    val history = PdfAnnotationEditHistory()
+    fun page(source: String) = json.parseToJsonElement(source) as JsonArray
+    val initial = page(
+      """[{"type":"pen","id":"ink","x":10},{"type":"rect","id":"shape","x":20}]""",
+    )
+    val moved = page(
+      """[{"type":"pen","id":"ink","x":30},{"type":"rect","id":"shape","x":40}]""",
+    )
+    val resized = page(
+      """[{"type":"pen","id":"ink","x":30},{"type":"rect","id":"shape","x":40,"width":2}]""",
+    )
+    history.record("project", 1, initial, moved, includeFreehand = true)
+    history.record("project", 1, moved, resized)
+
+    val nativeExpected = history.current("project", 1)!!
+    val nativeUndo = history.undoWithContext("project", 1)!!
+    assertFalse(nativeUndo.includesFreehand)
+    val restoredAfterMove = AnnotationPageMerger.rebaseAnnotationHistory(
+      latest = resized,
+      expected = nativeExpected,
+      restored = nativeUndo.page,
+      restoredContext = nativeUndo.orderContext,
+    )
+    assertEquals(moved, restoredAfterMove)
+
+    val mixedExpected = history.current("project", 1)!!
+    assertEquals("the expected state after undo must retain its mixed page context", moved, mixedExpected)
+    val mixedUndo = history.undoWithContext("project", 1)!!
+    assertTrue(mixedUndo.includesFreehand)
+    assertEquals(initial, AnnotationPageMerger.rebaseMixedHistory(moved, mixedExpected, mixedUndo.page))
+  }
+
+  @Test
   fun identicalNativeSnapshotDoesNotCreateAnUndoEntry() {
     val history = PdfAnnotationEditHistory()
     val same = json.parseToJsonElement("""[{"type":"line","width":2.0}]""") as JsonArray

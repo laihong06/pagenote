@@ -151,9 +151,35 @@ class AnnotationPageMergerTest {
     val numericallyEqual = page("""[{"type":"text","text":"recognized"},{"type":"pen","id":"b","width":3}]""")
     assertEquals(restored, AnnotationPageMerger.rebaseMixedHistory(numericallyEqual, expected, restored))
     val newInk = page("""[{"type":"text","text":"recognized"},{"type":"pen","id":"b","width":3},{"type":"pen","id":"new"}]""")
-    assertEquals(null, AnnotationPageMerger.rebaseMixedHistory(newInk, expected, restored))
+    assertEquals(
+      page("""[{"type":"pen","id":"a","width":2},{"type":"pen","id":"b","width":3},{"type":"pen","id":"new"}]"""),
+      AnnotationPageMerger.rebaseMixedHistory(newInk, expected, restored),
+    )
     val newAnnotation = page("""[{"type":"text","text":"changed"},{"type":"pen","id":"b","width":3}]""")
     assertEquals(null, AnnotationPageMerger.rebaseMixedHistory(newAnnotation, expected, restored))
+  }
+
+  @Test
+  fun mixedMoveRebasesOverNewItemsAppendedAfterGestureSnapshot() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val before = page("""[{"type":"pen","id":"ink","x":10},{"type":"rect","id":"shape","x":20}]""")
+    val moved = page("""[{"type":"pen","id":"ink","x":30},{"type":"rect","id":"shape","x":40}]""")
+    val latest = page("""[{"type":"pen","id":"ink","x":10},{"type":"rect","id":"shape","x":20},{"type":"pen","id":"new","x":90}]""")
+
+    assertEquals(
+      page("""[{"type":"pen","id":"ink","x":30},{"type":"rect","id":"shape","x":40},{"type":"pen","id":"new","x":90}]"""),
+      AnnotationPageMerger.rebaseMixedHistory(latest, before, moved),
+    )
+  }
+
+  @Test
+  fun mixedMoveRejectsEditsInsideTheGestureSnapshot() {
+    fun page(value: String) = Json.parseToJsonElement(value) as JsonArray
+    val expected = page("""[{"type":"pen","id":"ink","x":10},{"type":"rect","id":"shape","x":20}]""")
+    val restored = page("""[{"type":"pen","id":"ink","x":10},{"type":"rect","id":"shape","x":20}]""")
+    val changedSelection = page("""[{"type":"pen","id":"ink","x":99},{"type":"rect","id":"shape","x":20}]""")
+
+    assertEquals(null, AnnotationPageMerger.rebaseMixedHistory(changedSelection, expected, restored))
   }
 
   @Test

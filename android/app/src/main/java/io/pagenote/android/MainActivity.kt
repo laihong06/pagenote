@@ -1546,7 +1546,13 @@ private fun ReaderHome(
           }
         }
         if (synchronizePenPage) {
-          penPageStore.reloadPage(PenSide.DOCUMENT, targetPage, annotationPageToRawList(committedAfter))
+          val rawPage = annotationPageToRawList(committedAfter)
+          penPageStore.replacePagePreservingHistory(
+            PenSide.DOCUMENT,
+            targetPage,
+            rawPage,
+            clearRedo = recordHistory && !AnnotationPageMerger.isAnnotationOnlyHistory(committedBefore, committedAfter),
+          )
         }
         if (resolveSelection != null) {
           committedSelection = withContext(Dispatchers.Default) { resolveSelection(committedAfter) }
