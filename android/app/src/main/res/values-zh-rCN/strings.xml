@@ -60,6 +60,8 @@
   <string name="language_chinese">简体中文</string>
   <string name="language_english">英语（美国）</string>
   <string name="reader_split_ratio">文档与笔记比例</string>
+  <string name="pdf_continuous_scroll_title">PDF 连续翻页</string>
+  <string name="pdf_continuous_scroll_description">上下滚动浏览全部 PDF 页面；关闭后恢复逐页翻页。</string>
   <string name="reader_split_summary">文档 %1$d%% · 笔记 %2$d%%</string>
   <string name="reader_splitter_adjust">调整原文和笔记栏宽度</string>
   <string name="note_animation_title">笔记切换动画</string>

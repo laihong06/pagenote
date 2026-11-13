@@ -54,6 +54,10 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
           NIGHT_FILTER_STRENGTH_KEY,
           defaults.nightFilterStrength,
         ),
+        continuousPdfScrolling = preferences.booleanOrDefault(
+          CONTINUOUS_PDF_SCROLLING_KEY,
+          defaults.continuousPdfScrolling,
+        ),
       ),
     )
   }
@@ -82,6 +86,7 @@ class ReaderSettingsStore(private val dataStore: DataStore<Preferences>) {
       preferences[AUDIO_QUOTA_MB_KEY] = settings.audioQuotaMb
       preferences[NIGHT_FILTER_ENABLED_KEY] = settings.nightFilterEnabled
       preferences[NIGHT_FILTER_STRENGTH_KEY] = settings.nightFilterStrength
+      preferences[CONTINUOUS_PDF_SCROLLING_KEY] = settings.continuousPdfScrolling
     }
   }
 }
@@ -107,6 +112,7 @@ private val ASR_AUTO_TRANSCRIBE_KEY = booleanPreferencesKey("asr_auto_transcribe
 private val AUDIO_QUOTA_MB_KEY = intPreferencesKey("audio_quota_mb")
 private val NIGHT_FILTER_ENABLED_KEY = booleanPreferencesKey("night_filter_enabled")
 private val NIGHT_FILTER_STRENGTH_KEY = intPreferencesKey("night_filter_strength")
+private val CONTINUOUS_PDF_SCROLLING_KEY = booleanPreferencesKey("continuous_pdf_scrolling")
 
 private fun Preferences.stringOrDefault(key: Preferences.Key<String>, default: String): String =
   try {

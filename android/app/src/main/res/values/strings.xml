@@ -60,6 +60,8 @@
   <string name="language_chinese">Chinese (Simplified)</string>
   <string name="language_english">English (US)</string>
   <string name="reader_split_ratio">PDF and notes ratio</string>
+  <string name="pdf_continuous_scroll_title">Continuous PDF scrolling</string>
+  <string name="pdf_continuous_scroll_description">Scroll vertically across PDF pages; turn off to keep one page at a time.</string>
   <string name="reader_split_summary">%1$d%% PDF · %2$d%% notes</string>
   <string name="reader_splitter_adjust">Adjust document and notes pane widths</string>
   <string name="note_animation_title">Animate page-linked notes</string>

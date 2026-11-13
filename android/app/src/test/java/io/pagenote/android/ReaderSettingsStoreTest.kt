@@ -122,6 +122,27 @@ class ReaderSettingsStoreTest {
   }
 
   @Test
+  fun continuousPdfScrollingDefaultsOnAndSurvivesOpeningAnotherStore() = runBlocking {
+    val file = File(temporaryFolder.root, "continuous-pdf-scrolling.preferences_pb")
+    val firstScope = newScope()
+    try {
+      val firstStore = ReaderSettingsStore(newDataStore(file, firstScope))
+      assertEquals(true, firstStore.settings.first().continuousPdfScrolling)
+      firstStore.save(ReaderSettings(continuousPdfScrolling = false))
+    } finally {
+      firstScope.cancelAndAwaitDataStore()
+    }
+
+    val secondScope = newScope()
+    try {
+      val secondStore = ReaderSettingsStore(newDataStore(file, secondScope))
+      assertEquals(false, secondStore.settings.first().continuousPdfScrolling)
+    } finally {
+      secondScope.cancelAndAwaitDataStore()
+    }
+  }
+
+  @Test
   fun noteBackgroundDefaultsToPlainAndSurvivesOpeningAnotherStore() = runBlocking {
     val file = File(temporaryFolder.root, "note-background.preferences_pb")
     val firstScope = newScope()
