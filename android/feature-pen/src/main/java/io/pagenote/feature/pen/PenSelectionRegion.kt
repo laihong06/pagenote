@@ -5,8 +5,13 @@ class PenSelectionRegion private constructor(
   val points: List<PenPoint>,
   val bounds: PenRect,
 ) {
-  /** Reference selector behavior: a material is selected when one of its stored samples is inside. */
-  fun selects(stroke: PenStroke): Boolean = stroke.points.any { contains(it.x.toDouble(), it.y.toDouble()) }
+  /**
+   * Mirrors Pen.isInRegion from the recovered app: its DEX returns immediately
+   * for the first non-null sample, so later points do not affect selection.
+   */
+  fun selects(stroke: PenStroke): Boolean = stroke.points.firstOrNull()
+    ?.let { contains(it.x.toDouble(), it.y.toDouble()) }
+    ?: false
 
   /** Boundary points count as inside, matching Android Region containment with inclusive edges. */
   fun contains(x: Double, y: Double): Boolean {

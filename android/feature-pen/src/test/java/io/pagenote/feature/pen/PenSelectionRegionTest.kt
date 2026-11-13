@@ -16,16 +16,21 @@ class PenSelectionRegionTest {
     assertFalse(region.contains(Double.NaN, 50.0))
   }
 
-  @Test fun selectsMaterialWhenAnyStoredSampleFallsInLasso() {
+  @Test fun freehandSelectionUsesTheFirstStoredSampleLikeTheReference() {
     val region = PenSelectionRegion.create(rectangleLasso())!!
-    val selected = PenStroke("pen", "#000000", 3.0, listOf(PenPoint(20f, 20f, 1f), PenPoint(40f, 40f, 1f)))
-    val crossingWithoutInteriorSamples = PenStroke(
+    val startsInside = PenStroke("pen", "#000000", 3.0, listOf(PenPoint(20f, 20f, 1f), PenPoint(100f, 100f, 1f)))
+    val startsOutsideThenEnters = PenStroke(
       "pen", "#000000", 3.0,
-      listOf(PenPoint(0f, 50f, 1f), PenPoint(100f, 50f, 1f)),
+      listOf(PenPoint(0f, 50f, 1f), PenPoint(20f, 50f, 1f), PenPoint(40f, 50f, 1f)),
+    )
+    val startsInsideThenLeaves = PenStroke(
+      "pen", "#000000", 3.0,
+      listOf(PenPoint(20f, 20f, 1f), PenPoint(120f, 120f, 1f)),
     )
 
-    assertTrue(region.selects(selected))
-    assertFalse(region.selects(crossingWithoutInteriorSamples))
+    assertTrue(region.selects(startsInside))
+    assertFalse(region.selects(startsOutsideThenEnters))
+    assertTrue(region.selects(startsInsideThenLeaves))
   }
 
   @Test fun requiresFiveSamplesAndReferenceMinimumBounds() {

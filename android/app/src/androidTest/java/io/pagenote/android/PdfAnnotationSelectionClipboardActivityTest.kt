@@ -386,18 +386,19 @@ class PdfAnnotationSelectionClipboardActivityTest {
     }
   }
 
-  @Test fun referenceRegionSelectionDeletesMixedMaterialsAndUndoesAsOneAction() {
+  @Test fun referenceRegionSelectionUsesFirstPenSampleAndUndoesMixedDeleteAsOneAction() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
     installFixture(resolver)
     val project = ProjectDocumentOpener(resolver).open(treeUri)
     val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
     val initial = Json.parseToJsonElement(
       """[
-        {"type":"pen","color":"#dc3545","width":3,"points":[[250,350],[350,350]],"pressures":[1,1]},
+        {"type":"pen","color":"#dc3545","width":3,"points":[[250,300],[350,300]],"pressures":[1,1]},
         {"type":"rect","color":"#008844","width":5,"points":[[430,320],[570,400]]},
-        {"type":"pen","color":"#185abd","width":3,"points":[[650,350],[750,350]],"pressures":[1,1]}
+        {"type":"pen","color":"#185abd","width":3,"points":[[100,350],[650,350],[750,350]],"pressures":[1,1,1]}
       ]""",
     ) as JsonArray
+    val crossingStrokeStartsOutside = initial[2]
     annotations.writePage("document", 1, initial)
     openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
     val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
@@ -407,6 +408,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
           session.penStrokes.value.size == 2
       }
       collapseReaderMenuAndWait()
+      Thread.sleep(2_500) // Let any previous test's paste toast clear before capturing the initial state.
       saveAnnotationEvidence("reference-region-selection-before.png")
       val ref = AtomicReference<PenCanvasView>()
       composeRule.runOnUiThread { ref.set(findPenCanvas(composeRule.activity.window.decorView)!!) }
@@ -452,7 +454,9 @@ class PdfAnnotationSelectionClipboardActivityTest {
       revealReaderMenuCommand(composeRule, "handwriting", "delete_ink")
       composeRule.onNodeWithTag("reader_menu_command_delete_ink").assertIsEnabled()
         .performScrollTo().performClick()
-      waitForAnnotations(annotations) { it.isEmpty() }
+      waitForAnnotations(annotations) { it == JsonArray(listOf(crossingStrokeStartsOutside)) }
+      composeRule.waitUntil(5_000) { session.penStrokes.value.size == 1 }
+      assertEquals(1, session.penStrokes.value.size)
       collapseReaderMenuAndWait()
       saveAnnotationEvidence("reference-region-selection-deleted.png")
 
