@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 增加闭合圆形、矩形、三角形在横屏平板阅读器中的实际运行截图，分别记录识形输入前、保存后和一次撤销后；同步修正文档里已经过时的曲线端到端、跨层区域擦除与统一选择／历史状态。Android 14 API 34 ARM64、2560 × 1600、320 dpi；测试用合成 stylus 输入，未做实体笔或桌面往返验收。本地源码，未发布。
 - 停留识别现在会保留参考圆形材料类别：圆形以兼容的 `ellipse` 注释及 `shape: "circle"` 扩展字段落盘；同批横屏阅读器验收还覆盖原生矩形 `rect` 与闭合多点三角形笔迹，并确认各自可一步撤销。`PdfAnnotationSelectionClipboardActivityTest` 25/25、`PdfAnnotationAreaEraserInstrumentedTest` 5/5、`ReferenceClosedShapeRecognizerInstrumentedTest` 4/4 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；app 与 feature-pen JVM 回归通过。主文件类型未增加，Windows／macOS 未改；参考 App 运行时差分、实体笔和桌面往返未验。本地未发布源码与 debug 构建。
 - 阅读器的笔迹与原生图形撤销历史现按项目／页面维护一条动作列表和游标，普通编辑及区域擦除等混合手势按发生顺序撤销／重做。异步识形或擦除在保存完成前先保留历史位置；保存失败后可重试，等待期间若有新编辑也能保留正确历史顺序。app JVM 660/660、feature-pen JVM 153/153、横屏 API 34 平板选择／剪贴板仪器类 23/23 和区域擦除仪器类 5/5 通过。动作通过现有笔迹和批注快照适配器执行，项目文件格式不变；历史不跨进程持久化，参考应用的其他动作类型尚未整体移植。本地源码，未发布。
 - 区域橡皮现按恢复源码的图形路径采样和 `Pen.split_v2` 规则切分原生直线、箭头、矩形与椭圆，并将切开的部分显示、保存为连续多点 `pen` 笔迹；原生图形和自由笔迹在同一手势被擦除时仍由一次撤销／重做整体恢复。源码改动 `dc1c5b8` 在合入当前 beta 的运行树 `169131f` 上通过 `REF-ERASE-04` 几何验收 5/5，阅读器选择／剪贴板／橡皮仪器测试类 23/23 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过，0 失败、0 跳过。最终运行树 169131f 的四态图形截图及四态跨层截图见[验收索引](guide/images/reference-shape/README.md#原生矢量图形区域擦除)。annotations.json 格式未变，Windows／macOS 未改；非默认参考平滑配置、实体笔、真机和桌面往返尚未验，本地源码与 debug 测试包未发布。

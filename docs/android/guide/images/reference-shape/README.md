@@ -42,13 +42,56 @@
 
 ![横屏平板中识别并保存的闭合椭圆](reference-closed-ellipse.png)
 
+## 闭合圆形、矩形和三角形落盘与撤销
+
+- 运行环境：Android 14 API 34、ARM64 `Pixel_Tablet_API34_Acceptance` AVD、横屏 2560 × 1600、320 dpi、浅色主题；输入为测试生成的 PDF 和合成 stylus `MotionEvent`，不是实体触控笔。产品代码 commit：`149f7ea`。
+- `referenceClosedCirclePersistsAsCircleMaterialAndUndoes` 验证圆形写为兼容的 `ellipse` 主类型和 `shape: "circle"` 扩展；`referenceClosedRectangleAndTrianglePersistAndUndoAsOneMaterialEach` 验证近直角闭合轮廓写为原生 `rect`，三角形写为一个闭合多点 `pen`。每种材料均检查页面数据及一次撤销清空。
+- `PdfAnnotationSelectionClipboardActivityTest` 在该运行树上 25/25 通过；底层闭合轮廓 OpenCV 仪器用例 4/4 通过。截图由应用运行中的 `UiAutomation.takeScreenshot()` 采集，均为完整屏幕；分别展示输入前、保存后和撤销后的状态。
+- 没有新增文件主类型。图片仅证明横屏 Android 合成输入结果；桌面程序重新打开／保存往返、实体笔真机和参考 App 运行时差分仍未验证。
+
+圆形识别前：
+
+![横屏平板中尚未画圆形的页面](reference-closed-circle-before.png)
+
+圆形保存后：
+
+![停留识别后以 circle 类别保存并显示的圆形](reference-closed-circle.png)
+
+一次撤销后：
+
+![一次撤销清除已保存的闭合圆形](reference-closed-circle-undo.png)
+
+矩形识别前：
+
+![横屏平板中尚未画矩形的页面](reference-closed-rectangle-before.png)
+
+矩形保存后：
+
+![停留识别后保存为原生 rect 的矩形](reference-closed-rectangle.png)
+
+一次撤销后：
+
+![一次撤销清除已保存的原生矩形](reference-closed-rectangle-undo.png)
+
+三角形识别前：
+
+![横屏平板中尚未画三角形的页面](reference-closed-triangle-before.png)
+
+三角形保存后：
+
+![停留识别后保存为闭合多点笔迹的三角形](reference-closed-triangle.png)
+
+一次撤销后：
+
+![一次撤销清除已保存的三角形笔迹](reference-closed-triangle-undo.png)
+
 ## 原生矢量图形区域擦除
 
 - 验收用例 `REF-ERASE-04`：`PdfAnnotationAreaEraserInstrumentedTest.referenceVectorPathIsSampledBeforePenSplitAndFragmentsStayContinuous` 与 `referenceAreaEraserSplitsEveryNativeVectorShapeKind`。参考路径采样后生成的擦除碎片仍保存为连续多点笔迹；图形种类覆盖直线、箭头、矩形与椭圆。
 - 参考源码 `ShapeTool.split` 先用 `PathMeasure` 每 2px 采样，再按 `autoShapeLineFactor`（0.8）创建 Pen 并调用 `Pen.split_v2`；后者把两端擦除矩形按笔宽的三分之一扩展，构造擦除走廊并按 1px 路径采样拆分连续片段。`EllipseTool.split` 先将椭圆轮廓每 2px 采样，再走同一 Pen 切分流程。Android 阅读器现把切开的片段临时显示为多点折线，提交时保存为现有 `pen` + `pagenotePolyline` 格式并同步到笔迹层。
 - 运行环境：Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance` AVD，横屏 2560 × 1600、320 dpi、浅色主题。测试项目使用生成的 PDF；截图由运行中的 Android 应用 `UiAutomation.takeScreenshot()` 采集。产品擦除实现 commit `dc1c5b8`；合入当前 `beta` 后的验收运行树 commit `169131f`。
 - `reference-area-erase-native-before.png` 显示擦除前的完整矩形；`reference-area-erase-native-erasing.png` 显示手势中途的圆形边界（光标位于矩形内部，尚未碰到边线）；`reference-area-erase-native-after.png` 显示擦除后保存的连续笔迹片段；`reference-area-erase-native-undo.png` 显示菜单撤销恢复的原矩形。
-- `REF-ERASE-04` 相关几何用例 5/5 通过；`PdfAnnotationSelectionClipboardActivityTest` 在同一 AVD 上 23/23 通过，覆盖擦除预览、原生矩形落盘、一次撤销及自由笔迹／原生图形混合擦除的一次撤销和重做。测试用 stylus `MotionEvent` 驱动真实 `PenCanvasView`，不代表实体触控笔验收。
+- `REF-ERASE-04` 相关几何用例 5/5 通过；当前 `PdfAnnotationSelectionClipboardActivityTest` 在同一 AVD 上 25/25 通过，覆盖擦除预览、原生矩形落盘、一次撤销及自由笔迹／原生图形混合擦除的一次撤销和重做。测试用 stylus `MotionEvent` 驱动真实 `PenCanvasView`，不代表实体触控笔验收。
 - 片段点列按参考默认 `PathHelp` 规则重建；annotations.json 不保存笔迹平滑模式，因此非默认参考平滑配置未移植。箭头轮廓按当前 annotations 端点数据重建。参考中心 `ActionStack` 仍未整体移植；本次只把该区域擦除手势作为一条跨笔迹层和批注层的撤销事务。
 
 ![擦除前](reference-area-erase-native-before.png)
