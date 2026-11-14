@@ -11,7 +11,7 @@
 | macos/beta | Mac 实验性平台线 | Mac 功能、适配、文档和待验证共享同步 |
 | android/beta | Android 独立实现测试线 | Android 功能、文档和格式同步 |
 
-Mac 与 Android 尚无获批稳定基线，因此暂不建 macos/main、android/main。Linux、鸿蒙仍未开发，不预建空分支。版本配置中的空稳定线必须为 null，不能给出不存在的链接。
+Mac 与 Android 尚无获批稳定基线，因此暂不建 macos/main、android/main。Linux 首次适配正在向共享 beta 提交，尚无 Linux 远端平台线，继续向 beta 提交；鸿蒙仍未开发，不预建空分支。版本配置中的空稳定线必须为 null，不能给出不存在的链接。
 
 ## 一个平台更新时怎么走
 

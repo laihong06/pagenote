@@ -8,11 +8,12 @@ const config = await loadPlatform(root, id);
 if (action === 'info') {
   console.log(JSON.stringify(config, null, 2));
 } else {
-  if (!['windows', 'macos'].includes(id))
+  if (!['windows', 'macos', 'linux'].includes(id))
     throw Error('Android: use android/gradlew or android/gradlew.bat');
   if (
     (id === 'windows' && process.platform !== 'win32') ||
-    (id === 'macos' && process.platform !== 'darwin')
+    (id === 'macos' && process.platform !== 'darwin') ||
+    (id === 'linux' && process.platform !== 'linux')
   )
     throw Error('Build and test this platform on its own operating system');
   const scripts = {
@@ -20,7 +21,11 @@ if (action === 'info') {
     build: ['scripts/platform-build.mjs'],
     package: [
       'scripts/package-desktop.mjs',
-      ...(id === 'macos' ? ['--mac'] : []),
+      ...(id === 'macos'
+        ? ['--mac']
+        : id === 'linux'
+          ? ['--linux']
+          : ['--win']),
       ...rest,
     ],
   };

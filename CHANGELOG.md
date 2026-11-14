@@ -2,7 +2,34 @@
 
 ## Unreleased / 尚未发布
 
+- Refresh the completed-task archive documentation against current shared beta and verify all four recorded commit/tag pairs; preserve the 2026-11-06 recovery records. Documentation only, with no runtime, version, release or download changes. / 将已完成任务的归档文档同步到当前共享 beta，核对四组提交与归档标签并保留 2026-11-06 恢复记录；仅文档整理，不改变运行功能、版本、发布或下载入口。
+
 - Archive four completed task branches (codex/yuketang-import-target, codex/yuketang-source-identity, codex/yuketang-cross-platform, codex/android-rainclassroom-fixes) behind recoverable `archive/2026-11-06/*` tags on the fork and record them in docs/BRANCH-ARCHIVE-2026-11-06.json; their content already reached beta through the Android tablet port, the yuketang integration merges, and the bookshelf/Rain capture fixes. / 将四个已完工任务分支（yuketang 导入目标、页面身份、跨平台集成、雨课堂书架修复）归档为 fork 上可恢复的 `archive/2026-11-06/*` 标签并登记到 docs/BRANCH-ARCHIVE-2026-11-06.json；其内容均已通过 Android 平板移植、yuketang 集成合并及书架／雨课堂采集修复进入 beta。
+
+- Adopt the "A · 灵感记录" design as the official PageNote icon: an ivory page whose folded corner forms a paper plane with a hidden pen nib, plus a warm handwritten stroke, on an indigo-violet rounded square. The icon source now lives at `assets/brand/pagenote-icon.svg`, and `scripts/create-icon.mjs` renders that SVG into `build/icon.ico` (16–256px), `build/icon.png` and `build/icon.svg` instead of redrawing the old procedural shapes, so future redesigns only replace the SVG. / 正式采用「A · 灵感记录」为 PageNote 图标：象牙白纸页的折角构成藏着钢笔尖的纸飞机，配暖橙色手写笔迹，置于靛蓝紫圆角底上。图标源文件固定为 `assets/brand/pagenote-icon.svg`，`scripts/create-icon.mjs` 改为渲染该 SVG 生成 `build/icon.ico`（16–256px）、`build/icon.png` 与 `build/icon.svg`，不再逐像素重绘旧图形；后续换标只需替换 SVG。
+
+- Add a founder-review proposal for PageNote's teacher-Agent system, covering instructional decisions, prompt routing, learner evidence, native interactions, reliability, evaluation and staged competition delivery. / 新增供创始人审查的教师 Agent 体系与优化总方案，覆盖教学决策、提示路由、学习证据、原生交互、可靠性、分层评估及参赛实施；仅方案，不声明新增运行能力。
+
+- Organize StudyHack competition preparation under competitions/qoder-2026: requirements and gaps, existing-feature evidence, a forum-post draft, a web demo plan and Qoder/submission records, with copied historical Windows screenshots and provenance. Documentation only; no Qoder development, public deployment or submission is claimed. / 新增 Qoder 高校创造力大赛 StudyHack 参赛材料目录，整理需求缺口、已有成果证据、作品帖草稿、网页演示计划与过程／提交记录，归档历史 Windows 截图及来源；仅材料整理，不宣称已用 Qoder 开发、完成公网部署或参赛提交。
+
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
+- Make the legacy preview lifecycle test focus its window before checking macOS minimize behavior. / 旧预览生命周期测试在检查 macOS 最小化前先确保应用窗口可见并获得焦点。
+
+- Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
+
+- Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
+
+- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+
+- Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+- Update Multer, body-parser and qs to fixed production versions; production dependency audit reports no vulnerabilities. / 将 Multer、body-parser、qs 更新到已修复版本；生产依赖审计不再报告漏洞。
+- Resubmit platform documentation and review evidence for merged PR #13 under the new contribution standard: add 30 Android API 34 and 20 actual Mac captures, numbered workflows, per-module coverage and provenance; retain Windows capture origins and disclose shape-undo/floating-window defects and validation gaps. No runtime, format, version or public download changes. / 按新规范补交 #13 的平台 README、功能表与配图教程；新增 Android 30 张、Mac 20 张真实运行图及操作过程和来源，保留 Windows 原图来源，如实列出形状撤销、悬浮窗布局与验证缺口；不改程序、格式、版本或公开下载。
+- Supplement the Linux port with packaged runtime screenshots, per-module native interaction evidence and current validation records; extend Office conversion coverage to real DOCX/PPTX fixtures. No release or runtime behavior change.
+
+- Add the first Linux desktop port from shared beta 6388245: isolated Linux entry/version and packaging, LibreOffice conversion, browser/source launch, Linux regression tests and platform guide with runtime evidence. Linux development version 1.1.0-beta.5-dev.3; no public release or changes to other platform versions.
 
 - Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
 
@@ -204,6 +231,19 @@
 - Add end-to-end workflow, cache, continuation, preference evidence and live-entry regression coverage. / 增加路由、缓存、续读、偏好与入口实时更新验证。
 
 - Establish `beta` for new features and routine fixes; reserve `main` for founder-approved stable promotion after real-use testing. / 建立 beta 测试分支，新功能与常规修复先测试，实测并经发起人批准后再通过 PR 晋级 main 正式分支。
+- Protect editor saves with atomic revision checks; keep conflicting drafts in page history, preserve recovery bases across restarts, and expose persistent save/retry/conflict controls in the note footer. AI writes now pass their expected revision to the same commit-time check. Existing unconditioned API clients remain compatible. Local source iteration only; public v1.0.0 binaries are unchanged. / 笔记编辑保存增加落盘时版本校验，冲突草稿备份到本页历史，恢复副本保留原始版本基线；底栏常驻显示保存、重试及冲突对照入口，AI 写入同样在提交时校验版本。兼容未传版本号的旧接口调用。本次仅迭代源码，不替换已发布安装包。
+
+- Adopt PolyForm Noncommercial 1.0.0 for newly licensed founder-original material; preserve historical MIT/contributor permissions and third-party notices, update bilingual scope and package metadata, and include both scope and legacy notices in future distributions. Published binaries and tags are unchanged. / 新增原创内容改用非商业许可，保留历史 MIT、贡献者和依赖授权，未来分发携带许可范围与旧声明，不替换历史包。
+
+- State the author’s non-commercial-use requirement prominently in both READMEs, and disclose the conflict with the unchanged MIT license. Documentation only; published packages unchanged. / 中英文 README 标注禁止商业使用，并注明与尚未调整的 MIT 许可证存在冲突；不更改已发布安装包。
+
+### 1.0.1 Windows patch candidate
+
+- Backport only the Mermaid measurement-container fix from obroccolio PR #6: temporary SVG measurements no longer enter the window grid or move page/word-count footers while navigating. Always clean measurement nodes on success and failure. / 仅回移 Mermaid 测量节点修复，防止翻页时页码与字数底栏上跳，正常及异常路径均清理节点。
+- Add frame-by-frame cold/warm/repeated/scroll/error diagram navigation regression coverage. Beta themes, native settings and welcome UI are excluded. / 增加逐帧翻页回归；不包含 Beta 主题、设置与欢迎页。
+- Source patch version is 1.0.1; existing public v1.0.0 binaries and downloads remain unchanged until a separate matching package release. / 修复源码版本为 1.0.1，已发布 1.0.0 安装包保持不变。
+
+- Separate stable README/download entries from beta; main offers Windows v1.0.0 only, with a link to the beta branch. Documentation only; stable binaries and application code unchanged. / 正式版文档仅提供对应正式包，实验性下载移至测试渠道；不更改正式程序或发布产物。
 
 - Surface Mac Office bridge limits, PDF screenshot permissions and recoverable working copies in both READMEs; distinguish Windows file-association scripts from Finder usage. / 将 Mac 配套文档中的 Office 限制、截图权限与恢复副本说明提到主 README，区分 Windows 注册脚本与 Mac 项目打开方式。
 

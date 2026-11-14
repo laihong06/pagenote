@@ -1,0 +1,111 @@
+{
+  "platform": "macos",
+  "capturedOn": "2026-10-30",
+  "sourceCommit": "6388245cbc919ca7b1335fbf59f36abc6cf5a5be",
+  "workingTree": "Documentation and capture helpers modified; application runtime tracked source matches sourceCommit",
+  "version": "1.1.0-beta.5-dev.2",
+  "targetPackageVersion": "1.1.0-beta.5-dev.1",
+  "architecture": "arm64",
+  "os": "macOS 26.5.1 (25F80); Darwin 25.5.0",
+  "device": "Apple Silicon Mac",
+  "density": 2,
+  "theme": "Light system; classic Markdown",
+  "language": "zh-CN",
+  "sample": "Original synthetic offline lesson, no personal projects, credentials or network AI requests",
+  "processing": "Original capture bytes; no crop, resize, compositing or retouching; extension matches actual format",
+  "images": [
+    {
+      "file": "ai-workbench.png",
+      "format": "png",
+      "width": 2880,
+      "height": 1676,
+      "logicalWidth": 1440,
+      "logicalHeight": 838,
+      "sha256": "3a7e7af326422964f218d003bc50a4beb0b95fba29425b3b2092b680ad201fad"
+    },
+    {
+      "file": "bookshelf.png",
+      "format": "png",
+      "width": 2880,
+      "height": 1676,
+      "logicalWidth": 1440,
+      "logicalHeight": 838,
+      "sha256": "094340ca393202b4a9a9e53a48da40e9e7cfc7f6f9c66a500388a9e8fbf82376"
+    },
+    {
+      "file": "editing.png",
+      "format": "png",
+      "width": 2880,
+      "height": 1676,
+      "logicalWidth": 1440,
+      "logicalHeight": 838,
+      "sha256": "f4f3908725de93bee33997357548aff988845e258da757ffc121ff66afa56ef9"
+    },
+    {
+      "file": "ink-tools.png",
+      "format": "png",
+      "width": 2880,
+      "height": 1676,
+      "logicalWidth": 1440,
+      "logicalHeight": 838,
+      "sha256": "9287d040e51ab00ecf23bfca8bb9f2b871b5e6f39cf44b6193a84fc0798ca64d"
+    },
+    {
+      "file": "native-ai-settings.jpg",
+      "format": "jpeg",
+      "width": 1520,
+      "height": 1316,
+      "logicalWidth": 760,
+      "logicalHeight": 658,
+      "sha256": "c84249e989a901fb882ad668eaa06694cf3ddfe81f2983b74a66e43a8debfbe5"
+    },
+    {
+      "file": "native-appearance.jpg",
+      "format": "jpeg",
+      "width": 1360,
+      "height": 776,
+      "logicalWidth": 680,
+      "logicalHeight": 388,
+      "sha256": "cd1a5384473da8a5a60a9b9bdebe180d76cb7c38198df453c154f49ce8e2b561"
+    },
+    {
+      "file": "native-reading-settings.jpg",
+      "format": "jpeg",
+      "width": 1360,
+      "height": 776,
+      "logicalWidth": 680,
+      "logicalHeight": 388,
+      "sha256": "0c91a782bb33f541a5b64509e390e665fdcf8416a882620bbbf343dcffe62504"
+    },
+    {
+      "file": "reading.png",
+      "format": "png",
+      "width": 2880,
+      "height": 1676,
+      "logicalWidth": 1440,
+      "logicalHeight": 838,
+      "sha256": "691e3adba56b42c8a53c58ba5e6af33822fd745cfe6d03d7697457e8ff421796"
+    },
+    {
+      "file": "window-bookshelf.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "86c12f21c4e8adb026fabece4f4f6300c9f9679dab1bfd57fb919bca0be21a24"
+    },
+    {
+      "file": "window-reading.jpg",
+      "format": "jpeg",
+      "width": 2880,
+      "height": 1738,
+      "logicalWidth": 1440,
+      "logicalHeight": 869,
+      "sha256": "6a878d7526dd0be9a54f70f88670306ce3596e636e784bc770abb323c4a26b30"
+    }
+  ],
+  "electron": "44.7.2",
+  "captureMethod": "First five baseline content images: repository capture-platform-guide.mjs (PNG); window/AppKit images: actual macOS UI capture (JPEG)",
+  "baselineScriptCapturedAt": "2026-10-30T07:46:04.868Z"
+}

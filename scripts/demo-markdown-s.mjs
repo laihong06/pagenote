@@ -5,8 +5,8 @@ import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-if (!['win32', 'darwin'].includes(process.platform))
-  throw Error('This desktop demo currently supports Windows and macOS.');
+if (!['win32', 'darwin', 'linux'].includes(process.platform))
+  throw Error('This desktop demo currently supports Windows, macOS and Linux.');
 await fs.mkdir(path.join(root, 'tmp'), { recursive: true });
 const demo = await fs.mkdtemp(path.join(root, 'tmp', 'markdown-s-demo-'));
 const project = path.join(demo, 'project');
@@ -39,7 +39,9 @@ const executablePath = path.join(
   root,
   process.platform === 'darwin'
     ? 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
-    : 'node_modules/electron/dist/electron.exe',
+    : process.platform === 'linux'
+      ? 'node_modules/electron/dist/electron'
+      : 'node_modules/electron/dist/electron.exe',
 );
 const env = {
   ...process.env,

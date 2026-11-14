@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">PageNote 应用图标</title>
+  <desc id="desc">靛蓝紫圆角底板上的象牙白纸页，右上角折成带笔尖负形的纸飞机，暖橙色笔迹穿过纸面。</desc>
+  <defs>
+    <linearGradient id="tile" x1="146" y1="112" x2="888" y2="930" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2638B8"/>
+      <stop offset="0.5" stop-color="#5035D6"/>
+      <stop offset="1" stop-color="#8B3FFC"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(794 206) rotate(131) scale(722)">
+      <stop stop-color="#B7A4FF" stop-opacity="0.34"/>
+      <stop offset="0.55" stop-color="#8E73FF" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#4829B7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="paper" x1="330" y1="260" x2="672" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF8"/>
+      <stop offset="0.58" stop-color="#FFFBF3"/>
+      <stop offset="1" stop-color="#F1E9F5"/>
+    </linearGradient>
+    <linearGradient id="roll" x1="242" y1="690" x2="370" y2="814" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B9A7D1"/>
+      <stop offset="0.48" stop-color="#E2D4E7"/>
+      <stop offset="1" stop-color="#FFF7EC"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="590" y1="254" x2="750" y2="386" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF7"/>
+      <stop offset="1" stop-color="#E7D8ED"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="322" y1="503" x2="682" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF535D"/>
+      <stop offset="0.55" stop-color="#FF714B"/>
+      <stop offset="1" stop-color="#FFAE42"/>
+    </linearGradient>
+    <radialGradient id="dot" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(700 574) rotate(49) scale(31)">
+      <stop stop-color="#FFD37A"/>
+      <stop offset="0.42" stop-color="#FF9748"/>
+      <stop offset="1" stop-color="#FF5C4D"/>
+    </radialGradient>
+    <filter id="shadow" x="134" y="172" width="770" height="710" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#170B61" flood-opacity="0.28"/>
+    </filter>
+    <clipPath id="tileClip">
+      <rect x="42" y="42" width="940" height="940" rx="224"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#tileClip)">
+    <rect x="42" y="42" width="940" height="940" rx="224" fill="url(#tile)"/>
+    <rect x="42" y="42" width="940" height="940" rx="224" fill="url(#glow)"/>
+    <path d="M-20 790C214 598 366 706 531 568C694 432 769 230 1056 172V1056H-20V790Z" fill="#30199B" fill-opacity="0.12"/>
+    <path d="M66 216C262 72 432 91 570 122" stroke="white" stroke-opacity="0.1" stroke-width="42" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <path d="M286 249C253 249 232 274 229 307L198 717C193 783 239 822 300 813L693 752C742 744 767 707 757 658L706 406C695 351 664 317 615 295L526 253C514 248 500 246 485 246L286 249Z" fill="url(#paper)"/>
+
+    <path d="M198 717C233 674 277 672 310 705C337 732 359 777 421 782L300 813C239 822 193 783 198 717Z" fill="url(#roll)"/>
+    <path d="M198 717C233 674 277 672 310 705C337 732 359 777 421 782C361 790 307 778 277 743C252 714 229 704 198 717Z" fill="#8E79B5" fill-opacity="0.18"/>
+
+    <path d="M548 275C555 229 578 202 620 188L861 123C878 118 884 124 873 138L724 356C714 370 700 378 683 382L633 392C611 396 598 409 587 429L570 459C565 469 558 466 560 453L572 384C579 343 570 307 548 275Z" fill="url(#fold)"/>
+    <path d="M548 275L873 128L626 337C596 362 578 398 570 459C565 469 558 466 560 453L572 384C579 343 570 307 548 275Z" fill="#C9B6DB" fill-opacity="0.42"/>
+    <path d="M620 188L861 123C878 118 884 124 873 138L724 356C714 370 700 378 683 382L633 392L626 337L548 275C555 229 578 202 620 188Z" fill="#FFFDF7" fill-opacity="0.82"/>
+
+    <path d="M638 298C625 300 617 316 613 339L600 395L648 360C665 348 676 342 689 340C674 336 664 329 657 317C651 305 646 297 638 298Z" fill="#38239C"/>
+    <path d="M610 383L653 336" stroke="#FFF9EF" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="658" cy="331" r="10" fill="#FFF9EF"/>
+
+    <path d="M320 554C410 477 484 453 509 481C544 521 424 599 446 632C472 670 557 598 656 589" stroke="url(#ink)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="707" cy="584" r="20" fill="url(#dot)"/>
+    <circle cx="701" cy="577" r="5" fill="white" fill-opacity="0.48"/>
+  </g>
+</svg>

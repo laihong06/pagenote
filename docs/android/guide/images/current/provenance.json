@@ -1,0 +1,295 @@
+{
+  "platform": "android",
+  "capturedOn": "2026-10-30",
+  "sourceCommit": "6388245cbc919ca7b1335fbf59f36abc6cf5a5be",
+  "workingTree": "Documentation and capture helpers modified; application runtime tracked source matches sourceCommit",
+  "version": "1.0.0-beta.6-dev.1",
+  "targetPackageVersion": "1.0.0-beta.6-dev.1",
+  "architecture": "arm64",
+  "os": "Android 14 / API 34",
+  "device": "Pixel_Tablet_API34 AVD; sdk_gphone64_arm64",
+  "density": 2,
+  "theme": "Light; 22/23 eye-comfort warm overlay",
+  "language": "App zh-CN; system dialogs and floating service retain English labels",
+  "sample": "Original synthetic offline lesson, no personal projects, credentials or network AI requests",
+  "processing": "Original capture bytes; no crop, resize, compositing or retouching; extension matches actual format",
+  "images": [
+    {
+      "file": "01-bookshelf.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "d85062cef399369be29fcd6b64d3f5dcb9887826088e6eeea5d2d7a8b4346141"
+    },
+    {
+      "file": "02-reading.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "3bcf477a061689c959e931ad541157bf6ff47020865d19458ad69a3808dfa652"
+    },
+    {
+      "file": "03-shape-picker.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "f6626345ba33e90c461c57adee8c720053ac44c776cca1914490ceb2585af4d2"
+    },
+    {
+      "file": "04-shape-created.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "d7c6258631e9855bf6eae93f38e4e4b488995cbdadd2039c02ba8af236d0a108"
+    },
+    {
+      "file": "04a-shape-creation-undo-disabled.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "c5f3738a9141f42ca01496aee2477df7a10ddc3aeb657d5bc686caebf0676843"
+    },
+    {
+      "file": "05-shape-deleted.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "b310af0b7e70805bd40414fbeab7817a5aab448cbd068bdcc65a1b103178ed45"
+    },
+    {
+      "file": "06-shape-delete-undone.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "bb2ad34537891f21a6651db149ed331378d33ce297668a7e66e6d982b91393f9"
+    },
+    {
+      "file": "07-rich-editor.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "56398ebaaddfe93c8a9f1985e41ba574039a688220fd1e5cce81654b583fa6e1"
+    },
+    {
+      "file": "08-project-paper.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "d6abd4bcd5092c33c460e600111fb629f696661a6d983fe0a06926149963bb32"
+    },
+    {
+      "file": "09-merged-pdf-export.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "2e3dc91a68d7d36b3ce3194666805e0256f4eb88f8fefdcc890d00e3e57ec54e"
+    },
+    {
+      "file": "10-reader-settings.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "efe1c72fe331cb24d1650bb6343e5a3b94cf742db79c411f351197ac5370ee24"
+    },
+    {
+      "file": "11-ocr-models.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "e3b59d7cfa13bf583227668bc44f331b71f3539433e94911270e2095cc0f59dc"
+    },
+    {
+      "file": "12-audio-models.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "dcdb6669e536e561e09fd4aac8d9fe1498722953607acbafdc99cc934b4e5449"
+    },
+    {
+      "file": "13-prompts.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "72a8c4afcccaf51b0c78f6aab84a90a74c2af836ad42df56ad704452e8d92062"
+    },
+    {
+      "file": "14-model-settings.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "6f645541b4bc17415d97d19d0aa14bd6db331cca10216429f01def3eebfd6aae"
+    },
+    {
+      "file": "15-page-tutor.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "6cc6b479be2a574d20fa43bc845d7b0d44a3607e55189a203d54a6a219f3eb50"
+    },
+    {
+      "file": "16-search.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "dbd808d7ee931e1e07faa9702428e957d8f44293629648e5c3f6e66f28480880"
+    },
+    {
+      "file": "17-editing-keyboard.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "a70643a39e9b7b5dc1ebaf8cffc81d331af775eab265206c26fa2cc25287af3c"
+    },
+    {
+      "file": "18-selection-ai.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "ea962d325016f008d589a84c4c855c2edad17a74f0342e454eacd5c7cca6308c"
+    },
+    {
+      "file": "19-flashcard-create.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "49b0a4d9099ccade3132413e6ccfae1da074aec7f4b609ae87f77497decd3685"
+    },
+    {
+      "file": "20-flashcard-library.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "1b830617f3e146f60e8f56375b4b10b202fa7e7961ff492d1f4a79b78933444b"
+    },
+    {
+      "file": "21-flashcard-review.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "4fb03f7deb391907c4ee1a833bac02be0e264574416569457add268688a32746"
+    },
+    {
+      "file": "22-night-settings.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "bd8757e0ce2c74daedfb39daa9e5c56f6de7f46a24fe713fcb41acb929c9842d"
+    },
+    {
+      "file": "23-night-reading.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "3f7ea2d3fb3a163b2d52cdc45397ec7db61cd1693d6f4b5653175806a0cae48b"
+    },
+    {
+      "file": "24-floating-ball.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "3490354ca3f57da8738fbb10e89ed5e71ab34d2d566e82e19dc8c7ab5e9caa04"
+    },
+    {
+      "file": "25-floating-note.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "9595829c91470520d75eec515e372da3b3376cd4d5b1568b302b9c1c0f2c46d9"
+    },
+    {
+      "file": "26-floating-clipboard.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "6ac65733e412047f37279860d46503b41bb0ccf871de76556e9efb43e4bd78b0"
+    },
+    {
+      "file": "27-floating-phrases.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "93dac8e4be6784dc3bcfe66432d94945c8c13832dd8e1771df58dd89c74e02df"
+    },
+    {
+      "file": "28-floating-timer.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "151112d2450df2d83a473b3f1a9587098332a63d681e1f49745ed64182e7e164"
+    },
+    {
+      "file": "29-floating-closed.png",
+      "format": "png",
+      "width": 2560,
+      "height": 1600,
+      "logicalWidth": 1280,
+      "logicalHeight": 800,
+      "sha256": "0ea75bc6bdd88c69e9b05e816128925733dcbad07b734fdb4b59986c5dd049e1"
+    }
+  ],
+  "dpi": 320,
+  "screenPixels": {
+    "width": 2560,
+    "height": 1600
+  },
+  "captureMethod": "Android instrumentation UiAutomation.takeScreenshot; actual full device screen",
+  "captureHarness": "../../capture/GuideEvidenceCapture.kt"
+}

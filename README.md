@@ -9,7 +9,8 @@
 | Windows 电脑 | [Windows README：下载、功能、截图和教程](docs/windows/README.md) | x64；有正式版历史，本分支为测试开发 |
 | Mac 电脑 | [macOS README：下载、原生操作和限制](docs/macos/README.md) | Apple Silicon；实验性，Intel 包不可用 |
 | Android 平板 | [Android README：APK、触控与手写操作](docs/android/README.md) | Android 14+、ARM64；独立原生应用 |
-| Linux／鸿蒙 | 尚未提供实现与下载 | 规划中 |
+| Linux 电脑 | [Linux README：运行、功能、截图和限制](docs/linux/README.md) | Ubuntu x64 本地验证；未发布安装包 |
+| 鸿蒙 | 尚未提供实现与下载 | 规划中 |
 
 **下载请进入对应系统的 README。** 已发布包、开发源码和本地体验包分别标记；Windows 的截图与操作不代表 Android 或 Mac。
 
@@ -20,6 +21,8 @@
 - 功能试验使用短期分支，合并完成后删除分支；历史提交和归档仍可恢复。
 
 当前为 **beta 共享集成源码**，不是所有平台都已验收的新发行版。[源码边界](apps/README.md) · [贡献与 PR 规范](CONTRIBUTING.md) · [已知问题](KNOWN_ISSUES.md)。
+
+本轮按新提交标准补充了 [PR #13 的功能、截图与验证材料](docs/review/PR13-evidence-2026-10-30.md)：Android API 34 整屏操作图、Mac 实机窗口与原生模块过程图，以及保留原始来源的 Windows 截图。各平台 README 分别展示，未验证功能和布局缺陷单列，不代表新版本发布。
 
 ## 项目资料
 
