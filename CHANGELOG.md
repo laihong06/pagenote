@@ -2,6 +2,10 @@
 
 ## Unreleased / 尚未发布
 
+- Refresh the completed-task archive documentation against current shared beta and verify all four recorded commit/tag pairs; preserve the 2026-11-06 recovery records. Documentation only, with no runtime, version, release or download changes. / 将已完成任务的归档文档同步到当前共享 beta，核对四组提交与归档标签并保留 2026-11-06 恢复记录；仅文档整理，不改变运行功能、版本、发布或下载入口。
+
+- Archive four completed task branches (codex/yuketang-import-target, codex/yuketang-source-identity, codex/yuketang-cross-platform, codex/android-rainclassroom-fixes) behind recoverable `archive/2026-11-06/*` tags on the fork and record them in docs/BRANCH-ARCHIVE-2026-11-06.json; their content already reached beta through the Android tablet port, the yuketang integration merges, and the bookshelf/Rain capture fixes. / 将四个已完工任务分支（yuketang 导入目标、页面身份、跨平台集成、雨课堂书架修复）归档为 fork 上可恢复的 `archive/2026-11-06/*` 标签并登记到 docs/BRANCH-ARCHIVE-2026-11-06.json；其内容均已通过 Android 平板移植、yuketang 集成合并及书架／雨课堂采集修复进入 beta。
+
 - Adopt the "A · 灵感记录" design as the official PageNote icon: an ivory page whose folded corner forms a paper plane with a hidden pen nib, plus a warm handwritten stroke, on an indigo-violet rounded square. The icon source now lives at `assets/brand/pagenote-icon.svg`, and `scripts/create-icon.mjs` renders that SVG into `build/icon.ico` (16–256px), `build/icon.png` and `build/icon.svg` instead of redrawing the old procedural shapes, so future redesigns only replace the SVG. / 正式采用「A · 灵感记录」为 PageNote 图标：象牙白纸页的折角构成藏着钢笔尖的纸飞机，配暖橙色手写笔迹，置于靛蓝紫圆角底上。图标源文件固定为 `assets/brand/pagenote-icon.svg`，`scripts/create-icon.mjs` 改为渲染该 SVG 生成 `build/icon.ico`（16–256px）、`build/icon.png` 与 `build/icon.svg`，不再逐像素重绘旧图形；后续换标只需替换 SVG。
 
 - Add a founder-review proposal for PageNote's teacher-Agent system, covering instructional decisions, prompt routing, learner evidence, native interactions, reliability, evaluation and staged competition delivery. / 新增供创始人审查的教师 Agent 体系与优化总方案，覆盖教学决策、提示路由、学习证据、原生交互、可靠性、分层评估及参赛实施；仅方案，不声明新增运行能力。
