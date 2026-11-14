@@ -30,7 +30,7 @@
 | 12：剪贴板、常用语、计时器 | 在小窗取用文字，设置倒计时 | 悬浮面板对应页签 | 切页签，开始／暂停／重置计时；关闭停止服务 | [连续过程](guide/floating.md#按顺序查看操作) | [26](guide/images/current/26-floating-clipboard.png)～[29](guide/images/current/29-floating-closed.png) | 本轮计时器启动和关闭；未等待计时结束通知 |
 | 12：夜览滤镜 | 在阅读内容上加暖色遮罩 | 菜单→设置→夜览滤镜 | 开启、调强度→保存；关闭开关可恢复 | [夜览](guide/advanced.md#夜览滤镜) | [22](guide/images/current/22-night-settings.png)、[23](guide/images/current/23-night-reading.png) | 本轮开启并显示实际遮罩 |
 | 雨课堂整合 | 导入历史课件或授权采集 | 文件菜单→雨课堂 | 需账号、课程与网络；用户授权后操作 | [未验证范围](guide/advanced.md#本轮没有验证的范围) | 本轮待补 | 无账号和网络操作；不借旧截图声称当前服务可用 |
-| 桌面 Markdown S 项目降级 | 保留交互围栏源码，避免编辑时丢失 | 打开含此围栏的 Markdown 项目 | Android 保留／显示源码降级，不执行桌面交互作品 | [格式](guide/advanced.md#项目与文件兼容) | 不适用：无 Android 交互执行图 | 原生 SVG／Canvas／Three.js 课件未在 Android 实现为桌面同等功能 |
+| Markdown S 遗传实验（实验性） | 读取 genetic-lab 声明块并交互，状态写回原 Markdown | 笔记预览 | 点击基因、调整实验参数；第八章使用原生 Filament 三维场景，失败时回退 Canvas | [范围、历史截图与验证](guide/markdown-s.md) | [三维场景](guide/images/markdown-s/filament-note-panel-3d.png) | 仅适配 version 1／genetic-lab；任意 HTML／JS／Three.js 围栏仍显示源码。历史手机 AVD 验证不等于本轮横屏整合验收 |
 | 紧凑布局 preview | 单独体验精简工具栏 | 独立 preview 包 | 独立安装，不覆盖公开 beta 包 | [范围](guide/capture.md) | 本轮未采集 preview | 本轮所有 Android 新图来自 debug 包，不冒充 preview 验收 |
 
 [完整限制与待补项](../../KNOWN_ISSUES.md)；维护者的布局审查、功能复核和发行批准仍需分别记录。

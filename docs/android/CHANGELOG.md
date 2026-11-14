@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 校正 Android 功能表中 Markdown S 的范围：保留已实现的 genetic-lab 原生实验与 Filament 三维原型，区分任意执行围栏降级和历史手机截图来源；本轮不新增渲染验证或发行声明。
+
 - 补充 Android 分支整合后运行代码 `a315827` 的横屏 API 34 阅读器、全页设置、Agent／笔盒、曲线识形及区域橡皮操作图，并保留 fork Android beta 旧 tip 的祖先关系；见[本轮截图与来源](guide/images/branch-integration-2026-11-14/README.md)。截图、源码整合和本地 APK不代表公开发行。
 
 - Android 分支整合通过 App JVM 678/678、笔迹 JVM 163/163 和受影响的横屏 API 34 定向交互复验；首轮 38 项中的 3 项旧测试输入／契约已修正并单独通过，另有笔盒／Agent 交互 1 项通过。完整范围、初始失败和剩余平台分支见[整合记录](BRANCH-INTEGRATION-2026-11-14.md)。本地源码，未发布。
