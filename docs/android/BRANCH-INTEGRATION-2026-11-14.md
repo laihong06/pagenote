@@ -5,6 +5,7 @@
 - 笔迹／连续阅读来源：`codex/android-markdowns-native`，整合前 `3a1c1a89c5f1b273f5e92ef1185a1fe917b825f9`。
 - 上游 Android 测试线：`origin/android/beta`，`7649489`；已含 #28 工作区优化。
 - 共享来源：原分支已包含 `origin/beta` 的 `7a30c2c`。本次 Android 线继续携带这批已进入共享 beta 的源码，桌面运行文件与共享来源一致；不把 Android 验收推广为新的桌面验收，不更新任何平台发行版本或公开下载。
+- 合并 fork 原有 Android beta tip `f8fc341`，仅补充祖先关系，内容无变化；运行代码为 `a315827d98b1302db3df95159e1bb6d9c2829c4a`。
 - 目标：fork 的 `android/beta` 和上游原 PR #36 → `android/beta`。保留合并历史，不重写发布历史。
 
 ## 冲突决策

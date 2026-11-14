@@ -2,6 +2,8 @@
 
 ## Unreleased / 尚未发布
 
+- 补充 Android 分支整合后运行代码 `a315827` 的横屏 API 34 阅读器、全页设置、Agent／笔盒、曲线识形及区域橡皮操作图，并保留 fork Android beta 旧 tip 的祖先关系；见[本轮截图与来源](docs/android/guide/images/branch-integration-2026-11-14/README.md)。截图、源码整合和本地 APK不代表公开发行。
+
 - Android 分支整合通过 App JVM 678/678、笔迹 JVM 163/163 和受影响的横屏 API 34 定向交互复验；首轮 38 项中的 3 项旧测试输入／契约已修正并单独通过，另有笔盒／Agent 交互 1 项通过。完整范围、初始失败和剩余平台分支见[整合记录](docs/android/BRANCH-INTEGRATION-2026-11-14.md)。本地源码，未发布。
 
 - 整合 Android `android/beta` 已合入的工作区优化与参考笔迹／连续 PDF 阅读分支：保留参考菜单和笔盒、识形、区域擦除、混合选择与历史，接入全页设置、后台 Agent、自动保存队列和密集绘制优化；连续保存与手动保存共用队列，显式单页导航使用目标页笔记绑定，笔迹写入不阻塞翻页。平台根 README 保持 Android 入口；版本及公开下载不变，本地未发布源码。
