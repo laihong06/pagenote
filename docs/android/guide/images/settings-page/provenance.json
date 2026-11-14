@@ -1,0 +1,56 @@
+{
+  "environment": "Android 14 API 34 ARM64 emulator, light theme",
+  "tablet": "2560x1600, 320 dpi",
+  "phone": "1080x1920, 420 dpi",
+  "images": [
+    {
+      "file": "after-phone-agent-model.png",
+      "sha256": "7c6ab814e3a2b3338b2c3aa6bfa96c555143cc6bca072460389b1842e4b08dd5",
+      "width": 1080,
+      "height": 1920,
+      "runtime_commit": "511a34320c75072dc3c831f7f8641f68463396bc"
+    },
+    {
+      "file": "after-phone-detail.png",
+      "sha256": "b462c1f71b369b7d3ec6618b07e085489a35916bd4d863d7d2b5cd60913620f5",
+      "width": 1080,
+      "height": 1920,
+      "runtime_commit": "511a34320c75072dc3c831f7f8641f68463396bc"
+    },
+    {
+      "file": "after-phone-list.png",
+      "sha256": "fc771da80ed84b126322ea5a4262baca8dbcc4370665c753825223556499b06b",
+      "width": 1080,
+      "height": 1920,
+      "runtime_commit": "511a34320c75072dc3c831f7f8641f68463396bc"
+    },
+    {
+      "file": "after-tablet-agent-model.png",
+      "sha256": "bbdf5b6378f5333a7e0bef5a933f1d7db4928f853caccafa807248ecaaf7bf4f",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "511a34320c75072dc3c831f7f8641f68463396bc"
+    },
+    {
+      "file": "after-tablet.png",
+      "sha256": "c45db76f1d61e67e0484ab26a4e813587e8c18ea7c919db7cfa7b1f773a9d93f",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "511a34320c75072dc3c831f7f8641f68463396bc"
+    },
+    {
+      "file": "before-phone.png",
+      "sha256": "19ead0c76c385652e4b986008b16042f106f0fcad86eecc4184858ca67679470",
+      "width": 1080,
+      "height": 1920,
+      "runtime_commit": "b67d96c1040b54421cd549039ad676f868cc1b23"
+    },
+    {
+      "file": "before-tablet.png",
+      "sha256": "37a04f8616b9ec314637270d1751c219754e921228eafd74249188c1ab32ac9d",
+      "width": 2560,
+      "height": 1600,
+      "runtime_commit": "b67d96c1040b54421cd549039ad676f868cc1b23"
+    }
+  ]
+}

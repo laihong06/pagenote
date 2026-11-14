@@ -5,10 +5,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.pagenote.agent.AgentEvent
 import io.pagenote.agent.SerialPages
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,11 +62,28 @@ class AgentTaskDialogTest {
   }
 
   @Test
-  fun preventsDismissalWhileRunning() {
+  fun allowsClosingWhileRunning() {
     setDialog(isRunning = true)
 
-    composeRule.onNodeWithTag("agent_task_dismiss").assertIsNotEnabled()
+    composeRule.onNodeWithTag("agent_task_dismiss").assertIsEnabled()
     composeRule.onNodeWithTag("agent_task_run").assertIsNotEnabled()
+  }
+
+  @Test
+  fun startingTaskClosesDrawerAndKeepsInstruction() {
+    var submitted = ""
+    var closed = false
+    composeRule.setContent {
+      MaterialTheme {
+        AgentTaskDialog(2, "Explain this page", "2", null, false, null, null,
+          {}, {}, { instruction, _ -> submitted = instruction }, { closed = true })
+      }
+    }
+    composeRule.onNodeWithTag("agent_task_run").performClick()
+    composeRule.runOnIdle {
+      assertEquals("Explain this page", submitted)
+      assertTrue("the task should continue after the drawer closes", closed)
+    }
   }
 
   @Test

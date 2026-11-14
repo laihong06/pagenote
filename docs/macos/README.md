@@ -32,6 +32,8 @@ PageNote 将课件与逐页笔记并排显示。Mac 版复用部分桌面逻辑�
 
 独立 Mac 目标开发版本仍为 **1.1.0-beta.5-dev.1**。此次未打包源码运行显示公共 `package.json` 的 **1.1.0-beta.5-dev.2**；截图来源同时记录两个值，不把显示版本差异当成新 Mac 发行。[编号操作与限制](guide/markdown-s.md)。
 
+[原生作品各模块及全屏修复运行截图](guide/fullscreen-transition.md)来自 macOS 本机；其他 Mac 截图和视觉审查仍需补齐，不展示 Windows 图片代替。共享 CI 曾在原文作品快速退出全屏时失败；相关修复已在本机通过，完整 CI 和安装包验收仍待完成。
+
 ## 教程与版本记录
 
 [按功能查看完整清单与截图状态](features.md) · [操作教程](guide/README.md) · [更新日志](CHANGELOG.md) · [各版本说明](releases/README.md) · [独立版本配置](../../platforms/macos/version.json)

@@ -68,6 +68,7 @@ internal class PdfAnnotationVectorDraft private constructor(
     color = color,
     width = width,
     text = null,
+    shapeKind = shapeKind,
   )
 
   companion object {

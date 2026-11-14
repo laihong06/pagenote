@@ -34,3 +34,7 @@
 | 紧凑布局 preview | 单独体验精简工具栏 | 独立 preview 包 | 独立安装，不覆盖公开 beta 包 | [范围](guide/capture.md) | 本轮未采集 preview | 本轮所有 Android 新图来自 debug 包，不冒充 preview 验收 |
 
 [完整限制与待补项](../../KNOWN_ISSUES.md)；维护者的布局审查、功能复核和发行批准仍需分别记录。
+
+## 已整合的工作区能力
+
+[后台 Agent 与自动保存](guide/workspace.md) · [全页设置](guide/menu-and-settings.md) · [密集笔迹绘制优化](benchmarks/ink-rendering-2026-11-06/README.md)。各记录标注其原运行代码；分支整合后的复验单独记录。

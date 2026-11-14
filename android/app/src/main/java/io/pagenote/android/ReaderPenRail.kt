@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -190,11 +191,12 @@ internal fun ReaderPenRail(
       }
     }
     RailDivider()
+    val lineColor = MaterialTheme.colorScheme.onSurface
     PenStyle.WIDTH_OPTIONS.take(3).forEach { width ->
       val label = stringResource(R.string.pen_width_value, width.toString())
       RailAction(label, "reader_pen_preset_$width", style.width == width, enabled, 28, onClick = { onWidth(width) }) {
         Canvas(Modifier.size(20.dp)) {
-          drawLine(Color(0xFF59636A), Offset(2.dp.toPx(), size.height / 2), Offset(size.width - 2.dp.toPx(), size.height / 2), width.toFloat() * 0.8.dp.toPx())
+          drawLine(lineColor, Offset(2.dp.toPx(), size.height / 2), Offset(size.width - 2.dp.toPx(), size.height / 2), width.toFloat() * 0.8.dp.toPx())
         }
       }
     }
@@ -233,15 +235,17 @@ internal fun PenWidthControl(width: Double, enabled: Boolean, tag: String, onWid
 @Composable
 private fun ColorSwatch(color: String, name: String, active: Boolean, enabled: Boolean, onColor: (String) -> Unit) {
   val label = stringResource(R.string.pen_color_value, name)
+  val swatch = Color(android.graphics.Color.parseColor(color))
+  val checkColor = if (swatch.luminance() > 0.45f) Color.Black else Color.White
   Box(
     Modifier.size(36.dp, 30.dp).clickable(enabled) { onColor(color) }
       .semantics { contentDescription = label; selected = active }
       .testTag("reader_pen_color_${color.drop(1)}"),
     contentAlignment = Alignment.Center,
   ) {
-    Box(Modifier.size(20.dp).background(Color(android.graphics.Color.parseColor(color)), RoundedCornerShape(4.dp))
-      .border(if (active) 2.dp else 1.dp, if (active) Color(0xFFE7784C) else Color.Gray, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-      if (active) Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(15.dp))
+    Box(Modifier.size(20.dp).background(swatch, RoundedCornerShape(4.dp))
+      .border(if (active) 2.dp else 1.dp, if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+      if (active) Icon(Icons.Outlined.Check, null, tint = checkColor, modifier = Modifier.size(15.dp))
     }
   }
 }

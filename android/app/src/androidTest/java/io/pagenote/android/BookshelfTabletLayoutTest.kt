@@ -25,7 +25,7 @@ class BookshelfTabletLayoutTest {
     compose.onNodeWithTag("bookshelf_sidebar").assertIsDisplayed()
     compose.onNodeWithTag("bookshelf_settings").performClick()
     compose.onNodeWithTag("reader_settings_cancel").assertIsDisplayed()
-    compose.onNodeWithTag("reader_settings_side_panel").assertIsDisplayed()
+    compose.onNodeWithTag("reader_settings_page").assertIsDisplayed()
     android.os.SystemClock.sleep(700)
     val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
     val file = File(compose.activity.getExternalFilesDir(null), "tablet-settings.png")

@@ -77,6 +77,28 @@ class ReaderAdaptiveMenuTest {
   }
 
   @Test
+  fun tabsShowOnlyTheSelectedCategoryCommands() {
+    composeRule.setContent {
+      ReaderAdaptiveMenu(
+        layout = ReaderMenuLayout.PERMANENT_SIDEBAR,
+        groups = listOf(
+          ReaderMenuSection(ReaderMenuGroup.FILE, "File", listOf(ReaderMenuCommand("open_project", "Open", onSelect = {}))),
+          ReaderMenuSection(ReaderMenuGroup.HANDWRITING, "Pen", listOf(ReaderMenuCommand("pen_undo", "Undo", onSelect = {}))),
+        ),
+        expanded = true, onExpandedChange = {}, drawerOpen = false, onDrawerOpenChange = {},
+      ) { Text("Reader") }
+    }
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_tab_tools").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_open_project").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsDisplayed()
+  }
+
+  @Test
   fun compactDrawerRunsSelectedCommandAndCloses() {
     composeRule.setContent {
         var drawerOpen by remember { mutableStateOf(false) }
@@ -110,6 +132,7 @@ class ReaderAdaptiveMenuTest {
     }
 
     composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_open_project").performClick()
     composeRule.onNodeWithTag("selected_command").assertTextEquals("open")
     composeRule.onNodeWithTag("drawer_state").assertTextEquals("closed")
@@ -150,7 +173,7 @@ class ReaderAdaptiveMenuTest {
     composeRule.onNodeWithTag("reader_page_state").assertTextEquals("page=7")
     composeRule.onNodeWithTag("reader_menu_expand").performClick()
     composeRule.onNodeWithTag("reader_page_state").assertTextEquals("page=7")
-    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_new_project").assertIsDisplayed()
   }
 
@@ -183,6 +206,7 @@ class ReaderAdaptiveMenuTest {
       }
     }
 
+    composeRule.onNodeWithTag("reader_menu_tab_tools").performClick()
     composeRule.onNodeWithTag("reader_menu_command_undo")
       .assertIsNotEnabled()
       .assert(

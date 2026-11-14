@@ -1,6 +1,8 @@
 package io.pagenote.android
 
 import io.pagenote.feature.annotations.AnnotationValidation
+import io.pagenote.feature.pen.ShapeCatalog
+import io.pagenote.feature.pen.ShapePoint
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -97,6 +99,17 @@ internal object PdfAnnotationClipboard {
       val item = page[index] as? JsonObject ?: return@firstOrNull false
       if (!isSupported(item) || !isValidItem(item)) return@firstOrNull false
       val points = item.pagePoints() ?: return@firstOrNull false
+      val kind = (item["shape"] as? JsonPrimitive)?.content?.let(ShapeCatalog::byId)
+        ?.takeIf { it.baseType == item.type() }
+      if (kind != null && points.size >= 2) {
+        return@firstOrNull ShapeCatalog.hitTest(
+          kind,
+          ShapePoint(points[0].first.toFloat(), points[0].second.toFloat()),
+          ShapePoint(points[1].first.toFloat(), points[1].second.toFloat()),
+          ShapePoint(x.toFloat(), y.toFloat()),
+          (tolerance + item.width() / 2.0).toFloat(),
+        )
+      }
       when (item.type()) {
         "line" -> distanceToSegment(x, y, points[0], points.getOrElse(1) { points[0] }) <=
           tolerance + item.width() / 2.0

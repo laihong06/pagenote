@@ -9,6 +9,18 @@ class PdfAnnotationOverlayMapperTest {
   private val json = Json
 
   @Test
+  fun restoresRecognizedShapeKindAndFallsBackForUnknownKinds() {
+    val items = PdfAnnotationOverlayItem.fromPage(json.parseToJsonElement("""
+      [
+        {"type":"rect","shape":"triangle","color":"#12abef","width":3,"points":[[0,0],[200,200]]},
+        {"type":"rect","shape":"unknown","color":"#12abef","width":3,"points":[[0,0],[200,200]]},
+        {"type":"ellipse","shape":"triangle","color":"#12abef","width":3,"points":[[0,0],[200,200]]}
+      ]
+    """))
+    assertEquals(listOf("triangle", null, null), items.map { it.shapeKind })
+  }
+
+  @Test
   fun parsesRectangleAndTextInSourceOrder() {
     val items = PdfAnnotationOverlayItem.fromPage(json.parseToJsonElement("""
       [

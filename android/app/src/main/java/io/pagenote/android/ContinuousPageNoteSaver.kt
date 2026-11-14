@@ -1,7 +1,9 @@
 package io.pagenote.android
 
 import android.content.Context
+import io.pagenote.core.project.PageNotes
 import io.pagenote.feature.notes.NotePage
+import io.pagenote.feature.notes.PageNoteEditResult
 import io.pagenote.feature.notes.PageNoteEditor
 import io.pagenote.feature.notes.PageNoteConflictException
 import kotlinx.coroutines.CancellationException
@@ -29,14 +31,20 @@ internal class ContinuousPageNoteSaver(
       try {
         readerSession.noteSaveMutex.withLock {
           try {
+            val saveRevision = readerSession.continuousNoteDraft(
+              projectId, project.sourceDirectoryUri.toString(), page,
+            )?.baseRevision ?: expectedRevision
             val (result, recoveryCopyName) = withContext(Dispatchers.IO) {
               val store = ProjectNoteStore(context.contentResolver, project.notesUri)
               val latest = store.read()
+              if (NotePage.pageAt(latest, page) == draft) {
+                return@withContext PageNoteEditResult(latest, PageNotes.revision(draft)) to null
+              }
               val edited = PageNoteEditor.replacePage(
                 latestMarkdown = latest,
                 page = page,
                 replacement = draft,
-                expectedRevision = expectedRevision,
+                expectedRevision = saveRevision,
               )
               val retainedCopy = store.write(edited.markdown, expectedOriginal = latest)
               edited to retainedCopy
@@ -63,8 +71,8 @@ internal class ContinuousPageNoteSaver(
               }
             }
             search.indexSavedNotePage(projectId, page, savedPage, result.pageRevision)
-            if (recoveryCopyName != null && isStillCurrentProject) {
-              updateStatus(context.getString(R.string.note_saved_recovery_copy, recoveryCopyName))
+            if (recoveryCopyName != null) {
+              updateStatusIfCurrent(project, projectId, context.getString(R.string.note_saved_recovery_copy, recoveryCopyName))
             }
           } catch (cancelled: CancellationException) {
             throw cancelled

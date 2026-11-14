@@ -2,6 +2,7 @@ package io.pagenote.feature.pen
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.RenderNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertArrayEquals
@@ -108,6 +109,34 @@ class PenStrokeCacheInstrumentedTest {
     expected.getPixels(expectedPixels, 0, size, 0, 0, size, size)
     actual.getPixels(actualPixels, 0, size, 0, 0, size, size)
     assertArrayEquals(expectedPixels, actualPixels)
+  }
+
+  @Test
+  fun hardwareZoomReusesRecordedInkWithoutRescanningSamples() {
+    var reads = 0
+    val raw = (0..500).map { i -> PenPoint(i * 2f, 400f + kotlin.math.sin(i / 20f) * 20f, 1f) }
+    val points = object : AbstractList<PenPoint>() {
+      override val size: Int get() = raw.size
+      override fun get(index: Int): PenPoint { reads++; return raw[index] }
+    }
+    val cache = PenStrokeCache()
+    cache.setStrokes(listOf(PenStroke("pen", "#112233", 4.0, points)))
+    val target = RenderNode("zoom-test").apply { setPosition(0, 0, size, size) }
+    try {
+      cache.drawInto(target.beginRecording(size, size), PenCanvasGeometry(500f, 500f), size, size)
+      target.endRecording()
+      reads = 0
+      repeat(20) { step ->
+        val geometry = PenCanvasGeometry(500f, 500f, PenCanvasPageTransform(500f, 500f,
+          scale = 1f + step * 0.1f, translationX = step * 2f))
+        cache.drawInto(target.beginRecording(size, size), geometry, size, size)
+        target.endRecording()
+      }
+      assertEquals("zoom frames should reuse recorded strokes", 0, reads)
+    } finally {
+      cache.clear()
+      target.discardDisplayList()
+    }
   }
 
   @Test

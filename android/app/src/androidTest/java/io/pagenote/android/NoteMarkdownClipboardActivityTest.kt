@@ -13,7 +13,6 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModelProvider
@@ -78,7 +77,6 @@ class NoteMarkdownClipboardActivityTest {
     assertEquals(0, editedEditor.selectionStart)
     assertEquals(editedEditor.text.length, editedEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
     }
@@ -136,7 +134,6 @@ class NoteMarkdownClipboardActivityTest {
     assertEquals("Lead **fresh**!".length, finalEditor.selectionStart)
     assertEquals(finalEditor.selectionStart, finalEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
     }
@@ -194,7 +191,6 @@ class NoteMarkdownClipboardActivityTest {
     editCommand("note_redo").assertIsEnabled().performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expectedDraft }
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedDraft
     }
@@ -204,33 +200,13 @@ class NoteMarkdownClipboardActivityTest {
   }
 
   private fun editCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_edit").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "edit", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun pasteMarkdownCommand() = run {
-    val commandTag = "reader_menu_command_paste_markdown"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "insert", "paste_markdown")
+    composeRule.onNodeWithTag("reader_menu_command_paste_markdown").performScrollTo()
   }
 
   private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {

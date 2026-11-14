@@ -57,7 +57,16 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   val errorMessage: MutableState<String?> = mutableStateOf(null)
 
   val penSaveMutex = Mutex()
-  val noteSaveMutex = Mutex()
+  private val penSaveVersions = mutableMapOf<Int, Long>()
+  internal fun nextPenSaveVersion(page: Int): Long =
+    ((penSaveVersions[page] ?: 0L) + 1L).also { penSaveVersions[page] = it }
+  internal fun isLatestPenSave(page: Int, version: Long): Boolean = penSaveVersions[page] == version
+  internal val noteSaveCoordinator = NoteSaveCoordinator()
+  val noteSaveMutex get() = noteSaveCoordinator.mutex
+  internal val navigationMutex = Mutex()
+  internal val isNoteSaving = mutableStateOf(false)
+  internal val isNavigating = mutableStateOf(false)
+  internal val narrowShowsNote = mutableStateOf(false)
 
   private val sessionJob = SupervisorJob()
   private val sessionScope = CoroutineScope(sessionJob + Dispatchers.Main.immediate)

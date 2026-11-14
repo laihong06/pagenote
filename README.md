@@ -1,31 +1,36 @@
-# PageNote
+# PageNote Android 平板版
 
-把课件和逐页笔记放在一起，边读、边批注、边补充讲解。Windows、Mac 和 Android 使用不同的界面与系统适配，功能和版本分别维护。
+PageNote 的 Android 版是 **Kotlin／Jetpack Compose 原生应用**，围绕平板触控、手写和系统文件授权设计。它不是 Windows／Mac 桌面程序移植出的相同界面，功能与操作以本页及 Android 教程为准。[返回项目总览](https://github.com/laihong06/pagenote/tree/beta)。
 
-## 选择你的系统
+## 下载与版本
 
-| 系统 | 独立使用说明 | 当前状态 |
+- 公开测试版：**1.0.0-beta.5**，[下载 ARM64 APK](https://github.com/laihong06/pagenote/releases/download/android-v1.0.0-beta.5/pagenote-android-1.0.0-beta.5-arm64-v8a.apk) · [说明、源码与校验](https://github.com/laihong06/pagenote/releases/tag/android-v1.0.0-beta.5)。
+- 开发版本：**1.0.0-beta.6-dev.1**，源码中的新增模块不代表上述 APK 已包含。
+- 要求 **Android 14+、ARM64**；尚无获批稳定版。公开包沿用贡献者签名，开发 debug／preview 包不能冒充同一发行包。
+
+## Android 的操作与功能
+
+| 模块 | 平板上怎么用 | 重要区别／限制 |
 | --- | --- | --- |
-| Windows 电脑 | [Windows README：下载、功能、截图和教程](docs/windows/README.md) | x64；有正式版历史，本分支为测试开发 |
-| Mac 电脑 | [macOS README：下载、原生操作和限制](docs/macos/README.md) | Apple Silicon；实验性，Intel 包不可用 |
-| Android 平板 | [Android README：APK、触控与手写操作](docs/android/README.md) | Android 14+、ARM64；独立原生应用 |
-| Linux 电脑 | [Linux README：运行、功能、截图和限制](docs/linux/README.md) | Ubuntu x64 本地验证；未发布安装包 |
-| 鸿蒙 | 尚未提供实现与下载 | 规划中 |
+| 书架与文件 | 通过系统文件选择器授权目录，再导入或打开项目 | Android 文档授权机制，不是桌面文件路径操作 |
+| 阅读与笔记 | 触控翻页、选择文字，在笔记区编辑 | 布局及工具栏独立实现 |
+| 手写与批注 | 选择笔、颜色及粗细，用手写笔或触控标注 | 真机压感、侧键和持久授权需另验 |
+| 内置 AI 入口 | 配置自己的兼容模型服务，再按页讲解或修改 | 不等同桌面外部 MCP 客户端流程 |
+| OCR 与搜索 | 识别扫描页，索引支持的本地内容 | 需要本地模型；识别质量依材料而定 |
+| 学习与辅助工具 | 开发源码含闪卡、录音转写、素材、悬浮工具等模块 | 逐项状态见功能表，不能全部算作公开包承诺 |
 
-**下载请进入对应系统的 README。** 已发布包、开发源码和本地体验包分别标记；Windows 的截图与操作不代表 Android 或 Mac。
+**不具备桌面完整功能对等性。** 桌面原生 Markdown S 交互作品未在 Android 执行验收；Office 进程内编辑未实现。共享项目格式不代表共享全部界面与能力。
 
-## 版本与分支怎么区分
+## Android 截图与验证状态
 
-- 每个平台各自维护版本、教程、截图和更新日志；一个平台更新不自动发布其他平台。
-- 根 main 保留稳定历史与项目入口，根 beta 汇集共享改动；平台维护线见[分支地图](docs/BRANCHES.zh-CN.md)。
-- 功能试验使用短期分支，合并完成后删除分支；历史提交和归档仍可恢复。
+参考笔盒、识形、区域橡皮、混合选择及连续翻页的运行证据见 [Android 功能表](docs/android/features.md)和[验收索引](docs/android/guide/images/pdf-continuous/README.md)。各组图片分别标注其实际运行代码、设备及限制；分支整合后的复验另行记录。
 
-当前为 **beta 共享集成源码**，不是所有平台都已验收的新发行版。[源码边界](apps/README.md) · [贡献与 PR 规范](CONTRIBUTING.md) · [已知问题](KNOWN_ISSUES.md)。
+## 教程与版本记录
 
-本轮按新提交标准补充了 [PR #13 的功能、截图与验证材料](docs/review/PR13-evidence-2026-10-30.md)：Android API 34 整屏操作图、Mac 实机窗口与原生模块过程图，以及保留原始来源的 Windows 截图。各平台 README 分别展示，未验证功能和布局缺陷单列，不代表新版本发布。
+[按功能查看完整清单与截图状态](docs/android/features.md) · [操作教程](docs/android/guide/README.md) · [更新日志](docs/android/CHANGELOG.md) · [各版本说明](docs/android/releases/README.md) · [独立版本配置](platforms/android/version.json)
 
-## 项目资料
+教程和对应图片共同保存在 guide/ 目录，未采集的本系统截图明确标为待补；不以其他系统的截图冒充。开发源码不等于已发布包。
 
-[原生 Markdown S](docs/markdown-s/NATIVE-MARKDOWN.zh-CN.md) · [AI 教学与表达路由](docs/AI-REPRESENTATION-ROUTING.zh-CN.md) · [许可与历史授权](LICENSING.md) · [English](README.en.md)
+## 开发入口
 
-新增原创内容采用 PolyForm Noncommercial 1.0.0；个人非商业使用和修改允许，其他商业用途须依许可另行授权。
+[android/beta](https://github.com/laihong06/pagenote/tree/android/beta) 是独立平台测试线。源码保留在 android/，尚未搬迁到 apps/android/；不为目录形式破坏 Gradle 工程。Windows 使用 android/gradlew.bat；其他系统使用 ./gradlew，运行 testDebugUnitTest、compileDebugAndroidTestKotlin、assembleDebug。

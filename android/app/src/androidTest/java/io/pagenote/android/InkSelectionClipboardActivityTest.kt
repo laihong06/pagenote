@@ -35,6 +35,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.flow.first
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
@@ -44,6 +47,20 @@ import java.util.concurrent.atomic.AtomicReference
 class InkSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousReaderSettings: ReaderSettings? = null
+
+  @Before
+  fun useSinglePageViewportForAnnotationGestures() = runBlocking {
+    val store = readerSettingsStore(composeRule.activity)
+    previousReaderSettings = store.settings.first()
+    store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+  }
+
+  @After
+  fun restoreReaderSettings() = runBlocking {
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
+    Unit
+  }
 
   @Test
   fun selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage() {
@@ -191,11 +208,7 @@ class InkSelectionClipboardActivityTest {
   }
 
   private fun showHandwritingCommands() {
-    if (composeRule.onAllNodesWithTag("reader_menu_command_select_tool").fetchSemanticsNodes().isNotEmpty()) return
-    if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-    }
-    composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
+    revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
   }
 
   private fun findPenCanvas(view: View): PenCanvasView? {

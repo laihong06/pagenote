@@ -3,6 +3,7 @@ package io.pagenote.android
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -26,24 +27,25 @@ class ReaderSettingsMarkdownThemeTest {
   fun settingsCategoryNavigationReachesAudioOptions() {
     composeRule.setContent {
       MaterialTheme {
-        ReaderSettingsDialog(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
+        ReaderSettingsScreen(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
       }
     }
-    composeRule.onNodeWithTag("settings_category_audio").performScrollTo().performClick()
-    composeRule.onNodeWithTag("settings_section_audio").assertIsDisplayed()
+    showSettingsCategory("recognition")
+    composeRule.onNodeWithTag("audio_quota_slider").performScrollTo().assertIsDisplayed()
   }
 
   @Test
   fun settingsCategoriesReachReaderNightAndModelOptions() {
     composeRule.setContent {
       MaterialTheme {
-        ReaderSettingsDialog(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
+        ReaderSettingsScreen(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
       }
     }
-    listOf("reader", "night", "model").forEach { key ->
-      composeRule.onNodeWithTag("settings_category_$key").performScrollTo().performClick()
-      composeRule.onNodeWithTag(if (key == "model") "configure_agent_model" else "settings_section_$key").assertIsDisplayed()
-    }
+    showSettingsCategory("reading")
+    composeRule.onNodeWithTag("prepare_ahead_slider").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("night_filter_switch").performScrollTo().assertIsDisplayed()
+    showSettingsCategory("agent")
+    composeRule.onNodeWithTag("configure_agent_model").performScrollTo().assertIsDisplayed()
   }
 
   @Test
@@ -51,7 +53,7 @@ class ReaderSettingsMarkdownThemeTest {
     val saved = AtomicReference<ReaderSettings?>()
     composeRule.setContent {
       MaterialTheme {
-        ReaderSettingsDialog(
+        ReaderSettingsScreen(
           settings = ReaderSettings(theme = "dark"),
           onDismiss = {},
           onConfigureAgent = {},
@@ -60,6 +62,7 @@ class ReaderSettingsMarkdownThemeTest {
       }
     }
 
+    showAppearanceIfNeeded()
     composeRule.onNodeWithTag("markdown_theme_paper").performScrollTo().performClick()
     composeRule.onNodeWithTag("reader_settings_save").performClick()
     composeRule.waitUntil(5_000) { saved.get() != null }
@@ -74,7 +77,7 @@ class ReaderSettingsMarkdownThemeTest {
     val dismissed = AtomicBoolean(false)
     composeRule.setContent {
       MaterialTheme {
-        ReaderSettingsDialog(
+        ReaderSettingsScreen(
           settings = ReaderSettings(),
           onDismiss = { dismissed.set(true) },
           onConfigureAgent = {},
@@ -83,10 +86,27 @@ class ReaderSettingsMarkdownThemeTest {
       }
     }
 
+    showAppearanceIfNeeded()
     composeRule.onNodeWithTag("markdown_theme_paper").performScrollTo().performClick()
+    if (composeRule.onAllNodesWithTag("settings_category_back").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("settings_category_back").performClick()
+    }
     composeRule.onNodeWithTag("reader_settings_cancel").performClick()
     composeRule.waitUntil(5_000) { dismissed.get() }
 
     assertFalse("cancel must not persist the draft", saved.get() != null)
+  }
+
+  private fun showSettingsCategory(category: String) {
+    if (composeRule.onAllNodesWithTag("settings_category_back").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("settings_category_back").performClick()
+    }
+    composeRule.onNodeWithTag("settings_category_$category").performScrollTo().performClick()
+  }
+
+  private fun showAppearanceIfNeeded() {
+    if (composeRule.onAllNodesWithTag("settings_detail").fetchSemanticsNodes().isEmpty()) {
+      composeRule.onNodeWithTag("settings_category_appearance").performClick()
+    }
   }
 }

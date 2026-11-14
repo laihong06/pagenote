@@ -46,6 +46,10 @@ class PenCanvasView @JvmOverloads constructor(
   private val activePoints = mutableListOf<PenPoint>()
   private val shapeGeneration = AtomicLong()
   internal var shapeRecognizer: ((List<PenPoint>) -> PenRecognizedShape?)? = null
+  private var cachedGeometry: PenCanvasGeometry? = null
+  private var cachedGeometryWidth = -1
+  private var cachedGeometryHeight = -1
+  private var cachedGeometryTransform: PenCanvasPageTransform? = null
   private val shapeHandler = Handler(Looper.getMainLooper())
   private var internalStrokes: List<PenStroke> = emptyList()
   private val strokeCache = PenStrokeCache()
@@ -834,7 +838,18 @@ class PenCanvasView @JvmOverloads constructor(
 
   private fun hasEraserButton(buttonState: Int): Boolean = buttonState and ERASER_BUTTONS != 0
 
-  private fun geometry() = PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform)
+  private fun geometry(): PenCanvasGeometry {
+    val current = cachedGeometry
+    if (current != null && cachedGeometryWidth == width && cachedGeometryHeight == height &&
+      cachedGeometryTransform == pageTransform
+    ) return current
+    return PenCanvasGeometry(width.toFloat(), height.toFloat(), pageTransform).also {
+      cachedGeometry = it
+      cachedGeometryWidth = width
+      cachedGeometryHeight = height
+      cachedGeometryTransform = pageTransform
+    }
+  }
 
   private companion object {
     // A cancelled recognition may still be executing; let the next canvas

@@ -102,6 +102,9 @@ class NoteImportActivityTest {
     }
     composeRule.onNodeWithTag("note_tab_edit").assertIsSelected()
 
+    composeRule.waitUntil(timeoutMillis = 10_000) {
+      NotePage.pageAt(noteStore.read(), 1) == appendedText
+    }
     val beforeConfirmationCancel = noteStore.read()
     importCommand().performClick()
     awaitPickerRequest(pending).callback(NoteImportSafTestProvider.uri("backup.json"))
@@ -122,7 +125,7 @@ class NoteImportActivityTest {
     composeRule.waitUntil(timeoutMillis = 10_000) {
       session.noteStatus.value == composeRule.activity.getString(R.string.reader_menu_import_invalid_backup)
     }
-    assertEquals(imported, noteStore.read())
+    assertEquals(beforeConfirmationCancel, noteStore.read())
 
     importCommand().performClick()
     val staleRequest = awaitPickerRequest(pending)
@@ -131,26 +134,13 @@ class NoteImportActivityTest {
     composeRule.waitUntil(timeoutMillis = 10_000) {
       session.noteStatus.value == composeRule.activity.getString(R.string.reader_menu_import_stale)
     }
-    assertEquals(imported, noteStore.read())
+    assertEquals(beforeConfirmationCancel, noteStore.read())
     assertEquals(project.manifest.id, session.project.value?.manifest?.id)
   }
 
   private fun importCommand() = run {
-    val tag = "reader_menu_command_import_notes"
-    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_file").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_file").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_file").performScrollTo()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(tag).assertIsEnabled().performScrollTo()
+    revealReaderMenuCommand(composeRule, "file", "import_notes")
+    composeRule.onNodeWithTag("reader_menu_command_import_notes").assertIsEnabled().performScrollTo()
   }
 
   private fun awaitPickerRequest(pending: AtomicReference<PickerRequest?>): PickerRequest {

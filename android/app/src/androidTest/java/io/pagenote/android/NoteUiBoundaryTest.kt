@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.test.platform.app.InstrumentationRegistry
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertFalse
@@ -31,29 +32,30 @@ class NoteUiBoundaryTest {
     compose.onNodeWithTag("bookshelf_navigation_change").assertIsNotEnabled()
   }
 
-  @Test fun wideSettingsDismissesFromOutsidePanel() {
+  @Test fun settingsPageDismissesFromBackButton() {
     val dismissed = AtomicBoolean(false)
     compose.setContent {
       val wide = Configuration(LocalConfiguration.current).apply { screenWidthDp = 1000 }
       CompositionLocalProvider(LocalConfiguration provides wide) {
-        MaterialTheme { ReaderSettingsDialog(settings = ReaderSettings(), onDismiss = { dismissed.set(true) }, onConfigureAgent = {}, onSave = {}) }
+        MaterialTheme { ReaderSettingsScreen(settings = ReaderSettings(), onDismiss = { dismissed.set(true) }, onConfigureAgent = {}, onSave = {}) }
       }
     }
-    compose.onNodeWithTag("reader_settings_scrim").performClick()
+    compose.onNodeWithTag("reader_settings_cancel").performClick()
     assertTrue(dismissed.get())
   }
 
-  @Test fun wideSettingsDoesNotDismissWhileSaving() {
+  @Test fun settingsPageDoesNotDismissWhileSaving() {
     val dismissed = AtomicBoolean(false)
     compose.setContent {
       val wide = Configuration(LocalConfiguration.current).apply { screenWidthDp = 1000 }
       CompositionLocalProvider(LocalConfiguration provides wide) {
-        MaterialTheme { ReaderSettingsDialog(settings = ReaderSettings(), onDismiss = { dismissed.set(true) }, onConfigureAgent = {}, onSave = { awaitCancellation() }) }
+        MaterialTheme { ReaderSettingsScreen(settings = ReaderSettings(), onDismiss = { dismissed.set(true) }, onConfigureAgent = {}, onSave = { awaitCancellation() }) }
       }
     }
     compose.onNodeWithTag("reader_settings_save").performClick()
     compose.onNodeWithTag("reader_settings_cancel").assertIsNotEnabled()
-    compose.onNodeWithTag("reader_settings_scrim").performClick()
+    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+    compose.waitForIdle()
     assertFalse(dismissed.get())
   }
 }

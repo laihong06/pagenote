@@ -21,7 +21,6 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -209,7 +208,6 @@ class NoteMarkdownFormatActivityTest {
     }
 
     val expectedCurrentPage = "Lead ***~~Selected~~*** tail"
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expectedCurrentPage
     }
@@ -274,7 +272,6 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(expected.indexOf(placeholder), editor.selectionStart)
     assertEquals(expected.indexOf(placeholder) + placeholder.length, editor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
     }
@@ -365,7 +362,6 @@ class NoteMarkdownFormatActivityTest {
     val expected = "## intro\n- alpha\n- beta\n1. gamma\n> delta\n- [ ] epsilon"
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == expected }
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
     }
@@ -478,7 +474,6 @@ class NoteMarkdownFormatActivityTest {
     editCommand("note_redo").assertIsEnabled().performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) { session.noteDraft.value == "Branched page" }
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == "Branched page"
     }
@@ -519,7 +514,6 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(selectedStart, editor.selectionStart)
     assertEquals(selectedStart + "Selected".length, editor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
     }
@@ -567,7 +561,6 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(selectedStart, updatedEditor.selectionStart)
     assertEquals(selectedStart + "x^2".length, updatedEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
     }
@@ -623,7 +616,6 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(cursor, updatedEditor.selectionStart)
     assertEquals(cursor, updatedEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
     }
@@ -685,7 +677,6 @@ class NoteMarkdownFormatActivityTest {
     assertEquals(expectedAfterSelection.length + 1, placeholderEditor.selectionStart)
     assertEquals(expectedAfterSelection.length + 1 + placeholder.length, placeholderEditor.selectionEnd)
 
-    composeRule.onNodeWithText(composeRule.activity.getString(R.string.save)).performClick()
     composeRule.waitUntil(timeoutMillis = 10_000) {
       NotePage.pageAt(ProjectNoteStore(testResolver, project.notesUri).read(), 1) == expected
     }
@@ -704,93 +695,28 @@ class NoteMarkdownFormatActivityTest {
   }
 
   private fun formatCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_format").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_format").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_format").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "format", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun editCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_edit").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "edit", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun paragraphCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_paragraph").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "paragraph", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun insertCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "insert", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun readerCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_ai_annotations").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "ai_annotations", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun dispatchShortcut(keyCode: Int, modifiers: Int, repeatCount: Int = 0): Boolean {

@@ -241,23 +241,8 @@ class NoteExportActivityTest {
   }
 
   private fun exportCommand() = run {
-    val tag = "reader_menu_command_export_notes"
-    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_file").performClick()
-      } else if (
-        composeRule.onAllNodesWithTag("reader_menu_group_file").fetchSemanticsNodes().isNotEmpty()
-      ) {
-        composeRule.onNodeWithTag("reader_menu_group_file").performScrollTo()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(tag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "file", "export_notes")
+    composeRule.onNodeWithTag("reader_menu_command_export_notes").performScrollTo()
   }
 
   private fun awaitPickerRequest(pending: AtomicReference<PickerRequest?>): PickerRequest {

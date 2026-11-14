@@ -110,9 +110,9 @@ class PdfContinuousScrollingActivityTest {
     revealReaderMenuCommand(composeRule, "settings", "settings_action")
     composeRule.onNodeWithTag("reader_menu_command_settings_action").performClick()
     composeRule.waitUntil(10_000) {
-      composeRule.onAllNodesWithTag("reader_settings_side_panel").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("reader_settings_page").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("settings_category_reader").performClick()
+    composeRule.onNodeWithTag("settings_category_reading").performClick()
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("continuous_pdf_scrolling_switch").fetchSemanticsNodes().isNotEmpty()
     }
@@ -132,9 +132,9 @@ class PdfContinuousScrollingActivityTest {
     revealReaderMenuCommand(composeRule, "settings", "settings_action")
     composeRule.onNodeWithTag("reader_menu_command_settings_action").performClick()
     composeRule.waitUntil(10_000) {
-      composeRule.onAllNodesWithTag("reader_settings_side_panel").fetchSemanticsNodes().isNotEmpty()
+      composeRule.onAllNodesWithTag("reader_settings_page").fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithTag("settings_category_reader").performClick()
+    composeRule.onNodeWithTag("settings_category_reading").performClick()
     composeRule.waitUntil(10_000) {
       composeRule.onAllNodesWithTag("continuous_pdf_scrolling_switch").fetchSemanticsNodes().isNotEmpty()
     }

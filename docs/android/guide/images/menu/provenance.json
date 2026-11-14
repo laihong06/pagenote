@@ -1,0 +1,62 @@
+{
+  "baseline_commit": "476b354932a532ce0042f4bcb1c7c760e5b048ca",
+  "runtime_commit": "b67d96c1040b54421cd549039ad676f868cc1b23",
+  "environment": "Android 14 API 34 ARM64 emulator; light theme; landscape 2560x1600 320dpi, portrait 1080x1920 420dpi",
+  "images": {
+    "after-menu-expanded.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "e67c014c12a1453ef3230b5d307961dd7fb97b60a59e280521a25faea5302e01"
+    },
+    "after-menu.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "754f9ef4b7ddc6e4c35412c732f1bbc92c673f9b94a60f10adebb870ade15b1a"
+    },
+    "after-phone-bookshelf.png": {
+      "width": 1080,
+      "height": 1920,
+      "sha256": "ad3bc7840fe0e002fae5a7efca858a04dc2bbd05e6021969b476e84b1154634b"
+    },
+    "after-phone-menu.png": {
+      "width": 1080,
+      "height": 1920,
+      "sha256": "a6346f1fda0da0f889cea2cbb0a55bba052e5f47f26164dc62dab75cc1713213"
+    },
+    "after-phone-settings.png": {
+      "width": 1080,
+      "height": 1920,
+      "sha256": "19ead0c76c385652e4b986008b16042f106f0fcad86eecc4184858ca67679470"
+    },
+    "after-settings-agent.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "2147b4988c04780b4de25a8d6a2f89a1e60ec5e20953aa89301af81839a8e538"
+    },
+    "after-settings-reading.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "3375812fb4f50135d7c8a02dc15c037ca71c309ddac18f71571e1c706cca7bce"
+    },
+    "after-settings.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "37a04f8616b9ec314637270d1751c219754e921228eafd74249188c1ab32ac9d"
+    },
+    "before-menu.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "66731b910f0355766e61f8a6608a1a99da86693190579a209b08aca8c37fd311"
+    },
+    "before-phone-bookshelf.png": {
+      "width": 1080,
+      "height": 1920,
+      "sha256": "2aa65c9514d8ed0e55ed72208d9ace9fc1f8d2eacf6bca7bab195966d88d201a"
+    },
+    "before-settings.png": {
+      "width": 2560,
+      "height": 1600,
+      "sha256": "43e2f234fd58d7b480954b9c5b3421f636b3664fa791189a903f5e37166cfdc2"
+    }
+  }
+}

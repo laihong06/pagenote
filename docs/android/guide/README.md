@@ -1,5 +1,7 @@
 # Android 配图操作指南
 
+[工作区、自动保存与 Agent](workspace.md) · [全页设置](menu-and-settings.md) · [连续翻页验收](images/pdf-continuous/README.md)
+
 [平台入口](../README.md) · [逐项功能与状态](../features.md) · [截图来源、尺寸与复现](capture.md)
 
 这里的整屏图片来自 Android 14 / API 34 平板模拟器上的当前开发源码，使用自编课件。每个教程都写明入口、操作结果和退出方式。公开 beta.5 APK 与本地 debug 截图不是同一发行包。

@@ -15,6 +15,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
@@ -35,9 +37,11 @@ import io.pagenote.feature.pen.PenCanvasView
 import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenClipboardCodec
 import io.pagenote.feature.pen.PenPoint
+import io.pagenote.feature.pen.PenRecognizedShape
 import io.pagenote.feature.pen.PenSide
 import io.pagenote.feature.pen.PenStroke
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -49,6 +53,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
 import org.junit.runner.RunWith
 import java.io.IOException
 import java.io.ByteArrayOutputStream
@@ -59,6 +65,20 @@ import java.util.concurrent.atomic.AtomicReference
 class PdfAnnotationSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousReaderSettings: ReaderSettings? = null
+
+  @Before
+  fun useSinglePageViewportForAnnotationGestures() = runBlocking {
+    val store = readerSettingsStore(composeRule.activity)
+    previousReaderSettings = store.settings.first()
+    store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+  }
+
+  @After
+  fun restoreReaderSettings() = runBlocking {
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
+    Unit
+  }
 
   @Test fun oneAreaEraseGestureAcrossFreehandAndNativeShapeIsOneUndoStep() {
     val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
@@ -1801,6 +1821,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
         } else item
       })
       annotations.writePage("document", 1, conflicted)
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       composeRule.waitUntil(10_000) {
         session.penStatus.value == context.getString(R.string.pen_annotation_history_changed)
@@ -1837,6 +1858,170 @@ class PdfAnnotationSelectionClipboardActivityTest {
         session.replaceRenderer(null)
         session.project.value = null
       }
+    }
+  }
+
+  @Test
+  fun triangleDwellShowsPreviewAndPersistsTheShape() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.penStore.value = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      if (composeRule.onAllNodesWithTag("reader_menu_collapse").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+      }
+      val canvas = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { canvas.set(findPenCanvas(composeRule.activity.window.decorView)) }
+      val view = checkNotNull(canvas.get())
+      composeRule.waitUntil(10_000) { view.pageTransform != null }
+      revealReaderMenuCommand(composeRule, "handwriting", "pen")
+      composeRule.onNodeWithTag("reader_menu_command_pen").performScrollTo().performClick()
+      composeRule.waitUntil(5_000) { view.selectedTool == PenCanvasTool.PEN }
+      collapseReaderMenuAndWait()
+      val vertices = listOf(
+        view.width * .22f to view.height * .64f,
+        view.width * .50f to view.height * .27f,
+        view.width * .78f to view.height * .64f,
+        view.width * .22f to view.height * .64f,
+      )
+      val path = vertices.zipWithNext().flatMapIndexed { edge, (first, second) ->
+        (0 until 64).map { step ->
+          val fraction = step / 64f
+          (first.first + (second.first - first.first) * fraction) to
+            (first.second + (second.second - first.second) * fraction)
+        } + if (edge == vertices.lastIndex - 1) listOf(vertices.last()) else emptyList()
+      }
+      val down = SystemClock.uptimeMillis()
+      dispatchStylus(view, MotionEvent.ACTION_DOWN, path.first().first, path.first().second, .5f, down, down)
+      path.drop(1).forEachIndexed { index, point ->
+        dispatchStylus(view, MotionEvent.ACTION_MOVE, point.first, point.second, .5f, down, down + (index + 1) * 10)
+      }
+      Thread.sleep(900)
+      saveInkScreenshot("triangle-preview.png")
+      val last = path.last()
+      dispatchStylus(view, MotionEvent.ACTION_UP, last.first, last.second, .5f, down, down + path.size * 10 + 1000)
+      waitForAnnotations(annotations) { items ->
+        val item = items.singleOrNull() as? JsonObject ?: return@waitForAnnotations false
+        item["type"]?.jsonPrimitive?.content == "pen" &&
+          item[PenStroke.POLYLINE_FIELD]?.jsonPrimitive?.content == "true"
+      }
+      val item = annotations.readPage("document", 1).single() as JsonObject
+      assertEquals("pen", item["type"]!!.jsonPrimitive.content)
+      assertEquals("true", item[PenStroke.POLYLINE_FIELD]!!.jsonPrimitive.content)
+      val coordinates = points(item)
+      assertTrue("the stored triangle must retain its sampled polygon geometry", coordinates.size >= 8)
+      assertEquals(coordinates.first(), coordinates[coordinates.lastIndex - 1], 1.0)
+      assertEquals(coordinates[1], coordinates.last(), 1.0)
+      val savedColor = android.graphics.Color.parseColor(item["color"]!!.jsonPrimitive.content)
+      val expectedRed = android.graphics.Color.red(savedColor) / 255f
+      val expectedGreen = android.graphics.Color.green(savedColor) / 255f
+      val expectedBlue = android.graphics.Color.blue(savedColor) / 255f
+      val geometry = PenCanvasGeometry(view.width.toFloat(), view.height.toFloat(), view.pageTransform)
+      val polygon = coordinates.chunked(2).map { PenPoint(it[0].toFloat(), it[1].toFloat(), 1f) }
+      composeRule.waitUntil(10_000) {
+        runCatching {
+          // Persisted polylines live in the native ink overlay inside the viewport.
+          val pixels = composeRule.onNodeWithTag("pdf_page_viewport").captureToImage().toPixelMap()
+          polygon.zipWithNext().any { (first, second) ->
+            val midpoint = PenPoint((first.x + second.x) / 2f, (first.y + second.y) / 2f, 1f)
+            val centerX = geometry.toViewX(midpoint).toInt()
+            val centerY = geometry.toViewY(midpoint).toInt()
+            (-5..5).any { dx -> (-5..5).any { dy ->
+              val x = centerX + dx
+              val y = centerY + dy
+              if (x !in 0 until pixels.width || y !in 0 until pixels.height) false else {
+                val color = pixels[x, y]
+                color.alpha > .5f && kotlin.math.abs(color.red - expectedRed) < .12f &&
+                  kotlin.math.abs(color.green - expectedGreen) < .12f && kotlin.math.abs(color.blue - expectedBlue) < .12f
+              }
+            } }
+          }
+        }.getOrDefault(false)
+      }
+      saveInkScreenshot("triangle-saved.png")
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  @Test
+  fun writingContinuesWhileRecognizedShapeIsSaving() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val annotations = ProjectAnnotationStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    annotations.writePage("document", 1, JsonArray(emptyList()))
+    val store = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project
+      session.replaceRenderer(renderer)
+      session.markdownSource.value = null
+      session.pageIndex.intValue = 0
+      session.penStore.value = store
+      session.penPageStore.value = PenPageStore()
+      session.penStrokes.value = emptyList()
+      session.penWritable.value = true
+      session.penTool.value = PenCanvasTool.PEN
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onNodeWithTag("pdf_ink_canvas").fetchSemanticsNode().size.width > 0 }
+      val canvas = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { canvas.set(findPenCanvas(composeRule.activity.window.decorView)) }
+      val view = checkNotNull(canvas.get())
+      resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_PAUSE_NEXT_PEN_WRITE, null, null)
+      val original = PenStroke("pen", "#185abd", 4.0, listOf(PenPoint(100f, 100f, 1f), PenPoint(400f, 100f, 1f)))
+      composeRule.runOnUiThread {
+        assertTrue(checkNotNull(view.onShapeRecognized).invoke(PenRecognizedShape("line", original.points.first(), original.points.last()), original))
+      }
+      composeRule.waitUntil(10_000) {
+        resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CHECK_PEN_WRITE, null, null)?.getBoolean("started") == true
+      }
+      composeRule.waitForIdle()
+      assertTrue("saving a shape must not disable pen input", view.inputEnabled)
+      val pixels = composeRule.onNodeWithTag("pdf_annotation_overlay").captureToImage().toPixelMap()
+      assertTrue("the recognized shape should remain visible while its write is pending",
+        (0 until pixels.width step 2).any { x -> (0 until pixels.height step 2).any { y ->
+          val color = pixels[x, y]
+          color.alpha > 0.5f && color.blue > 0.5f && color.red < 0.3f && color.green < 0.5f
+        } })
+      val down = SystemClock.uptimeMillis()
+      dispatchStylus(view, MotionEvent.ACTION_DOWN, view.width * 0.2f, view.height * 0.4f, 0.5f, down, down)
+      dispatchStylus(view, MotionEvent.ACTION_MOVE, view.width * 0.6f, view.height * 0.45f, 0.6f, down, down + 10)
+      dispatchStylus(view, MotionEvent.ACTION_UP, view.width * 0.6f, view.height * 0.45f, 0.6f, down, down + 20)
+      assertEquals(1, session.penStrokes.value.size)
+    } finally {
+      resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_RELEASE_PEN_WRITE, null, null)
+    }
+    try {
+      composeRule.waitUntil(15_000) {
+        val items = runCatching { annotations.readPage("document", 1) }.getOrNull() ?: return@waitUntil false
+        items.size == 2
+      }
+      assertEquals(setOf("line", "pen"), annotations.readPage("document", 1).map { (it as JsonObject)["type"]!!.jsonPrimitive.content }.toSet())
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
     }
   }
 
@@ -2054,7 +2239,8 @@ class PdfAnnotationSelectionClipboardActivityTest {
       val injectionTolerance = geometry.documentUnitsForPixels(2f).toDouble().coerceAtLeast(0.05)
       fun pageOffset(x: Float, y: Float): Offset {
         val point = PenPoint(x, y, 1f)
-        return Offset(geometry.toViewX(point), geometry.toViewY(point))
+        val currentGeometry = PenCanvasGeometry(nativeCanvas.width.toFloat(), nativeCanvas.height.toFloat(), nativeCanvas.pageTransform)
+        return Offset(currentGeometry.toViewX(point), currentGeometry.toViewY(point))
       }
       val tapOffset = pageOffset(250f, 100f)
       val existingPoint = requireNotNull(
@@ -2290,10 +2476,12 @@ class PdfAnnotationSelectionClipboardActivityTest {
       waitForAnnotations(annotations) { it.size == 6 }
       assertEquals("preserve", (annotations.readPage("document", 1)[5] as JsonObject)["custom"]?.jsonPrimitive?.content)
 
-      canvas.performTouchInput { click(pageOffset(100f, 100f)) }
+      // Use the HTML body interior so the drag is independent of overlapping outline edges.
+      val htmlCenterY = ((points(htmlItem)[1] + points(htmlItem)[3]) / 2.0).toFloat()
+      canvas.performTouchInput { click(pageOffset(330f, htmlCenterY)) }
       canvas.performTouchInput {
-        down(pageOffset(100f, 100f))
-        moveTo(pageOffset(150f, 150f), delayMillis = 500)
+        down(pageOffset(330f, htmlCenterY))
+        moveTo(pageOffset(380f, htmlCenterY + 50f), delayMillis = 500)
         up()
       }
       waitForAnnotations(annotations) {
@@ -2347,6 +2535,7 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
     } catch (timeout: AssertionError) {
       lastReadError?.let(timeout::addSuppressed)
+      timeout.addSuppressed(AssertionError("Synthetic annotation state: ${runCatching { store.readPage("document", 1) }.getOrNull()}"))
       throw timeout
     }
   }
@@ -2391,6 +2580,20 @@ class PdfAnnotationSelectionClipboardActivityTest {
       }
     }
     return null
+  }
+
+  private fun saveInkScreenshot(name: String) {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    composeRule.waitForIdle()
+    instrumentation.uiAutomation.waitForIdle(300, 5_000)
+    SystemClock.sleep(500) // Let the latest Compose frame reach SurfaceFlinger.
+    val bitmap = instrumentation.uiAutomation.takeScreenshot()
+    try {
+      val file = java.io.File(instrumentation.targetContext.getExternalFilesDir(null), name)
+      file.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand("mkdir -p /sdcard/Download/pagenote-ink-evidence")).use { it.readBytes() }
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand("cp ${file.absolutePath} /sdcard/Download/pagenote-ink-evidence/$name")).use { it.readBytes() }
+    } finally { bitmap.recycle() }
   }
 
   private fun dispatchStylus(

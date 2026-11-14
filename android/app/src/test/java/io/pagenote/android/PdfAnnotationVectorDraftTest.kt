@@ -110,6 +110,14 @@ class PdfAnnotationVectorDraftTest {
   }
 
   @Test
+  fun recognizedTrianglePreservesItsCatalogKindInTheStoredAnnotation() {
+    val shape = PenRecognizedShape("rect", PenPoint(10f, 20f, 1f), PenPoint(110f, 120f, 1f), shapeKind = "triangle")
+    val draft = requireNotNull(PdfAnnotationVectorDraft.fromRecognizedShape(shape, "#185abd", 4.0))
+    assertEquals("rect", draft.toItem()["type"])
+    assertEquals("triangle", draft.toItem()["shape"])
+  }
+
+  @Test
   fun serializesCatalogShapeKindsAsShapeExtensionOnBaseTypes() {
     // 目录扩展项（D5）：type 取基类型，kind id 写入 extension 字段 `shape`，两点保持不变。
     val draft = requireNotNull(
