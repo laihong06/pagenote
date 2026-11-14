@@ -75,12 +75,26 @@ internal fun revealReaderMenuCommand(
   val commandTag = "reader_menu_command_$command"
   if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()) return
 
-  val groupTag = "reader_menu_group_$group"
-  if (composeRule.onAllNodesWithTag(groupTag).fetchSemanticsNodes().isEmpty()) {
+  val groupId = if (group == "pen") "handwriting" else group
+  val groupTag = "reader_menu_group_$groupId"
+  if (composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes().isNotEmpty()) {
+    composeRule.onNodeWithTag(groupTag).performScrollTo().performClick()
+  } else if (composeRule.onAllNodesWithTag("reader_menu_sidebar").fetchSemanticsNodes().isEmpty() &&
+    composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
     composeRule.onNodeWithTag("reader_menu_trigger").performClick()
   }
-  waitForTaggedNode(composeRule, groupTag, 10_000)
-  composeRule.onNodeWithTag(groupTag).performScrollTo().performClick()
+
+  val tab = when (group) {
+    "file" -> "file"
+    "settings", "help" -> "settings"
+    else -> "tools"
+  }
+  val tabTag = "reader_menu_tab_$tab"
+  if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty() &&
+    composeRule.onAllNodesWithTag(tabTag).fetchSemanticsNodes().isNotEmpty()) {
+    composeRule.onNodeWithTag(tabTag).performClick()
+  }
+
   waitForTaggedNode(composeRule, commandTag, 10_000)
 }
 

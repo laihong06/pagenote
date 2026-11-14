@@ -155,6 +155,34 @@ class PenPageStoreTest {
   }
 
   @Test
+  fun replacingLivePageCanPreserveUndoHistoryAndBranchRedoExplicitly() {
+    val store = PenPageStore()
+    val original = listOf(stroke(color = "#111111"), stroke(color = "#222222"))
+    store.loadAnnotationsMap(mapOf(PenSide.DOCUMENT.key to mapOf("1" to original.map(PenStroke::toAnnotationsItem))))
+    val newStroke = stroke(color = "#333333")
+    store.addStroke(PenSide.DOCUMENT, 1, newStroke)
+    val mixedMove = listOf(original[0].copy(points = listOf(PenPoint(50f, 60f, 0.5f))), original[1], newStroke)
+
+    store.replacePagePreservingHistory(
+      PenSide.DOCUMENT,
+      1,
+      mixedMove.map(PenStroke::toAnnotationsItem),
+      clearRedo = true,
+    )
+
+    assertEquals(mixedMove, store.getItems(PenSide.DOCUMENT, 1))
+    assertTrue("the earlier ink undo entry must survive a mixed-page replacement", store.canUndo(PenSide.DOCUMENT, 1))
+    assertFalse("a new mixed edit must discard a stale redo branch", store.canRedo(PenSide.DOCUMENT, 1))
+    assertTrue(store.undo(PenSide.DOCUMENT, 1))
+    assertEquals(original, store.getItems(PenSide.DOCUMENT, 1))
+
+    store.replacePagePreservingHistory(PenSide.DOCUMENT, 1, mixedMove.map(PenStroke::toAnnotationsItem))
+    assertTrue("undo/redo synchronization must retain the pen redo branch", store.canRedo(PenSide.DOCUMENT, 1))
+    assertTrue(store.redo(PenSide.DOCUMENT, 1))
+    assertEquals(mixedMove, store.getItems(PenSide.DOCUMENT, 1))
+  }
+
+  @Test
   fun illegalColorAndWidthRejectedOnAdd() {
     val store = PenPageStore()
     assertThrows(IllegalArgumentException::class.java) {

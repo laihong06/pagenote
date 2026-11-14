@@ -4,10 +4,11 @@
 import fs from 'node:fs/promises';
 import { loadPlatform } from './platform-config.mjs';
 const platform = process.argv[2];
-if (!['win', 'mac'].includes(platform))
-  throw Error('用法: node scripts/build-config.mjs <win|mac>');
+if (!['win', 'mac', 'linux'].includes(platform))
+  throw Error('用法: node scripts/build-config.mjs <win|mac|linux>');
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
-const id = platform === 'win' ? 'windows' : 'macos';
+const id =
+  platform === 'win' ? 'windows' : platform === 'mac' ? 'macos' : 'linux';
 let platformConfig;
 try {
   platformConfig = await loadPlatform(process.cwd(), id);
@@ -28,6 +29,7 @@ delete build.extraFiles;
 delete build.extraResources;
 delete build.win;
 delete build.mac;
+delete build.linux;
 delete build.nsis;
 delete build.dmg;
 delete build.artifactName;
@@ -94,6 +96,46 @@ if (platform === 'win') {
       },
     ],
   });
+} else if (platform === 'linux') {
+  build.files = build.files
+    .filter(
+      (file) =>
+        !file.startsWith('!node_modules/onnxruntime-node/bin/napi-v6/linux/'),
+    )
+    .concat([
+      '!desktop/word-host.ps1',
+      '!convert-office.ps1',
+      '!node_modules/onnxruntime-node/bin/napi-v6/win32/**',
+    ]);
+  build.extraResources = [
+    'page-notes-mcp.cjs',
+    'mcp-node',
+    'NODE-LICENSE.txt',
+    'node-runtime.json',
+  ]
+    .map((name) => ({ from: 'mcp-dist/' + name, to: name }))
+    .concat([
+      { from: 'THIRD-PARTY-NOTICES.txt', to: 'THIRD-PARTY-NOTICES.txt' },
+      { from: 'LICENSE', to: 'LICENSE-pagenote.txt' },
+      { from: 'build/licenses', to: 'licenses' },
+      { from: 'LICENSING.md', to: 'LICENSING.md' },
+      { from: 'licenses/MIT-legacy.txt', to: 'licenses/MIT-legacy.txt' },
+    ]);
+  build.linux = {
+    target: ['AppImage', 'deb'],
+    icon: 'build/icon.png',
+    category: 'Education',
+    maintainer: 'pagenote contributors',
+  };
+  build.artifactName = 'pagenote-${version}-linux-${arch}.${ext}';
+  build.fileAssociations = [
+    {
+      ext: 'pagenote',
+      name: 'pagenote Project',
+      mimeType: 'application/x-pagenote',
+      role: 'Editor',
+    },
+  ];
 } else {
   // macOS remains a prerelease independently of the Windows stable channel.
   build.extraMetadata = {

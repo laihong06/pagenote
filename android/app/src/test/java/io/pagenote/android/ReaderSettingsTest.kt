@@ -10,6 +10,7 @@ class ReaderSettingsTest {
   @Test
   fun defaultsPass() {
     ReaderSettingsPolicy.validate(ReaderSettings())
+    assertTrue(ReaderSettings().continuousPdfScrolling)
     assertEquals(3, ReaderSettings().prepareAheadPages)
     assertEquals("classic", ReaderSettings().markdownTheme)
     assertEquals("plain", ReaderSettings().noteBackground)

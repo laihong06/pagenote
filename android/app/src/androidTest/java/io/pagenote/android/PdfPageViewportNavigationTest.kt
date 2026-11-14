@@ -3,11 +3,11 @@ package io.pagenote.android
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.graphics.toPixelMap
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.platform.testTag
@@ -103,6 +103,66 @@ class PdfPageViewportNavigationTest {
     val highlightY = (pixels.height / 2f + (300f - 500f) * scale).toInt()
     val yellow = pixels[pixels.width / 2, highlightY.coerceIn(0, pixels.height - 1)]
     assertTrue("highlighter opacity should survive hardware recording", yellow.red > 0.9f && yellow.green > 0.9f && yellow.blue in 0.55f..0.8f)
+    bitmap.recycle()
+  }
+
+  @Test
+  fun pinchInPenModeDoesNotCreateAnInkStroke() {
+    val bitmap = Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888)
+    val strokes = mutableListOf<PenStroke>()
+    var lastTransform = PdfViewportTransform.DEFAULT
+    composeRule.setContent {
+      PdfPageViewport(
+        bitmap = bitmap, sourceName = "test.pdf", page = 0, loading = false,
+        strokes = emptyList(), tool = PenCanvasTool.PEN, inputEnabled = true,
+        onStrokeAdded = strokes::add, onStrokeErased = {},
+        transform = PdfViewportTransform.DEFAULT, onTransformChanged = { lastTransform = it }, onBoundsChanged = {},
+        modifier = Modifier.size(240.dp).testTag("pdf_page_viewport"),
+      )
+    }
+    composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+      down(0, center.copy(x = center.x - 30f))
+      down(1, center.copy(x = center.x + 30f))
+      moveTo(0, center.copy(x = center.x - 60f), delayMillis = 10)
+      moveTo(1, center.copy(x = center.x + 60f), delayMillis = 10)
+      up(1); up(0)
+    }
+    composeRule.waitForIdle()
+    assertTrue("Two-finger zoom must not leave an accidental ink mark", strokes.isEmpty())
+    assertTrue("Pinch in pen mode should zoom, got ${lastTransform.scale}", lastTransform.scale > 1.8f)
+    bitmap.recycle()
+  }
+
+  @Test
+  fun rapidPinchAccumulatesEveryMotionBeforeRecomposition() {
+    val bitmap = Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888)
+    var lastTransform = PdfViewportTransform.DEFAULT
+    composeRule.setContent {
+      MaterialTheme {
+        PdfPageViewport(
+          bitmap = bitmap, sourceName = "test.pdf", page = 0, loading = false,
+          strokes = emptyList(), tool = PenCanvasTool.PEN, inputEnabled = false,
+          onStrokeAdded = {}, onStrokeErased = {},
+          transform = PdfViewportTransform.DEFAULT,
+          onTransformChanged = { lastTransform = it }, onBoundsChanged = {},
+          modifier = Modifier.size(240.dp).testTag("pdf_page_viewport"),
+        )
+      }
+    }
+    composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+      val midpoint = center
+      down(0, midpoint.copy(x = midpoint.x - 30f))
+      down(1, midpoint.copy(x = midpoint.x + 30f))
+      repeat(10) { index ->
+        val halfDistance = 30f + (index + 1) * 3f
+        moveTo(0, midpoint.copy(x = midpoint.x - halfDistance), delayMillis = 1)
+        moveTo(1, midpoint.copy(x = midpoint.x + halfDistance), delayMillis = 1)
+      }
+      up(1); up(0)
+    }
+    composeRule.waitForIdle()
+    assertTrue("A 2× pinch should accumulate all motion, got ${lastTransform.scale}", lastTransform.scale > 1.9f)
+    assertEquals(2f, lastTransform.scale, 0.08f)
     bitmap.recycle()
   }
 

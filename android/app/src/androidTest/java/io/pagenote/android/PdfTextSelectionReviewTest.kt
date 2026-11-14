@@ -43,6 +43,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.flow.first
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
@@ -55,6 +58,20 @@ import java.util.concurrent.atomic.AtomicReference
 class PdfTextSelectionReviewTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousReaderSettings: ReaderSettings? = null
+
+  @Before
+  fun useSinglePageViewportForAnnotationGestures() = runBlocking {
+    val store = readerSettingsStore(composeRule.activity)
+    previousReaderSettings = store.settings.first()
+    store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+  }
+
+  @After
+  fun restoreReaderSettings() = runBlocking {
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
+    Unit
+  }
 
   @Test
   fun selectsPdfTextPersistsReviewAndRejectsStaleNoteTarget() {

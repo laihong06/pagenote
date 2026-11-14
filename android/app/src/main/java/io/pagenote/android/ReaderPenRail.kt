@@ -1,5 +1,7 @@
 package io.pagenote.android
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,8 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.pagenote.feature.pen.PenCanvasTool
 import io.pagenote.feature.pen.PenStyle
+import kotlin.math.roundToInt
 
 internal val READER_PEN_RAIL_WIDTH = 44.dp
 
@@ -48,15 +53,68 @@ internal fun ReaderPenRail(
   onCustomColor: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  var expanded by rememberSaveable { mutableStateOf(true) }
   var shapeMenu by remember { mutableStateOf(false) }
   var styleMenu by remember { mutableStateOf(false) }
+  var penBoxMenu by remember { mutableStateOf(false) }
   val ink = Color(android.graphics.Color.parseColor(style.color))
   Column(
-    modifier.width(READER_PEN_RAIL_WIDTH).fillMaxHeight()
-      .background(MaterialTheme.colorScheme.surface).verticalScroll(rememberScrollState())
+    modifier.width(if (expanded) READER_PEN_RAIL_WIDTH else 32.dp).fillMaxHeight()
+      .background(MaterialTheme.colorScheme.surfaceContainerLow).verticalScroll(rememberScrollState())
       .padding(vertical = 6.dp).testTag("reader_pen_rail"),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
+    IconButton(onClick = { expanded = !expanded; shapeMenu = false; styleMenu = false; penBoxMenu = false },
+      modifier = Modifier.size(32.dp).testTag(if (expanded) "reader_pen_collapse" else "reader_pen_expand")) {
+      Icon(if (expanded) Icons.Outlined.ChevronLeft else Icons.Outlined.ChevronRight,
+        stringResource(if (expanded) R.string.reader_pen_collapse_action else R.string.reader_pen_expand_action),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (expanded) {
+    Box {
+      RailIcon(Icons.Outlined.Inventory2, stringResource(R.string.reader_pen_box_title),
+        "reader_pen_box", penBoxMenu, enabled, { penBoxMenu = true })
+      DropdownMenu(expanded = penBoxMenu, onDismissRequest = { penBoxMenu = false },
+        modifier = Modifier.width(280.dp).testTag("reader_pen_box_panel")) {
+        Text(stringResource(R.string.reader_pen_box_title), Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.reader_pen_box_tools), Modifier.padding(horizontal = 14.dp, vertical = 4.dp), style = MaterialTheme.typography.labelLarge)
+        listOf(
+          listOf(PenCanvasTool.PEN to R.string.pen, PenCanvasTool.BALLPOINT to R.string.pen_ballpoint),
+          listOf(PenCanvasTool.HIGHLIGHTER to R.string.highlighter, PenCanvasTool.ERASER to R.string.eraser),
+        ).forEach { choices ->
+          Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+            choices.forEach { (choice, label) ->
+              TextButton(onClick = { onTool(choice); penBoxMenu = false },
+                modifier = Modifier.weight(1f).testTag("reader_pen_box_${choice.name.lowercase()}")
+                  .semantics { selected = tool == choice && drawTool == null },
+                colors = ButtonDefaults.textButtonColors(containerColor = if (tool == choice && drawTool == null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+                enabled = enabled) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                  Box(Modifier.size(44.dp, 32.dp)) { PenIllustration(choice, ink, tool == choice && drawTool == null) }
+                  Text(stringResource(label), maxLines = 1, style = MaterialTheme.typography.labelSmall)
+                }
+              }
+            }
+          }
+        }
+        PenWidthControl(style.width, enabled, "reader_pen_box_width_slider", onWidth)
+        Text(stringResource(R.string.reader_menu_color), Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.labelLarge)
+        PenStyle.COLOR_SWATCHES.chunked(4).forEach { row ->
+          Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            row.forEach { (name, color) ->
+              Box(Modifier.size(44.dp).clickable(enabled = enabled) { onColor(color); penBoxMenu = false }
+                .testTag("reader_pen_box_color_${color.drop(1)}")
+                .semantics { contentDescription = name; selected = style.color == color }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(24.dp).background(Color(android.graphics.Color.parseColor(color)), RoundedCornerShape(4.dp))
+                  .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                  if (style.color == color) Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     listOf(
       PenCanvasTool.PEN to R.string.pen,
       PenCanvasTool.BALLPOINT to R.string.pen_ballpoint,
@@ -69,6 +127,7 @@ internal fun ReaderPenRail(
       RailAction(
         name, "reader_pen_${choice.name.lowercase()}", active, enabled,
         onClick = { if (active) styleMenu = !styleMenu else { styleMenu = false; onTool(choice) } },
+        onLongClick = { if (!active) onTool(choice); styleMenu = true },
       ) { PenIllustration(choice, ink, active) }
     }
     RailDivider()
@@ -115,6 +174,7 @@ internal fun ReaderPenRail(
             ) { Text(width.toString()) }
           }
         }
+        PenWidthControl(style.width, enabled, "reader_pen_style_width_slider", onWidth)
         Text(stringResource(R.string.reader_menu_color), Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
         PenStyle.COLOR_SWATCHES.chunked(4).forEach { row ->
           Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -134,7 +194,7 @@ internal fun ReaderPenRail(
     val lineColor = MaterialTheme.colorScheme.onSurface
     PenStyle.WIDTH_OPTIONS.take(3).forEach { width ->
       val label = stringResource(R.string.pen_width_value, width.toString())
-      RailAction(label, "reader_pen_preset_$width", style.width == width, enabled, 28, { onWidth(width) }) {
+      RailAction(label, "reader_pen_preset_$width", style.width == width, enabled, 28, onClick = { onWidth(width) }) {
         Canvas(Modifier.size(20.dp)) {
           drawLine(lineColor, Offset(2.dp.toPx(), size.height / 2), Offset(size.width - 2.dp.toPx(), size.height / 2), width.toFloat() * 0.8.dp.toPx())
         }
@@ -146,6 +206,29 @@ internal fun ReaderPenRail(
       ColorSwatch(color, name, style.color == color, enabled, onColor)
     }
     RailIcon(Icons.Outlined.Add, stringResource(R.string.pen_custom_color), "reader_pen_custom_color", false, enabled, onCustomColor)
+    }
+  }
+}
+
+@Composable
+internal fun PenWidthControl(width: Double, enabled: Boolean, tag: String, onWidth: (Double) -> Unit) {
+  var draft by remember(width) { mutableFloatStateOf(width.toFloat().coerceIn(0.1f, 20f)) }
+  fun rounded(value: Float): Double = (value.coerceIn(0.1f, 20f) * 10).roundToInt() / 10.0
+  Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
+    Text("${stringResource(R.string.reader_menu_width)}: ${rounded(draft)}", style = MaterialTheme.typography.labelLarge)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      IconButton(onClick = { draft = (draft - 0.1f).coerceAtLeast(0.1f); onWidth(rounded(draft)) },
+        enabled = enabled && draft > 0.1f, modifier = Modifier.size(36.dp)) {
+        Icon(Icons.Outlined.Remove, contentDescription = stringResource(R.string.pen_width_decrease))
+      }
+      Slider(value = draft, onValueChange = { draft = it },
+        onValueChangeFinished = { onWidth(rounded(draft)) }, valueRange = 0.1f..20f,
+        enabled = enabled, modifier = Modifier.weight(1f).testTag(tag))
+      IconButton(onClick = { draft = (draft + 0.1f).coerceAtMost(20f); onWidth(rounded(draft)) },
+        enabled = enabled && draft < 20f, modifier = Modifier.size(36.dp)) {
+        Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.pen_width_increase))
+      }
+    }
   }
 }
 
@@ -174,14 +257,14 @@ private fun RailIcon(icon: ImageVector, label: String, tag: String, active: Bool
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-private fun RailAction(label: String, tag: String, active: Boolean, enabled: Boolean, height: Int = 40, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun RailAction(label: String, tag: String, active: Boolean, enabled: Boolean, height: Int = 40, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
   TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) {
     Box(
       Modifier.width(READER_PEN_RAIL_WIDTH).height(height.dp)
-        .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-        .clickable(enabled = enabled, onClick = onClick)
+        .background(if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+        .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
         .semantics { contentDescription = label; selected = active }.testTag(tag),
       contentAlignment = Alignment.Center,
     ) {
@@ -195,8 +278,8 @@ private fun RailAction(label: String, tag: String, active: Boolean, enabled: Boo
 private fun RailDivider() = HorizontalDivider(Modifier.padding(horizontal = 6.dp, vertical = 5.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
 @Composable
-private fun PenIllustration(tool: PenCanvasTool, ink: Color, active: Boolean) {
-  Canvas(Modifier.fillMaxSize()) {
+internal fun PenIllustration(tool: PenCanvasTool, ink: Color, active: Boolean) {
+  Canvas(Modifier.fillMaxSize().clipToBounds()) {
     withTransform({ scale(size.width / 44f, size.height / 40f, Offset.Zero); translate(if (active) 0f else -5f, 0f) }) {
       val slim = tool == PenCanvasTool.BALLPOINT
       val top = if (slim) 15f else 13f

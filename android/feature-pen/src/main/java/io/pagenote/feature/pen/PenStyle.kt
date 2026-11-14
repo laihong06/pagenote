@@ -24,7 +24,7 @@ class PenStyle private constructor(
     fun isValidColor(color: String): Boolean = rgbColor.matches(color)
 
     fun create(color: String, width: Double): PenStyle? {
-      if (!isValidColor(color) || width !in WIDTH_OPTIONS) return null
+      if (!isValidColor(color) || !width.isFinite() || width !in PenValidation.MIN_WIDTH..PenValidation.MAX_WIDTH) return null
       return PenStyle(color.lowercase(), width)
     }
   }

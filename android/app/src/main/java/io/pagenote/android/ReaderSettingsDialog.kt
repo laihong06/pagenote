@@ -216,6 +216,7 @@ internal fun ReaderSettingsScreen(
   val scope = rememberCoroutineScope()
   val genericSaveError = stringResource(R.string.settings_save_failed)
   val inkOutsidePageLabel = stringResource(R.string.ink_outside_page_title)
+  val continuousPdfScrollingLabel = stringResource(R.string.pdf_continuous_scroll_title)
   val rebuildUnavailable = stringResource(R.string.search_index_rebuild_unavailable)
   val rebuildGenericError = stringResource(R.string.settings_save_failed)
 
@@ -477,6 +478,29 @@ internal fun ReaderSettingsScreen(
                 enabled = !isSaving,
                 modifier = Modifier.fillMaxWidth().testTag("prepare_ahead_slider"),
               )
+
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                  Text(continuousPdfScrollingLabel)
+                  Text(
+                    stringResource(R.string.pdf_continuous_scroll_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+                Switch(
+                  checked = draft.continuousPdfScrolling,
+                  onCheckedChange = { draft = draft.copy(continuousPdfScrolling = it) },
+                  enabled = !isSaving,
+                  modifier = Modifier.testTag("continuous_pdf_scrolling_switch").semantics {
+                    contentDescription = continuousPdfScrollingLabel
+                  },
+                )
+              }
 
               Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

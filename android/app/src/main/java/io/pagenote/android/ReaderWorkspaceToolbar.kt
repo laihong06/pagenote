@@ -5,6 +5,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -31,6 +33,8 @@ internal fun ReaderWorkspaceToolbar(
   pageCount: Int,
   canChangePage: Boolean,
   agentStatus: AgentTaskStatus? = null,
+  canvasFocus: Boolean = false,
+  onToggleCanvasFocus: (() -> Unit)? = null,
   onHome: () -> Unit,
   onMenu: () -> Unit,
   onAgent: () -> Unit,
@@ -46,7 +50,11 @@ internal fun ReaderWorkspaceToolbar(
   ) {
     if (showHome) ShelfIcon(Icons.Default.Home, stringResource(R.string.bookshelf_return), "reader_bookshelf", homeEnabled, onHome)
     if (showMenu) ReaderMenuTrigger(onClick = onMenu)
-    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(title, Modifier.weight(1f).testTag("reader_project_title"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    if (onToggleCanvasFocus != null) IconButton(onClick = onToggleCanvasFocus, modifier = Modifier.testTag("reader_canvas_focus")) {
+      Icon(if (canvasFocus) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+        stringResource(if (canvasFocus) R.string.reader_canvas_focus_exit else R.string.reader_canvas_focus_enter))
+    }
     if (page != null) {
       val statusLabel = when (agentStatus) {
         AgentTaskStatus.RUNNING -> stringResource(R.string.agent_status_running)

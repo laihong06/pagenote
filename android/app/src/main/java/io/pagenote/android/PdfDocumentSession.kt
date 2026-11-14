@@ -23,6 +23,7 @@ import java.io.Closeable
 import java.io.File
 
 data class PdfRenderedPage(val bitmap: Bitmap, val scale: Double)
+data class PdfPageSize(val widthPx: Int, val heightPx: Int)
 
 class PdfDocumentSession private constructor(
   private val descriptor: ParcelFileDescriptor,
@@ -32,12 +33,26 @@ class PdfDocumentSession private constructor(
   private val snapshotFile: File?,
 ) : Closeable {
   private var closed = false
+  private val pageSizeCache = HashMap<Int, PdfPageSize>()
   private val pdfBoxContentCache = object : LinkedHashMap<Int, PdfBoxPageContent?>(3, 0.75f, true) {
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, PdfBoxPageContent?>?): Boolean =
       size > 3
   }
 
   val pageCount: Int get() = renderer.pageCount
+
+  @Synchronized
+  fun pageSize(pageIndex: Int): PdfPageSize {
+    check(!closed) { "PDF session closed" }
+    require(pageIndex in 0 until renderer.pageCount) { "PDF page out of range" }
+    pageSizeCache[pageIndex]?.let { return it }
+    val page = renderer.openPage(pageIndex)
+    return try {
+      PdfPageSize(widthPx = page.width, heightPx = page.height).also { pageSizeCache[pageIndex] = it }
+    } finally {
+      page.close()
+    }
+  }
 
   @Synchronized
   fun extractText(pageIndex: Int): PdfTextExtractionResult {
@@ -121,6 +136,7 @@ class PdfDocumentSession private constructor(
   override fun close() {
     if (closed) return
     closed = true
+    pageSizeCache.clear()
     pdfBoxContentCache.clear()
     try {
       renderer.close()

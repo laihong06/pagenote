@@ -695,93 +695,28 @@ class NoteMarkdownFormatActivityTest {
   }
 
   private fun formatCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_format").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_format").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_format").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "format", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun editCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_edit").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "edit", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun paragraphCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_paragraph").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_paragraph").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "paragraph", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun insertCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_insert").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "insert", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun readerCommand(id: String) = run {
-    val commandTag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isEmpty()) {
-      val collapsed = composeRule.onAllNodesWithTag("reader_menu_sidebar_collapsed").fetchSemanticsNodes()
-      if (collapsed.isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
-      } else if (composeRule.onAllNodesWithTag("reader_menu_group_ai_annotations").fetchSemanticsNodes().isNotEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_group_ai_annotations").performClick()
-      } else {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(commandTag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(commandTag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "ai_annotations", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun dispatchShortcut(keyCode: Int, modifiers: Int, repeatCount: Int = 0): Boolean {

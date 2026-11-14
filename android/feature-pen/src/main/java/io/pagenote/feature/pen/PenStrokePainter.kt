@@ -66,7 +66,15 @@ object PenStrokePainter {
           if (stroke.type == "arrow") drawArrowHead(canvas, first, last, strokePaint)
         }
       }
-      "pen" -> drawFreehand(canvas, points, stroke.width.toFloat())
+      "pen" -> {
+        if ((stroke.extraFields[PenStroke.POLYLINE_FIELD] == true ||
+              stroke.extraFields[PenStroke.CURVE_FIELD] == true) && points.size >= 2) {
+          scratchPath.rewind()
+          scratchPath.moveTo(points.first().x, points.first().y)
+          points.drop(1).forEach { scratchPath.lineTo(it.x, it.y) }
+          canvas.drawPath(scratchPath, strokePaint)
+        } else drawFreehand(canvas, points, stroke.width.toFloat())
+      }
       "highlight" -> drawHighlight(canvas, points, stroke.width.toFloat(), geometry)
       else -> Unit
     }

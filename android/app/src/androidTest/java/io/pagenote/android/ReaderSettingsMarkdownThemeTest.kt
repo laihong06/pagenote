@@ -1,6 +1,7 @@
 package io.pagenote.android
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,6 +22,31 @@ import org.junit.runner.RunWith
 class ReaderSettingsMarkdownThemeTest {
   @get:Rule
   val composeRule = createComposeRule()
+
+  @Test
+  fun settingsCategoryNavigationReachesAudioOptions() {
+    composeRule.setContent {
+      MaterialTheme {
+        ReaderSettingsScreen(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
+      }
+    }
+    showSettingsCategory("recognition")
+    composeRule.onNodeWithTag("audio_quota_slider").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun settingsCategoriesReachReaderNightAndModelOptions() {
+    composeRule.setContent {
+      MaterialTheme {
+        ReaderSettingsScreen(settings = ReaderSettings(), onDismiss = {}, onConfigureAgent = {}, onSave = {})
+      }
+    }
+    showSettingsCategory("reading")
+    composeRule.onNodeWithTag("prepare_ahead_slider").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("night_filter_switch").performScrollTo().assertIsDisplayed()
+    showSettingsCategory("agent")
+    composeRule.onNodeWithTag("configure_agent_model").performScrollTo().assertIsDisplayed()
+  }
 
   @Test
   fun savesMarkdownThemeSeparatelyFromReaderAppearance() {
@@ -69,6 +95,13 @@ class ReaderSettingsMarkdownThemeTest {
     composeRule.waitUntil(5_000) { dismissed.get() }
 
     assertFalse("cancel must not persist the draft", saved.get() != null)
+  }
+
+  private fun showSettingsCategory(category: String) {
+    if (composeRule.onAllNodesWithTag("settings_category_back").fetchSemanticsNodes().isNotEmpty()) {
+      composeRule.onNodeWithTag("settings_category_back").performClick()
+    }
+    composeRule.onNodeWithTag("settings_category_$category").performScrollTo().performClick()
   }
 
   private fun showAppearanceIfNeeded() {

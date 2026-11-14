@@ -31,7 +31,17 @@ internal class ReaderNoteSaver(
   suspend fun saveCurrentNote(): Boolean {
     val activeProject = session.project.value ?: return false
     val targetPage = session.pageIndex.intValue + 1
-    fun isSamePage() = session.project.value === activeProject && session.pageIndex.intValue + 1 == targetPage
+    fun isSameProject(): Boolean {
+      val currentProject = session.project.value
+      return readerProjectIdentityMatches(
+        expectedProjectId = activeProject.manifest.id,
+        expectedDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+        currentProjectId = currentProject?.manifest?.id,
+        currentDirectoryUri = currentProject?.sourceDirectoryUri?.toString(),
+      )
+    }
+    fun updateStatus(status: String?) { if (isSameProject()) session.noteStatus.value = status }
+    fun isSamePage() = isSameProject() && session.pageIndex.intValue + 1 == targetPage
     return session.asyncSessionTask {
       val saved = session.noteSaveCoordinator.flush(
         hasPending = {
@@ -39,7 +49,7 @@ internal class ReaderNoteSaver(
         },
         writePending = {
           if (!session.noteWritable.value) {
-            session.noteStatus.value = context.getString(R.string.note_read_only)
+            updateStatus(context.getString(R.string.note_read_only))
             false
           } else {
             val draftToSave = session.noteDraft.value
@@ -57,11 +67,17 @@ internal class ReaderNoteSaver(
                 )
                 edited to store.write(edited.markdown, expectedOriginal = latest)
               }
-              if (!isSamePage()) {
+              if (!isSameProject()) {
                 false
               } else {
                 session.notesMarkdown.value = result.markdown
-                session.noteBaseRevision.value = result.pageRevision
+                session.completeContinuousPageSave(
+                  projectId = activeProject.manifest.id,
+                  sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+                  page = targetPage,
+                  savedMarkdown = NotePage.pageAt(result.markdown, targetPage),
+                  baseRevision = result.pageRevision,
+                )
                 session.refreshDraftRecoveryAfterSave(targetPage, NotePage.pageAt(result.markdown, targetPage))
                 session.noteStatus.value = recoveryCopyName?.let { context.getString(R.string.note_saved_recovery_copy, it) }
                 val historyKey = activeProject.manifest.id to targetPage
@@ -87,22 +103,22 @@ internal class ReaderNoteSaver(
             } catch (cancelled: CancellationException) {
               throw cancelled
             } catch (conflict: PageNoteConflictException) {
-              session.noteStatus.value = conflict.message
+              updateStatus(conflict.message)
               false
             } catch (conflict: NoteDocumentConflictException) {
-              session.noteStatus.value = conflict.recoveryCopyName?.let { context.getString(R.string.note_conflict_recovery_copy, it) }
-                ?: context.getString(R.string.note_conflict)
+              updateStatus(conflict.recoveryCopyName?.let { context.getString(R.string.note_conflict_recovery_copy, it) }
+                ?: context.getString(R.string.note_conflict))
               false
             } catch (recovery: NoteRecoveryCopyRetainedException) {
-              session.noteStatus.value = context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName)
+              updateStatus(context.getString(R.string.note_recovery_copy_retained, recovery.recoveryCopyName))
               false
             } catch (recovery: NoteWriteRecoveryException) {
-              session.noteStatus.value = recovery.recoveryCopyName?.let {
+              updateStatus(recovery.recoveryCopyName?.let {
                 context.getString(if (recovery.rollbackSucceeded) R.string.note_write_recovery_rollback else R.string.note_write_recovery_failed, it)
-              } ?: context.getString(R.string.note_save_failed, recovery.message ?: "")
+              } ?: context.getString(R.string.note_save_failed, recovery.message ?: ""))
               false
             } catch (error: Exception) {
-              session.noteStatus.value = context.getString(R.string.note_save_failed, error.message ?: "")
+              updateStatus(context.getString(R.string.note_save_failed, error.message ?: ""))
               false
             } finally {
               session.isSaving.value = false

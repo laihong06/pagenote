@@ -203,6 +203,48 @@ internal object PdfAnnotationClipboard {
     })
   }
 
+  /** Applies one color to mixed freehand ordinals and native page indexes. */
+  fun updateSelectedColors(
+    page: JsonArray,
+    selectedFreehandIndices: Set<Int>,
+    selectedAnnotationIndices: Set<Int>,
+    color: String,
+  ): JsonArray? {
+    if (selectedFreehandIndices.isEmpty() && selectedAnnotationIndices.isEmpty()) return null
+    val freehandCount = page.count { element ->
+      val type = (element as? JsonObject)?.type()
+      type == "pen" || type == "highlight"
+    }
+    if (selectedFreehandIndices.any { it !in 0 until freehandCount }) return null
+    if (selectedAnnotationIndices.any { index ->
+        val item = page.getOrNull(index) as? JsonObject ?: return@any true
+        item.type() in setOf("pen", "highlight") || !isSupported(item)
+      }
+    ) return null
+
+    val selectedColor = color.lowercase()
+    val updated = mutableListOf<JsonElement>()
+    var freehandOrdinal = 0
+    page.forEachIndexed { index, element ->
+      val item = element as? JsonObject
+      val type = item?.type()
+      val isFreehand = type == "pen" || type == "highlight"
+      val selected = if (isFreehand) {
+        selectedFreehandIndices.contains(freehandOrdinal++ )
+      } else {
+        index in selectedAnnotationIndices
+      }
+      if (selected && item != null) {
+        val existingColor = (item["color"] as? JsonPrimitive)?.content
+        updated += if (existingColor?.equals(selectedColor, ignoreCase = true) == true) item
+          else JsonObject(item + ("color" to JsonPrimitive(selectedColor)))
+      } else {
+        updated += element
+      }
+    }
+    return if (updated == page) page else JsonArray(updated)
+  }
+
   /**
    * Updates the HTML content of one selected rich text annotation (port batch
    * 4, the confirm path of the rich text editing window) and re-fits its
@@ -353,12 +395,25 @@ internal object PdfAnnotationClipboard {
   }
 }
 
+internal data class PdfAnnotationHistoryRestore(
+  val page: JsonArray,
+  val orderContext: JsonArray,
+  /** Whether the edit being replayed changes both the annotation and ink layers. */
+  val includesFreehand: Boolean,
+)
+
 /** In-memory undo/redo snapshots isolated by project identity and document page. */
 internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
+  private data class Snapshot(
+    val page: JsonArray,
+    val orderContext: JsonArray,
+    val includesFreehand: Boolean,
+  )
+
   private data class PageState(
-    val undo: ArrayDeque<JsonArray> = ArrayDeque(),
-    val redo: ArrayDeque<JsonArray> = ArrayDeque(),
-    var current: JsonArray,
+    val undo: ArrayDeque<Snapshot> = ArrayDeque(),
+    val redo: ArrayDeque<Snapshot> = ArrayDeque(),
+    var current: Snapshot,
   )
 
   private val pages = mutableMapOf<Pair<String, Int>, PageState>()
@@ -369,38 +424,73 @@ internal class PdfAnnotationEditHistory(private val maxEntries: Int = 80) {
     existing.forEach { (key, state) -> mapping[key.second]?.let { pages[projectId to it] = state } }
   }
 
-  fun record(projectId: String, page: Int, before: JsonArray, after: JsonArray) {
+  fun record(
+    projectId: String,
+    page: Int,
+    before: JsonArray,
+    after: JsonArray,
+    includeFreehand: Boolean = false,
+  ): Boolean {
     require(projectId.isNotBlank() && page >= 1)
-    if (before == after) return
+    val historyBefore = if (includeFreehand) before else AnnotationPageMerger.annotationHistorySnapshot(before)
+    val historyAfter = if (includeFreehand) after else AnnotationPageMerger.annotationHistorySnapshot(after)
+    val sameContent = if (includeFreehand) {
+      AnnotationPageMerger.samePageContent(historyBefore, historyAfter)
+    } else {
+      AnnotationPageMerger.sameAnnotationLayer(historyBefore, historyAfter)
+    }
+    if (sameContent) return false
     val key = projectId to page
-    val state = pages.getOrPut(key) { PageState(current = before) }
-    if (state.current != before) {
+    val state = pages.getOrPut(key) { PageState(current = Snapshot(historyBefore, before, includesFreehand = false)) }
+    val currentMatches = if (includeFreehand) {
+      AnnotationPageMerger.samePageContent(state.current.page, historyBefore)
+    } else {
+      AnnotationPageMerger.sameAnnotationLayer(state.current.page, historyBefore)
+    }
+    if (!currentMatches) {
       state.undo.clear()
       state.redo.clear()
-      state.current = before
+      state.current = Snapshot(historyBefore, before, includesFreehand = false)
     }
-    state.undo.addLast(before)
+    state.undo.addLast(Snapshot(historyBefore, before, state.current.includesFreehand))
     while (state.undo.size > maxEntries) state.undo.removeFirst()
     state.redo.clear()
-    state.current = after
+    state.current = Snapshot(historyAfter, after, includesFreehand = includeFreehand)
+    return true
   }
 
-  fun undo(projectId: String, page: Int): JsonArray? {
+  fun undo(projectId: String, page: Int): JsonArray? = undoWithContext(projectId, page)?.page
+
+  fun undoWithContext(projectId: String, page: Int): PdfAnnotationHistoryRestore? {
     val state = pages[projectId to page] ?: return null
     if (state.undo.isEmpty()) return null
     state.redo.addLast(state.current)
+    val actionIncludesFreehand = state.current.includesFreehand
     state.current = state.undo.removeLast()
-    return state.current
+    return PdfAnnotationHistoryRestore(
+      page = state.current.page,
+      orderContext = state.current.orderContext,
+      includesFreehand = actionIncludesFreehand,
+    )
   }
 
-  fun redo(projectId: String, page: Int): JsonArray? {
+  fun redo(projectId: String, page: Int): JsonArray? = redoWithContext(projectId, page)?.page
+
+  fun redoWithContext(projectId: String, page: Int): PdfAnnotationHistoryRestore? {
     val state = pages[projectId to page] ?: return null
     if (state.redo.isEmpty()) return null
     state.undo.addLast(state.current)
     state.current = state.redo.removeLast()
-    return state.current
+    return PdfAnnotationHistoryRestore(
+      page = state.current.page,
+      orderContext = state.current.orderContext,
+      includesFreehand = state.current.includesFreehand,
+    )
   }
 
   fun canUndo(projectId: String, page: Int): Boolean = pages[projectId to page]?.undo?.isNotEmpty() == true
   fun canRedo(projectId: String, page: Int): Boolean = pages[projectId to page]?.redo?.isNotEmpty() == true
+  fun current(projectId: String, page: Int): JsonArray? = pages[projectId to page]?.current?.let { snapshot ->
+    if (snapshot.includesFreehand) snapshot.orderContext else snapshot.page
+  }
 }

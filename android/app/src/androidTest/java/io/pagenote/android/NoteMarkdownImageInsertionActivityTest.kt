@@ -184,31 +184,13 @@ class NoteMarkdownImageInsertionActivityTest {
   }
 
   private fun imageCommand() = run {
-    val tag = "reader_menu_command_image"
-    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-      composeRule.onNodeWithTag("reader_menu_group_insert").performScrollTo().performClick()
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(tag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "insert", "image")
+    composeRule.onNodeWithTag("reader_menu_command_image").performScrollTo()
   }
 
   private fun pasteImageCommand() = run {
-    val tag = "reader_menu_command_paste_image"
-    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_insert").fetchSemanticsNodes().isEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-      composeRule.onNodeWithTag("reader_menu_group_insert").performScrollTo().performClick()
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(tag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "insert", "paste_image")
+    composeRule.onNodeWithTag("reader_menu_command_paste_image").performScrollTo()
   }
 
   private fun launchPickerResult(success: Boolean, data: Intent?) {

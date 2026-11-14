@@ -39,16 +39,20 @@ class PenActionStack(private val maxDepth: Int = PenValidation.UNDO_DEPTH) {
 
   /** Undoes the last recorded action in [scope]. False when nothing to undo. */
   fun undo(scope: String): Boolean {
-    val action = undoStacks[scope]?.removeLastOrNull() ?: return false
+    val stack = undoStacks[scope] ?: return false
+    val action = stack.lastOrNull() ?: return false
     action.undo()
+    stack.removeLast()
     redoStacks.getOrPut(scope) { ArrayDeque() }.addLast(action)
     return true
   }
 
   /** Redoes the last undone action in [scope]. False when nothing to redo. */
   fun redo(scope: String): Boolean {
-    val action = redoStacks[scope]?.removeLastOrNull() ?: return false
+    val stack = redoStacks[scope] ?: return false
+    val action = stack.lastOrNull() ?: return false
     action.redo()
+    stack.removeLast()
     undoStacks.getOrPut(scope) { ArrayDeque() }.addLast(action)
     return true
   }

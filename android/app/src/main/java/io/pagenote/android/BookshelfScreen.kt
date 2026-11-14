@@ -25,6 +25,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -65,6 +68,8 @@ internal fun BookshelfScreen(
   var query by rememberSaveable { mutableStateOf("") }
   var sortMenu by remember { mutableStateOf(false) }
   var moreMenu by remember { mutableStateOf(false) }
+  var createMenu by remember { mutableStateOf(false) }
+  var sidebarExpanded by rememberSaveable { mutableStateOf(true) }
   var customizing by remember { mutableStateOf<BookshelfBook?>(null) }
   val context = LocalContext.current
   val loader = remember(context) { BookCoverLoader(context) }
@@ -74,79 +79,103 @@ internal fun BookshelfScreen(
     else filtered.sortedWith(compareByDescending<BookshelfBook> { it.updated }.thenBy { it.title })
   }
   val bound = preferences?.tree != null
-  Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("bookshelf_home")) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-      val compactHeader = maxWidth < 680.dp
-      val searchField: @Composable (Modifier) -> Unit = { modifier ->
-        OutlinedTextField(query, { query = it }, modifier.testTag("bookshelf_search"), singleLine = true,
-          placeholder = { Text(stringResource(R.string.bookshelf_search)) },
-          leadingIcon = { Icon(Icons.Default.Search, null) })
-      }
-      Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-          Icon(Icons.Default.AutoStories, null, tint = MaterialTheme.colorScheme.primary)
-          Spacer(Modifier.width(12.dp))
-          Text(stringResource(R.string.bookshelf_title), modifier = if (compactHeader) Modifier.weight(1f) else Modifier,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.headlineSmall)
-          if (!compactHeader) {
-            Spacer(Modifier.width(24.dp))
-            searchField(Modifier.weight(1f))
-            Spacer(Modifier.width(8.dp))
+  val drawerState = rememberDrawerState(DrawerValue.Closed)
+  val drawerScope = rememberCoroutineScope()
+  ModalNavigationDrawer(drawerState = drawerState, gesturesEnabled = false, drawerContent = {
+    ModalDrawerSheet {
+      Text(stringResource(R.string.bookshelf_title), Modifier.padding(20.dp), style = MaterialTheme.typography.titleLarge)
+      NavigationDrawerItem(label = { Text(stringResource(R.string.bookshelf_all_notes)) }, selected = true,
+        icon = { Icon(Icons.Default.AutoStories, null) }, modifier = Modifier.testTag("bookshelf_navigation_all"),
+        onClick = { drawerScope.launch { drawerState.close() } })
+      NavigationDrawerItem(label = { Text(stringResource(R.string.bookshelf_change)) }, selected = false,
+        icon = { Icon(Icons.Default.FolderOpen, null) },
+        modifier = Modifier.alpha(if (busy) 0.38f else 1f).semantics { if (busy) disabled() }.testTag("bookshelf_navigation_change"),
+        onClick = { if (!busy) { drawerScope.launch { drawerState.close() }; onBind() } })
+      NavigationDrawerItem(label = { Text(stringResource(R.string.rain_classroom_menu)) }, selected = false,
+        icon = { Icon(Icons.Default.CloudDownload, null) }, onClick = { drawerScope.launch { drawerState.close() }; onRain() })
+      NavigationDrawerItem(label = { Text(stringResource(R.string.settings_action)) }, selected = false,
+        icon = { Icon(Icons.Default.Settings, null) }, onClick = { drawerScope.launch { drawerState.close() }; onSettings() })
+    }
+  }) {
+  BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("bookshelf_home")) {
+    val showSidebar = maxWidth >= 840.dp
+    Row(Modifier.fillMaxSize()) {
+      if (showSidebar) {
+        Column(Modifier.width(if (sidebarExpanded) 192.dp else 56.dp).fillMaxHeight()
+          .background(MaterialTheme.colorScheme.surfaceContainerLow)
+          .padding(horizontal = if (sidebarExpanded) 12.dp else 4.dp, vertical = 12.dp)
+          .testTag(if (sidebarExpanded) "bookshelf_sidebar" else "bookshelf_sidebar_collapsed"),
+          verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          IconButton(onClick = { sidebarExpanded = !sidebarExpanded }, modifier = Modifier.testTag("bookshelf_sidebar_toggle")) {
+            Icon(if (sidebarExpanded) Icons.Default.ChevronLeft else Icons.Default.ChevronRight,
+              stringResource(if (sidebarExpanded) R.string.reader_menu_collapse else R.string.reader_menu_expand))
           }
-          Box {
-            ShelfIcon(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.bookshelf_sort), "bookshelf_sort") { sortMenu = true }
-            DropdownMenu(sortMenu, { sortMenu = false }) {
-              listOf("updated" to R.string.bookshelf_updated, "name" to R.string.bookshelf_name).forEach { (sort, label) ->
-                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { sortMenu = false; onPresentation(sort, preferences?.view ?: "grid") },
-                  trailingIcon = { if (preferences?.sort == sort) Icon(Icons.Default.Check, null) })
-              }
+          if (sidebarExpanded) {
+            NavigationDrawerItem(label = { Text(stringResource(R.string.bookshelf_all_notes), maxLines = 1) }, selected = true,
+              icon = { Icon(Icons.Default.AutoStories, null) }, onClick = {})
+            TextButton(onClick = onNew, enabled = bound && !busy, modifier = Modifier.fillMaxWidth()) {
+              Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.new_project), maxLines = 1)
             }
-          }
-          val grid = preferences?.view != "list"
-          if (!compactHeader) {
-            ShelfIcon(if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-              stringResource(if (grid) R.string.bookshelf_list else R.string.bookshelf_grid), "bookshelf_view") {
-              onPresentation(preferences?.sort ?: "updated", if (grid) "list" else "grid")
+            TextButton(onClick = onImport, enabled = bound && !busy, modifier = Modifier.fillMaxWidth()) {
+              Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.open_document), maxLines = 1)
             }
-            ShelfIcon(Icons.Default.Refresh, stringResource(R.string.bookshelf_refresh), "bookshelf_refresh", !scanning) { onRefresh() }
-          }
-          ShelfIcon(Icons.Default.Settings, stringResource(R.string.settings_action), "bookshelf_settings") { onSettings() }
-          Box {
-            ShelfIcon(Icons.Default.MoreVert, stringResource(R.string.reader_menu_group_file), "bookshelf_more") { moreMenu = true }
-            DropdownMenu(moreMenu, { moreMenu = false }) {
-              if (compactHeader) {
-                DropdownMenuItem(
-                  text = { Text(stringResource(if (grid) R.string.bookshelf_list else R.string.bookshelf_grid)) },
-                  onClick = { moreMenu = false; onPresentation(preferences?.sort ?: "updated", if (grid) "list" else "grid") },
-                  modifier = Modifier.testTag("bookshelf_view"),
-                )
-                DropdownMenuItem(
-                  text = { Text(stringResource(R.string.bookshelf_refresh)) },
-                  enabled = !scanning,
-                  onClick = { moreMenu = false; onRefresh() },
-                  modifier = Modifier.testTag("bookshelf_refresh"),
-                )
-                HorizontalDivider()
-              }
-              DropdownMenuItem(text = { Text(stringResource(R.string.rain_classroom_menu)) }, onClick = { moreMenu = false; onRain() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.bookshelf_open_external)) }, enabled = !busy, onClick = { moreMenu = false; onExternal() })
-              DropdownMenuItem(text = { Text(stringResource(R.string.bookshelf_change)) }, enabled = !busy, onClick = { moreMenu = false; onBind() })
+            TextButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) {
+              Icon(Icons.Default.Settings, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.settings_action), maxLines = 1)
             }
+          } else {
+            ShelfIcon(Icons.Default.Add, stringResource(R.string.new_project), "bookshelf_sidebar_new", bound && !busy, onNew)
+            ShelfIcon(Icons.Default.FileDownload, stringResource(R.string.open_document), "bookshelf_sidebar_import", bound && !busy, onImport)
+            ShelfIcon(Icons.Default.Settings, stringResource(R.string.settings_action), "bookshelf_sidebar_settings", onClick = onSettings)
           }
         }
-        if (compactHeader) {
-          searchField(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp))
+      }
+      Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = if (bound && !busy) 88.dp else 0.dp)) {
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+      if (!showSidebar) {
+        ShelfIcon(Icons.Default.Menu, stringResource(R.string.bookshelf_navigation), "bookshelf_navigation_open") { drawerScope.launch { drawerState.open() } }
+      }
+      Icon(Icons.Default.AutoStories, null, tint = MaterialTheme.colorScheme.primary)
+      Spacer(Modifier.width(12.dp))
+      Text(stringResource(R.string.bookshelf_title), Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
+      ShelfIcon(Icons.Default.Settings, stringResource(R.string.settings_action), "bookshelf_settings") { onSettings() }
+      Box {
+        ShelfIcon(Icons.Default.MoreVert, stringResource(R.string.reader_menu_group_file), "bookshelf_more") { moreMenu = true }
+        DropdownMenu(moreMenu, { moreMenu = false }) {
+          DropdownMenuItem(text = { Text(stringResource(R.string.rain_classroom_menu)) }, onClick = { moreMenu = false; onRain() })
+          DropdownMenuItem(text = { Text(stringResource(R.string.bookshelf_open_external)) }, enabled = !busy, onClick = { moreMenu = false; onExternal() })
+          DropdownMenuItem(text = { Text(stringResource(R.string.bookshelf_change)) }, enabled = !busy, onClick = { moreMenu = false; onBind() })
         }
       }
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-      if (bound) {
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+      OutlinedTextField(query, { query = it }, Modifier.weight(1f).testTag("bookshelf_search"), singleLine = true,
+        placeholder = { Text(stringResource(R.string.bookshelf_search), maxLines = 1) },
+        leadingIcon = { Icon(Icons.Default.Search, null) })
+      Box {
+        ShelfIcon(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.bookshelf_sort), "bookshelf_sort") { sortMenu = true }
+        DropdownMenu(sortMenu, { sortMenu = false }) {
+          listOf("updated" to R.string.bookshelf_updated, "name" to R.string.bookshelf_name).forEach { (sort, label) ->
+            DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { sortMenu = false; onPresentation(sort, preferences?.view ?: "grid") },
+              trailingIcon = { if (preferences?.sort == sort) Icon(Icons.Default.Check, null) })
+          }
+        }
+      }
+      val grid = preferences?.view != "list"
+      ShelfIcon(if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+        stringResource(if (grid) R.string.bookshelf_list else R.string.bookshelf_grid), "bookshelf_view") {
+        onPresentation(preferences?.sort ?: "updated", if (grid) "list" else "grid")
+      }
+      ShelfIcon(Icons.Default.Refresh, stringResource(R.string.bookshelf_refresh), "bookshelf_refresh", !scanning) { onRefresh() }
+    }
+    if (bound) {
+      Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Default.FolderOpen, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(preferences!!.name, Modifier.padding(start = 8.dp).weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
           style = MaterialTheme.typography.bodyMedium)
         Text(stringResource(R.string.bookshelf_count, books.size), style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.width(16.dp))
-      } else Spacer(Modifier.weight(1f))
+      }
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
       TextButton(onClick = onNew, enabled = bound && !busy, modifier = Modifier.testTag("bookshelf_new")) {
         Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.new_project))
       }
@@ -169,8 +198,8 @@ internal fun BookshelfScreen(
       }
       else -> BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp)
         .testTag(if (preferences.view == "list") "bookshelf_list" else "bookshelf_grid")) {
-        val columns = (maxWidth.value / 200).toInt().coerceIn(1, 8)
-        LazyColumn(Modifier.fillMaxSize().testTag("bookshelf_books"), contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        val columns = (maxWidth.value / 160).toInt().coerceIn(1, 8)
+        LazyColumn(Modifier.fillMaxSize().testTag("bookshelf_books"), contentPadding = PaddingValues(top = 30.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
           if (preferences.view == "list") {
             items(visible, key = { it.key }) { book ->
               Row(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpen(book) }.padding(8.dp).testTag("bookshelf_book_${book.project.name}"),
@@ -185,37 +214,23 @@ internal fun BookshelfScreen(
               HorizontalDivider()
             }
           } else {
-            val tiles: List<BookshelfBook?> = listOf(null) + visible
-            items(tiles.chunked(columns), key = { row -> row.firstOrNull()?.key ?: "new" }) { row ->
-              Box(Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().padding(top = 198.dp).height(7.dp).shadow(3.dp, RoundedCornerShape(3.dp))
-                  .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(3.dp)))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                  row.forEach { book ->
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                      if (book == null) {
-                        Box(Modifier.size(144.dp, 192.dp).shadow(3.dp, RoundedCornerShape(6.dp))
-                          .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp))
-                          .clickable(enabled = !busy, onClick = onNew).testTag("bookshelf_new_cover"), contentAlignment = Alignment.Center) {
-                          Icon(Icons.Default.Add, stringResource(R.string.new_project), Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outline)
-                        }
-                        Text(stringResource(R.string.new_project), Modifier.height(76.dp).padding(top = 24.dp), style = MaterialTheme.typography.titleSmall)
-                      } else {
-                        Box(Modifier.clickable(enabled = !busy) { onOpen(book) }.testTag("bookshelf_book_${book.project.name}")) {
-                          BookCover(book, loader, Modifier.size(144.dp, 192.dp))
-                        }
-                        Row(Modifier.fillMaxWidth().height(92.dp).padding(top = 16.dp), verticalAlignment = Alignment.Top) {
-                          Column(Modifier.weight(1f).padding(top = 8.dp)) {
-                            Text(book.title, Modifier.height(40.dp), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                            BookDate(book)
-                          }
-                          ShelfIcon(Icons.Default.MoreVert, stringResource(R.string.bookshelf_customize), "bookshelf_customize_${book.project.name}", !busy) { customizing = book }
-                        }
+            items(visible.chunked(columns), key = { row -> row.first().key }) { row ->
+              Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                row.forEach { book ->
+                  Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.clickable(enabled = !busy) { onOpen(book) }.testTag("bookshelf_book_${book.project.name}")) {
+                      BookCover(book, loader, Modifier.size(136.dp, 181.dp))
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
+                      Column(Modifier.weight(1f).padding(top = 8.dp)) {
+                        Text(book.title, Modifier.height(40.dp), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                        BookDate(book)
                       }
+                      ShelfIcon(Icons.Default.MoreVert, stringResource(R.string.bookshelf_customize), "bookshelf_customize_${book.project.name}", !busy) { customizing = book }
                     }
                   }
-                  repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
               }
             }
           }
@@ -225,8 +240,26 @@ internal fun BookshelfScreen(
         }
       }
     }
+      }
+    }
+    if (bound && !busy) {
+      Box(Modifier.align(Alignment.BottomEnd).padding(24.dp)) {
+        FloatingActionButton(onClick = { createMenu = true }, modifier = Modifier.testTag("bookshelf_create_menu")) {
+          Icon(Icons.Default.Add, stringResource(R.string.new_project))
+        }
+        DropdownMenu(expanded = createMenu, onDismissRequest = { createMenu = false }) {
+          DropdownMenuItem(text = { Text(stringResource(R.string.new_project)) },
+            leadingIcon = { Icon(Icons.Default.Add, null) }, modifier = Modifier.testTag("bookshelf_create_new"),
+            onClick = { createMenu = false; onNew() })
+          DropdownMenuItem(text = { Text(stringResource(R.string.open_document)) },
+            leadingIcon = { Icon(Icons.Default.FileDownload, null) }, modifier = Modifier.testTag("bookshelf_create_import"),
+            onClick = { createMenu = false; onImport() })
+        }
+      }
+    }
   }
   customizing?.let { book -> BookAppearanceDialog(book, repository, onDismiss = { customizing = null }, onSaved = { customizing = null; onRefresh() }) }
+  }
 }
 
 @Composable private fun BookDate(book: BookshelfBook) {

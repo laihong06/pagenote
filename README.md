@@ -19,11 +19,11 @@ PageNote 的 Android 版是 **Kotlin／Jetpack Compose 原生应用**，围绕�
 | OCR 与搜索 | 识别扫描页，索引支持的本地内容 | 需要本地模型；识别质量依材料而定 |
 | 学习与辅助工具 | 开发源码含闪卡、录音转写、素材、悬浮工具等模块 | 逐项状态见功能表，不能全部算作公开包承诺 |
 
-**不具备桌面完整功能对等性。** 桌面原生 Markdown S 交互作品未在 Android 执行验收；Office 进程内编辑未实现。共享项目格式不代表共享全部界面与能力。
+**不具备桌面完整功能对等性。** 已适配实验性的 `genetic-lab` 声明块及原生三维染色体场景，[范围和历史验证](docs/android/guide/markdown-s.md)单列；不支持自动执行任意桌面 HTML／JS／Three.js 作品。Office 进程内编辑未实现。共享项目格式不代表共享全部界面与能力。
 
 ## Android 截图与验证状态
 
-本轮各模块平板截图待补。不得以 Windows／Mac 截图替代；现有模拟器／真机验证范围见[已知问题](KNOWN_ISSUES.md)和[发布说明](android/docs/RELEASE-1.0.0-beta.5.md)。最新共享 CI 的 Android 单测／编译任务失败，未将其称为全绿。
+参考笔盒、识形、区域橡皮、混合选择及连续翻页的运行证据见 [Android 功能表](docs/android/features.md)和[验收索引](docs/android/guide/images/pdf-continuous/README.md)。各组图片分别标注其实际运行代码、设备及限制；分支整合后的复验另行记录。
 
 ## 教程与版本记录
 

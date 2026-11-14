@@ -1,0 +1,57 @@
+package io.pagenote.android
+
+import android.graphics.Bitmap
+import android.os.Bundle
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class BaselineUiEvidenceTest {
+  @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+  @Test fun captureBaseline() {
+    val name = "UI evidence"
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    val manifest = """{"format":"pagenote-project","version":1,"id":"${"d".repeat(64)}","name":"$name","left":"src/pattern-recognition.pdf","right":"src/notes.md","leftName":"pattern-recognition.pdf"}"""
+    resolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_INSTALL, null, Bundle().apply {
+      putByteArray(ExistingProjectSafTestProvider.EXTRA_MANIFEST, manifest.toByteArray())
+      putByteArray(ExistingProjectSafTestProvider.EXTRA_PDF, minimalReaderTestPdf())
+      putByteArray(ExistingProjectSafTestProvider.EXTRA_NOTES, "Page note".toByteArray())
+      putByteArray(ExistingProjectSafTestProvider.EXTRA_REVIEWS, "[]".toByteArray())
+    })
+    openFixtureProjectFromBookshelf(compose, existingProjectTestTreeUri(), name)
+    compose.waitUntil(20_000) { compose.onAllNodes(hasTestTag("reader_pen_style")).fetchSemanticsNodes().isNotEmpty() }
+    if (compose.onAllNodes(hasTestTag("reader_menu_collapse")).fetchSemanticsNodes().isNotEmpty()) {
+      compose.onNodeWithTag("reader_menu_collapse").performSemanticsAction(SemanticsActions.OnClick)
+    } else {
+      android.os.ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input tap 1000 1000")).use { it.readBytes() }
+    }
+    android.os.SystemClock.sleep(2500)
+    compose.waitForIdle(); capture("reader")
+    compose.onNodeWithTag("reader_pen_style").performSemanticsAction(SemanticsActions.OnClick)
+    compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("reader_pen_style_menu")).fetchSemanticsNodes().isNotEmpty() }
+    android.os.SystemClock.sleep(500); compose.waitForIdle(); capture("pen-style")
+    InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+    compose.waitForIdle()
+    compose.onNodeWithTag("reader_bookshelf").performSemanticsAction(SemanticsActions.OnClick)
+    compose.waitUntil(20_000) { compose.onAllNodes(hasTestTag("bookshelf_book_$name")).fetchSemanticsNodes().isNotEmpty() }
+    android.os.SystemClock.sleep(1000); compose.waitForIdle(); capture("bookshelf")
+    compose.onNodeWithTag("bookshelf_settings").performSemanticsAction(SemanticsActions.OnClick)
+    compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("reader_settings_cancel")).fetchSemanticsNodes().isNotEmpty() }
+    android.os.SystemClock.sleep(700); compose.waitForIdle(); capture("settings")
+  }
+  private fun capture(name: String) {
+    val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+    val file = File(compose.activity.getExternalFilesDir(null), "baseline-$name.png")
+    ui.takeScreenshot().also { image -> file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle() }
+    ui.executeShellCommand("cp ${file.absolutePath} /data/local/tmp/pagenote-baseline-$name.png").close()
+  }
+}

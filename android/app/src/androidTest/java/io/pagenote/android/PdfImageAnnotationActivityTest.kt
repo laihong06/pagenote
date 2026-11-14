@@ -28,6 +28,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
@@ -37,6 +41,20 @@ import java.util.concurrent.atomic.AtomicReference
 class PdfImageAnnotationActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousReaderSettings: ReaderSettings? = null
+
+  @Before
+  fun useSinglePageViewportForAnnotationGestures() = runBlocking {
+    val store = readerSettingsStore(composeRule.activity)
+    previousReaderSettings = store.settings.first()
+    store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+  }
+
+  @After
+  fun restoreReaderSettings() = runBlocking {
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
+    Unit
+  }
 
   private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
   private val resolver get() = context.contentResolver
@@ -185,17 +203,9 @@ class PdfImageAnnotationActivityTest {
     }
   }
 
-  private fun handwritingCommand() = composeRule.onNodeWithTag("reader_menu_command_insert_ink_image").let { node ->
-    if (composeRule.onAllNodesWithTag("reader_menu_command_insert_ink_image").fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_handwriting").fetchSemanticsNodes().isEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-      composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().performClick()
-    }
-    composeRule.waitUntil(10_000) {
-      composeRule.onAllNodesWithTag("reader_menu_command_insert_ink_image").fetchSemanticsNodes().isNotEmpty()
-    }
-    node.performScrollTo()
+  private fun handwritingCommand() = run {
+    revealReaderMenuCommand(composeRule, "handwriting", "insert_ink_image")
+    composeRule.onNodeWithTag("reader_menu_command_insert_ink_image").performScrollTo()
   }
 
   private fun attachProject(

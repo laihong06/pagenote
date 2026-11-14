@@ -35,6 +35,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.flow.first
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
@@ -44,6 +47,20 @@ import java.util.concurrent.atomic.AtomicReference
 class InkSelectionClipboardActivityTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousReaderSettings: ReaderSettings? = null
+
+  @Before
+  fun useSinglePageViewportForAnnotationGestures() = runBlocking {
+    val store = readerSettingsStore(composeRule.activity)
+    previousReaderSettings = store.settings.first()
+    store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+  }
+
+  @After
+  fun restoreReaderSettings() = runBlocking {
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
+    Unit
+  }
 
   @Test
   fun selectCopyPasteDeleteAndUndoOperateOnCurrentPdfPage() {
@@ -96,6 +113,7 @@ class InkSelectionClipboardActivityTest {
       composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput {
         click(touchPoint)
       }
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performScrollTo().assertIsEnabled()
       composeRule.onNodeWithTag("reader_menu_command_copy_ink").performClick()
 
@@ -103,17 +121,23 @@ class InkSelectionClipboardActivityTest {
       val payload = clipboard.primaryClip!!.getItemAt(0).text.toString()
       assertTrue(payload.startsWith("PAGE_NOTES_ANNOTATION:\n"))
 
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_paste_ink").performScrollTo().assertIsEnabled().performClick()
       composeRule.waitUntil(10_000) { session.pendingPenSaves.intValue == 0 }
+      assertTrue("Ordinary ink saves should not leave a saved banner", session.penStatus.value != context.getString(R.string.pen_saved))
       assertEquals(2, pageStore.getItems(PenSide.DOCUMENT, 1).size)
       assertEquals(PenPoint(80f, 90f, 0.4f), pageStore.getItems(PenSide.DOCUMENT, 1).last().points.first())
 
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_delete_ink").performScrollTo().assertIsEnabled().performClick()
       assertEquals(listOf(original), pageStore.getItems(PenSide.DOCUMENT, 1))
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().assertIsEnabled().performClick()
       assertEquals(2, pageStore.getItems(PenSide.DOCUMENT, 1).size)
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_pen_redo").performScrollTo().assertIsEnabled().performClick()
       assertEquals(listOf(original), pageStore.getItems(PenSide.DOCUMENT, 1))
+      reopenCompactMenu()
       composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
       assertEquals(2, pageStore.getItems(PenSide.DOCUMENT, 1).size)
       composeRule.waitUntil(10_000) { session.pendingPenSaves.intValue == 0 }
@@ -127,17 +151,64 @@ class InkSelectionClipboardActivityTest {
     }
   }
 
+  @Test
+  fun areaEraserSavesSplitStrokesAndUndoRestoresOriginal() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val resolver = InstrumentationRegistry.getInstrumentation().context.contentResolver
+    installFixture(resolver)
+    val project = ProjectDocumentOpener(resolver).open(treeUri)
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    openFixtureProjectFromBookshelf(composeRule, treeUri, project.name)
+    val original = PenStroke("pen", "#185abd", 5.0,
+      listOf(PenPoint(150f, 500f, 0.4f), PenPoint(850f, 500f, 0.9f)))
+    val pageStore = PenPageStore().apply { addStroke(PenSide.DOCUMENT, 1, original) }
+    val penStore = ProjectPenStore(resolver, project.sourceDirectoryUri, project.annotationsUri)
+    val session = ViewModelProvider(composeRule.activity)[ReaderSessionViewModel::class.java]
+    composeRule.runOnIdle {
+      session.project.value = project; session.replaceRenderer(renderer); session.markdownSource.value = null
+      session.pageIndex.intValue = 0; session.penStore.value = penStore; session.penPageStore.value = pageStore
+      session.penStrokes.value = listOf(original); session.penWritable.value = true; session.penTool.value = PenCanvasTool.ERASER
+    }
+    try {
+      composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+      val ref = AtomicReference<PenCanvasView>()
+      composeRule.runOnUiThread { ref.set(checkNotNull(findPenCanvas(composeRule.activity.window.decorView))) }
+      val canvas = ref.get()
+      composeRule.waitUntil(10_000) { canvas.width > 0 && canvas.selectedTool == PenCanvasTool.ERASER }
+      val geometry = PenCanvasGeometry(canvas.width.toFloat(), canvas.height.toFloat(), canvas.pageTransform)
+      val (x, y) = geometry.toViewPoint(PenPoint(500f, 500f, 1f))
+      if (composeRule.onAllNodesWithTag("reader_menu_collapse").fetchSemanticsNodes().isNotEmpty()) {
+        composeRule.onNodeWithTag("reader_menu_collapse").performClick()
+      }
+      composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { click(Offset(x, y)) }
+      composeRule.waitUntil(10_000) { pageStore.getItems(PenSide.DOCUMENT, 1).size == 2 && session.pendingPenSaves.intValue == 0 }
+      val cut = penStore.readPage(PenSide.DOCUMENT, 1)
+      assertEquals(2, cut.size)
+      assertEquals(original.points.first(), cut.first().points.first())
+      assertEquals(original.points.last(), cut.last().points.last())
+      showHandwritingCommands()
+      revealReaderMenuCommand(composeRule, "handwriting", "pen_undo")
+      composeRule.onNodeWithTag("reader_menu_command_pen_undo").performScrollTo().performClick()
+      composeRule.waitUntil(10_000) { pageStore.getItems(PenSide.DOCUMENT, 1) == listOf(original) && session.pendingPenSaves.intValue == 0 }
+      assertEquals(listOf(original), penStore.readPage(PenSide.DOCUMENT, 1))
+    } finally {
+      composeRule.runOnUiThread { session.replaceRenderer(null); session.project.value = null }
+    }
+  }
+
+  private fun reopenCompactMenu() {
+    if (ReaderMenuLayout.forWidth(composeRule.activity.resources.configuration.screenWidthDp) == ReaderMenuLayout.COMPACT_DRAWER) {
+      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
+    }
+  }
+
   private fun selectInkTool() {
     showHandwritingCommands()
     composeRule.onNodeWithTag("reader_menu_command_select_tool").performScrollTo().performClick()
   }
 
   private fun showHandwritingCommands() {
-    if (composeRule.onAllNodesWithTag("reader_menu_command_select_tool").fetchSemanticsNodes().isNotEmpty()) return
-    if (composeRule.onAllNodesWithTag("reader_menu_trigger").fetchSemanticsNodes().isNotEmpty()) {
-      composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-    }
-    composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
+    revealReaderMenuCommand(composeRule, "handwriting", "select_tool")
   }
 
   private fun findPenCanvas(view: View): PenCanvasView? {

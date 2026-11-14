@@ -49,6 +49,41 @@ class PenPageStore(
     return true
   }
 
+  /** Commits one complete area-erasing gesture as a single undoable edit. */
+  fun replacePage(side: PenSide, page: Int, strokes: List<PenStroke>): Boolean {
+    require(page >= 1) { "bad page: $page" }
+    PenValidation.validateItemCount(strokes.size, side, page)
+    strokes.forEach { PenValidation.validate(it, page) }
+    val list = liveList(side, page)
+    if (list == strokes) return false
+    snapshot(side, page)
+    list.clear()
+    list.addAll(strokes)
+    return true
+  }
+
+  /**
+   * Replaces the live strokes after a mixed annotation edit without adding a
+   * second pen undo entry. Existing pen undo history remains valid; callers
+   * creating a new mixed edit can clear an obsolete redo branch explicitly.
+   */
+  fun replacePagePreservingHistory(
+    side: PenSide,
+    page: Int,
+    rawItems: List<*>,
+    clearRedo: Boolean = false,
+  ) {
+    require(page >= 1) { "bad page: $page" }
+    val strokes = freehandItems(rawItems)
+    PenValidation.validateItemCount(strokes.size, side, page)
+    strokes.forEach { PenValidation.validate(it, page) }
+    liveList(side, page).apply {
+      clear()
+      addAll(strokes)
+    }
+    if (clearRedo) redoStacks[key(side, page)]?.clear()
+  }
+
   /**
    * Rect eraser (port batch 1): removes every stroke on the given side/page
    * whose geometry intersects [rect] (document units; see [PenRectHit]).
@@ -137,16 +172,7 @@ class PenPageStore(
    */
   fun reloadPage(side: PenSide, page: Int, rawItems: List<*>) {
     require(page >= 1) { "bad page: $page" }
-    // Same freehand filter as the app-layer store loader: only pen/highlight
-    // items belong to the pen model; other types stay with the annotation page.
-    val strokes = rawItems
-      .mapNotNull { raw ->
-        val map = raw as? Map<*, *> ?: return@mapNotNull null
-        when (map["type"]) {
-          "pen", "highlight" -> parseAnnotationsItem(raw)
-          else -> null
-        }
-      }
+    val strokes = freehandItems(rawItems)
     PenValidation.validateItemCount(strokes.size, side, page)
     strokes.forEach { PenValidation.validate(it, page) }
     liveList(side, page).apply {
@@ -155,6 +181,14 @@ class PenPageStore(
     }
     undoStacks.remove(key(side, page))
     redoStacks.remove(key(side, page))
+  }
+
+  private fun freehandItems(rawItems: List<*>): List<PenStroke> = rawItems.mapNotNull { raw ->
+    val map = raw as? Map<*, *> ?: return@mapNotNull null
+    when (map["type"]) {
+      "pen", "highlight" -> parseAnnotationsItem(raw)
+      else -> null
+    }
   }
 
   /** Serializes to the annotations.json shape with string page keys. */

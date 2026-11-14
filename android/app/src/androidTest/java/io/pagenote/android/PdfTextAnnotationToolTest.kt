@@ -30,6 +30,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Before
+import org.junit.After
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
@@ -38,6 +42,20 @@ import java.io.ByteArrayOutputStream
 class PdfTextAnnotationToolTest {
   @get:Rule
   val composeRule = createAndroidComposeRule<MainActivity>()
+  private var previousReaderSettings: ReaderSettings? = null
+
+  @Before
+  fun useSinglePageViewportForAnnotationGestures() = runBlocking {
+    val store = readerSettingsStore(composeRule.activity)
+    previousReaderSettings = store.settings.first()
+    store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+  }
+
+  @After
+  fun restoreReaderSettings() = runBlocking {
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
+    Unit
+  }
 
   private val resolver get() = InstrumentationRegistry.getInstrumentation().targetContext.contentResolver
   private val treeUri: Uri
@@ -137,17 +155,8 @@ class PdfTextAnnotationToolTest {
   }
 
   private fun handwritingCommand(id: String) = run {
-    val tag = "reader_menu_command_$id"
-    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_handwriting").fetchSemanticsNodes().isEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-      composeRule.onNodeWithTag("reader_menu_group_handwriting").performScrollTo().performClick()
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(tag).performScrollTo()
+    revealReaderMenuCommand(composeRule, "handwriting", id)
+    composeRule.onNodeWithTag("reader_menu_command_$id").performScrollTo()
   }
 
   private fun attachProject(

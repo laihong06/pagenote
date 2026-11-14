@@ -7,16 +7,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -30,15 +32,19 @@ class ReaderPaneDividerTest {
   @Test
   fun draggingDividerChangesRatioAndCommitsOnRelease() {
     var dragFinished by mutableIntStateOf(0)
+    var observedPercent = 42f
+    var touchSlopPx = 0f
     composeRule.setContent {
       var percent by remember { mutableFloatStateOf(42f) }
+      val viewConfiguration = LocalViewConfiguration.current
+      SideEffect { touchSlopPx = viewConfiguration.touchSlop }
       MaterialTheme {
         Column {
           Text(percent.toInt().toString(), Modifier.testTag("split_percent"))
           ReaderPaneDivider(
             leftPercent = percent,
             availableWidthPx = 1_000f,
-            onPercentChange = { percent = it },
+            onPercentChange = { percent = it; observedPercent = it },
             onDragFinished = { dragFinished++ },
             modifier = Modifier.weight(1f),
           )
@@ -52,7 +58,9 @@ class ReaderPaneDividerTest {
       up()
     }
 
-    composeRule.onNodeWithTag("split_percent").assertTextEquals("52")
-    composeRule.runOnIdle { assertTrue(dragFinished > 0) }
+    composeRule.runOnIdle {
+      assertEquals(42f + (120f - touchSlopPx) / 10f, observedPercent, 0.1f)
+      assertTrue(dragFinished > 0)
+    }
   }
 }

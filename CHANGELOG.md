@@ -2,105 +2,149 @@
 
 ## Unreleased / 尚未发布
 
-- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+- 校正 Android 功能表中 Markdown S 的范围：保留已实现的 genetic-lab 原生实验与 Filament 三维原型，区分任意执行围栏降级和历史手机截图来源；本轮不新增渲染验证或发行声明。
 
-- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+- 补充 Android 分支整合后运行代码 `a315827` 的横屏 API 34 阅读器、全页设置、Agent／笔盒、曲线识形及区域橡皮操作图，并保留 fork Android beta 旧 tip 的祖先关系；见[本轮截图与来源](docs/android/guide/images/branch-integration-2026-11-14/README.md)。截图、源码整合和本地 APK不代表公开发行。
+
+- Android 分支整合通过 App JVM 678/678、笔迹 JVM 163/163 和受影响的横屏 API 34 定向交互复验；首轮 38 项中的 3 项旧测试输入／契约已修正并单独通过，另有笔盒／Agent 交互 1 项通过。完整范围、初始失败和剩余平台分支见[整合记录](docs/android/BRANCH-INTEGRATION-2026-11-14.md)。本地源码，未发布。
+
+- 整合 Android `android/beta` 已合入的工作区优化与参考笔迹／连续 PDF 阅读分支：保留参考菜单和笔盒、识形、区域擦除、混合选择与历史，接入全页设置、后台 Agent、自动保存队列和密集绘制优化；连续保存与手动保存共用队列，显式单页导航使用目标页笔记绑定，笔迹写入不阻塞翻页。平台根 README 保持 Android 入口；版本及公开下载不变，本地未发布源码。
 
 - Document Android dense-ink rendering measurements and before/after emulator screenshots. / 补充 Android 密集笔迹绘制的模拟器对照数据与改前改后截图。
-
 - Improve Android handwriting and zoom performance on ink-heavy pages by batching freehand drawing while preserving pressure-sensitive strokes. / 优化 Android 密集笔迹页面的书写和缩放流畅度，合并手写绘制命令并保留压感变化。
-
 - Add Android pinch-zoom comparison screenshots and describe the verified gesture behavior. / 补充 Android 双指缩放的改前改后截图与已验证交互说明。
-
 - Improve Android pinch zoom by accumulating all gesture deltas locally and reusing hardware ink commands across zoom and pan. / 修复 Android 连续缩放增量丢失，缩放过程本地更新，并复用硬件笔迹绘制记录以减少卡顿。
-
 - Document Android handwriting and hold-to-shape behavior with before/after emulator images. / 补充 Android 手写与停笔识别的改前改后模拟器截图和说明。
-
 - Reduce Android stylus input and drawing overhead, keep writing while recognized shapes save, and improve hold-to-shape recognition and rendering. / 优化 Android 手写输入与绘制，图形保存时可继续书写；改进停笔识别及图形保存后的显示和选中。
-
 - Keep Android note formatting available while an Agent task runs. / Agent 后台执行时仍可使用 Android 笔记格式工具。
-
 - Document Android Agent background execution and conflict handling with emulator screenshots. / 补充 Android Agent 应用内后台执行、冲突处理及模拟器截图说明。
-
 - Let Android Agent tasks run behind the reader with a compact status indicator, and protect concurrent note edits from Agent writes. / Android Agent 任务提交后在阅读器内后台执行并显示轻量状态，写入时保护并发编辑的笔记草稿。
-
 - Document the Android full-page settings with tablet and phone emulator screenshots. / 补充 Android 全页设置的平板、手机模拟器截图及操作说明。
-
 - Move Android settings to a full page with a tablet category/detail layout and phone list/detail navigation; keep drafts across categories and activity recreation. Agent model and prompt settings now open within the settings page. / Android 设置改为完整页面：平板使用分类与详情双栏，手机使用列表与详情层级；跨分类和页面重建时保留设置草稿，Agent 模型及提示词配置也在设置页内打开。
-
 - Route missing Agent model configuration through the settings page and restore the current task on return. / Agent 任务缺少模型配置时进入设置页，返回后恢复当前任务。
-
 - Organize Android reader commands into expandable groups and split reader settings into focused categories while keeping edits together until saved. / Android 阅读菜单改为按组展开，设置分为通用与外观、阅读与手写、识别与录音、搜索和 Agent，切换分类保留待保存的修改。
-
 - Fix the Android bookshelf header on narrow screens so its search field remains usable and book covers stay visible. / 修复 Android 窄屏书架顶部搜索框被挤没、内容区域被过度占用的问题。
-
 - Keep the narrow bookshelf title readable by moving view and refresh actions into its More menu. / 窄屏书架将视图切换和刷新移入“更多”，为标题留出空间。
-
 - Document Android menu and settings categories with before/after emulator screenshots. / 补充 Android 菜单、设置分类及窄屏书架的模拟器改前改后截图和教程。
-
 - Reduce Android writing delays by coalescing queued pen snapshots and moving note-history snapshots off the save path. Page changes and returning to the bookshelf wait for the latest pen and note writes, retaining the current page on failure. / 优化 Android 连续书写保存：合并排队的旧笔迹快照，历史记录改为后台生成；翻页和回书架仍等待最新笔迹与笔记写入，失败时留在当前页。
-
 - Add an Android emulator screenshot showing the navigation entry during an in-progress ink save. / 补充 Android 手写保存期间的导航入口模拟器截图。
-
 - Redesign the Android notebook workspace with an in-app draggable pen palette, closable Agent side panel, compact adaptive reading panes and quieter automatic saving. Serialize pending edits before page or bookshelf navigation and keep failed drafts recoverable. / Android 阅读工作区改为可拖动悬浮笔盒、可关闭 Agent 侧栏与自适应原文／笔记布局；后台静默自动保存，翻页和回书架前等待最新草稿落盘，失败时保留草稿与重试入口。
-
 - Allow users to copy an unsaved Android note draft before explicitly reloading after a conflict, without overwriting edits made during reload. / Android 笔记冲突时可选择先复制草稿再重载，重载期间的新编辑不会被覆盖。
-
 - Document the Android notebook workspace with before/after emulator screenshots and interaction steps. / 补充 Android 笔记工作区教程、模拟器改前改后截图及操作步骤。
-
 - Draft the Android notebook-first workspace redesign: adaptive source/note panes, in-app floating pen palette, closable agent drawer, and silent autosave/navigation safety. Design documentation only; no runtime or release changes. / 补充 Android 笔记软件式工作区设计：自适应原文／笔记布局、应用内浮动笔盒、可关闭的 Agent 侧栏与静默自动保存；仅设计稿，不改程序或制品。
-
-- Android 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 - 同步共享 beta 的桌面运行代码及 AI／原生 Markdown S；macOS 的界面截图、交互和安装包仍需独立验收，未发布新版本。
-
 - macOS 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
-- Make the legacy preview lifecycle test focus its window before checking macOS minimize behavior. / 旧预览生命周期测试在检查 macOS 最小化前先确保应用窗口可见并获得焦点。
+- Android 阅读器手动保存现在也会检查保存期间当前项目是否改变；旧项目保存完成后仍写回原项目并更新其索引，但不会覆盖新项目的笔记、草稿恢复或状态提示。重新运行 App JVM 667/667、feature-pen JVM 158/158 和 API 34 横屏平板连续阅读仪器用例 3/3 均通过。本地源码与 debug 包，未发布。
+- 更新 Android PDF 连续翻页验收截图，现对应回归修复后的运行代码 `f8ef443162a1319dd88209ccf6b7a4ff9d28c555`；记录目标页笔记关联、旧项目异步保存隔离和取消渲染资源释放回归结果。截图仍来自 Android 14 API 34 横屏平板 AVD 与合成输入，不代表实体笔或真机。本地未发布。
+- Android PDF 阅读器修正单页翻页时草稿写入目标页的问题；连续模式的异步保存仅更新仍处于前台的项目，并在页面渲染取消交接时释放未接收的图片资源。单页页码关联仪器用例、连续阅读仪器类 3/3、App JVM 667/667 与 feature-pen JVM 158/158 通过。文件格式与 Windows／macOS 未改；Android 本地源码和 debug 包，未发布。
+- Android PDF 阅读现在默认连续上下滚动，可在阅读设置切回单页；连续模式按视口中心同步页码和笔记，并保留页内笔迹与批注，离开页面时不等待笔记保存。`PDF-CONT-01`、`02`、`04` 已在 API 34 横屏平板验证；`03`、`05`、`06` 部分覆盖，进程重启恢复、每类批注与完整导航边界未覆盖。截图、设备信息和限制见[连续翻页验收记录](docs/android/guide/images/pdf-continuous/README.md)。这是 Android 本地未发布源码和 debug 包；Windows／macOS 未改，项目文件格式不变。
+- Android 停留识形补上参考 `GraphUtils.isCurveAndCreate` 的五次最小二乘回退：直接 Bezier 分支拒绝时分别拟合两个坐标方向，按参考的边界扩展、误差过滤和候选比较生成曲线；箭头分类进入同一回退且满足参考点数条件时，也会按笔宽追加三段采样箭头头部。保存格式仍为兼容多点 `pen` + `pagenoteCurve`。`REF-CURVE-04` 阅读器保存／单步撤销验收和 `REF-CURVE-05` 箭头回退识别器回归通过；选择／剪贴板阅读器类 26/26、app JVM 661/661、feature-pen JVM 158/158 通过。横屏平板全屏三态图及限制见[曲线回退验收](docs/android/guide/images/reference-shape/README.md#参考曲线最小二乘回退)。五次拟合至少要求 6 个采样点；这是避免参考六系数求解器在 3–5 点退化时产生伪曲线的保护边界。项目文件格式不变，Windows／macOS 未改；箭头回退仅通过识别器级用例验证，阅读器落盘／撤销截图覆盖非箭头曲线；实体笔、参考 App 运行时差分、桌面往返及跨设备缩放未验。本地源码和 debug 构建，未发布。
+- 补充 Android 停留识形圆形、矩形、三角形的横屏平板真实应用截图，记录保存前、保存后与单步撤销状态，并校正曲线落盘、跨层擦除及混合选择的验收文档。截图源于 Android 14 API 34 ARM64 `Pixel_Tablet_API34_Acceptance`，2560 × 1600、320 dpi；输入是合成触控笔，不代表实体笔、桌面重开或参考 App 运行差分。
+- Android 停留识别闭合圆形现在保留参考材料类别，并写入已有 `ellipse` 注释的 `shape: "circle"` 扩展字段；矩形仍保存为 `rect`，三角形仍保存为闭合多点 `pen`。横屏 API 34 平板阅读器回归覆盖这三类形状写入、一次撤销，以及圆形原生注释适配；25 项阅读器选择／橡皮／识形仪器测试、5 项区域擦除几何测试和 4 项闭合轮廓 OpenCV 仪器测试通过。文件主类型保持兼容，Windows／macOS 未改；参考 App 运行时差分、实体笔和桌面重开往返尚未验。本地未发布源码与 debug 构建。
+- Android 阅读器的笔迹与原生图形撤销历史现在按项目和页面使用一个有游标的动作列表；单项编辑和一次手势产生的混合编辑都按发生顺序撤销／重做。识形与区域擦除的异步保存先预留历史位置，失败可恢复重试；保存未完成时出现新编辑，也不会让回滚把新分支藏起来。对恢复源码 `ActionStack` 列表／游标语义的 Android 适配已通过 app JVM 660/660、feature-pen JVM 153/153、横屏 API 34 平板上的选择／剪贴板仪器类 23/23 和区域擦除仪器类 5/5。具体页面变更仍由现有笔迹与批注存储负责。`annotations.json` 格式和 Windows／macOS 未改；动作历史不跨进程保存，参考应用其余动作内核未移植。本地源码，未发布。
+- Android 阅读器的原生矢量区域擦除现在沿参考路径采样，再按参考 `Pen.split_v2` 生成连续多点笔迹片段；直线、箭头、矩形、椭圆的部分擦除仍写入现有 `pen` + `pagenotePolyline` 注释格式。擦除预览、落盘及跨自由笔迹／图形的单步撤销与重做源码改动 `dc1c5b8` 在合入当前 beta 的运行树 `169131f` 上通过 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）验收：`REF-ERASE-04` 几何用例 5/5，阅读器选择／剪贴板／橡皮测试类 23/23，0 失败、0 跳过。八态真实运行截图及环境见[Android 区域橡皮验收索引](docs/android/guide/images/reference-shape/README.md#原生矢量图形区域擦除)。annotations.json 格式、Windows／macOS 未改；非默认笔迹平滑元数据、实体手写笔与桌面往返尚未验证。本地未发布源码和 debug 测试包。
+- Android 阅读器套索的自由笔迹命中现在按恢复源码 `Pen.isInRegion()` 的首个采样点决定；笔迹首点在套索外、后续穿过选区时会保留，混合组删除与一次撤销也保留／恢复该笔迹。`referenceRegionSelectionUsesFirstPenSampleAndUndoesMixedDeleteAsOneAction` 与选择／剪贴板仪器测试类 23/23 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 662 项、feature-pen JVM 单测 153 项通过。更新前／套索／删除／撤销全屏截图见[Android 横屏平板验收记录](docs/android/guide/images/reference-shape/README.md#参考区域多材料选择)。annotations.json 格式不变，Windows／macOS 未改；参考完整统一动作栈、真机实体笔及桌面往返仍未验。本地源码与 debug 包，未发布。
+- Android 阅读器选择工具现在可给套索选中的混合自由笔迹和原生图形统一改色；笔迹与图形保存在同一页面事务中，一次撤销／重做恢复整组颜色。`referenceMixedSelectionChangesColorAndUndoesAsOneAction` 与选择／剪贴板仪器测试类 23/23 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 662 项通过。前后、撤销和重做截图见[Android 横屏平板验收记录](docs/android/guide/images/reference-shape/README.md#混合材料组改色与单步撤销重做)。annotations.json 格式不变，Windows／macOS 未改；组粗细修改、参考统一动作栈完整移植、实体笔／真机及桌面往返未验。本地未发布源码与 debug 构建。
+- Android 阅读器多材料套索组移动现在保留移动预览与提交间追加的内容、既有笔迹撤销历史，并在活动指针抬起时提交或取消手势时还原预览；删除、粘贴等改变条数的混合撤销仍可工作。`REF-SELECT-04/05` 与选择／剪贴板仪器测试类 22/22 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）通过；App JVM 单测 661 项、feature-pen JVM 单测 153 项均通过。五张横屏运行截图及边界见[Android 验收记录](docs/android/guide/images/reference-shape/README.md#混合材料组移动与单步撤销重做)。annotations.json 格式未改，Windows／macOS 未改；输入为合成 stylus／多点 MotionEvent，实体触控笔、真机和桌面往返未验。本地源码及 APK，未发布。
+- 补充 `REF-SHAPE-05` 短直线识形的实际阅读器截图，阅读器回归改为精确使用 16px 采样端距；注明 Android 14 API 34 ARM64 横屏平板、合成触控笔边界和运行代码 `fca9d56`。截图只记录识形后原生直线，不表示桌面往返或实体笔验收。
+- 移除停留识形前多余的 48 文档单位笔迹长度门槛，改由参考 `GraphUtils` 对应分支按屏幕采样点判断；原来会被换算坐标门槛挡掉的短直线现在可识别并保存为原生直线，撤销一次即可移除。`REF-SHAPE-05` 在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance` 上验证了 16px 采样端距的阅读器落盘与撤销。文件格式未改；完整参考源码差分、真机手写笔及桌面往返仍待验。本地源码和测试，未发布。
+- 修复停留识形后原生图形异步落盘晚于后续笔迹时，撤销顺序可能倒置的问题：识形手势先占据其历史位置，持久化完成后再完成历史事务。验收用例 `REF-HISTORY-02` 在 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance` 上覆盖排队保存、后续落笔与一次撤销；相关识形端到端回归均在该 AVD 运行。该修正不代表参考 App 的统一动作栈已完整移植；桌面往返、真机手写笔仍待验。本地源码和测试，未发布。
+- 将 Android 直线、折线、曲线及闭合椭圆识形的运行证据统一为 `Pixel_Tablet_API34_Acceptance` 横屏 2560 × 1600、320 dpi 截图；索引记录测试入口、运行代码和合成触控笔限制，不宣称真机或参考 App 视觉验收。
+- 在最终历史顺序修复提交 `a5666a4` 上重新运行并采集直线、折线、曲线、闭合椭圆四项 API 34 横屏平板证据，四项落盘／撤销用例通过；截图索引现与最终验收代码 SHA 一致。
+- Android 阅读器一次区域橡皮手势若同时擦到自由笔迹和原生图形，现在可由一次撤销完整恢复、一次重做再次擦除；撤销顺序按手势发生时间保留，即使原生图形异步保存尚未完成。验收用例 `REF-ERASE-03` 在 Android 14 API 34 ARM64 横屏平板模拟器通过，前后、擦除中、撤销和重做截图见[Android 截图与验收索引](docs/android/guide/images/reference-shape/README.md#跨层区域擦除单步撤销与重做)。项目文件格式不变；这只是橡皮擦手势的组合历史，不代表所有跨层操作已统一。实体手写笔和真机仍待验；Windows／macOS 未改动，本次未发布。
+- Android 阅读器选择工具支持把套索选中的自由笔迹和矢量图形作为一组复制、粘贴和删除；组粘贴保留各项相对位置，并可由一次撤销／重做整体恢复。修复粘贴单段笔迹后旧多选索引残留导致随后删除无效的问题。`REF-SELECT-03` 及混合删除、原单项复制流程仅在 Android 14 API 34 ARM64 横屏 `Pixel_Tablet_API34_Acceptance`（2560 × 1600、320 dpi）上通过。截图和限制见 Android 截图索引。组移动、组样式编辑、实体手写笔及其他设备未验；文件格式不变，Windows／macOS 未改动。本次为未发布源码和本地 APK。
+- 补充 Android 平板手写选择功能的使用说明、功能覆盖表及横屏 API 34 运行截图索引；这次文档记录不代表其他 Android 页面或真机已经验收。
+- 补充闭合椭圆识形在 Android 14 API 34 横屏 Pixel Tablet 模拟器上的真实运行前后截图；截图来自合成触控笔的阅读器端到端测试，记录于 Android 指南，不代表实体触控笔或桌面往返验收。
+- Android 阅读器停留识形接入参考 `GraphUtils.recogniseShape` 的闭合轮廓分支：椭圆拟合、多边形近似、直角矩形和闭合折线分别适配为现有椭圆／矩形／多点 `pen` 文件格式；闭合笔迹保留 `pagenotePolyline`，不新增跨平台格式。Android 14 API 34 横屏平板模拟器覆盖椭圆落盘、闭合点和一次撤销；原应用运行时差分、桌面往返和实体触控笔尚未验收。
+- Android 阅读器的撤销与重做现在按实际编辑顺序在原生图形和自由笔迹历史之间切换；例如先画图形、再写笔迹、再画图形，连续撤销和重做按相反／正向顺序恢复。API 34 ARM64 横屏平板端到端用例通过；底层仍协调两套页面历史，特定的跨层区域橡皮手势已在后续条目补为一个撤销项，其他跨层操作尚未统一。
+- 记录上述混合图形/笔迹历史验收的 Android 14 ARM64 模拟器前后截图及运行代码；三次撤销后画布为空。截图和合成 stylus 输入说明见 Android 截图索引。
+- 补充 Android 原生图形区域擦除在 API 34 ARM64 模拟器上的改前、擦除中、擦除后及撤销截图和测试来源；仅为运行证据文档，不代表真机或其他图形类型已完成验收。
+- Android 阅读器的区域橡皮现在会擦除原生直线、箭头、矩形和椭圆；部分擦除写为现有 `line` 矢量片段，一次手势可用一次撤销恢复。擦除中显示边界圆，取消手势回滚预览，并隐藏常规批注保存成功提示。该阶段在 Android 14 模拟器验证了矩形擦除、落盘、撤销和提示；后续补全闭合识形、多材料套索及跨层橡皮单步撤销，其他跨层编辑仍待实现，详见 PR #36。
+- Android 将参考停留识形检测到的开放折线保存为单个原格式 `pen` 笔迹并按折点逐段直线渲染；该阶段的模拟器端到端覆盖落盘与一次撤销。曲线和闭合图形后来分别补上；桌面往返、真机及参考程序运行时比对仍未完成，详见 PR #36。
+- Android 开始接入参考 `GraphUtils.isLine` 与 `BezierTool` 二次曲线分支；曲线按采样折线落入兼容的多点 `pen` 格式。当前覆盖源码分类与画布单笔提交，阅读器落盘往返、闭合识形和桌面运行仍待验收。
+- Android 停留识形接入参考应用的开放直线和箭头分类及采样端点，结果继续保存为跨平台直线或箭头；其他分支暂用原识别器，缩放适配仍待真机和参考程序对照。
 
-- Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
+- Android 普通笔停留识形的计时重置按参考应用触点位移和静止计数规则处理；识别算法、采样点输入及设备特例仍待移植。
 
-- Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
+- Android 移植参考识形的直线及箭头分类判定并增加合成轨迹源码差分测试；尚未接入阅读器。
 
-- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+- Android 停留识形的等待时间按参考应用普通停留模式调整为 400 毫秒；采样和完整识别算法仍待移植。
 
-- Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+- Android 移植参考识形的折线拐点检测并增加源码差分测试；尚未接入阅读器，不改变识形行为。
 
-- Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
+- Android 当前过渡识形器先排除不满足矩形边缘条件的笔画，减少圆形等输入的不必要路径简化；识形算法仍未完成参考源码移植。
 
-- Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
+- Android 停留识形使用两个有界数量的后台工作线程，一次已取消但仍在运行的识别不再独占后续画布的识别队列；真机性能和参考识形完整移植仍待验证。
 
-- Correct Markdown S's primary architecture to native PageNote SVG/Canvas/chart/WebGL components; serialize interaction state into the existing Markdown fence and reuse project autosave, without creating or resaving HTML documents. / 按发起人修正改为原生组件直绘笔记，交互状态写回同一 Markdown 并复用项目自动保存；不以独立 HTML 或 iframe 代替。
+- Android 未接入阅读器的统一动作栈在撤销或重做抛错时保留历史项以便重试，并补充参考应用动作栈源码调查；实际混合撤销行为尚未改变。
 
-- Add a native genetic-algorithm work with 36 individuals, 40 generations, SVG/Canvas/WebGL, chapter navigation, focus mode and recognized-template-to-data import; document per-module screenshots and visual differences from the reference. Preserve source bytes outside the changed data fence and avoid replacing live source views during layout changes. / 新增原生遗传算法作品，包含36个体、40代、章节导航、专注模式和已识别模板转数据导入；附逐模块截图及视觉差距，保留数据围栏外源码，修复排版变化打断源文档交互的问题。
+- Android 增加图形、笔迹、图形交错撤销与重做的待修复回归用例；现有两套历史尚未统一，该用例暂时跳过。
 
-- Verify 20 real preview start/stop cycles preserve surrounding prose and release iframe nodes, and runtime errors remain visible and restartable. / 验证二十次真实运行停止不改变正文、释放 iframe，运行错误可见且可重新启动；不据此宣称无内存泄漏。
+- Android 笔迹等待保存时立即撤销，会优先处理刚完成的笔迹；较早识形的异步保存完成也不会覆盖较新的笔迹操作顺序。完整混合撤销历史仍待实现。
 
-- Verify Android notes-module tests including six Markdown S fence-preservation paths after restoring official test dependencies; document JVM-only scope. / Android 笔记模块测试通过，包含六种增强围栏源码保真；明确仅 JVM 数据路径，未宣称移动端交互执行。
+- Android 橡皮擦手势被系统取消、画布被禁用或主动取消时，恢复尚未提交的擦除，避免意外保存部分擦除。
 
-- Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。
+- Android 增加参考应用椭圆区域擦除的路径采样与切分几何实验，尚未接入阅读器，图形擦除行为不变。
 
-- Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
+- Android 追加笔迹及撤销末尾笔迹时保留已保存图形与原有笔迹的交错顺序，避免部分图形删除撤销因笔迹保存重排而失败；其他混合历史情形仍有限制。
 
-- Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。
+- Android 同一阅读会话中，写入笔迹后编辑或删除图形时会基于最新页面保存，避免旧页面覆盖已保存笔迹；无法确定编辑目标时停止操作并在底部提示。混合撤销和跨应用并发仍有已知限制。
 
-- Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
+- Android 混合笔迹与批注历史新增未接入阅读器的动作顺序协调实验及单元测试；实际统一撤销、图形擦除和选择行为尚未改变。
 
-- Fix desktop preview suspension when minimize does not update document visibility: native minimize/hide events now suspend Markdown S previews; real window minimize/restore and explicit restart pass. / 修复最小化不触发网页可见性变化时预览不停的问题；宿主最小化／隐藏通知负责停止，真实窗口恢复后手动重跑通过。
+- Android 混合笔迹与批注历史的冲突检查现在保留页面项目顺序，避免将图层顺序变化当成无冲突；即使内容相同也可能因重排而拒绝恢复。
 
-- Verify Markdown S source persistence through real project files and a full application restart; dispose removed previews and stop on document backgrounding. / 验证真实项目文件保存及完整应用重启后源码保留；清理被删除的运行组件并接入后台停止，后台系统行为仍待实测。
+- Android 涉及笔迹和批注的历史操作增加已保存页面冲突检查，发现数据被其他操作修改时停止覆盖并提示；当时混合历史的内存同步和区域擦除仍在开发，后续完成的区域橡皮范围见本更新日志前面的验收条目。
 
-- Validate preview replacement cleanup, concurrency and network/navigation isolation; add renderer contracts and real Electron checks to platform CI, with scoped acceptance evidence. / 验证预览替换清理、并发限制及网络／导航隔离，接入平台 CI 并按验收项记录证据与未完成范围。
+- Android 图形批注撤销、重做后，在可以确认目标未变时保留选中状态，方便继续缩放、复制或删除；无法可靠确认时清除选择，避免误操作。本地开发，未公开发布。
 
-- Add a reproducible Markdown S learning demo and real Windows tutorial screenshots; verify component source editing, undo and redo. / 新增可复现的学习演示笔记、真实 Windows 配图教程，并验证组件源码编辑和撤销重做；开发功能未发布。
+- Android 撤销或重做纯图形批注时保留之后保存的笔迹；若同一页面的其他批注已经变化，则保留原数据并提示，避免旧快照覆盖新内容。本地开发，未公开发布。
 
-- Verify offline SVG, Canvas pixels, charts and Three.js WebGL drawing, restore local build dependencies and pass production build plus formula/code/editor regression; limit concurrent previews per view to two. / 验证多引擎实际绘制，补齐本地构建依赖并通过生产构建及公式／代码／编辑回归，每视图最多运行两个演示；仍未发布。
+- Android 区域橡皮移植研究：串联参考圆形采样、默认线段包围盒和切分，新增模拟器测试；尚未接入实际阅读器或改变 APK 行为。
 
-- Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
+- Android 区域橡皮移植研究：加入尚未接入阅读器的参考笔迹矩形区域切分几何流程与模拟器测试；图形擦除与统一撤销仍在开发。
 
-- Begin the confirmed render-kernel guidance: introduce task scopes with monotonic generations and cancellation, and invalidate Markdown S preparation when its view is replaced. Add ABA/disposal contract checks. / 按确认的内核指导开始统一任务代次和取消，视图替换时失效 Markdown S 旧任务，增加异步竞争与销毁检查；尚未完成整个内核迁移。
+- Android 区域橡皮源码移植研究：加入尚未接入界面的参考圆形轮廓采样与单元测试；图形擦除和完整参考切分仍在开发，用户行为没有变化。
 
-- Add an experimental offline Markdown S preview for HTML/CSS/JS, SVG, Canvas, Three.js and simple data charts, explicit start/stop and source-preserving serialization; validate real Electron interaction and parent isolation. Remaining acceptance stays open; no public release. / 新增 Markdown S 离线交互预览原型、运行停止和源码保真，已通过真实 Electron 交互及父页面隔离测试；其余验收仍待完成，不公开发布。
-- Record completed integration PR #15, merged predecessor PRs, passing Windows/macOS/Android CI and actual platform branch routing; distinguish pending package and stable-baseline validation. / 记录整合合并、多平台检查通过与实际分支入口，明确安装包及未获批稳定线的剩余范围。
+- Android 阅读器状态提示改为屏幕底部居中的圆角信息条；笔迹保存失败、笔记冲突等可分别查看，保存失败保留重试。
+
+- Android 阅读器橡皮在触摸和支持的触控笔悬停期间显示实际擦除范围。本地开发，尚未发布；当时图形批注区域擦除尚未实现，后续矩形擦除与跨层单步撤销见本更新日志前面的验收条目。
+
+- Android 悬浮笔盒支持新建、复制、切换、重命名和删除笔盒组，并可添加笔槽；各组配置独立保存。本地测试构建，尚未发布。
+
+- Android 阅读器新增画布内悬浮笔盒，可拖动吸附四边、锁定位置、长按排序以及复制和移除笔槽；笔槽独立保存颜色和粗细。此版本为本地测试构建，尚未发布。
+
+- Android 阅读器橡皮支持按经过的区域切分自由笔迹，一次连续擦除可整体撤销。
+
+- Android 阅读器书写长笔画时复用已稳定的绘制片段，减少重复生成笔迹路径。
+
+- Android 阅读器停留识形后立即显示图形并在后台保存，保存期间可继续书写；保存失败时保留原笔迹。
+
+- Android 阅读器笔盒和笔样式菜单支持滑动及按 0.1 微调笔迹粗细，保留快捷档位。
+
+- Android 阅读器连续双指缩放不再丢失移动增量，缩放时复用笔迹缓存并减少状态保存开销。
+
+- Android 阅读器菜单调整为右侧分组面板，按工具、文件和设置切换，并保留原有操作入口。
+
+- Android 翻页不再等待普通笔迹保存或上一页 PDF 渲染，保存失败仍可重试；取消普通笔迹保存成功的常驻提示，并优化手写停留图形识别的界面响应。
+
+- 更新 Android 和桌面应用图标，并从统一的 SVG 源文件生成各平台尺寸；本地构建，尚未发布。
+
+- 增加 Android 本地真机测试包更新脚本，在固定目录生成按架构区分的 debug APK、校验值和构建来源；不发布公开安装包。
+
+- Android 阅读器新增画布专注模式，可临时收起笔记区域；笔盒提供笔型与颜色快捷选择。上述修改仍为本地开发版本，尚未发布。
+
+- Android 书架新增手机导航和可收起的平板侧栏、新建/导入菜单，并改善目录与书籍布局；笔工具支持长按设置和收起，修复笔身图形越界；设置增加分类快速定位，平板使用右侧设置面板。
+
+- Android 书架重新排列手机顶部搜索与操作入口，宽屏增加快捷侧栏；阅读器笔工具栏跟随主题配色。此为本地进行中的界面改造，尚未发布。
+
+- Android 遗传实验本地原型新增 Filament 原生 3D 染色体视图，继续使用同一 Markdown 数据；Android 14 模拟器完成局部交互与文件回读验证，尚未发布。
+- 修复 Android 笔记预览滚动时绘制越过阅读区域的问题；模拟器验证 3D 初始化异常的二维降级和 Activity 重建后项目重开。
+- Android 遗传实验交互复用 3D 场景并更新对应材质，减少反复创建渲染引擎。
+- Android 3D 视图停止强制屏幕常亮，并在不可见或应用进入后台时暂停自动旋转。
+- 修复 Android 阅读器与 3D 场景之间的横向旋转、纵向滚动手势冲突；模拟器验证保存、停止进程及重开项目。
+- Android 分支使用本系统专属 README，分别说明界面、操作、功能、截图缺口和独立下载。本次仅文档／维护元数据整理，不导入新共享运行代码，不更新发行版本或制品。
 
 - Document Markdown S v1 architecture, compatible fenced syntax, engine integration milestones, isolation and lifecycle boundaries, cross-platform fallback, screenshot review and acceptance cases. Link contributor instructions; this documentation does not validate or release the existing prototype. / 新增 Markdown S 架构、格式、具体实施指导与验收文件，明确源码保真、引擎接入、平台降级、真实截图和放行要求；仅文档交付，不宣称原型已通过或已发布。
 
@@ -216,6 +260,68 @@
 - Allow a versioned beta upload request on the beta branch, without depending on a workflow being present on main; the upload still requires an exact successful validation/tag match. / Beta 分支可通过记录构建编号和标签触发直传，无需把测试流程混入 main。
 
 - Add a manual cloud-to-draft Mac upload workflow that verifies the successful CI commit, exact beta tag, draft status and package checksums. It never publishes a release or replaces published files. / 增加云端直传草稿发布流程，核对 CI 提交、Beta 标签和校验值，不自动公开发布、不替换已发布文件。
+
+- Adopt the "A · 灵感记录" design as the official PageNote icon: an ivory page whose folded corner forms a paper plane with a hidden pen nib, plus a warm handwritten stroke, on an indigo-violet rounded square. The icon source now lives at `assets/brand/pagenote-icon.svg`, and `scripts/create-icon.mjs` renders that SVG into `build/icon.ico` (16–256px), `build/icon.png` and `build/icon.svg` instead of redrawing the old procedural shapes, so future redesigns only replace the SVG. / 正式采用「A · 灵感记录」为 PageNote 图标：象牙白纸页的折角构成藏着钢笔尖的纸飞机，配暖橙色手写笔迹，置于靛蓝紫圆角底上。图标源文件固定为 `assets/brand/pagenote-icon.svg`，`scripts/create-icon.mjs` 改为渲染该 SVG 生成 `build/icon.ico`（16–256px）、`build/icon.png` 与 `build/icon.svg`，不再逐像素重绘旧图形；后续换标只需替换 SVG。
+
+- Add a founder-review proposal for PageNote's teacher-Agent system, covering instructional decisions, prompt routing, learner evidence, native interactions, reliability, evaluation and staged competition delivery. / 新增供创始人审查的教师 Agent 体系与优化总方案，覆盖教学决策、提示路由、学习证据、原生交互、可靠性、分层评估及参赛实施；仅方案，不声明新增运行能力。
+
+- Organize StudyHack competition preparation under competitions/qoder-2026: requirements and gaps, existing-feature evidence, a forum-post draft, a web demo plan and Qoder/submission records, with copied historical Windows screenshots and provenance. Documentation only; no Qoder development, public deployment or submission is claimed. / 新增 Qoder 高校创造力大赛 StudyHack 参赛材料目录，整理需求缺口、已有成果证据、作品帖草稿、网页演示计划与过程／提交记录，归档历史 Windows 截图及来源；仅材料整理，不宣称已用 Qoder 开发、完成公网部署或参赛提交。
+
+- Stabilize Android settings and prompt persistence tests by awaiting DataStore shutdown before reopening files. / 修复 Android 设置和提示词持久化测试重开文件时的异步关闭竞态。
+
+- Align Android regression tests with automatic saving and grouped reader menus; rerun the API 34 tablet suite. / 更新 Android 回归测试以适配自动保存和分组菜单，并重跑 API 34 平板测试。
+
+- Make the legacy preview lifecycle test focus its window before checking macOS minimize behavior. / 旧预览生命周期测试在检查 macOS 最小化前先确保应用窗口可见并获得焦点。
+
+- Record macOS runtime screenshots for the native fullscreen regression and module interactions. / 补充 macOS 原生作品全屏修复前后及各组件交互的实际运行截图。
+
+- Fix rapid exit from a native Markdown S fullscreen view while macOS is still entering fullscreen. / 修复 macOS 原生 Markdown S 作品刚进入全屏时立即退出可能卡住的问题。
+
+- Stabilize the desktop legacy Markdown S preview lifecycle test by waiting for window minimization to finish. / 稳定桌面旧版 Markdown S 预览生命周期测试，等待窗口实际完成最小化。
+
+- Fix desktop ink autosave retries so a failed page does not strand other pending pages or allow a queued document switch to bypass unsaved ink. / 修复桌面笔迹自动保存重试，避免单页失败后遗漏其他待保存页面或让排队的文档切换跳过未保存笔迹。
+- Update Multer, body-parser and qs to fixed production versions; production dependency audit reports no vulnerabilities. / 将 Multer、body-parser、qs 更新到已修复版本；生产依赖审计不再报告漏洞。
+- Resubmit platform documentation and review evidence for merged PR #13 under the new contribution standard: add 30 Android API 34 and 20 actual Mac captures, numbered workflows, per-module coverage and provenance; retain Windows capture origins and disclose shape-undo/floating-window defects and validation gaps. No runtime, format, version or public download changes. / 按新规范补交 #13 的平台 README、功能表与配图教程；新增 Android 30 张、Mac 20 张真实运行图及操作过程和来源，保留 Windows 原图来源，如实列出形状撤销、悬浮窗布局与验证缺口；不改程序、格式、版本或公开下载。
+- Supplement the Linux port with packaged runtime screenshots, per-module native interaction evidence and current validation records; extend Office conversion coverage to real DOCX/PPTX fixtures. No release or runtime behavior change.
+
+- Add the first Linux desktop port from shared beta 6388245: isolated Linux entry/version and packaging, LibreOffice conversion, browser/source launch, Linux regression tests and platform guide with runtime evidence. Linux development version 1.1.0-beta.5-dev.3; no public release or changes to other platform versions.
+
+- Consolidate branch navigation to six long-lived lines, archive retired task branches with recoverable tags, and replace the mixed root guide with separate Windows/macOS/Android entry points. Correct the unavailable Mac stable-branch metadata; document incomplete source/release migration and platform sync. / 整理为六条长期维护线，旧任务分支先归档再移除；总 README 仅导航，各系统独立说明功能、操作、截图与下载，纠正不存在的 Mac 稳定线并如实记录迁移缺口。
+
+- Unify teaching depth and representation decisions for initial generation, knowledge revisions and direct explanations; add a shared editable representation module, workflow/intent routing, truthful native-renderer discovery and static enhanced-block diagnostics. Preserve narrow typo/format fixes and custom prompt overrides. / 生成、按意见重讲和临时解释统一教学标准，新增可编辑表达模块、工作流／意图双轴路由及原生能力发现；校验反馈组件数据、重复标识和运行未验证状态，纯纠错不扩写，保留用户自定义提示词。
+
+- Correct Markdown S's primary architecture to native PageNote SVG/Canvas/chart/WebGL components; serialize interaction state into the existing Markdown fence and reuse project autosave, without creating or resaving HTML documents. / 按发起人修正改为原生组件直绘笔记，交互状态写回同一 Markdown 并复用项目自动保存；不以独立 HTML 或 iframe 代替。
+
+- Add a native genetic-algorithm work with 36 individuals, 40 generations, SVG/Canvas/WebGL, chapter navigation, focus mode and recognized-template-to-data import; document per-module screenshots and visual differences from the reference. Preserve source bytes outside the changed data fence and avoid replacing live source views during layout changes. / 新增原生遗传算法作品，包含36个体、40代、章节导航、专注模式和已识别模板转数据导入；附逐模块截图及视觉差距，保留数据围栏外源码，修复排版变化打断源文档交互的问题。
+
+- Verify 20 real preview start/stop cycles preserve surrounding prose and release iframe nodes, and runtime errors remain visible and restartable. / 验证二十次真实运行停止不改变正文、释放 iframe，运行错误可见且可重新启动；不据此宣称无内存泄漏。
+
+- Verify Android notes-module tests including six Markdown S fence-preservation paths after restoring official test dependencies; document JVM-only scope. / Android 笔记模块测试通过，包含六种增强围栏源码保真；明确仅 JVM 数据路径，未宣称移动端交互执行。
+
+- Extend Markdown S acceptance coverage for UTF-8 limits, unknown engines, invalid chart data and escaped labels; add Android fence-preservation tests, with execution results recorded separately. / 增加字节边界、未知引擎和图表输入检查，新增 Android 增强围栏保真测试，实测结果单独记录。
+
+- Record passing cross-platform CI for 302ddeb and successful current-source demo launch; distinguish subsequent unverified commits and remaining product acceptance. / 补记已通过的平台 CI 与当前源码演示启动证据，区分后续提交和剩余产品验收。
+
+- Add npm run demo:markdown-s to build and open an isolated example project; verify command-line project opening and real interactive start/stop. / 增加一键构建并打开独立 Markdown S 演示项目的命令，验证真实项目启动及交互运行停止。
+
+- Release cancelled and completed render-task references, including disposed scopes; verify 1000 cancel cycles and real renderer regression. / 释放取消和完成任务持有的块引用，验证千次取消无残留及真实渲染回归，避免持续编辑保留旧块。
+
+- Fix desktop preview suspension when minimize does not update document visibility: native minimize/hide events now suspend Markdown S previews; real window minimize/restore and explicit restart pass. / 修复最小化不触发网页可见性变化时预览不停的问题；宿主最小化／隐藏通知负责停止，真实窗口恢复后手动重跑通过。
+
+- Verify Markdown S source persistence through real project files and a full application restart; dispose removed previews and stop on document backgrounding. / 验证真实项目文件保存及完整应用重启后源码保留；清理被删除的运行组件并接入后台停止，后台系统行为仍待实测。
+
+- Validate preview replacement cleanup, concurrency and network/navigation isolation; add renderer contracts and real Electron checks to platform CI, with scoped acceptance evidence. / 验证预览替换清理、并发限制及网络／导航隔离，接入平台 CI 并按验收项记录证据与未完成范围。
+
+- Add a reproducible Markdown S learning demo and real Windows tutorial screenshots; verify component source editing, undo and redo. / 新增可复现的学习演示笔记、真实 Windows 配图教程，并验证组件源码编辑和撤销重做；开发功能未发布。
+
+- Verify offline SVG, Canvas pixels, charts and Three.js WebGL drawing, restore local build dependencies and pass production build plus formula/code/editor regression; limit concurrent previews per view to two. / 验证多引擎实际绘制，补齐本地构建依赖并通过生产构建及公式／代码／编辑回归，每视图最多运行两个演示；仍未发布。
+
+- Route Mermaid through a bounded serial priority queue with queued cancellation and timeout publication guards; verify timeout retains engine exclusion, invalid diagrams recover and real Electron previews render. / Mermaid 接入有界优先级串行队列，支持出队取消与超时提交隔离；验证超时不破坏引擎互斥、错误图表后恢复及真实预览。
+
+- Begin the confirmed render-kernel guidance: introduce task scopes with monotonic generations and cancellation, and invalidate Markdown S preparation when its view is replaced. Add ABA/disposal contract checks. / 按确认的内核指导开始统一任务代次和取消，视图替换时失效 Markdown S 旧任务，增加异步竞争与销毁检查；尚未完成整个内核迁移。
+
+- Add an experimental offline Markdown S preview for HTML/CSS/JS, SVG, Canvas, Three.js and simple data charts, explicit start/stop and source-preserving serialization; validate real Electron interaction and parent isolation. Remaining acceptance stays open; no public release. / 新增 Markdown S 离线交互预览原型、运行停止和源码保真，已通过真实 Electron 交互及父页面隔离测试；其余验收仍待完成，不公开发布。
+- Record completed integration PR #15, merged predecessor PRs, passing Windows/macOS/Android CI and actual platform branch routing; distinguish pending package and stable-baseline validation. / 记录整合合并、多平台检查通过与实际分支入口，明确安装包及未获批稳定线的剩余范围。
 
 ## 1.1.0-beta.4 — 2026-10-17
 

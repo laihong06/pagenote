@@ -22,6 +22,16 @@ PageNote 将课件与逐页笔记并排显示。Mac 版复用部分桌面逻辑�
 
 ## Mac 截图与验证状态
 
+以下为 **2026-10-30 macOS 26.5.1／Apple Silicon 实机**运行共享源码 `6388245` 的完整窗口，另附真正的 AppKit 设置和原生 SVG／Canvas／图表／Three.js 操作前后图。[环境与来源](guide/capture.md) · [功能截图覆盖](features.md)。
+
+![Mac 完整阅读窗口](guide/images/current/window-reading.jpg)
+
+![Mac 原生阅读设置](guide/images/current/native-reading-settings.jpg)
+
+本轮共补充 20 张原始截图。作者本机生产构建、基础采集、手动原生交互成功，三个交互值已从实际 Markdown 文件读回；未验证完整重启、Office 或所有手势。原生自动采集脚本在退出全屏等待处超时。基线的 [Mac CI](https://github.com/laihong06/pagenote/actions/runs/41019223250/job/123942472228) 在旧沙盒窗口最小化断言失败，后续原生作品检查被跳过，仍不能称为全部通过。
+
+独立 Mac 目标开发版本仍为 **1.1.0-beta.5-dev.1**。此次未打包源码运行显示公共 `package.json` 的 **1.1.0-beta.5-dev.2**；截图来源同时记录两个值，不把显示版本差异当成新 Mac 发行。[编号操作与限制](guide/markdown-s.md)。
+
 [原生作品各模块及全屏修复运行截图](guide/fullscreen-transition.md)来自 macOS 本机；其他 Mac 截图和视觉审查仍需补齐，不展示 Windows 图片代替。共享 CI 曾在原文作品快速退出全屏时失败；相关修复已在本机通过，完整 CI 和安装包验收仍待完成。
 
 ## 教程与版本记录

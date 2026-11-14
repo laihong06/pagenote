@@ -139,17 +139,8 @@ class NoteImportActivityTest {
   }
 
   private fun importCommand() = run {
-    val tag = "reader_menu_command_import_notes"
-    if (composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-      if (composeRule.onAllNodesWithTag("reader_menu_group_file").fetchSemanticsNodes().isEmpty()) {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-      }
-      composeRule.onNodeWithTag("reader_menu_group_file").performScrollTo().performClick()
-    }
-    composeRule.waitUntil(timeoutMillis = 10_000) {
-      composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag(tag).assertIsEnabled().performScrollTo()
+    revealReaderMenuCommand(composeRule, "file", "import_notes")
+    composeRule.onNodeWithTag("reader_menu_command_import_notes").assertIsEnabled().performScrollTo()
   }
 
   private fun awaitPickerRequest(pending: AtomicReference<PickerRequest?>): PickerRequest {

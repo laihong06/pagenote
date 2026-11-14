@@ -8,6 +8,32 @@ import org.junit.Test
 
 /** Port batch 1: unified action stack, registry, and the PenPageStore adapter. */
 class PenActionStackTest {
+  @Test fun failedUndoAndRedoKeepTheActionAvailableForRetry() {
+    val id = "test.retry.history"
+    PenActionRegistry.register(id, "retry test")
+    var failUndo = true
+    var failRedo = true
+    val action = object : PenAction {
+      override val actionId = id
+      override val scope = "document:1"
+      override val label = "test"
+      override fun doAction() = Unit
+      override fun undo() { if (failUndo) throw IllegalStateException("undo failed") }
+      override fun redo() { if (failRedo) throw IllegalStateException("redo failed") }
+    }
+    val stack = PenActionStack()
+    stack.execute(action)
+    assertThrows(IllegalStateException::class.java) { stack.undo(action.scope) }
+    assertTrue(stack.canUndo(action.scope))
+    assertFalse(stack.canRedo(action.scope))
+    failUndo = false
+    assertTrue(stack.undo(action.scope))
+    assertThrows(IllegalStateException::class.java) { stack.redo(action.scope) }
+    assertTrue(stack.canRedo(action.scope))
+    assertFalse(stack.canUndo(action.scope))
+    failRedo = false
+    assertTrue(stack.redo(action.scope))
+  }
   private fun stroke(color: String = "#ff0000", width: Double = 2.0) = PenStroke(
     "pen",
     color,

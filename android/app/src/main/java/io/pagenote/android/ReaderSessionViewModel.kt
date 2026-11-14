@@ -48,7 +48,9 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   val penWritable: MutableState<Boolean> = mutableStateOf(false)
   val penTool: MutableState<PenCanvasTool> = mutableStateOf(PenCanvasTool.PEN)
   val penStatus: MutableState<String?> = mutableStateOf(null)
-  val failedPenSave: MutableState<Pair<Int, List<PenStroke>>?> = mutableStateOf(null)
+  val failedPenSaves = androidx.compose.runtime.mutableStateMapOf<Int, List<PenStroke>>()
+  val failedPenSaveMessages = androidx.compose.runtime.mutableStateMapOf<Int, String>()
+  val penSaveRecoveryStatuses = androidx.compose.runtime.mutableStateMapOf<String, String>()
   val pendingPenSaves: MutableIntState = mutableIntStateOf(0)
   val isOpening: MutableState<Boolean> = mutableStateOf(false)
   val isSaving: MutableState<Boolean> = mutableStateOf(false)
@@ -60,6 +62,7 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
     ((penSaveVersions[page] ?: 0L) + 1L).also { penSaveVersions[page] = it }
   internal fun isLatestPenSave(page: Int, version: Long): Boolean = penSaveVersions[page] == version
   internal val noteSaveCoordinator = NoteSaveCoordinator()
+  val noteSaveMutex get() = noteSaveCoordinator.mutex
   internal val navigationMutex = Mutex()
   internal val isNoteSaving = mutableStateOf(false)
   internal val isNavigating = mutableStateOf(false)
@@ -73,6 +76,9 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   private var draftWriteJob: Job? = null
   private val recoveryMutex = Any()
   private val draftGeneration = AtomicLong()
+  private val continuousDraftLock = Any()
+  private val continuousDrafts = LinkedHashMap<ContinuousPageDraftKey, ContinuousPageNoteDraft>()
+  private val pageRecoveryGeneration = mutableMapOf<ContinuousPageDraftKey, Long>()
   private var activeTarget: ProjectOpenTarget? = ReaderSessionCheckpoint.restoreFrom(savedStateHandle)
     ?.toProjectOpenTarget()
   private var restorationCheckpoint = ReaderSessionCheckpoint.restoreFrom(savedStateHandle)
@@ -233,8 +239,199 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
   }
 
   fun setNoteDraft(value: String) {
+    setNoteDraftForPage(pageIndex.intValue + 1, value)
+  }
+
+  private fun setNoteDraftForPage(page: Int, value: String) {
     noteDraft.value = value
+    project.value?.let { activeProject ->
+      rememberContinuousNoteDraft(
+        projectId = activeProject.manifest.id,
+        sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+        page = page,
+        markdown = value,
+        baseRevision = noteBaseRevision.value,
+      )
+    }
     scheduleDraftRecoveryWrite()
+  }
+
+  internal fun activateSinglePageNote(nextPageIndex: Int, markdown: String) {
+    pageIndex.intValue = nextPageIndex
+    noteBaseRevision.value = PageNotes.revision(markdown)
+    setNoteDraftForPage(nextPageIndex + 1, markdown)
+  }
+
+  internal fun continuousNoteDraft(
+    projectId: String,
+    sourceDirectoryUri: String,
+    page: Int,
+  ): ContinuousPageNoteDraft? = synchronized(continuousDraftLock) {
+    continuousDrafts[ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)]
+  }
+
+  internal fun rememberContinuousNoteDraft(
+    projectId: String,
+    sourceDirectoryUri: String,
+    page: Int,
+    markdown: String,
+    baseRevision: String,
+  ) {
+    if (page < 1) return
+    val savedPage = NotePage.pageAt(notesMarkdown.value, page)
+    synchronized(continuousDraftLock) {
+      val key = ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)
+      if (markdown == savedPage) continuousDrafts.remove(key)
+      else continuousDrafts[key] = ContinuousPageNoteDraft(markdown, baseRevision)
+    }
+  }
+
+  internal fun clearContinuousNoteDrafts() {
+    synchronized(continuousDraftLock) { continuousDrafts.clear() }
+  }
+
+  /** Persist the exact outgoing page draft asynchronously so a scroll never waits for SAF. */
+  internal fun preserveContinuousPageDraft(
+    projectId: String,
+    sourceDirectoryUri: String,
+    page: Int,
+    markdown: String,
+    baseRevision: String,
+    savedMarkdown: String,
+  ) {
+    rememberContinuousNoteDraft(projectId, sourceDirectoryUri, page, markdown, baseRevision)
+    val currentProject = project.value ?: return
+    if (!readerProjectIdentityMatches(
+        expectedProjectId = projectId,
+        expectedDirectoryUri = sourceDirectoryUri,
+        currentProjectId = currentProject.manifest.id,
+        currentDirectoryUri = currentProject.sourceDirectoryUri.toString(),
+      )
+    ) return
+    val target = activeTarget ?: return
+    val store = recoveryStore ?: return
+    val key = recoveryKey(target, projectId, page)
+    val generationKey = ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)
+    val generation = synchronized(continuousDraftLock) {
+      (pageRecoveryGeneration[generationKey] ?: 0L).plus(1L).also {
+        pageRecoveryGeneration[generationKey] = it
+      }
+    }
+    draftGeneration.incrementAndGet()
+    draftWriteJob?.cancel()
+    sessionScope.launch {
+      try {
+        withContext(Dispatchers.IO) {
+          synchronized(recoveryMutex) {
+            val stillCurrent = synchronized(continuousDraftLock) {
+              pageRecoveryGeneration[generationKey] == generation
+            }
+            val activeProject = project.value
+            if (!stillCurrent || !readerProjectIdentityMatches(
+                expectedProjectId = projectId,
+                expectedDirectoryUri = sourceDirectoryUri,
+                currentProjectId = activeProject?.manifest?.id,
+                currentDirectoryUri = activeProject?.sourceDirectoryUri?.toString(),
+              )
+            ) return@synchronized
+            if (markdown == savedMarkdown) {
+              store.clear(key)
+            } else {
+              store.write(
+                NoteDraftRecoveryRecord(
+                  accessTreeUri = target.accessTreeUri.toString(),
+                  rootDocumentId = target.rootDocumentId,
+                  projectId = projectId,
+                  page = page,
+                  draft = markdown,
+                  baseRevision = baseRevision,
+                ),
+              )
+            }
+          }
+        }
+      } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        showRecoveryWriteError(error)
+      }
+    }
+  }
+
+  internal fun activateContinuousPage(
+    nextPage: Int,
+    pageCount: Int,
+    activeProject: OpenedProject,
+    savedNotes: String,
+    onOutgoingDraft: (page: Int, markdown: String, revision: String) -> Unit,
+    onPageActivated: (page: Int) -> Unit,
+  ): Boolean {
+    if (nextPage !in 0 until pageCount || nextPage == pageIndex.intValue ||
+      project.value?.sourceUri != activeProject.sourceUri
+    ) return false
+
+    val outgoingPage = pageIndex.intValue + 1
+    val outgoingDraft = noteDraft.value
+    val outgoingSaved = NotePage.pageAt(savedNotes, outgoingPage)
+    val outgoingRevision = noteBaseRevision.value
+    preserveContinuousPageDraft(
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+      page = outgoingPage,
+      markdown = outgoingDraft,
+      baseRevision = outgoingRevision,
+      savedMarkdown = outgoingSaved,
+    )
+    if (outgoingDraft != outgoingSaved) onOutgoingDraft(outgoingPage, outgoingDraft, outgoingRevision)
+
+    pageIndex.intValue = nextPage
+    val targetPage = nextPage + 1
+    val savedPage = NotePage.pageAt(savedNotes, targetPage)
+    val cachedDraft = continuousNoteDraft(
+      projectId = activeProject.manifest.id,
+      sourceDirectoryUri = activeProject.sourceDirectoryUri.toString(),
+      page = targetPage,
+    )
+    noteBaseRevision.value = cachedDraft?.baseRevision ?: PageNotes.revision(savedPage)
+    setNoteDraft(cachedDraft?.markdown ?: savedPage)
+    onPageActivated(targetPage)
+    return true
+  }
+
+  internal fun completeContinuousPageSave(
+    projectId: String,
+    sourceDirectoryUri: String,
+    page: Int,
+    savedMarkdown: String,
+    baseRevision: String,
+  ) {
+    val key = ContinuousPageDraftKey(projectId, sourceDirectoryUri, page)
+    val latestDraft = synchronized(continuousDraftLock) { continuousDrafts[key]?.markdown }
+      ?: savedMarkdown
+    synchronized(continuousDraftLock) {
+      if (latestDraft == savedMarkdown) continuousDrafts.remove(key)
+      else continuousDrafts[key] = ContinuousPageNoteDraft(latestDraft, baseRevision)
+    }
+    val activeProject = project.value
+    if (!readerProjectIdentityMatches(
+        expectedProjectId = projectId,
+        expectedDirectoryUri = sourceDirectoryUri,
+        currentProjectId = activeProject?.manifest?.id,
+        currentDirectoryUri = activeProject?.sourceDirectoryUri?.toString(),
+      )
+    ) return
+    if (pageIndex.intValue + 1 == page) {
+      noteBaseRevision.value = baseRevision
+      if (noteDraft.value == savedMarkdown) noteDraft.value = savedMarkdown
+    }
+    preserveContinuousPageDraft(
+      projectId = projectId,
+      sourceDirectoryUri = sourceDirectoryUri,
+      page = page,
+      markdown = latestDraft,
+      baseRevision = baseRevision,
+      savedMarkdown = savedMarkdown,
+    )
   }
 
   fun refreshDraftRecoveryAfterSave(page: Int, savedPage: String) {
@@ -360,3 +557,21 @@ class ReaderSessionViewModel(private val savedStateHandle: SavedStateHandle) : V
     super.onCleared()
   }
 }
+
+internal data class ContinuousPageNoteDraft(
+  val markdown: String,
+  val baseRevision: String,
+)
+
+private data class ContinuousPageDraftKey(
+  val projectId: String,
+  val sourceDirectoryUri: String,
+  val page: Int,
+)
+
+internal fun readerProjectIdentityMatches(
+  expectedProjectId: String,
+  expectedDirectoryUri: String,
+  currentProjectId: String?,
+  currentDirectoryUri: String?,
+): Boolean = expectedProjectId == currentProjectId && expectedDirectoryUri == currentDirectoryUri

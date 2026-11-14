@@ -19,10 +19,14 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
@@ -31,7 +35,49 @@ class ReaderAdaptiveMenuTest {
   val composeRule = createComposeRule()
 
   @Test
-  fun groupsShowOnlyTheSelectedGroupCommands() {
+  fun rightPanelSeparatesToolsFilesAndSettingsWithoutLosingCommands() {
+    var selected = ""
+    composeRule.setContent {
+      ReaderAdaptiveMenu(
+        layout = ReaderMenuLayout.PERMANENT_SIDEBAR,
+        groups = listOf(
+          ReaderMenuSection(ReaderMenuGroup.FILE, "File", listOf(ReaderMenuCommand("open_project", "Open project") { selected = "open" })),
+          ReaderMenuSection(ReaderMenuGroup.HANDWRITING, "Handwriting", listOf(ReaderMenuCommand("pen", "Pen") { selected = "pen" })),
+          ReaderMenuSection(ReaderMenuGroup.SETTINGS, "Settings", listOf(ReaderMenuCommand("settings", "Settings") { selected = "settings" })),
+        ),
+        expanded = true, onExpandedChange = {}, drawerOpen = false, onDrawerOpenChange = {},
+      ) { Text("Canvas", Modifier.testTag("reader_canvas")) }
+    }
+    val panel = composeRule.onNodeWithTag("reader_menu_sidebar").fetchSemanticsNode().boundsInRoot
+    val canvas = composeRule.onNodeWithTag("reader_canvas").fetchSemanticsNode().boundsInRoot
+    assertTrue("Menu should open on the right", panel.left > canvas.left)
+    composeRule.onNodeWithTag("reader_menu_command_pen").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_tab_tools").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_file").assert(SemanticsMatcher.expectValue(SemanticsProperties.Selected, true))
+    composeRule.onNodeWithTag("reader_menu_command_open_project").performClick()
+    assertEquals("open", selected)
+    composeRule.onNodeWithTag("reader_menu_tab_settings").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_settings").performClick()
+    assertEquals("settings", selected)
+  }
+
+  @Test
+  fun backClosesExpandedTabletMenuBeforeLeavingReader() {
+    composeRule.setContent {
+      var expanded by remember { mutableStateOf(true) }
+      ReaderAdaptiveMenu(
+        layout = ReaderMenuLayout.PERMANENT_SIDEBAR,
+        groups = listOf(ReaderMenuSection(ReaderMenuGroup.FILE, "File", emptyList())),
+        expanded = expanded, onExpandedChange = { expanded = it }, drawerOpen = false, onDrawerOpenChange = {},
+      ) { Text(if (expanded) "open" else "closed", Modifier.testTag("menu_state")) }
+    }
+    InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+    composeRule.onNodeWithTag("menu_state").assertTextEquals("closed")
+  }
+
+  @Test
+  fun tabsShowOnlyTheSelectedCategoryCommands() {
     composeRule.setContent {
       ReaderAdaptiveMenu(
         layout = ReaderMenuLayout.PERMANENT_SIDEBAR,
@@ -43,10 +89,11 @@ class ReaderAdaptiveMenuTest {
       ) { Text("Reader") }
     }
     composeRule.onNodeWithTag("reader_menu_command_open_project").assertDoesNotExist()
-    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertDoesNotExist()
-    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsDisplayed()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
-    composeRule.onNodeWithTag("reader_menu_group_handwriting").performClick()
+    composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertDoesNotExist()
+    composeRule.onNodeWithTag("reader_menu_tab_tools").performClick()
     composeRule.onNodeWithTag("reader_menu_command_open_project").assertDoesNotExist()
     composeRule.onNodeWithTag("reader_menu_command_pen_undo").assertIsDisplayed()
   }
@@ -85,7 +132,7 @@ class ReaderAdaptiveMenuTest {
     }
 
     composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_open_project").performClick()
     composeRule.onNodeWithTag("selected_command").assertTextEquals("open")
     composeRule.onNodeWithTag("drawer_state").assertTextEquals("closed")
@@ -126,7 +173,7 @@ class ReaderAdaptiveMenuTest {
     composeRule.onNodeWithTag("reader_page_state").assertTextEquals("page=7")
     composeRule.onNodeWithTag("reader_menu_expand").performClick()
     composeRule.onNodeWithTag("reader_page_state").assertTextEquals("page=7")
-    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_new_project").assertIsDisplayed()
   }
 
@@ -159,15 +206,16 @@ class ReaderAdaptiveMenuTest {
       }
     }
 
-    composeRule.onNodeWithTag("reader_menu_group_edit").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_tools").performClick()
     composeRule.onNodeWithTag("reader_menu_command_undo")
       .assertIsNotEnabled()
-      .assertTextContains("Text editing is not available yet.")
       .assert(
         SemanticsMatcher.expectValue(
           SemanticsProperties.StateDescription,
           "Text editing is not available yet.",
         ),
       )
+    composeRule.onNodeWithTag("reader_menu_reason_undo").performClick()
+    composeRule.onNodeWithText("Text editing is not available yet.").assertIsDisplayed()
   }
 }

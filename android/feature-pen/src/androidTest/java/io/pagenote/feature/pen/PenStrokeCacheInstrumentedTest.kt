@@ -7,12 +7,64 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PenStrokeCacheInstrumentedTest {
   private val size = 500
+
+  @Test fun markedPolylineDrawsSharpCorner() {
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val stroke = PenStroke("pen", "#000000", 8.0,
+      listOf(PenPoint(100f, 100f, 1f), PenPoint(200f, 100f, 1f), PenPoint(200f, 200f, 1f)),
+      extraFields = mapOf(PenStroke.POLYLINE_FIELD to true))
+    PenStrokePainter.drawStroke(Canvas(bitmap), stroke, PenCanvasGeometry(500f, 500f))
+    assertTrue(android.graphics.Color.alpha(bitmap.getPixel(200, 100)) > 0)
+    assertEquals(0, android.graphics.Color.alpha(bitmap.getPixel(180, 120)))
+    bitmap.recycle()
+  }
+
+  @Test
+  fun pinchReusesInkRasterAndFinalFrameReturnsToExactRendering() {
+    val list = strokes()
+    val cache = PenStrokeCache().apply { setStrokes(list) }
+    val first = PenCanvasGeometry(500f, 500f, PenCanvasPageTransform(400f, 400f, scale = 1.5f))
+    val second = PenCanvasGeometry(500f, 500f, PenCanvasPageTransform(400f, 400f, scale = 2f, translationX = 30f))
+    val animated = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    cache.drawInto(Canvas(animated), first, size, size, transformInProgress = true)
+    val bitmapField = PenStrokeCache::class.java.getDeclaredField("bitmap").apply { isAccessible = true }
+    val firstRaster = bitmapField.get(cache)
+    animated.eraseColor(android.graphics.Color.TRANSPARENT)
+    cache.drawInto(Canvas(animated), second, size, size, transformInProgress = true)
+    assertSame("Pinch frames should reuse the ink bitmap", firstRaster, bitmapField.get(cache))
+    val point = PenPoint(500f, 500f, 1f)
+    val x = second.toViewX(point).toInt()
+    val y = second.toViewY(point).toInt()
+    assertTrue("Ink must remain visible at the transformed location", (y - 3..y + 3).any { py ->
+      (x - 3..x + 3).any { px -> android.graphics.Color.alpha(animated.getPixel(px, py)) > 0 }
+    })
+    val finalFrame = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    cache.drawInto(Canvas(finalFrame), second, size, size, transformInProgress = false)
+    assertSamePixels(renderDirect(list, second), finalFrame)
+    cache.clear()
+    animated.recycle()
+    finalFrame.recycle()
+  }
+
+  @Test
+  fun pinchWithInkOutsideFitBoundsUsesExactRendering() {
+    val list = listOf(PenStroke("pen", "#000000", 8.0, listOf(PenPoint(-30f, 200f, 1f), PenPoint(50f, 200f, 1f))))
+    val geometry = PenCanvasGeometry(500f, 500f, PenCanvasPageTransform(500f, 500f, scale = 2f, translationX = 250f))
+    val cache = PenStrokeCache().apply { setStrokes(list) }
+    val actual = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    cache.drawInto(Canvas(actual), geometry, size, size, transformInProgress = true)
+    assertSamePixels(renderDirect(list, geometry), actual)
+    cache.clear()
+    actual.recycle()
+  }
 
   private fun strokes(): List<PenStroke> = listOf(
     PenStroke(

@@ -5,7 +5,7 @@ import kotlinx.coroutines.sync.withLock
 
 /** Serializes writers and drains edits made while a previous snapshot was being written. */
 internal class NoteSaveCoordinator {
-  private val mutex = Mutex()
+  internal val mutex = Mutex()
 
   suspend fun <T> exclusive(action: suspend () -> T): T = mutex.withLock { action() }
 

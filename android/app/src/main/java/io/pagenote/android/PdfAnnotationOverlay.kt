@@ -11,9 +11,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -28,6 +28,8 @@ import io.pagenote.feature.pen.ShapeStrokeStyle
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -66,7 +68,11 @@ data class PdfAnnotationOverlayItem(
       val item = element as? JsonObject ?: return null
       val type = item["type"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?: return null
-      if (type != "rect" && type != "text" && type != "image" && type != "html" && type !in vectorTypes) return null
+      val previewPolyline = type == "pen" && item[PdfAnnotationAreaEraser.PREVIEW_FIELD]
+        ?.let { (it as? JsonPrimitive)?.booleanOrNull } == true
+      if (!previewPolyline && type != "rect" && type != "text" && type != "image" &&
+        type != "html" && type !in vectorTypes
+      ) return null
       val color = item["color"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?.takeIf(colorPattern::matches) ?: return null
       val width = item["width"]?.let { runCatching { it.jsonPrimitive.doubleOrNull }.getOrNull() }
@@ -76,7 +82,7 @@ data class PdfAnnotationOverlayItem(
       val minimumPointCount = if (type == "text" || type in vectorTypes) 1 else 2
       val pointCount = if (type == "text") 1 else 2
       if (rawPoints.size < minimumPointCount) return null
-      val points = rawPoints.take(pointCount).map { point ->
+      val points = rawPoints.take(if (previewPolyline) rawPoints.size else pointCount).map { point ->
         val coordinates = runCatching { point.jsonArray }.getOrNull() ?: return null
         if (coordinates.size < 2) return null
         val x = runCatching { coordinates[0].jsonPrimitive.doubleOrNull }.getOrNull()
@@ -146,7 +152,7 @@ data class PdfAnnotationOverlayItem(
       val shapeKind = item["shape"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
         ?.takeIf { ShapeCatalog.byId(it)?.baseType == type }
       return PdfAnnotationOverlayItem(
-        type = type,
+        type = if (previewPolyline) "polyline" else type,
         points = normalizedPoints,
         color = color,
         width = width,
@@ -330,6 +336,18 @@ internal fun PdfAnnotationOverlay(
                 cap = StrokeCap.Round,
               )
             }
+          }
+        }
+        "polyline" -> {
+          val first = item.points.firstOrNull()
+          if (first != null && item.points.size > 1) {
+            val path = Path().apply {
+              moveTo((first.first * pageWidthScale).toFloat(), (first.second * pageWidthScale).toFloat())
+              item.points.drop(1).forEach { point ->
+                lineTo((point.first * pageWidthScale).toFloat(), (point.second * pageWidthScale).toFloat())
+              }
+            }
+            drawPath(path, color, style = vectorStroke)
           }
         }
         "ellipse" -> {

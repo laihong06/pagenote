@@ -18,10 +18,11 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
@@ -29,7 +30,6 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.pagenote.feature.pen.PenPageStore
@@ -51,6 +51,8 @@ import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class ReaderPageJumpActivityTest {
@@ -58,6 +60,7 @@ class ReaderPageJumpActivityTest {
   val composeRule = createAndroidComposeRule<MainActivity>()
   private var previousLibrary: BookshelfPreferences? = null
   private var releaseFixtureGrant = false
+  private var previousReaderSettings: ReaderSettings? = null
 
   @After fun restoreLibrary() = runBlocking {
     composeRule.runOnUiThread {
@@ -67,6 +70,7 @@ class ReaderPageJumpActivityTest {
         session.clearCurrentDraftRecovery()
       }
     }
+    previousReaderSettings?.let { readerSettingsStore(composeRule.activity).save(it) }
     previousLibrary?.let { BookshelfStore(composeRule.activity).bind(it.tree, it.name) }
     if (releaseFixtureGrant) composeRule.activity.contentResolver.releasePersistableUriPermission(
       treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
@@ -168,8 +172,7 @@ class ReaderPageJumpActivityTest {
       val screen = if (composeRule.activity.resources.configuration.screenWidthDp >= 600) "tablet" else "phone"
       saveUiScreenshot("agent-running-$screen.png")
       if (screen == "tablet") {
-        composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-        composeRule.onNodeWithTag("reader_menu_group_format").performScrollTo().performClick()
+        revealReaderMenuCommand(composeRule, "format", "bold")
         composeRule.onNodeWithTag("reader_menu_command_bold").performScrollTo().assertIsEnabled()
         composeRule.onNodeWithTag("reader_menu_collapse").performClick()
       }
@@ -215,8 +218,7 @@ class ReaderPageJumpActivityTest {
     val project = installProject(notes)
     val session = attachProjectToReader(project, notes)
     editNativeNote("First page note", "Draft before opening settings")
-    composeRule.onNodeWithTag("reader_menu_trigger").performClick()
-    composeRule.onNodeWithTag("reader_menu_group_settings").performScrollTo().performClick()
+    revealReaderMenuCommand(composeRule, "settings", "settings_action")
     composeRule.onNodeWithTag("reader_menu_command_settings_action").performScrollTo().performClick()
     composeRule.onNodeWithTag("reader_settings_page").assertIsDisplayed()
     composeRule.onNodeWithTag("reader_settings_cancel").performClick()
@@ -227,14 +229,14 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
-  fun readerMenuShowsGroupedCommandsOnDemand() {
+  fun readerMenuShowsCommandsFromTheSelectedCategory() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
     attachProjectToReader(project, notes)
     composeRule.onNodeWithTag("reader_menu_trigger").performClick()
     saveUiScreenshot("reader-menu-groups.png")
     assertTrue(composeRule.onAllNodesWithTag("reader_menu_command_open_project").fetchSemanticsNodes().isEmpty())
-    composeRule.onNodeWithTag("reader_menu_group_file").performClick()
+    composeRule.onNodeWithTag("reader_menu_tab_file").performClick()
     composeRule.onNodeWithTag("reader_menu_command_open_project").assertIsDisplayed()
     saveUiScreenshot("reader-menu-expanded.png")
   }
@@ -243,7 +245,7 @@ class ReaderPageJumpActivityTest {
   fun rapidPinchWithInkKeepsTheExpectedZoomAndDoesNotAddStrokes() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes, createWorkspacePdf())
-    val session = attachProjectToReader(project, notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     val ink = (0 until 60).map { line ->
@@ -296,10 +298,11 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
-  fun nativePdfShowsNarrowRailAndRealThumbnailDrawer() {
+  fun nativePdfShowsFloatingPenBoxAndRealThumbnailDrawer() {
+    InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("reader_floating_pen_box", 0).edit().clear().commit()
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
-    val session = attachProjectToReader(project, notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     composeRule.runOnUiThread {
@@ -308,11 +311,14 @@ class ReaderPageJumpActivityTest {
       session.penWritable.value = true
     }
     composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
-    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
-    composeRule.onNodeWithTag("reader_pen_rail").assertWidthIsEqualTo(44.dp)
+    composeRule.onNodeWithTag("floating_pen_box").assertIsDisplayed()
     composeRule.onNodeWithTag("reader_pen_ballpoint").performClick()
     composeRule.runOnIdle { assertEquals(io.pagenote.feature.pen.PenCanvasTool.BALLPOINT, session.penTool.value) }
-    saveUiScreenshot("reader-pen-rail.png")
+    saveUiScreenshot("reader-floating-pen-box.png")
+    composeRule.onNodeWithTag("reader_pen_eraser").performClick()
+    composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { down(center) }
+    saveUiScreenshot("reader-eraser-boundary.png")
+    composeRule.onNodeWithTag("pdf_ink_canvas").performTouchInput { up() }
     composeRule.onNodeWithTag("reader_page_status").assertIsEnabled().performClick()
     composeRule.onNodeWithTag("page_preview_drawer").assertIsDisplayed()
     composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("page_preview_bitmap_0", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
@@ -381,6 +387,135 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
+  fun failedInkSaveKeepsRetryAndOtherErrorsVisible() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val session = attachProjectToReader(installProject(notes), notes)
+    try {
+      composeRule.runOnIdle {
+        session.failedPenSaves[1] = listOf(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f))))
+        session.failedPenSaveMessages[1] = composeRule.activity.getString(R.string.pen_not_saved, "storage full")
+        session.penStatus.value = "OCR failed"
+        session.noteStatus.value = composeRule.activity.getString(R.string.note_conflict)
+      }
+      composeRule.onNodeWithTag("reader_pen_save_retry").assertIsDisplayed().assertIsEnabled()
+      composeRule.onNodeWithText("OCR failed").assertIsDisplayed()
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.pen_not_saved, "storage full")).assertIsDisplayed()
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.note_conflict)).assertIsDisplayed()
+      saveUiScreenshot("reader-status-error.png")
+      composeRule.onNodeWithTag("reader_pen_save_retry").performClick()
+      composeRule.waitUntil(10_000) { session.failedPenSaves.isEmpty() }
+      composeRule.runOnIdle { assertTrue(session.failedPenSaveMessages.isEmpty()) }
+      composeRule.onNodeWithText("OCR failed").assertIsDisplayed()
+      composeRule.onNodeWithText(composeRule.activity.getString(R.string.note_conflict)).assertIsDisplayed()
+      composeRule.runOnIdle { session.noteStatus.value = null }
+      composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText(composeRule.activity.getString(R.string.note_conflict)).fetchSemanticsNodes().isEmpty() }
+      saveUiScreenshot("reader-status-single.png")
+      composeRule.runOnIdle {
+        session.failedPenSaves[1] = listOf(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f))))
+        session.penStatus.value = null
+      }
+      composeRule.onNodeWithTag("reader_pen_save_retry").assertIsDisplayed()
+      val savedError = composeRule.activity.getString(R.string.pen_not_saved, "storage full")
+      composeRule.runOnIdle { session.penStatus.value = savedError }
+      composeRule.onNodeWithText(savedError).assertIsDisplayed()
+      composeRule.onNodeWithTag("reader_next_page").assertIsNotEnabled()
+    } finally { composeRule.runOnIdle { session.failedPenSaves.clear(); session.failedPenSaveMessages.clear(); session.penStatus.value = null; session.noteStatus.value = null } }
+  }
+
+  @Test
+  fun queuedInkWritesStayOnTheirPagesAcrossNavigation() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val store = ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri)
+    val initialSecondPage = store.readPage(PenSide.DOCUMENT, 2)
+    composeRule.runOnIdle {
+      session.markdownSource.value = null
+      session.replaceRenderer(renderer)
+      session.penStore.value = store
+      session.penWritable.value = true
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    val locked = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val holder = Thread {
+      runBlocking {
+        session.penSaveMutex.lock()
+        try { locked.countDown(); release.await(10, TimeUnit.SECONDS) } finally { session.penSaveMutex.unlock() }
+      }
+    }
+    holder.start()
+    assertTrue(locked.await(5, TimeUnit.SECONDS))
+    val first = PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(120f, 240f, 0.8f)))
+    val second = PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(200f, 300f, 0.8f)))
+    try {
+      composeRule.runOnIdle { requireNotNull(findPenCanvas(composeRule.activity.window.decorView)?.onStrokeAdded).invoke(first) }
+      composeRule.waitUntil(5_000) { session.pendingPenSaves.intValue == 1 }
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+      composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+      composeRule.runOnIdle { requireNotNull(findPenCanvas(composeRule.activity.window.decorView)?.onStrokeAdded).invoke(second) }
+      composeRule.waitUntil(5_000) { session.pendingPenSaves.intValue == 2 }
+    } finally {
+      release.countDown()
+      holder.join(5_000)
+    }
+    composeRule.waitUntil(15_000) { session.pendingPenSaves.intValue == 0 }
+    assertEquals(listOf(first), store.readPage(PenSide.DOCUMENT, 1))
+    assertEquals(initialSecondPage + second, store.readPage(PenSide.DOCUMENT, 2))
+  }
+
+  @Test
+  fun canTurnPageWhileInkSaveIsPending() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val session = attachProjectToReader(installProject(notes), notes)
+    try {
+      composeRule.runOnIdle { session.pendingPenSaves.intValue = 1 }
+      composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+    } finally {
+      composeRule.runOnIdle { session.pendingPenSaves.intValue = 0 }
+    }
+  }
+
+  @Test
+  fun canNavigateAgainWhilePreviousPdfPageIsRendering() {
+    val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
+    val project = installProject(notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    composeRule.runOnIdle { session.markdownSource.value = null; session.replaceRenderer(renderer) }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    val locked = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val holder = Thread { synchronized(renderer) { locked.countDown(); release.await(10, TimeUnit.SECONDS) } }
+    holder.start()
+    assertTrue(locked.await(5, TimeUnit.SECONDS))
+    try {
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 2 }
+      composeRule.onNodeWithTag("pdf_page_viewport").performTouchInput {
+        val start = center.copy(y = center.y - height * 0.35f)
+        val end = center.copy(y = center.y + height * 0.35f)
+        down(0, start); moveTo(0, end, delayMillis = 60); up(0)
+      }
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 1 }
+      composeRule.onNodeWithTag("reader_next_page").performClick()
+      composeRule.waitUntil(5_000) { session.pageIndex.intValue == 2 }
+    } finally {
+      release.countDown()
+      holder.join(5_000)
+    }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("pdf_ink_canvas").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.onNodeWithTag("reader_page_status").assertTextEquals("3 / 3")
+  }
+
+  @Test
   fun adjacentPageButtonsNavigateAndRespectDocumentBoundaries() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
@@ -400,7 +535,7 @@ class ReaderPageJumpActivityTest {
   fun verticalSwipesAndAdjacentButtonsNavigateTheSamePdfReaderPage() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes, createThreePagePdf())
-    val session = attachProjectToReader(project, notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     composeRule.runOnUiThread {
@@ -588,7 +723,7 @@ class ReaderPageJumpActivityTest {
   fun rapidInkSavesAreCoalescedAndHomeWaitsForTheLatestStroke() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
-    val session = attachProjectToReader(project, notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
     composeRule.runOnUiThread {
@@ -630,17 +765,22 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
-  fun failedPendingInkWriteKeepsTheCurrentPageAndStroke() {
+  fun failedPendingInkWriteRemainsRecoverableOnItsOriginPageAfterNavigation() {
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes)
-    val session = attachProjectToReader(project, notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val renderer = runBlocking { PdfDocumentSession.open(context, project.sourceUri, context.cacheDir) }
+    val store = ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri)
+    val targetPageBefore = store.readPage(PenSide.DOCUMENT, 2)
+    val stroke = PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(10f, 20f, 1f)))
     composeRule.runOnUiThread {
       session.markdownSource.value = null
       session.replaceRenderer(renderer)
-      session.penStore.value = ProjectPenStore(testResolver, project.sourceDirectoryUri, project.annotationsUri)
-      session.penPageStore.value = PenPageStore()
+      session.penStore.value = store
+      session.penPageStore.value = PenPageStore().apply {
+        targetPageBefore.forEach { addStroke(PenSide.DOCUMENT, 2, it) }
+      }
       session.penStrokes.value = emptyList()
       session.penWritable.value = true
     }
@@ -650,21 +790,33 @@ class ReaderPageJumpActivityTest {
       Bundle().apply { putInt(ExistingProjectSafTestProvider.EXTRA_FAILURES, 1) })
     composeRule.runOnUiThread {
       val canvas = checkNotNull(findPenCanvas(composeRule.activity.window.decorView))
-      checkNotNull(canvas.onStrokeAdded).invoke(PenStroke("pen", "#185abd", 2.0, listOf(PenPoint(10f, 20f, 1f))))
+      checkNotNull(canvas.onStrokeAdded).invoke(stroke)
     }
     try {
       composeRule.waitUntil(10_000) {
         testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_CHECK_PEN_WRITE, null, null)?.getBoolean("started") == true
       }
       composeRule.onNodeWithTag("reader_next_page").assertIsEnabled().performClick()
-      assertEquals(0, session.pageIndex.intValue)
+      composeRule.waitUntil(10_000) { session.pageIndex.intValue == 1 && !session.isNavigating.value }
+      assertEquals(targetPageBefore, session.penStrokes.value)
     } finally {
       testResolver.call(ExistingProjectSafTestProvider.AUTHORITY, ExistingProjectSafTestProvider.METHOD_RELEASE_PEN_WRITE, null, null)
     }
-    composeRule.waitUntil(15_000) { session.failedPenSave.value != null && !session.isNavigating.value }
-    assertEquals(0, session.pageIndex.intValue)
-    assertEquals(1, session.penStrokes.value.size)
-    assertTrue(session.penStatus.value != null)
+    composeRule.waitUntil(15_000) { session.failedPenSaves[1] == listOf(stroke) && session.pendingPenSaves.intValue == 0 }
+    assertEquals(1, session.pageIndex.intValue)
+    assertEquals(targetPageBefore, session.penStrokes.value)
+    assertEquals(targetPageBefore, store.readPage(PenSide.DOCUMENT, 2))
+    assertTrue(session.failedPenSaveMessages[1] != null)
+
+    // The failure notice can retry the origin page while the destination remains visible.
+    composeRule.onNodeWithTag("reader_pen_save_retry").assertIsDisplayed().assertIsEnabled().performClick()
+    composeRule.waitUntil(15_000) { session.failedPenSaves.isEmpty() && session.pendingPenSaves.intValue == 0 }
+    assertEquals(1, session.pageIndex.intValue)
+    assertEquals(targetPageBefore, session.penStrokes.value)
+    assertEquals(listOf(stroke), store.readPage(PenSide.DOCUMENT, 1))
+    assertEquals(targetPageBefore, store.readPage(PenSide.DOCUMENT, 2))
+    composeRule.onNodeWithTag("reader_previous_page").assertIsEnabled().performClick()
+    composeRule.waitUntil(10_000) { session.pageIndex.intValue == 0 && session.penStrokes.value == listOf(stroke) }
   }
 
   private fun findPenCanvas(view: View): PenCanvasView? {
@@ -676,10 +828,11 @@ class ReaderPageJumpActivityTest {
   }
 
   @Test
-  fun floatingPaletteMovesAndAgentDrawerClosesWithoutChangingThePage() {
+  fun floatingPenBoxMovesAndAgentDrawerClosesWithoutChangingThePage() {
+    composeRule.activity.getSharedPreferences("reader_floating_pen_box", 0).edit().clear().commit()
     val notes = PageNotes.join(listOf("First page note", "Second page note", "Third page note"))
     val project = installProject(notes, createWorkspacePdf())
-    val session = attachProjectToReader(project, notes)
+    val session = attachProjectToReader(project, notes, singlePagePdf = true)
     val sampleNote = """
       # 蚁群算法：从局部选择到完整路线
 
@@ -709,24 +862,26 @@ class ReaderPageJumpActivityTest {
       session.replaceRenderer(renderer)
       session.penWritable.value = true
     }
-    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("floating_pen_palette").fetchSemanticsNodes().isNotEmpty() }
+    composeRule.waitUntil(15_000) { composeRule.onAllNodesWithTag("floating_pen_box").fetchSemanticsNodes().isNotEmpty() }
     saveUiScreenshot("workspace-reading.png")
-    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
+    composeRule.onNodeWithTag("reader_pen_ballpoint").assertIsDisplayed()
     saveUiScreenshot("workspace-pen-expanded.png")
-    val before = composeRule.onNodeWithTag("floating_pen_palette").fetchSemanticsNode().boundsInRoot.left
-    composeRule.onNodeWithTag("floating_pen_handle").performTouchInput {
+    val before = composeRule.onNodeWithTag("floating_pen_box").fetchSemanticsNode().boundsInRoot.left
+    composeRule.onNodeWithTag("floating_pen_box_handle").performTouchInput {
       down(center)
       moveBy(Offset(1800f, 50f))
       up()
     }
     composeRule.waitForIdle()
-    val after = composeRule.onNodeWithTag("floating_pen_palette").fetchSemanticsNode().boundsInRoot.left
-    val host = composeRule.onNodeWithTag("floating_pen_host").fetchSemanticsNode().boundsInRoot
-    assertTrue("palette should snap to the opposite edge: before=$before after=$after host=$host", after > host.center.x)
+    val after = composeRule.onNodeWithTag("floating_pen_box").fetchSemanticsNode().boundsInRoot.left
+    val viewport = composeRule.onNodeWithTag("pdf_page_viewport").fetchSemanticsNode().boundsInRoot
+    assertTrue("pen box should snap to the opposite edge: before=$before after=$after viewport=$viewport", after > viewport.center.x)
     saveUiScreenshot("workspace-pen-moved.png")
-    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
+    composeRule.onNodeWithTag("floating_pen_box_handle").performClick()
+    composeRule.onNodeWithTag("reader_pen_ballpoint").assertDoesNotExist()
     saveUiScreenshot("workspace-pen-collapsed.png")
-    composeRule.onNodeWithTag("floating_pen_toggle").performClick()
+    composeRule.onNodeWithTag("floating_pen_box_handle").performClick()
+    composeRule.onNodeWithTag("reader_pen_ballpoint").assertIsDisplayed()
     composeRule.onNodeWithTag("reader_agent_toggle").performClick()
     composeRule.onNodeWithTag("agent_task_drawer").assertIsDisplayed()
     saveUiScreenshot("workspace-agent-drawer.png")
@@ -735,8 +890,19 @@ class ReaderPageJumpActivityTest {
     assertEquals(sampleNote, session.noteDraft.value)
   }
 
-  private fun attachProjectToReader(project: OpenedProject, notes: String): ReaderSessionViewModel {
+  private fun attachProjectToReader(
+    project: OpenedProject,
+    notes: String,
+    singlePagePdf: Boolean = false,
+  ): ReaderSessionViewModel {
     val activity = composeRule.activity
+    if (singlePagePdf) {
+      runBlocking {
+        val store = readerSettingsStore(activity)
+        previousReaderSettings = store.settings.first()
+        store.save(requireNotNull(previousReaderSettings).copy(continuousPdfScrolling = false))
+      }
+    }
     val resolver = activity.contentResolver
     val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
     releaseFixtureGrant = resolver.persistedUriPermissions.none { it.uri == treeUri && it.isReadPermission && it.isWritePermission }

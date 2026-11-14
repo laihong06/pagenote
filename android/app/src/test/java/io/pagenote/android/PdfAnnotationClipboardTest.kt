@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -155,6 +156,33 @@ class PdfAnnotationClipboardTest {
   }
 
   @Test
+  fun selectedColorPatchAppliesMixedFreehandAndNativeIndicesOnly() {
+    val page = json.parseToJsonElement(
+      """[
+        {"type":"pen","color":"#dc3545","width":3,"points":[[10,20],[30,40]],"pressures":[0.4,0.8],"custom":"keep"},
+        {"type":"rect","color":"#008844","width":5,"points":[[40,50],[60,70]]},
+        {"type":"highlight","color":"#185abd","width":4,"points":[[80,90],[100,110]],"pressures":[0.6,0.9]},
+        {"type":"ellipse","color":"#777777","width":2,"points":[[120,130],[140,150]]}
+      ]""",
+    ) as JsonArray
+
+    val updated = PdfAnnotationClipboard.updateSelectedColors(
+      page,
+      selectedFreehandIndices = setOf(0, 1),
+      selectedAnnotationIndices = setOf(1),
+      color = "#2e7d32",
+    )!!
+
+    assertEquals(
+      listOf("#2e7d32", "#2e7d32", "#2e7d32", "#777777"),
+      updated.map { (it as JsonObject)["color"]!!.jsonPrimitive.content },
+    )
+    assertEquals(page[0].jsonObject["pressures"], updated[0].jsonObject["pressures"])
+    assertEquals("keep", updated[0].jsonObject["custom"]!!.jsonPrimitive.content)
+    assertEquals(page[3], updated[3])
+  }
+
+  @Test
   fun equivalentSelectedStyleIsANoopAndFreehandCannotBeEditedAsNativeAnnotation() {
     val uppercase = item("""
       {"type":"rect","color":"#AABBCC","width":4,"points":[[10,20],[50,80]]}
@@ -233,6 +261,97 @@ class PdfAnnotationClipboardTest {
     assertEquals(first, history.undo("project-a", 1))
     history.record("project-a", 1, first, empty)
     assertFalse(history.canRedo("project-a", 1))
+  }
+
+  @Test
+  fun nativeAnnotationHistoryDoesNotDiscardEarlierEditsWhenInkChanges() {
+    val history = PdfAnnotationEditHistory()
+    val empty = JsonArray(emptyList())
+    val shapeA = json.parseToJsonElement("""[{"type":"line","id":"a","width":2.0}]""") as JsonArray
+    val shapeAWithInk = json.parseToJsonElement(
+      """[{"type":"line","id":"a","width":2},{"type":"pen","id":"ink"}]""",
+    ) as JsonArray
+    val shapeAWithInkAndShapeB = json.parseToJsonElement(
+      """[{"type":"line","id":"a","width":2},{"type":"pen","id":"ink"},{"type":"line","id":"b"}]""",
+    ) as JsonArray
+    val nativeShapes = json.parseToJsonElement(
+      """[{"type":"line","id":"a","width":2},{"type":"line","id":"b"}]""",
+    ) as JsonArray
+    val normalizedShapeA = json.parseToJsonElement("""[{"type":"line","id":"a","width":2}]""") as JsonArray
+    history.record("project", 1, empty, shapeA)
+    history.record("project", 1, shapeAWithInk, shapeAWithInkAndShapeB)
+
+    assertEquals(normalizedShapeA, history.undo("project", 1))
+    assertEquals(empty, history.undo("project", 1))
+    assertEquals(normalizedShapeA, history.redo("project", 1))
+    assertEquals(nativeShapes, history.redo("project", 1))
+  }
+
+  @Test
+  fun annotationUndoRestoresTheOriginalPositionAroundInterleavedInk() {
+    val history = PdfAnnotationEditHistory()
+    val before = json.parseToJsonElement(
+      """[{"type":"rect","id":"first"},{"type":"pen","id":"ink"},{"type":"rect","id":"second"}]""",
+    ) as JsonArray
+    val after = json.parseToJsonElement(
+      """[{"type":"pen","id":"ink"},{"type":"rect","id":"second"}]""",
+    ) as JsonArray
+
+    assertTrue(history.record("project", 1, before, after))
+    val expected = history.current("project", 1)!!
+    val restore = history.undoWithContext("project", 1)!!
+
+    assertEquals(AnnotationPageMerger.annotationHistorySnapshot(before), restore.page)
+    assertEquals(before, restore.orderContext)
+    assertEquals(before, AnnotationPageMerger.rebaseAnnotationHistory(
+      after,
+      expected,
+      restore.page,
+      restoredContext = restore.orderContext,
+    ))
+  }
+
+  @Test
+  fun undoingAnnotationEditAfterMixedMoveKeepsTheMixedMoveUndoable() {
+    val history = PdfAnnotationEditHistory()
+    fun page(source: String) = json.parseToJsonElement(source) as JsonArray
+    val initial = page(
+      """[{"type":"pen","id":"ink","x":10},{"type":"rect","id":"shape","x":20}]""",
+    )
+    val moved = page(
+      """[{"type":"pen","id":"ink","x":30},{"type":"rect","id":"shape","x":40}]""",
+    )
+    val resized = page(
+      """[{"type":"pen","id":"ink","x":30},{"type":"rect","id":"shape","x":40,"width":2}]""",
+    )
+    history.record("project", 1, initial, moved, includeFreehand = true)
+    history.record("project", 1, moved, resized)
+
+    val nativeExpected = history.current("project", 1)!!
+    val nativeUndo = history.undoWithContext("project", 1)!!
+    assertFalse(nativeUndo.includesFreehand)
+    val restoredAfterMove = AnnotationPageMerger.rebaseAnnotationHistory(
+      latest = resized,
+      expected = nativeExpected,
+      restored = nativeUndo.page,
+      restoredContext = nativeUndo.orderContext,
+    )
+    assertEquals(moved, restoredAfterMove)
+
+    val mixedExpected = history.current("project", 1)!!
+    assertEquals("the expected state after undo must retain its mixed page context", moved, mixedExpected)
+    val mixedUndo = history.undoWithContext("project", 1)!!
+    assertTrue(mixedUndo.includesFreehand)
+    assertEquals(initial, AnnotationPageMerger.rebaseMixedHistory(moved, mixedExpected, mixedUndo.page))
+  }
+
+  @Test
+  fun identicalNativeSnapshotDoesNotCreateAnUndoEntry() {
+    val history = PdfAnnotationEditHistory()
+    val same = json.parseToJsonElement("""[{"type":"line","width":2.0}]""") as JsonArray
+
+    assertFalse(history.record("project", 1, same, same))
+    assertFalse(history.canUndo("project", 1))
   }
 
   @Test

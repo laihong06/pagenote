@@ -1,4 +1,18 @@
 <resources>
+  <string name="reader_ink_not_saved">笔迹未保存</string>
+  <string name="floating_pen_expand">展开笔盒</string>
+  <string name="floating_pen_handle">收起笔盒；拖动移动，长按锁定</string>
+  <string name="floating_pen_duplicate">复制此笔</string>
+  <string name="floating_pen_remove">从笔盒移除</string>
+  <string name="floating_pen_groups">笔盒组</string>
+  <string name="floating_pen_group_number">笔盒 %1$d</string>
+  <string name="floating_pen_group_copy">复制笔盒</string>
+  <string name="floating_pen_group_new">新建空笔盒</string>
+  <string name="floating_pen_add">添加笔</string>
+  <string name="floating_pen_group_edit">编辑笔盒</string>
+  <string name="floating_pen_group_name">名称</string>
+  <string name="floating_pen_group_delete">删除笔盒</string>
+  <string name="floating_pen_group_delete_message">确定删除这个笔盒及其笔槽吗？</string>
   <string name="settings_back">返回</string>
   <string name="settings_category_appearance">通用外观</string>
   <string name="settings_category_reading">阅读手写</string>
@@ -54,6 +68,8 @@
   <string name="language_chinese">简体中文</string>
   <string name="language_english">英语（美国）</string>
   <string name="reader_split_ratio">文档与笔记比例</string>
+  <string name="pdf_continuous_scroll_title">PDF 连续翻页</string>
+  <string name="pdf_continuous_scroll_description">上下滚动浏览全部 PDF 页面；关闭后恢复逐页翻页。</string>
   <string name="reader_split_summary">文档 %1$d%% · 笔记 %2$d%%</string>
   <string name="reader_splitter_adjust">调整原文和笔记栏宽度</string>
   <string name="note_animation_title">笔记切换动画</string>
@@ -70,6 +86,10 @@
   <string name="saving">保存中</string>
   <string name="settings_action">设置</string>
   <string name="reader_menu_title">菜单</string>
+  <string name="reader_menu_tab_tools">工具</string>
+  <string name="reader_menu_tab_file">文件</string>
+  <string name="reader_menu_tab_settings">设置</string>
+  <string name="reader_menu_explain_unavailable">查看%1$s不可用的原因</string>
   <string name="reader_menu_open">打开菜单</string>
   <string name="reader_menu_collapse">收起菜单</string>
   <string name="reader_menu_expand">展开菜单</string>
@@ -577,6 +597,8 @@
   <string name="pen_annotation_saved">PDF 批注已保存。</string>
   <string name="pen_annotation_save_failed">PDF 批注未保存：%1$s</string>
   <string name="annotation_project_changed">保存批注前项目已切换。</string>
+  <string name="pen_annotation_history_changed">批注已发生变化，本次撤销或重做未执行。</string>
+  <string name="pen_annotation_edit_changed">批注已发生变化，本次编辑未执行。</string>
   <string name="readonly_pen_cannot_save">只读项目：无法保存笔迹</string>
   <string name="opening_project_message">正在打开项目…</string>
   <string name="choose_project_message">选择一个 pagenote 项目文件夹</string>
@@ -849,9 +871,18 @@
   <string name="preview_ai">AI</string>
   <string name="preview_more">更多</string>
   <string name="preview_done">完成</string>
+  <string name="reader_pen_collapse_action">收起笔工具</string>
+  <string name="reader_pen_expand_action">展开笔工具</string>
+  <string name="bookshelf_all_notes">全部笔记</string>
+  <string name="bookshelf_navigation">书架导航</string>
+  <string name="reader_pen_box_title">笔盒</string>
+  <string name="reader_pen_box_tools">常用工具</string>
+  <string name="reader_canvas_focus_enter">专注画布</string>
+  <string name="reader_canvas_focus_exit">显示笔记</string>
+    <string name="pen_width_decrease">减小笔迹粗细</string>
+    <string name="pen_width_increase">增加笔迹粗细</string>
   <string name="floating_pen_drag">拖动笔盒</string>
   <string name="floating_pen_collapse">收起笔盒</string>
-  <string name="floating_pen_expand">打开笔盒</string>
   <string name="reader_source_pane">原文</string>
   <string name="reader_note_pane">笔记</string>
 </resources>
